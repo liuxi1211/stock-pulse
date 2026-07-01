@@ -32,9 +32,7 @@ public enum ErrorCode {
     /** 无效的角色值 */
     INVALID_ROLE(1006, "无效的角色值"),
     /** Python 计算服务不可达 */
-    PYTHON_SERVICE_UNAVAILABLE(2001, "计算服务不可用"),
-    /** 因子定义错误 */
-    FACTOR_DEFINITION_ERROR(2002, "因子定义错误");
+    PYTHON_SERVICE_UNAVAILABLE(2001, "计算服务不可用");
 
     /** 错误码 */
     private final int code;

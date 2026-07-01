@@ -56,7 +56,7 @@ uvicorn main:app --host 127.0.0.1 --port 8085 --reload  # 开发热重载
 
 **启动顺序**：先 Python（stock-engine），再 Java（stock-watcher）。
 
-Java 通过 `PythonComputeClient` / `FactorGateway` 调用，配置项 `python.compute.url`，默认 `http://127.0.0.1:8085`：
+Java（watcher）通过 HTTP 调用 engine，配置项 `python.compute.url`，默认 `http://127.0.0.1:8085`（HTTP 协作层随业务层清空，待重写）：
 
 ```yaml
 python:
@@ -64,7 +64,7 @@ python:
     url: http://127.0.0.1:8085
 ```
 
-**联调检查**：Python 已起且 `/docs` 可访问 → Java 的 `python.compute.url` 与实际端口一致 → Java 日志无连接错误 → 触发一次因子计算验证链路。
+**联调检查**：Python 已起且 `/docs` 可访问 → Java 的 `python.compute.url` 与实际端口一致 → Java 日志无连接错误。
 
 ## 5. 环境变量
 

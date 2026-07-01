@@ -26,31 +26,7 @@ MUST 严格遵循以下分工：
 
 ### 1.2 因子计算协议
 
-MUST 使用统一的因子计算协议（`services/factor/protocol.py`）：
-
-```python
-# 请求结构
-FactorComputeRequest:
-    requestId: Optional[str]        # 请求ID，用于追踪
-    stockCode: Optional[str]        # 股票代码
-    ohlcv: List[OhlcvItem]          # K线数据，按时间升序
-    factors: List[FactorComputeParam]  # 要计算的因子列表
-
-# 因子参数
-FactorComputeParam:
-    factorKey: str                  # 因子标识，与Java端一致
-    params: Dict[str, Any]          # 因子参数
-    requestKey: Optional[str]       # 结果key前缀
-    outputLabels: Optional[List[str]] # 多输出时的语义标签
-
-# 统一响应
-PythonApiResponse:
-    code: int                       # 0=成功，其它=错误
-    message: str                    # 消息
-    data: Optional[T]               # 数据
-    computeMs: Optional[float]      # 计算耗时（毫秒）
-    durationMs: Optional[float]     # 总耗时（毫秒）
-```
+> 因子计算模块（旧 `services/factor/`）为废案已清空，待按「统一策略配置 Schema」（`sdlc/prd/004-策略管理/统一策略配置Schema.md` §4.5）factorKey 体系重写：技术面因子走 `akquant.talib`，统一 `compute(name, inputs, **params)` 签名，返回 `np.ndarray` 或 `tuple[ndarray, ...]`（多输出按 `output_index` 取值）。重写落地前无业务接口。
 
 ## 二、指标计算规范
 

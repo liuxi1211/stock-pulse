@@ -120,11 +120,10 @@ uvicorn main:app --host 127.0.0.1 --port 8085
 - **服务状态**：访问 http://127.0.0.1:8085
 - **API文档**：访问 http://127.0.0.1:8085/docs
 - **健康检查**：访问 http://127.0.0.1:8085/python/v1/health
-- **因子计算核验**：`curl -X POST http://127.0.0.1:8085/python/v1/compute ...`
 
 ### 4. 与 Java 服务协同工作
 
-Java 服务 `stock-watcher` 通过 `PythonComputeClient` 默认调用 `http://127.0.0.1:8085/python/v1/compute`。如需修改 Python 服务地址，在 Java `application.yml` 中调整 `python.compute.url`。
+Java（`stock-watcher`）与 Python 计算服务的 HTTP 协作层随业务层清空，待按「统一策略配置 Schema」重写；地址配置项为 `python.compute.url`（Java `application.yml`），默认 `http://127.0.0.1:8085`。
 
 ```bash
 # 启动顺序
