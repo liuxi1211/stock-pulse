@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/common :: head(${pageTitle})}">
+</head>
+<body>
+<div class="app-container">
+    <!-- Sidebar -->
+    <nav th:replace="~{fragments/common :: sidebar}"></nav>
+
+    <!-- Sidebar Overlay -->
+    <div th:replace="~{fragments/common :: sidebarOverlay}"></div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+        <!-- Top Navbar -->
+        <header th:replace="~{fragments/common :: topNavbar}"></header>
+
+        <!-- Page Content -->
+        <main class="content-area">
+            <!-- Page Header -->
+            <div class="page-header">
+                <div>
+                    <h1 class="page-title">仪表盘</h1>
+                    <p class="text-muted mb-0" style="font-size: 13px; margin-top: 4px;">实时监控市场动态，掌握投资先机</p>
+                </div>
+                <div class="page-actions">
+                    <button class="btn btn-secondary btn-sm">
+                        <i class="bi bi-arrow-clockwise"></i> 刷新
+                    </button>
+                    <button class="btn btn-primary btn-sm">
+                        <i class="bi bi-download"></i> 导出
+                    </button>
+                </div>
+            </div>
+
+            <!-- Row 1: Market Index Cards -->
+            <div class="row g-4 mb-4">
+                <div class="col-6 col-lg-3 animate-in delay-1" th:each="idx, iterStat : ${indices}">
+                    <div class="stat-card card-glow h-100">
+                        <div class="stat-label" th:text="${idx.name}">上证指数</div>
+                        <div class="stat-value"
+                             th:class="${idx.changePercent >= 0} ? 'rise' : 'fall'"
+                             th:text="${idx.currentPoint}">3368.07</div>
+                        <div class="stat-change">
+                            <span th:class="${idx.changePercent >= 0} ? 'rise' : 'fall'">
+                                <i class="bi" th:class="${idx.changePercent >= 0} ? 'bi-triangle-fill' : 'bi-triangle-fill'" style="font-size: 9px;"></i>
+                                <span th:text="${idx.changePercent >= 0 ? '+' : ''} + ${#numbers.formatDecimal(idx.changePercent, 1, 2)} + '%'">+0.37%</span>
+                            </span>
+                            <span class="text-muted" style="font-size: 11px; margin-left: 8px;">
+                                <span th:text="'成交额 ' + ${idx.turnover}">4560亿</span>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Row 2: K-Line + Watchlist -->
+            <div class="row g-4 mb-4">
+                <div class="col-lg-8 animate-in delay-2">
+                    <div class="card card-glow h-100">
+                        <div class="card-header">
+                            <h6 class="card-title">
+                                <span class="card-title-icon">
+                                    <i class="bi bi-graph-up"></i>
+                                </span>
+                                <span id="klineTitle">日K线图</span>
+                            </h6>
+                            <div class="card-actions">
+                                <div class="btn-group btn-group-sm" id="klinePeriodBtns">
+                                    <button type="button" class="btn btn-secondary active" onclick="changePeriod('daily', this)">日K</button>
+                                    <button type="button" class="btn btn-secondary" onclick="changePeriod('weekly', this)">周K</button>
+                                    <button type="button" class="btn btn-secondary" onclick="changePeriod('monthly', this)">月K</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="d-flex align-items-center gap-2 mb-3">
+                                <div class="input-group" style="max-width: 220px;">
+                                    <span class="input-group-text"><i class="bi bi-search"></i></span>
+                                    <input type="text" class="form-control" id="klineSearchInput"
+                                           placeholder="输入股票代码，如 600519">
+                                </div>
+                                <button class="btn btn-primary btn-sm" onclick="searchKline()">
+                                    <i class="bi bi-search"></i> 搜索
+                                </button>
+                                <div class="btn-group btn-group-sm flex-wrap gap-1" id="klineStockBtns">
+                                </div>
+                            </div>
+                            <div id="klineChart" class="chart-container"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-lg-4 animate-in delay-3">
+                    <div class="card card-glow h-100">
+                        <div class="card-header">
+                            <h6 class="card-title">
+                                <span class="card-title-icon yellow">
+                                    <i class="bi bi-star-fill"></i>
+                                </span>
+                                自选股
+                            </h6>
+                            <div class="card-actions">
+                                <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addStockModal">
+                                    <i class="bi bi-plus-lg"></i> 添加
+                                </button>
+                            </div>
+                        </div>
+                        <div class="card-body p-0">
+                            <div class="table-responsive">
+                                <table class="table table-hover mb-0 align-middle">
+                                    <thead>
+                                        <tr>
+                                            <th>名称</th>
+                                            <th class="text-end">最新价</th>
+                                            <th class="text-end">涨跌幅</th>
+                                            <th class="text-center">操作</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="watchlistBody">
+                                        <tr>
+                                            <td colspan="4" class="text-center text-muted py-4">
+                                                <div class="spinner-border spinner-border-sm me-1"></div>加载中...
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Row 3: Market Rankings -->
+            <div class="row g-4 mb-4">
+                <div class="col-lg-4 animate-in delay-4">
+                    <div class="card card-glow h-100">
+                        <div class="card-header">
+                            <h6 class="card-title">
+                                <span class="card-title-icon rise">
+                                    <i class="bi bi-arrow-up-circle-fill"></i>
+                                </span>
+                                涨幅排行
+                            </h6>
+                        </div>
+                        <div class="card-body p-0">
+                            <div id="topGainersList">
+                                <div class="text-center text-muted py-4">
+                                    <div class="spinner-border spinner-border-sm me-1"></div>加载中...
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-4 animate-in delay-5">
+                    <div class="card card-glow h-100">
+                        <div class="card-header">
+                            <h6 class="card-title">
+                                <span class="card-title-icon fall">
+                                    <i class="bi bi-arrow-down-circle-fill"></i>
+                                </span>
+                                跌幅排行
+                            </h6>
+                        </div>
+                        <div class="card-body p-0">
+                            <div id="topLosersList">
+                                <div class="text-center text-muted py-4">
+                                    <div class="spinner-border spinner-border-sm me-1"></div>加载中...
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-4 animate-in delay-6">
+                    <div class="card card-glow h-100">
+                        <div class="card-header">
+                            <h6 class="card-title">
+                                <span class="card-title-icon purple">
+                                    <i class="bi bi-bar-chart-fill"></i>
+                                </span>
+                                成交额排行
+                            </h6>
+                        </div>
+                        <div class="card-body p-0">
+                            <div id="topAmountList">
+                                <div class="text-center text-muted py-4">
+                                    <div class="spinner-border spinner-border-sm me-1"></div>加载中...
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Row 4: Charts -->
+            <div class="row g-4">
+                <div class="col-lg-6 animate-in delay-5">
+                    <div class="card card-glow">
+                        <div class="card-header">
+                            <h6 class="card-title">
+                                <span class="card-title-icon">
+                                    <i class="bi bi-graph-up"></i>
+                                </span>
+                                自选股涨跌幅对比
+                            </h6>
+                        </div>
+                        <div class="card-body">
+                            <div id="trendChart" class="chart-container-sm"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-6 animate-in delay-6">
+                    <div class="card card-glow">
+                        <div class="card-header">
+                            <h6 class="card-title">
+                                <span class="card-title-icon purple">
+                                    <i class="bi bi-pie-chart-fill"></i>
+                                </span>
+                                自选股行业分布
+                            </h6>
+                        </div>
+                        <div class="card-body">
+                            <div id="pieChart" class="chart-container-sm"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+</div>
+
+<!-- Add Stock Modal -->
+<div class="modal fade" id="addStockModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-plus-circle me-2"></i>添加自选股</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addStockForm">
+                    <div class="mb-3">
+                        <label class="form-label">股票代码</label>
+                        <input type="text" class="form-control" id="stockCodeInput"
+                               placeholder="请输入股票代码，如 600519" required>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="submitAddStock()">
+                    <i class="bi bi-check-lg me-1"></i>确认添加
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Scripts -->
+<div th:replace="~{fragments/common :: scripts}"></div>
+<script th:src="@{/js/charts-theme.js}"></script>
+<script th:src="@{/js/dashboard.js}"></script>
+</body>
+</html>

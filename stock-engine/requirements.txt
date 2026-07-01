@@ -1,0 +1,10 @@
+# 本项目使用 conda 环境 `stock` 启动（详见 README.md）
+# 执行: pip install -r requirements.txt
+fastapi==0.115.7
+uvicorn==0.41.0
+akquant==0.2.34
+pandas==3.0.3
+numpy==2.4.5
+pydantic==2.13.4
+pydantic-settings==2.3.4
+python-multipart==0.0.19

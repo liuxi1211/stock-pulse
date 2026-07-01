@@ -1,0 +1,13 @@
+{
+  "factorKey": "LOW",
+  "displayName": "最低价",
+  "category": "PRICE",
+  "description": "当前 bar 的最低价",
+  "params": [],
+  "inputs": ["low"],
+  "multiOutput": false,
+  "outputLabels": [],
+  "defaultOutputIndex": 0,
+  "lookbackHint": "0",
+  "lookbackDefault": 0
+}

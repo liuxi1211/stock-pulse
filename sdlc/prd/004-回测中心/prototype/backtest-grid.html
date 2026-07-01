@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>参数优化结果 - Stock Watcher</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif; background: #f5f7fa; }
+
+        .sidebar { width: 240px; height: 100vh; background: #1f2937; color: #fff; position: fixed; left: 0; top: 0; overflow-y: auto; }
+        .sidebar-header { padding: 20px 16px; border-bottom: 1px solid #374151; font-size: 18px; font-weight: 600; }
+        .sidebar-header i { color: #60a5fa; }
+        .sidebar-nav { list-style: none; padding: 12px 0; margin: 0; }
+        .sidebar-item { padding: 0 8px; }
+        .sidebar-link { display: flex; align-items: center; padding: 10px 12px; color: #cbd5e1; text-decoration: none; border-radius: 6px; margin: 2px 0; transition: all .15s; font-size: 14px; }
+        .sidebar-link:hover { background: #374151; color: #fff; }
+        .sidebar-link.active { background: #3b82f6; color: #fff; }
+        .sidebar-link i { width: 24px; font-size: 18px; }
+        .sidebar-link span { margin-left: 12px; }
+
+        .main-wrapper { margin-left: 240px; min-height: 100vh; }
+        .top-navbar { background: #fff; border-bottom: 1px solid #e5e7eb; padding: 12px 24px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; }
+        .content-area { padding: 24px; }
+
+        .card { border: 1px solid #e5e7eb; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); background: #fff; margin-bottom: 16px; }
+        .card-header { background: #fafbfc; border-bottom: 1px solid #e5e7eb; padding: 14px 16px; display: flex; justify-content: space-between; align-items: center; }
+        .card-header h6 { margin: 0; font-size: 14px; font-weight: 600; color: #111827; display: flex; align-items: center; gap: 8px; }
+        .card-body { padding: 20px; }
+
+        .best-params-header { background: linear-gradient(135deg, #065f46 0%, #10b981 100%); color: #fff; padding: 24px; border-radius: 8px; margin-bottom: 16px; }
+        .best-params-title { font-size: 20px; font-weight: 700; margin-bottom: 4px; display: flex; align-items: center; gap: 10px; }
+        .best-params-meta { font-size: 12px; opacity: 0.85; font-family: monospace; }
+        .best-params-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; margin-top: 20px; padding-top: 16px; border-top: 1px solid rgba(255,255,255,0.2); }
+        .best-param-item .label { font-size: 11px; opacity: 0.75; text-transform: uppercase; letter-spacing: 0.5px; }
+        .best-param-item .value { font-size: 18px; font-weight: 700; margin-top: 4px; font-family: monospace; }
+        .best-param-item .path { font-size: 10px; opacity: 0.6; margin-top: 4px; font-family: monospace; }
+
+        .btn-primary { background: #3b82f6; color: #fff; border-color: #3b82f6; padding: 8px 16px; font-size: 13px; border-radius: 6px; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; border: 1px solid; cursor: pointer; }
+        .btn-primary:hover { background: #2563eb; }
+        .btn-secondary { background: #fff; color: #374151; border: 1px solid #d1d5db; padding: 8px 16px; font-size: 13px; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; text-decoration: none; }
+        .btn-secondary:hover { background: #f3f4f6; }
+        .btn-success { background: #10b981; color: #fff; border-color: #10b981; padding: 8px 16px; font-size: 13px; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; border: 1px solid; text-decoration: none; font-weight: 600; }
+        .btn-success:hover { background: #059669; border-color: #059669; }
+
+        .tabs-row { display: flex; gap: 4px; background: #f1f5f9; border-radius: 8px; padding: 4px; }
+        .tabs-row button { padding: 6px 14px; font-size: 12px; border: none; background: transparent; color: #64748b; border-radius: 6px; cursor: pointer; font-weight: 500; }
+        .tabs-row button.active { background: #fff; color: #2563eb; box-shadow: 0 1px 3px rgba(0,0,0,0.1); font-weight: 600; }
+
+        .summary-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
+        .summary-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; }
+        .summary-card .card-label { font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; }
+        .summary-card .card-value { font-size: 22px; font-weight: 700; color: #111827; margin-top: 6px; font-family: "SF Mono", Menlo, monospace; }
+        .summary-card .card-sub { font-size: 12px; color: #64748b; margin-top: 4px; }
+        .card-value.positive { color: #059669; }
+        .card-value.negative { color: #dc2626; }
+
+        .scatter-chart { width: 100%; height: 400px; }
+
+        .heatmap-container { padding: 20px; }
+        .heatmap-matrix { display: grid; gap: 3px; }
+        .heatmap-row { display: grid; grid-template-columns: 60px repeat(10, 1fr); gap: 3px; align-items: center; }
+        .heatmap-axis-label { font-size: 11px; color: #64748b; text-align: right; padding-right: 8px; font-family: monospace; }
+        .heatmap-cell { aspect-ratio: 1.2; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 600; font-family: monospace; transition: transform .15s; cursor: pointer; color: #fff; }
+        .heatmap-cell:hover { transform: scale(1.1); z-index: 10; box-shadow: 0 2px 12px rgba(0,0,0,0.2); }
+        .heatmap-cell.selected { border: 2px solid #fff; box-shadow: 0 0 0 2px #f59e0b; }
+
+        .results-table { width: 100%; font-size: 12px; border-collapse: collapse; }
+        .results-table th { background: #fafbfc; color: #64748b; font-weight: 600; font-size: 11px; padding: 10px 12px; text-align: left; border-bottom: 1px solid #e5e7eb; text-transform: uppercase; letter-spacing: 0.3px; cursor: pointer; }
+        .results-table th:hover { background: #f1f5f9; }
+        .results-table td { padding: 10px 12px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+        .results-table tr:hover td { background: #fafbfc; }
+        .results-table tr.best-row td { background: #fef3c7 !important; font-weight: 600; }
+        .results-table tr.best-row td:first-child::before { content: "★ "; color: #f59e0b; }
+
+        .param-chip { background: #f1f5f9; color: #475569; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-family: monospace; display: inline-block; }
+        .metric-pos { color: #059669; font-weight: 600; font-family: monospace; }
+        .metric-neg { color: #dc2626; font-weight: 600; font-family: monospace; }
+        .metric-value { color: #111827; font-weight: 600; font-family: monospace; }
+
+        .selector-group { display: flex; gap: 12px; align-items: center; }
+        .selector-group label { font-size: 12px; color: #64748b; }
+        .selector-group select { font-size: 12px; padding: 6px 10px; border: 1px solid #d1d5db; border-radius: 6px; background: #fff; }
+
+        .warning-box { background: #fef3c7; border: 1px solid #f59e0b; border-radius: 6px; padding: 12px 16px; font-size: 12px; color: #92400e; display: flex; gap: 10px; align-items: flex-start; }
+
+        .chart-legend { display: flex; gap: 16px; font-size: 12px; color: #64748b; margin-top: 12px; justify-content: center; }
+        .legend-item { display: flex; align-items: center; gap: 6px; }
+        .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+    </style>
+</head>
+<body>
+
+<nav class="sidebar">
+    <div class="sidebar-header">
+        <i class="bi bi-graph-up-arrow"></i> Stock Watcher
+    </div>
+    <ul class="sidebar-nav">
+        <li class="sidebar-item">
+            <a href="#" class="sidebar-link"><i class="bi bi-speedometer2"></i><span>仪表盘</span></a>
+        </li>
+        <li class="sidebar-item">
+            <a href="#" class="sidebar-link"><i class="bi bi-diagram-3"></i><span>策略管理</span></a>
+        </li>
+        <li class="sidebar-item">
+            <a href="#" class="sidebar-link"><i class="bi bi-filter-circle"></i><span>选股模块</span></a>
+        </li>
+        <li class="sidebar-item">
+            <a href="backtest-list.html" class="sidebar-link active"><i class="bi bi-cash-stack"></i><span>回测中心</span></a>
+        </li>
+        <li class="sidebar-item">
+            <a href="#" class="sidebar-link"><i class="bi bi-gear-wide-connected"></i><span>因子库</span></a>
+        </li>
+    </ul>
+</nav>
+
+<div class="main-wrapper">
+    <div class="top-navbar">
+        <div>
+            <small style="color: #64748b; font-size: 12px;">
+                <a href="backtest-list.html" style="color: #64748b; text-decoration: none;"><i class="bi bi-arrow-left"></i> 返回回测列表</a>
+            </small>
+            <h3 style="font-size: 18px; font-weight: 600; margin: 4px 0 0 0; color: #111827;">
+                <i class="bi bi-grid-3x3-gap" style="color: #f59e0b;"></i> 参数优化结果
+            </h3>
+        </div>
+        <div style="display: flex; gap: 8px;">
+            <button class="btn-secondary"><i class="bi bi-download"></i> 导出结果</button>
+            <a href="backtest-report.html" class="btn-success"><i class="bi bi-check-circle"></i> 应用此参数到策略</a>
+        </div>
+    </div>
+
+    <div class="content-area">
+
+        <!-- 最佳参数 -->
+        <div class="best-params-header">
+            <div class="best-params-title">
+                <i class="bi bi-trophy-fill"></i>
+                最优参数组合 · 夏普比率 = 2.15
+            </div>
+            <div class="best-params-meta">#BT-0046 · 双均线交叉策略 v3 · 2024-01-01 ~ 2025-12-31 · 共搜索 1,600 组 · 耗时 23分15秒</div>
+            <div class="best-params-grid">
+                <div class="best-param-item">
+                    <div class="label">MA 短周期</div>
+                    <div class="value">5</div>
+                    <div class="path">buy_rules.conditions[0].left.params.period</div>
+                </div>
+                <div class="best-param-item">
+                    <div class="label">MA 长周期</div>
+                    <div class="value">20</div>
+                    <div class="path">buy_rules.conditions[0].right.params.period</div>
+                </div>
+                <div class="best-param-item">
+                    <div class="label">止损比例</div>
+                    <div class="value">8%</div>
+                    <div class="path">sell_rules.stop_loss.percent</div>
+                </div>
+                <div class="best-param-item">
+                    <div class="label">止盈比例</div>
+                    <div class="value">20%</div>
+                    <div class="path">sell_rules.take_profit.percent</div>
+                </div>
+                <div class="best-param-item">
+                    <div class="label">总收益率</div>
+                    <div class="value">+31.2%</div>
+                    <div class="path">vs 默认参数 +24.5% · 提升 6.7%</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 摘要卡片 -->
+        <div class="summary-cards">
+            <div class="summary-card">
+                <div class="card-label">搜索组合总数</div>
+                <div class="card-value">1,600</div>
+                <div class="card-sub">4 参数 · 笛卡尔积</div>
+            </div>
+            <div class="summary-card">
+                <div class="card-label">最优夏普比率</div>
+                <div class="card-value positive">2.15</div>
+                <div class="card-sub">默认参数 1.34 · 提升 60%</div>
+            </div>
+            <div class="summary-card">
+                <div class="card-label">最优总收益率</div>
+                <div class="card-value positive">+35.8%</div>
+                <div class="card-sub">对应夏普 1.89</div>
+            </div>
+            <div class="summary-card">
+                <div class="card-label">盈利组合占比</div>
+                <div class="card-value">73.5%</div>
+                <div class="card-sub">1,176 / 1,600 组盈利</div>
+            </div>
+        </div>
+
+        <div class="warning-box" style="margin-bottom: 16px;">
+            <i class="bi bi-exclamation-triangle-fill" style="font-size: 16px;"></i>
+            <div>
+                <strong>注意：</strong>参数优化存在过拟合风险。当前最优参数在历史数据上表现最佳，但不保证在未来市场中同样表现。建议配合
+                <a href="backtest-walk-forward.html" style="color: #78350f; text-decoration: underline;">Walk-forward 分析</a>
+                验证策略的稳健性。
+            </div>
+        </div>
+
+        <!-- 参数散点图 -->
+        <div class="card">
+            <div class="card-header">
+                <h6><i class="bi bi-scatter-chart" style="color: #8b5cf6;"></i> 参数灵敏度散点图</h6>
+                <div class="selector-group">
+                    <label>X轴:</label>
+                    <select><option>MA 短周期</option><option>MA 长周期</option><option>止损比例</option><option>止盈比例</option></select>
+                    <label>Y轴:</label>
+                    <select><option>夏普比率</option><option>总收益率</option><option>最大回撤</option><option>胜率</option></select>
+                    <label>颜色:</label>
+                    <select><option>交易次数</option><option>夏普比率</option><option>无</option></select>
+                </div>
+            </div>
+            <div class="card-body">
+                <svg class="scatter-chart" viewBox="0 0 1000 400" preserveAspectRatio="xMidYMid meet">
+                    <line x1="80" y1="30" x2="80" y2="350" stroke="#cbd5e1" stroke-width="1"/>
+                    <line x1="80" y1="350" x2="980" y2="350" stroke="#cbd5e1" stroke-width="1"/>
+                    <line x1="80" y1="110" x2="980" y2="110" stroke="#e5e7eb" stroke-width="1" stroke-dasharray="3 3"/>
+                    <line x1="80" y1="190" x2="980" y2="190" stroke="#e5e7eb" stroke-width="1" stroke-dasharray="3 3"/>
+                    <line x1="80" y1="270" x2="980" y2="270" stroke="#e5e7eb" stroke-width="1" stroke-dasharray="3 3"/>
+
+                    <text x="70" y="35" text-anchor="end" fill="#64748b" font-size="11">2.5</text>
+                    <text x="70" y="115" text-anchor="end" fill="#64748b" font-size="11">2.0</text>
+                    <text x="70" y="195" text-anchor="end" fill="#64748b" font-size="11">1.5</text>
+                    <text x="70" y="275" text-anchor="end" fill="#64748b" font-size="11">1.0</text>
+                    <text x="70" y="355" text-anchor="end" fill="#64748b" font-size="11">0.5</text>
+
+                    <text x="80" y="380" text-anchor="middle" fill="#64748b" font-size="11">3</text>
+                    <text x="270" y="380" text-anchor="middle" fill="#64748b" font-size="11">5</text>
+                    <text x="460" y="380" text-anchor="middle" fill="#64748b" font-size="11">7</text>
+                    <text x="650" y="380" text-anchor="middle" fill="#64748b" font-size="11">8</text>
+                    <text x="840" y="380" text-anchor="middle" fill="#64748b" font-size="11">10</text>
+
+                    <text x="530" y="395" text-anchor="middle" fill="#475569" font-size="12" font-weight="600">MA 短周期</text>
+                    <text x="30" y="190" text-anchor="middle" fill="#475569" font-size="12" font-weight="600" transform="rotate(-90, 30, 190)">夏普比率</text>
+
+                    <circle cx="110" cy="300" r="5" fill="#3b82f6" opacity="0.5"/>
+                    <circle cx="120" cy="285" r="4" fill="#3b82f6" opacity="0.5"/>
+                    <circle cx="115" cy="310" r="6" fill="#3b82f6" opacity="0.4"/>
+                    <circle cx="130" cy="280" r="5" fill="#3b82f6" opacity="0.5"/>
+                    <circle cx="125" cy="295" r="4" fill="#3b82f6" opacity="0.4"/>
+
+                    <circle cx="250" cy="80" r="10" fill="#f59e0b" opacity="0.9" stroke="#fff" stroke-width="2"/>
+                    <circle cx="260" cy="95" r="7" fill="#3b82f6" opacity="0.6"/>
+                    <circle cx="245" cy="100" r="8" fill="#3b82f6" opacity="0.6"/>
+                    <circle cx="270" cy="110" r="5" fill="#3b82f6" opacity="0.5"/>
+                    <circle cx="255" cy="75" r="5" fill="#3b82f6" opacity="0.5"/>
+                    <circle cx="280" cy="85" r="6" fill="#3b82f6" opacity="0.5"/>
+                    <circle cx="240" cy="120" r="4" fill="#3b82f6" opacity="0.4"/>
+                    <circle cx="265" cy="65" r="5" fill="#3b82f6" opacity="0.5"/>
+
+                    <circle cx="440" cy="140" r="8" fill="#3b82f6" opacity="0.6"/>
+                    <circle cx="455" cy="155" r="6" fill="#3b82f6" opacity="0.5"/>
+                    <circle cx="430" cy="160" r="5" fill="#3b82f6" opacity="0.5"/>
+                    <circle cx="470" cy="135" r="6" fill="#3b82f6" opacity="0.5"/>
+                    <circle cx="450" cy="175" r="4" fill="#3b82f6" opacity="0.4"/>
+                    <circle cx="425" cy="145" r="4" fill="#3b82f6" opacity="0.4"/>
+
+                    <circle cx="620" cy="210" r="7" fill="#3b82f6" opacity="0.5"/>
+                    <circle cx="635" cy="225" r="5" fill="#3b82f6" opacity="0.4"/>
+                    <circle cx="615" cy="235" r="4" fill="#3b82f6" opacity="0.4"/>
+                    <circle cx="645" cy="200" r="5" fill="#3b82f6" opacity="0.5"/>
+                    <circle cx="625" cy="195" r="4" fill="#3b82f6" opacity="0.4"/>
+
+                    <circle cx="810" cy="260" r="5" fill="#3b82f6" opacity="0.4"/>
+                    <circle cx="825" cy="275" r="4" fill="#3b82f6" opacity="0.4"/>
+                    <circle cx="800" cy="285" r="4" fill="#3b82f6" opacity="0.3"/>
+                    <circle cx="835" cy="250" r="4" fill="#3b82f6" opacity="0.4"/>
+                    <circle cx="850" cy="265" r="3" fill="#3b82f6" opacity="0.3"/>
+
+                    <circle cx="260" cy="80" r="14" fill="none" stroke="#f59e0b" stroke-width="3"/>
+
+                    <line x1="300" y1="60" x2="400" y2="60" stroke="#f59e0b" stroke-width="1.5"/>
+                    <text x="405" y="65" fill="#92400e" font-size="11" font-weight="600">最优: MA=5, Sharpe=2.15</text>
+                </svg>
+
+                <div class="chart-legend">
+                    <div class="legend-item"><span class="legend-dot" style="background: #3b82f6;"></span> 一般参数组合</div>
+                    <div class="legend-item"><span class="legend-dot" style="background: #f59e0b;"></span> 当前选中 (MA短=5)</div>
+                    <div class="legend-item"><span style="color: #64748b;">圆点大小 = 交易次数</span></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 热力图 -->
+        <div class="row" style="--bs-gutter-x: 16px;">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h6><i class="bi bi-grid-fill" style="color: #0891b2;"></i> MA 短周期 × MA 长周期</h6>
+                        <small style="font-size: 11px; color: #64748b;">按夏普比率着色</small>
+                    </div>
+                    <div class="heatmap-container">
+                        <div class="heatmap-matrix" id="heatmap1">
+                            <div class="heatmap-row" style="margin-bottom: 4px;">
+                                <div></div>
+                                <div style="font-size: 10px; color: #64748b; text-align: center;">15</div>
+                                <div style="font-size: 10px; color: #64748b; text-align: center;">20</div>
+                                <div style="font-size: 10px; color: #64748b; text-align: center;">25</div>
+                                <div style="font-size: 10px; color: #64748b; text-align: center;">30</div>
+                                <div style="font-size: 10px; color: #64748b; text-align: center;">35</div>
+                                <div style="font-size: 10px; color: #64748b; text-align: center;">40</div>
+                                <div style="font-size: 10px; color: #64748b; text-align: center;">45</div>
+                                <div style="font-size: 10px; color: #64748b; text-align: center;">50</div>
+                                <div style="font-size: 10px; color: #64748b; text-align: center;">55</div>
+                                <div style="font-size: 10px; color: #64748b; text-align: center;">60</div>
+                            </div>
+                        </div>
+                        <div style="margin-top: 16px; text-align: center; font-size: 11px; color: #64748b;">
+                            <div style="display: inline-flex; align-items: center; gap: 8px;">
+                                <span>低</span>
+                                <div style="width: 200px; height: 14px; border-radius: 3px; background: linear-gradient(to right, #93c5fd, #3b82f6, #1e40af);"></div>
+                                <span>高</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h6><i class="bi bi-grid-fill" style="color: #dc2626;"></i> 止损 × 止盈</h6>
+                        <small style="font-size: 11px; color: #64748b;">按总收益率着色</small>
+                    </div>
+                    <div class="heatmap-container">
+                        <div class="heatmap-matrix" id="heatmap2">
+                            <div class="heatmap-row" style="margin-bottom: 4px;">
+                                <div></div>
+                                <div style="font-size: 10px; color: #64748b; text-align: center;">15%</div>
+                                <div style="font-size: 10px; color: #64748b; text-align: center;">20%</div>
+                                <div style="font-size: 10px; color: #64748b; text-align: center;">25%</div>
+                                <div style="font-size: 10px; color: #64748b; text-align: center;">30%</div>
+                                <div style="font-size: 10px; color: #64748b; text-align: center;">35%</div>
+                                <div style="font-size: 10px; color: #64748b; text-align: center;">40%</div>
+                                <div style="font-size: 10px; color: #64748b; text-align: center;">45%</div>
+                                <div style="font-size: 10px; color: #64748b; text-align: center;">50%</div>
+                                <div style="font-size: 10px; color: #64748b; text-align: center;">55%</div>
+                                <div style="font-size: 10px; color: #64748b; text-align: center;">60%</div>
+                            </div>
+                        </div>
+                        <div style="margin-top: 16px; text-align: center; font-size: 11px; color: #64748b;">
+                            <div style="display: inline-flex; align-items: center; gap: 8px;">
+                                <span>低</span>
+                                <div style="width: 200px; height: 14px; border-radius: 3px; background: linear-gradient(to right, #fecaca, #f59e0b, #10b981);"></div>
+                                <span>高</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 详细结果表格 -->
+        <div class="card">
+            <div class="card-header">
+                <h6><i class="bi bi-list-ol" style="color: #6366f1;"></i> Top 20 参数组合</h6>
+                <div style="display: flex; gap: 8px;">
+                    <div class="tabs-row">
+                        <button class="active">按夏普</button>
+                        <button>按收益率</button>
+                        <button>按卡尔马</button>
+                        <button>按胜率</button>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body" style="padding: 0;">
+                <table class="results-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>MA 短</th>
+                            <th>MA 长</th>
+                            <th>止损%</th>
+                            <th>止盈%</th>
+                            <th style="text-align: right;">总收益</th>
+                            <th style="text-align: right;">夏普</th>
+                            <th style="text-align: right;">最大回撤</th>
+                            <th style="text-align: right;">胜率</th>
+                            <th style="text-align: right;">交易次数</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr class="best-row">
+                            <td>1</td>
+                            <td><span class="param-chip">5</span></td>
+                            <td><span class="param-chip">20</span></td>
+                            <td><span class="param-chip">8.0</span></td>
+                            <td><span class="param-chip">20</span></td>
+                            <td style="text-align: right;" class="metric-pos">+31.2%</td>
+                            <td style="text-align: right;" class="metric-value">2.15</td>
+                            <td style="text-align: right;" class="metric-pos">-8.5%</td>
+                            <td style="text-align: right;" class="metric-value">63%</td>
+                            <td style="text-align: right;" class="metric-value">156</td>
+                            <td><a href="backtest-report.html" style="color: #2563eb; font-size: 12px; text-decoration: none;">查看报告 →</a></td>
+                        </tr>
+                        <tr>
+                            <td>2</td>
+                            <td><span class="param-chip">5</span></td>
+                            <td><span class="param-chip">25</span></td>
+                            <td><span class="param-chip">10.0</span></td>
+                            <td><span class="param-chip">25</span></td>
+                            <td style="text-align: right;" class="metric-pos">+35.8%</td>
+                            <td style="text-align: right;" class="metric-value">2.08</td>
+                            <td style="text-align: right;" class="metric-neg">-13.2%</td>
+                            <td style="text-align: right;" class="metric-value">61%</td>
+                            <td style="text-align: right;" class="metric-value">142</td>
+                            <td><a href="backtest-report.html" style="color: #2563eb; font-size: 12px; text-decoration: none;">查看报告 →</a></td>
+                        </tr>
+                        <tr>
+                            <td>3</td>
+                            <td><span class="param-chip">5</span></td>
+                            <td><span class="param-chip">15</span></td>
+                            <td><span class="param-chip">8.0</span></td>
+                            <td><span class="param-chip">20</span></td>
+                            <td style="text-align: right;" class="metric-pos">+29.8%</td>
+                            <td style="text-align: right;" class="metric-value">1.98</td>
+                            <td style="text-align: right;" class="metric-pos">-9.1%</td>
+                            <td style="text-align: right;" class="metric-value">62%</td>
+                            <td style="text-align: right;" class="metric-value">168</td>
+                            <td><a href="backtest-report.html" style="color: #2563eb; font-size: 12px; text-decoration: none;">查看报告 →</a></td>
+                        </tr>
+                        <tr>
+                            <td>4</td>
+                            <td><span class="param-chip">7</span></td>
+                            <td><span class="param-chip">30</span></td>
+                            <td><span class="param-chip">7.5</span></td>
+                            <td><span class="param-chip">25</span></td>
+                            <td style="text-align: right;" class="metric-pos">+27.5%</td>
+                            <td style="text-align: right;" class="metric-value">1.92</td>
+                            <td style="text-align: right;" class="metric-pos">-10.5%</td>
+                            <td style="text-align: right;" class="metric-value">60%</td>
+                            <td style="text-align: right;" class="metric-value">135</td>
+                            <td><a href="backtest-report.html" style="color: #2563eb; font-size: 12px; text-decoration: none;">查看报告 →</a></td>
+                        </tr>
+                        <tr>
+                            <td>5</td>
+                            <td><span class="param-chip">5</span></td>
+                            <td><span class="param-chip">20</span></td>
+                            <td><span class="param-chip">5.0</span></td>
+                            <td><span class="param-chip">25</span></td>
+                            <td style="text-align: right;" class="metric-pos">+28.2%</td>
+                            <td style="text-align: right;" class="metric-value">1.89</td>
+                            <td style="text-align: right;" class="metric-neg">-11.8%</td>
+                            <td style="text-align: right;" class="metric-value">59%</td>
+                            <td style="text-align: right;" class="metric-value">158</td>
+                            <td><a href="backtest-report.html" style="color: #2563eb; font-size: 12px; text-decoration: none;">查看报告 →</a></td>
+                        </tr>
+                        <tr>
+                            <td>6</td>
+                            <td><span class="param-chip">3</span></td>
+                            <td><span class="param-chip">20</span></td>
+                            <td><span class="param-chip">8.0</span></td>
+                            <td><span class="param-chip">20</span></td>
+                            <td style="text-align: right;" class="metric-pos">+26.8%</td>
+                            <td style="text-align: right;" class="metric-value">1.85</td>
+                            <td style="text-align: right;" class="metric-pos">-10.8%</td>
+                            <td style="text-align: right;" class="metric-value">58%</td>
+                            <td style="text-align: right;" class="metric-value">172</td>
+                            <td><a href="backtest-report.html" style="color: #2563eb; font-size: 12px; text-decoration: none;">查看报告 →</a></td>
+                        </tr>
+                        <tr>
+                            <td>7</td>
+                            <td><span class="param-chip">5</span></td>
+                            <td><span class="param-chip">20</span></td>
+                            <td><span class="param-chip">10.0</span></td>
+                            <td><span class="param-chip">30</span></td>
+                            <td style="text-align: right;" class="metric-pos">+30.5%</td>
+                            <td style="text-align: right;" class="metric-value">1.82</td>
+                            <td style="text-align: right;" class="metric-neg">-12.5%</td>
+                            <td style="text-align: right;" class="metric-value">57%</td>
+                            <td style="text-align: right;" class="metric-value">148</td>
+                            <td><a href="backtest-report.html" style="color: #2563eb; font-size: 12px; text-decoration: none;">查看报告 →</a></td>
+                        </tr>
+                        <tr>
+                            <td>8</td>
+                            <td><span class="param-chip">7</span></td>
+                            <td><span class="param-chip">25</span></td>
+                            <td><span class="param-chip">8.0</span></td>
+                            <td><span class="param-chip">20</span></td>
+                            <td style="text-align: right;" class="metric-pos">+25.3%</td>
+                            <td style="text-align: right;" class="metric-value">1.78</td>
+                            <td style="text-align: right;" class="metric-pos">-9.8%</td>
+                            <td style="text-align: right;" class="metric-value">61%</td>
+                            <td style="text-align: right;" class="metric-value">145</td>
+                            <td><a href="backtest-report.html" style="color: #2563eb; font-size: 12px; text-decoration: none;">查看报告 →</a></td>
+                        </tr>
+                        <tr>
+                            <td>9</td>
+                            <td><span class="param-chip">5</span></td>
+                            <td><span class="param-chip">30</span></td>
+                            <td><span class="param-chip">7.5</span></td>
+                            <td><span class="param-chip">20</span></td>
+                            <td style="text-align: right;" class="metric-pos">+24.8%</td>
+                            <td style="text-align: right;" class="metric-value">1.75</td>
+                            <td style="text-align: right;" class="metric-pos">-10.2%</td>
+                            <td style="text-align: right;" class="metric-value">60%</td>
+                            <td style="text-align: right;" class="metric-value">138</td>
+                            <td><a href="backtest-report.html" style="color: #2563eb; font-size: 12px; text-decoration: none;">查看报告 →</a></td>
+                        </tr>
+                        <tr>
+                            <td>10</td>
+                            <td><span class="param-chip">5</span></td>
+                            <td><span class="param-chip">15</span></td>
+                            <td><span class="param-chip">10.0</span></td>
+                            <td><span class="param-chip">25</span></td>
+                            <td style="text-align: right;" class="metric-pos">+32.5%</td>
+                            <td style="text-align: right;" class="metric-value">1.72</td>
+                            <td style="text-align: right;" class="metric-neg">-14.0%</td>
+                            <td style="text-align: right;" class="metric-value">58%</td>
+                            <td style="text-align: right;" class="metric-value">165</td>
+                            <td><a href="backtest-report.html" style="color: #2563eb; font-size: 12px; text-decoration: none;">查看报告 →</a></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<script>
+    const shortMA = [3, 5, 7, 8, 10];
+    const longMA = [15, 20, 25, 30, 35, 40, 45, 50, 55, 60];
+
+    function generateHeatmap1() {
+        const container = document.getElementById('heatmap1');
+        const values = [
+            [1.25, 1.42, 1.38, 1.35, 1.28, 1.22, 1.18, 1.15, 1.12, 1.08],
+            [1.65, 2.15, 1.98, 1.82, 1.75, 1.68, 1.62, 1.55, 1.48, 1.42],
+            [1.52, 1.92, 1.85, 1.78, 1.72, 1.65, 1.58, 1.52, 1.45, 1.38],
+            [1.45, 1.78, 1.72, 1.65, 1.58, 1.52, 1.45, 1.38, 1.32, 1.25],
+            [1.35, 1.58, 1.52, 1.45, 1.38, 1.32, 1.25, 1.18, 1.12, 1.05],
+            [1.28, 1.45, 1.38, 1.32, 1.25, 1.18, 1.12, 1.05, 1.00, 0.95],
+            [1.15, 1.32, 1.25, 1.18, 1.12, 1.05, 1.00, 0.95, 0.90, 0.85],
+            [1.08, 1.25, 1.18, 1.12, 1.05, 1.00, 0.95, 0.90, 0.85, 0.80],
+        ];
+        const stopLoss = [5, 7.5, 8, 10, 12.5, 15];
+        const labels = ['3', '5', '7', '8', '10', '12', '15', '17'];
+
+        for (let i = 0; i < labels.length; i++) {
+            const row = document.createElement('div');
+            row.className = 'heatmap-row';
+            const label = document.createElement('div');
+            label.className = 'heatmap-axis-label';
+            label.textContent = labels[i];
+            row.appendChild(label);
+
+            for (let j = 0; j < 10; j++) {
+                const val = values[i][j];
+                const cell = document.createElement('div');
+                cell.className = 'heatmap-cell';
+                const intensity = Math.min(1, Math.max(0, (val - 0.8) / 1.5));
+                const r = Math.round(147 * (1 - intensity) + 30 * intensity);
+                const g = Math.round(197 * (1 - intensity) + 64 * intensity);
+                const b = Math.round(253 * (1 - intensity) + 175 * intensity);
+                cell.style.background = `rgb(${r}, ${g}, ${b})`;
+                if (i === 1 && j === 1) {
+                    cell.classList.add('selected');
+                    cell.style.boxShadow = '0 0 0 3px #f59e0b';
+                }
+                cell.textContent = val.toFixed(2);
+                row.appendChild(cell);
+            }
+            container.appendChild(row);
+        }
+
+        const yLabel = document.createElement('div');
+        yLabel.style.cssText = 'margin-top: 12px; text-align: left; font-size: 11px; color: #64748b; padding-left: 60px;';
+        yLabel.innerHTML = '← MA 短周期 (Y轴)';
+        container.appendChild(yLabel);
+    }
+
+    function generateHeatmap2() {
+        const container = document.getElementById('heatmap2');
+        const stopLoss = [5, 7.5, 8, 10, 12.5, 15];
+        const stopProfit = [15, 20, 25, 30, 35, 40, 45, 50, 55, 60];
+        const values = [
+            [15.2, 18.5, 20.8, 22.5, 23.8, 24.2, 24.0, 23.5, 22.8, 22.0],
+            [22.5, 28.2, 31.5, 33.8, 34.5, 34.2, 33.5, 32.8, 31.5, 30.2],
+            [23.8, 31.2, 35.8, 36.5, 35.8, 35.0, 34.2, 33.5, 32.5, 31.2],
+            [21.5, 29.5, 33.5, 35.2, 36.8, 36.5, 35.8, 35.0, 34.0, 32.8],
+            [18.2, 25.8, 30.2, 32.5, 34.5, 35.8, 36.2, 35.8, 35.0, 34.2],
+            [15.5, 22.5, 27.5, 30.2, 32.5, 34.2, 35.0, 35.5, 35.2, 34.8],
+        ];
+
+        for (let i = 0; i < stopLoss.length; i++) {
+            const row = document.createElement('div');
+            row.className = 'heatmap-row';
+            const label = document.createElement('div');
+            label.className = 'heatmap-axis-label';
+            label.textContent = stopLoss[i] + '%';
+            row.appendChild(label);
+
+            for (let j = 0; j < 10; j++) {
+                const val = values[i][j];
+                const cell = document.createElement('div');
+                cell.className = 'heatmap-cell';
+                const intensity = Math.min(1, Math.max(0, (val - 10) / 30));
+                if (intensity < 0.33) {
+                    const r = 254;
+                    const g = Math.round(202 * (1 - intensity * 3) + 153 * intensity * 3);
+                    const b = Math.round(202 * (1 - intensity * 3) + 11 * intensity * 3);
+                    cell.style.background = `rgb(${r}, ${g}, ${b})`;
+                } else if (intensity < 0.66) {
+                    const t = (intensity - 0.33) * 3;
+                    const r = Math.round(254 * (1 - t) + 245 * t);
+                    const g = Math.round(202 * (1 - t) + 158 * t);
+                    const b = Math.round(11 * (1 - t) + 11 * t);
+                    cell.style.background = `rgb(${r}, ${g}, ${b})`;
+                } else {
+                    const t = (intensity - 0.66) * 3;
+                    const r = Math.round(245 * (1 - t) + 16 * t);
+                    const g = Math.round(158 * (1 - t) + 185 * t);
+                    const b = Math.round(11 * (1 - t) + 129 * t);
+                    cell.style.background = `rgb(${r}, ${g}, ${b})`;
+                }
+                if (i === 2 && j === 1) {
+                    cell.classList.add('selected');
+                    cell.style.boxShadow = '0 0 0 3px #f59e0b';
+                }
+                cell.textContent = val.toFixed(1);
+                row.appendChild(cell);
+            }
+            container.appendChild(row);
+        }
+
+        const yLabel = document.createElement('div');
+        yLabel.style.cssText = 'margin-top: 12px; text-align: left; font-size: 11px; color: #64748b; padding-left: 60px;';
+        yLabel.innerHTML = '← 止损比例 % (Y轴)';
+        container.appendChild(yLabel);
+    }
+
+    generateHeatmap1();
+    generateHeatmap2();
+</script>
+
+</body>
+</html>

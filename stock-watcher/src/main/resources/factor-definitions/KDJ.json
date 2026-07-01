@@ -1,0 +1,59 @@
+{
+  "factorKey": "KDJ",
+  "displayName": "KDJ 随机指标",
+  "category": "MOMENTUM",
+  "description": "基于最高价/最低价/收盘价计算 K、D、J 三条线",
+  "params": [
+    {
+      "name": "fastk_period",
+      "displayName": "Fast K 周期",
+      "type": "INT",
+      "defaultValue": 5,
+      "min": 1,
+      "max": 500,
+      "step": 1
+    },
+    {
+      "name": "slowk_period",
+      "displayName": "Slow K 周期",
+      "type": "INT",
+      "defaultValue": 3,
+      "min": 1,
+      "max": 500,
+      "step": 1
+    },
+    {
+      "name": "slowk_matype",
+      "displayName": "Slow K 均线类型",
+      "type": "INT",
+      "defaultValue": 0,
+      "min": 1,
+      "max": 500,
+      "step": 1
+    },
+    {
+      "name": "slowd_period",
+      "displayName": "Slow D 周期",
+      "type": "INT",
+      "defaultValue": 3,
+      "min": 1,
+      "max": 500,
+      "step": 1
+    },
+    {
+      "name": "slowd_matype",
+      "displayName": "Slow D 均线类型",
+      "type": "INT",
+      "defaultValue": 0,
+      "min": 1,
+      "max": 500,
+      "step": 1
+    }
+  ],
+  "inputs": ["high", "low", "close"],
+  "multiOutput": true,
+  "outputLabels": ["K", "D", "J"],
+  "defaultOutputIndex": 2,
+  "lookbackHint": "fastk_period + slowk_period + slowd_period - 3",
+  "lookbackDefault": 12
+}

@@ -1,0 +1,928 @@
+{
+  "factors": [
+    {
+      "factorKey": "MA",
+      "displayName": "MA 移动均线",
+      "category": "OVERLAP",
+      "description": "对数据取 N 周期移动平均值，支持通过 matype 选择均线类型",
+      "params": [
+        {
+          "name": "timeperiod",
+          "displayName": "周期",
+          "type": "INT",
+          "defaultValue": 5,
+          "min": 1,
+          "max": 500,
+          "step": 1
+        },
+        {
+          "name": "matype",
+          "displayName": "均线类型",
+          "type": "ENUM",
+          "defaultValue": 0,
+          "enumValues": [
+            {
+              "value": 0,
+              "label": "SMA 简单均线"
+            },
+            {
+              "value": 1,
+              "label": "EMA 指数均线"
+            },
+            {
+              "value": 2,
+              "label": "WMA 加权均线"
+            },
+            {
+              "value": 3,
+              "label": "DEMA 双指数均线"
+            },
+            {
+              "value": 4,
+              "label": "TEMA 三指数均线"
+            },
+            {
+              "value": 5,
+              "label": "TRIMA 三角均线"
+            },
+            {
+              "value": 6,
+              "label": "KAMA 考夫曼自适应均线"
+            },
+            {
+              "value": 7,
+              "label": "MESA 自适应均线"
+            },
+            {
+              "value": 8,
+              "label": "T3 三重指数均线"
+            }
+          ]
+        }
+      ],
+      "inputs": [
+        "close"
+      ],
+      "multiOutput": false,
+      "outputLabels": [],
+      "defaultOutputIndex": 0,
+      "lookbackHint": "timeperiod - 1",
+      "lookbackDefault": 4,
+      "_source": {
+        "funcName": "MA",
+        "line": 1295,
+        "codeParams": [
+          "close",
+          "timeperiod",
+          "matype",
+          "period",
+          "as_series",
+          "backend"
+        ],
+        "codeDefaults": {
+          "timeperiod": 30,
+          "matype": 0,
+          "period": null,
+          "as_series": false,
+          "backend": "auto"
+        }
+      }
+    },
+    {
+      "factorKey": "EMA",
+      "displayName": "EMA 指数移动均线",
+      "category": "OVERLAP",
+      "description": "对近期价格赋予更大权重的指数移动均线，对趋势变化更敏感",
+      "params": [
+        {
+          "name": "timeperiod",
+          "displayName": "周期",
+          "type": "INT",
+          "defaultValue": 12,
+          "min": 1,
+          "max": 500,
+          "step": 1
+        }
+      ],
+      "inputs": [
+        "close"
+      ],
+      "multiOutput": false,
+      "outputLabels": [],
+      "defaultOutputIndex": 0,
+      "lookbackHint": "timeperiod - 1",
+      "lookbackDefault": 11,
+      "_source": {
+        "funcName": "EMA",
+        "line": 1316,
+        "codeParams": [
+          "close",
+          "timeperiod",
+          "period",
+          "as_series",
+          "backend"
+        ],
+        "codeDefaults": {
+          "timeperiod": 30,
+          "period": null,
+          "as_series": false,
+          "backend": "auto"
+        }
+      }
+    },
+    {
+      "factorKey": "BOLL",
+      "displayName": "BOLL 布林带",
+      "category": "OVERLAP",
+      "description": "由中轨（MA）和上下 N 倍标准差通道构成",
+      "params": [
+        {
+          "name": "timeperiod",
+          "displayName": "周期",
+          "type": "INT",
+          "defaultValue": 20,
+          "min": 1,
+          "max": 500,
+          "step": 1
+        },
+        {
+          "name": "nbdevup",
+          "displayName": "上轨标准差倍数",
+          "type": "FLOAT",
+          "defaultValue": 2.0,
+          "min": 0.01,
+          "max": 10.0,
+          "step": 0.01
+        },
+        {
+          "name": "nbdevdn",
+          "displayName": "下轨标准差倍数",
+          "type": "FLOAT",
+          "defaultValue": 2.0,
+          "min": 0.01,
+          "max": 10.0,
+          "step": 0.01
+        },
+        {
+          "name": "matype",
+          "displayName": "均线类型",
+          "type": "ENUM",
+          "defaultValue": 0,
+          "enumValues": [
+            {
+              "value": 0,
+              "label": "SMA 简单均线"
+            },
+            {
+              "value": 1,
+              "label": "EMA 指数均线"
+            },
+            {
+              "value": 2,
+              "label": "WMA 加权均线"
+            },
+            {
+              "value": 3,
+              "label": "DEMA 双指数均线"
+            },
+            {
+              "value": 4,
+              "label": "TEMA 三指数均线"
+            },
+            {
+              "value": 5,
+              "label": "TRIMA 三角均线"
+            },
+            {
+              "value": 6,
+              "label": "KAMA 考夫曼自适应均线"
+            },
+            {
+              "value": 7,
+              "label": "MESA 自适应均线"
+            },
+            {
+              "value": 8,
+              "label": "T3 三重指数均线"
+            }
+          ]
+        }
+      ],
+      "inputs": [
+        "close"
+      ],
+      "multiOutput": true,
+      "outputLabels": [
+        "上轨",
+        "中轨",
+        "下轨"
+      ],
+      "defaultOutputIndex": 0,
+      "lookbackHint": "timeperiod - 1",
+      "lookbackDefault": 19,
+      "_source": {
+        "funcName": "BBANDS",
+        "line": 2731,
+        "codeParams": [
+          "close",
+          "timeperiod",
+          "nbdevup",
+          "nbdevdn",
+          "matype",
+          "period",
+          "as_series",
+          "backend"
+        ],
+        "codeDefaults": {
+          "timeperiod": 5,
+          "nbdevup": 2.0,
+          "nbdevdn": 2.0,
+          "matype": 0,
+          "period": null,
+          "as_series": false,
+          "backend": "auto"
+        }
+      }
+    },
+    {
+      "factorKey": "SAR",
+      "displayName": "SAR 抛物线指标",
+      "category": "OVERLAP",
+      "description": "基于价格极值和加速因子动态调整的止损/反转指标",
+      "params": [
+        {
+          "name": "acceleration",
+          "displayName": "加速因子",
+          "type": "FLOAT",
+          "defaultValue": 0.02,
+          "min": 0.01,
+          "max": 10.0,
+          "step": 0.01
+        },
+        {
+          "name": "maximum",
+          "displayName": "加速因子上限",
+          "type": "FLOAT",
+          "defaultValue": 0.2,
+          "min": 0.01,
+          "max": 10.0,
+          "step": 0.01
+        }
+      ],
+      "inputs": [
+        "high",
+        "low"
+      ],
+      "multiOutput": false,
+      "outputLabels": [],
+      "defaultOutputIndex": 0,
+      "lookbackHint": "1",
+      "lookbackDefault": 1,
+      "_source": {
+        "funcName": "SAR",
+        "line": 3335,
+        "codeParams": [
+          "high",
+          "low",
+          "acceleration",
+          "maximum",
+          "as_series",
+          "backend"
+        ],
+        "codeDefaults": {
+          "acceleration": 0.02,
+          "maximum": 0.2,
+          "as_series": false,
+          "backend": "auto"
+        }
+      }
+    },
+    {
+      "factorKey": "MACD",
+      "displayName": "MACD 指数平滑异同平均线",
+      "category": "MOMENTUM",
+      "description": "由快慢两条 EMA 的差值及其信号线构成",
+      "params": [
+        {
+          "name": "fastperiod",
+          "displayName": "快线周期",
+          "type": "INT",
+          "defaultValue": 12,
+          "min": 1,
+          "max": 500,
+          "step": 1
+        },
+        {
+          "name": "slowperiod",
+          "displayName": "慢线周期",
+          "type": "INT",
+          "defaultValue": 26,
+          "min": 1,
+          "max": 500,
+          "step": 1
+        },
+        {
+          "name": "signalperiod",
+          "displayName": "信号线周期",
+          "type": "INT",
+          "defaultValue": 9,
+          "min": 1,
+          "max": 500,
+          "step": 1
+        }
+      ],
+      "inputs": [
+        "close"
+      ],
+      "multiOutput": true,
+      "outputLabels": [
+        "DIF",
+        "DEA",
+        "MACD柱"
+      ],
+      "defaultOutputIndex": 0,
+      "lookbackHint": "slowperiod + signalperiod - 2",
+      "lookbackDefault": 33,
+      "_source": {
+        "funcName": "MACD",
+        "line": 2597,
+        "codeParams": [
+          "close",
+          "fastperiod",
+          "slowperiod",
+          "signalperiod",
+          "as_series",
+          "backend"
+        ],
+        "codeDefaults": {
+          "fastperiod": 12,
+          "slowperiod": 26,
+          "signalperiod": 9,
+          "as_series": false,
+          "backend": "auto"
+        }
+      }
+    },
+    {
+      "factorKey": "RSI",
+      "displayName": "RSI 相对强弱指数",
+      "category": "MOMENTUM",
+      "description": "衡量一段时间内涨跌幅度的比例，>70 超买，<30 超卖",
+      "params": [
+        {
+          "name": "timeperiod",
+          "displayName": "周期",
+          "type": "INT",
+          "defaultValue": 14,
+          "min": 1,
+          "max": 500,
+          "step": 1
+        }
+      ],
+      "inputs": [
+        "close"
+      ],
+      "multiOutput": false,
+      "outputLabels": [],
+      "defaultOutputIndex": 0,
+      "lookbackHint": "timeperiod",
+      "lookbackDefault": 14,
+      "_source": {
+        "funcName": "RSI",
+        "line": 1243,
+        "codeParams": [
+          "close",
+          "timeperiod",
+          "period",
+          "as_series",
+          "backend"
+        ],
+        "codeDefaults": {
+          "timeperiod": 14,
+          "period": null,
+          "as_series": false,
+          "backend": "auto"
+        }
+      }
+    },
+    {
+      "factorKey": "KDJ",
+      "displayName": "KDJ 随机指标",
+      "category": "MOMENTUM",
+      "description": "基于最高价/最低价/收盘价计算 K、D、J 三条线",
+      "params": [
+        {
+          "name": "fastk_period",
+          "displayName": "Fast K 周期",
+          "type": "INT",
+          "defaultValue": 5,
+          "min": 1,
+          "max": 500,
+          "step": 1
+        },
+        {
+          "name": "slowk_period",
+          "displayName": "Slow K 周期",
+          "type": "INT",
+          "defaultValue": 3,
+          "min": 1,
+          "max": 500,
+          "step": 1
+        },
+        {
+          "name": "slowk_matype",
+          "displayName": "Slow K 均线类型",
+          "type": "INT",
+          "defaultValue": 0,
+          "min": 1,
+          "max": 500,
+          "step": 1
+        },
+        {
+          "name": "slowd_period",
+          "displayName": "Slow D 周期",
+          "type": "INT",
+          "defaultValue": 3,
+          "min": 1,
+          "max": 500,
+          "step": 1
+        },
+        {
+          "name": "slowd_matype",
+          "displayName": "Slow D 均线类型",
+          "type": "INT",
+          "defaultValue": 0,
+          "min": 1,
+          "max": 500,
+          "step": 1
+        }
+      ],
+      "inputs": [
+        "high",
+        "low",
+        "close"
+      ],
+      "multiOutput": true,
+      "outputLabels": [
+        "K",
+        "D",
+        "J"
+      ],
+      "defaultOutputIndex": 2,
+      "lookbackHint": "fastk_period + slowk_period + slowd_period - 3",
+      "lookbackDefault": 12,
+      "_source": {
+        "funcName": "STOCH",
+        "line": 2843,
+        "codeParams": [
+          "high",
+          "low",
+          "close",
+          "fastk_period",
+          "slowk_period",
+          "slowk_matype",
+          "slowd_period",
+          "slowd_matype",
+          "as_series",
+          "backend"
+        ],
+        "codeDefaults": {
+          "fastk_period": 5,
+          "slowk_period": 3,
+          "slowk_matype": 0,
+          "slowd_period": 3,
+          "slowd_matype": 0,
+          "as_series": false,
+          "backend": "auto"
+        }
+      }
+    },
+    {
+      "factorKey": "ADX",
+      "displayName": "ADX 平均趋向指数",
+      "category": "MOMENTUM",
+      "description": "衡量趋势强度，>25 表示趋势明确，<20 表示盘整",
+      "params": [
+        {
+          "name": "timeperiod",
+          "displayName": "周期",
+          "type": "INT",
+          "defaultValue": 14,
+          "min": 1,
+          "max": 500,
+          "step": 1
+        }
+      ],
+      "inputs": [
+        "high",
+        "low",
+        "close"
+      ],
+      "multiOutput": false,
+      "outputLabels": [],
+      "defaultOutputIndex": 0,
+      "lookbackHint": "2 × timeperiod - 1",
+      "lookbackDefault": 27,
+      "_source": {
+        "funcName": "ADX",
+        "line": 532,
+        "codeParams": [
+          "high",
+          "low",
+          "close",
+          "timeperiod",
+          "period",
+          "as_series",
+          "backend"
+        ],
+        "codeDefaults": {
+          "timeperiod": 14,
+          "period": null,
+          "as_series": false,
+          "backend": "auto"
+        }
+      }
+    },
+    {
+      "factorKey": "PLUS_DI",
+      "displayName": "+DI 上升趋向指标",
+      "category": "MOMENTUM",
+      "description": "DMI 体系中的 +DI 线",
+      "params": [
+        {
+          "name": "timeperiod",
+          "displayName": "周期",
+          "type": "INT",
+          "defaultValue": 14,
+          "min": 1,
+          "max": 500,
+          "step": 1
+        }
+      ],
+      "inputs": [
+        "high",
+        "low",
+        "close"
+      ],
+      "multiOutput": false,
+      "outputLabels": [],
+      "defaultOutputIndex": 0,
+      "lookbackHint": "timeperiod",
+      "lookbackDefault": 14,
+      "_source": {
+        "funcName": "PLUS_DI",
+        "line": 681,
+        "codeParams": [
+          "high",
+          "low",
+          "close",
+          "timeperiod",
+          "period",
+          "as_series",
+          "backend"
+        ],
+        "codeDefaults": {
+          "timeperiod": 14,
+          "period": null,
+          "as_series": false,
+          "backend": "auto"
+        }
+      }
+    },
+    {
+      "factorKey": "MINUS_DI",
+      "displayName": "-DI 下降趋向指标",
+      "category": "MOMENTUM",
+      "description": "DMI 体系中的 -DI 线",
+      "params": [
+        {
+          "name": "timeperiod",
+          "displayName": "周期",
+          "type": "INT",
+          "defaultValue": 14,
+          "min": 1,
+          "max": 500,
+          "step": 1
+        }
+      ],
+      "inputs": [
+        "high",
+        "low",
+        "close"
+      ],
+      "multiOutput": false,
+      "outputLabels": [],
+      "defaultOutputIndex": 0,
+      "lookbackHint": "timeperiod",
+      "lookbackDefault": 14,
+      "_source": {
+        "funcName": "MINUS_DI",
+        "line": 738,
+        "codeParams": [
+          "high",
+          "low",
+          "close",
+          "timeperiod",
+          "period",
+          "as_series",
+          "backend"
+        ],
+        "codeDefaults": {
+          "timeperiod": 14,
+          "period": null,
+          "as_series": false,
+          "backend": "auto"
+        }
+      }
+    },
+    {
+      "factorKey": "WILLR",
+      "displayName": "WILLR 威廉指标",
+      "category": "MOMENTUM",
+      "description": "衡量当前收盘价在近期价格区间中的位置",
+      "params": [
+        {
+          "name": "timeperiod",
+          "displayName": "周期",
+          "type": "INT",
+          "defaultValue": 14,
+          "min": 1,
+          "max": 500,
+          "step": 1
+        }
+      ],
+      "inputs": [
+        "high",
+        "low",
+        "close"
+      ],
+      "multiOutput": false,
+      "outputLabels": [],
+      "defaultOutputIndex": 0,
+      "lookbackHint": "timeperiod - 1",
+      "lookbackDefault": 13,
+      "_source": {
+        "funcName": "WILLR",
+        "line": 462,
+        "codeParams": [
+          "high",
+          "low",
+          "close",
+          "timeperiod",
+          "period",
+          "as_series",
+          "backend"
+        ],
+        "codeDefaults": {
+          "timeperiod": 14,
+          "period": null,
+          "as_series": false,
+          "backend": "auto"
+        }
+      }
+    },
+    {
+      "factorKey": "CCI",
+      "displayName": "CCI 顺势指标",
+      "category": "MOMENTUM",
+      "description": "衡量价格偏离统计平均值的程度",
+      "params": [
+        {
+          "name": "timeperiod",
+          "displayName": "周期",
+          "type": "INT",
+          "defaultValue": 14,
+          "min": 1,
+          "max": 500,
+          "step": 1
+        },
+        {
+          "name": "c",
+          "displayName": "CCI 缩放系数",
+          "type": "FLOAT",
+          "defaultValue": 0.015,
+          "min": 0.01,
+          "max": 10.0,
+          "step": 0.01
+        }
+      ],
+      "inputs": [
+        "high",
+        "low",
+        "close"
+      ],
+      "multiOutput": false,
+      "outputLabels": [],
+      "defaultOutputIndex": 0,
+      "lookbackHint": "timeperiod - 1",
+      "lookbackDefault": 13,
+      "_source": {
+        "funcName": "CCI",
+        "line": 494,
+        "codeParams": [
+          "high",
+          "low",
+          "close",
+          "timeperiod",
+          "period",
+          "c",
+          "as_series",
+          "backend"
+        ],
+        "codeDefaults": {
+          "timeperiod": 14,
+          "period": null,
+          "c": 0.015,
+          "as_series": false,
+          "backend": "auto"
+        }
+      }
+    },
+    {
+      "factorKey": "ATR",
+      "displayName": "ATR 真实波幅均值",
+      "category": "VOLATILITY",
+      "description": "衡量价格波动的平均幅度",
+      "params": [
+        {
+          "name": "timeperiod",
+          "displayName": "周期",
+          "type": "INT",
+          "defaultValue": 14,
+          "min": 1,
+          "max": 500,
+          "step": 1
+        }
+      ],
+      "inputs": [
+        "high",
+        "low",
+        "close"
+      ],
+      "multiOutput": false,
+      "outputLabels": [],
+      "defaultOutputIndex": 0,
+      "lookbackHint": "timeperiod",
+      "lookbackDefault": 14,
+      "_source": {
+        "funcName": "ATR",
+        "line": 2401,
+        "codeParams": [
+          "high",
+          "low",
+          "close",
+          "timeperiod",
+          "period",
+          "as_series",
+          "backend"
+        ],
+        "codeDefaults": {
+          "timeperiod": 14,
+          "period": null,
+          "as_series": false,
+          "backend": "auto"
+        }
+      }
+    },
+    {
+      "factorKey": "OBV",
+      "displayName": "OBV 能量潮",
+      "category": "VOLUME",
+      "description": "根据涨跌累加/扣减成交量",
+      "params": [],
+      "inputs": [
+        "close",
+        "volume"
+      ],
+      "multiOutput": false,
+      "outputLabels": [],
+      "defaultOutputIndex": 0,
+      "lookbackHint": "0",
+      "lookbackDefault": 0,
+      "_source": {
+        "funcName": "OBV",
+        "line": 2938,
+        "codeParams": [
+          "close",
+          "volume",
+          "as_series",
+          "backend"
+        ],
+        "codeDefaults": {
+          "as_series": false,
+          "backend": "auto"
+        }
+      }
+    },
+    {
+      "factorKey": "VOL_MA",
+      "displayName": "成交量均线（MA）",
+      "category": "VOLUME",
+      "description": "对成交量取 N 周期简单移动平均",
+      "params": [
+        {
+          "name": "timeperiod",
+          "displayName": "周期",
+          "type": "INT",
+          "defaultValue": 20,
+          "min": 2,
+          "max": 500,
+          "step": 1
+        }
+      ],
+      "inputs": [
+        "volume"
+      ],
+      "multiOutput": false,
+      "outputLabels": [],
+      "defaultOutputIndex": 0,
+      "lookbackHint": "timeperiod - 1",
+      "lookbackDefault": 19
+    },
+    {
+      "factorKey": "VOL_EMA",
+      "displayName": "成交量指数均线（EMA）",
+      "category": "VOLUME",
+      "description": "对成交量取 N 周期指数移动平均",
+      "params": [
+        {
+          "name": "timeperiod",
+          "displayName": "周期",
+          "type": "INT",
+          "defaultValue": 20,
+          "min": 2,
+          "max": 500,
+          "step": 1
+        }
+      ],
+      "inputs": [
+        "volume"
+      ],
+      "multiOutput": false,
+      "outputLabels": [],
+      "defaultOutputIndex": 0,
+      "lookbackHint": "timeperiod - 1",
+      "lookbackDefault": 19
+    },
+    {
+      "factorKey": "VOLUME",
+      "displayName": "成交量",
+      "category": "VOLUME",
+      "description": "当前 bar 的成交量",
+      "params": [],
+      "inputs": [
+        "volume"
+      ],
+      "multiOutput": false,
+      "outputLabels": [],
+      "defaultOutputIndex": 0,
+      "lookbackHint": "0",
+      "lookbackDefault": 0
+    },
+    {
+      "factorKey": "CLOSE",
+      "displayName": "收盘价",
+      "category": "PRICE",
+      "description": "当前 bar 的收盘价",
+      "params": [],
+      "inputs": [
+        "close"
+      ],
+      "multiOutput": false,
+      "outputLabels": [],
+      "defaultOutputIndex": 0,
+      "lookbackHint": "0",
+      "lookbackDefault": 0
+    },
+    {
+      "factorKey": "HIGH",
+      "displayName": "最高价",
+      "category": "PRICE",
+      "description": "当前 bar 的最高价",
+      "params": [],
+      "inputs": [
+        "high"
+      ],
+      "multiOutput": false,
+      "outputLabels": [],
+      "defaultOutputIndex": 0,
+      "lookbackHint": "0",
+      "lookbackDefault": 0
+    },
+    {
+      "factorKey": "LOW",
+      "displayName": "最低价",
+      "category": "PRICE",
+      "description": "当前 bar 的最低价",
+      "params": [],
+      "inputs": [
+        "low"
+      ],
+      "multiOutput": false,
+      "outputLabels": [],
+      "defaultOutputIndex": 0,
+      "lookbackHint": "0",
+      "lookbackDefault": 0
+    }
+  ]
+}

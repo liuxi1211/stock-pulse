@@ -1,0 +1,23 @@
+{
+  "factorKey": "RSI",
+  "displayName": "RSI 相对强弱指数",
+  "category": "MOMENTUM",
+  "description": "衡量一段时间内涨跌幅度的比例，>70 超买，<30 超卖",
+  "params": [
+    {
+      "name": "timeperiod",
+      "displayName": "周期",
+      "type": "INT",
+      "defaultValue": 14,
+      "min": 1,
+      "max": 500,
+      "step": 1
+    }
+  ],
+  "inputs": ["close"],
+  "multiOutput": false,
+  "outputLabels": [],
+  "defaultOutputIndex": 0,
+  "lookbackHint": "timeperiod",
+  "lookbackDefault": 14
+}

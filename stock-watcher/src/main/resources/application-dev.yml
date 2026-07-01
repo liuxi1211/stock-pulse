@@ -1,0 +1,14 @@
+spring:
+  thymeleaf:
+    cache: false
+  devtools:
+    restart:
+      enabled: true
+
+auth:
+  admin-skip-totp: true
+
+logging:
+  level:
+    com.arthur.stock: DEBUG
+    org.springframework.web: INFO

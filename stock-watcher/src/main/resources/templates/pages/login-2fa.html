@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>两步验证 - StockPulse</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+    <link th:href="@{/css/theme.css}" rel="stylesheet">
+    <link th:href="@{/css/components.css}" rel="stylesheet">
+    <link th:href="@{/css/custom.css}" rel="stylesheet">
+    <script th:src="@{/js/theme.js}"></script>
+    <style>
+        .login-wrapper {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .login-bg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: 0;
+        }
+
+        .login-bg::before {
+            content: '';
+            position: absolute;
+            top: -20%;
+            left: -10%;
+            width: 60%;
+            height: 80%;
+            background: radial-gradient(ellipse, rgba(59, 130, 246, 0.15) 0%, transparent 60%);
+            border-radius: 50%;
+            filter: blur(80px);
+        }
+
+        .login-bg::after {
+            content: '';
+            position: absolute;
+            bottom: -20%;
+            right: -10%;
+            width: 50%;
+            height: 70%;
+            background: radial-gradient(ellipse, rgba(139, 92, 246, 0.12) 0%, transparent 60%);
+            border-radius: 50%;
+            filter: blur(80px);
+        }
+
+        .login-card-wrapper {
+            width: 100%;
+            max-width: 440px;
+            padding: 40px 20px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .login-card {
+            width: 100%;
+            background: var(--bg-card);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--border-color);
+            border-radius: 20px;
+            padding: 40px 36px;
+            box-shadow: 0 24px 64px rgba(0, 0, 0, 0.3);
+            animation: scaleIn 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        @keyframes scaleIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px) scale(0.98);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+
+        .login-card-header {
+            text-align: center;
+            margin-bottom: 32px;
+        }
+
+        .login-card-icon {
+            width: 56px;
+            height: 56px;
+            background: var(--gradient-primary);
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            color: white;
+            margin: 0 auto 16px;
+            box-shadow: 0 8px 24px rgba(59, 130, 246, 0.3);
+        }
+
+        .login-card-title {
+            font-family: var(--font-display);
+            font-size: 22px;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 6px;
+        }
+
+        .login-card-subtitle {
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+
+        .login-form .form-label {
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+        }
+
+        .login-form .form-control {
+            height: 44px;
+            background: var(--bg-input);
+            border-color: var(--border-color);
+            color: var(--text-primary);
+            font-size: 14px;
+            transition: all var(--transition-fast);
+        }
+
+        .login-form .form-control:focus {
+            background: var(--bg-input-hover);
+            border-color: var(--accent-blue);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+            color: var(--text-primary);
+        }
+
+        .login-form .form-control::placeholder {
+            color: var(--text-muted);
+        }
+
+        .code-input {
+            text-align: center;
+            letter-spacing: 8px;
+            font-size: 1.5rem !important;
+            font-family: var(--font-mono);
+        }
+
+        .login-form .btn-primary {
+            height: 44px;
+            font-size: 14px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+
+        .login-footer {
+            text-align: center;
+            margin-top: 24px;
+            padding-top: 24px;
+            border-top: 1px solid var(--border-light);
+        }
+
+        .login-footer p {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-bottom: 0;
+        }
+
+        .login-footer a {
+            color: var(--text-muted);
+            text-decoration: none;
+            transition: color var(--transition-fast);
+        }
+
+        .login-footer a:hover {
+            color: var(--accent-blue-light);
+        }
+
+        .theme-toggle-btn {
+            position: fixed;
+            top: 24px;
+            right: 24px;
+            width: 44px;
+            height: 44px;
+            border-radius: 12px;
+            background: var(--bg-card);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid var(--border-color);
+            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            z-index: 100;
+            transition: all var(--transition-fast);
+            font-size: 18px;
+        }
+
+        .theme-toggle-btn:hover {
+            background: var(--bg-card-hover);
+            color: var(--text-primary);
+            border-color: var(--accent-blue);
+            transform: translateY(-2px);
+        }
+
+        .alert {
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            font-size: 13px;
+        }
+
+        .alert-danger {
+            background: rgba(239, 68, 68, 0.1);
+            border-color: rgba(239, 68, 68, 0.3);
+            color: var(--rise-light);
+        }
+
+        .alert-success {
+            background: rgba(34, 197, 94, 0.1);
+            border-color: rgba(34, 197, 94, 0.3);
+            color: var(--fall-light);
+        }
+
+        @media (max-width: 575.98px) {
+            .login-card-wrapper {
+                padding: 24px 20px;
+            }
+
+            .login-card {
+                padding: 32px 24px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="login-wrapper">
+        <div class="login-bg"></div>
+
+        <button class="theme-toggle-btn" onclick="toggleTheme(); updateLoginThemeIcon();" title="切换主题">
+            <i class="bi bi-moon-stars" id="loginThemeIcon"></i>
+        </button>
+
+        <div class="login-card-wrapper">
+            <div class="login-card">
+                <div class="login-card-header">
+                    <div class="login-card-icon">
+                        <i class="bi bi-shield-lock"></i>
+                    </div>
+                    <h2 class="login-card-title">两步验证</h2>
+                    <p class="login-card-subtitle">请输入 Authenticator 应用中的验证码</p>
+                </div>
+
+                <div th:if="${error}" class="alert alert-danger py-2 mb-3" th:text="${error}"></div>
+                <div th:if="${message}" class="alert alert-success py-2 mb-3" th:text="${message}"></div>
+
+                <form method="post" th:action="@{/login/verify-totp}" class="login-form">
+                    <div class="mb-4">
+                        <label class="form-label">验证码</label>
+                        <input type="text" name="code" class="form-control form-control-lg code-input"
+                               placeholder="000000" maxlength="6" pattern="[0-9]{6}"
+                               required autofocus>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="bi bi-check-circle me-2"></i>验证
+                    </button>
+                </form>
+
+                <div class="login-footer">
+                    <p><a href="/logout"><i class="bi bi-arrow-left me-1"></i>返回登录</a></p>
+                    <p class="mt-3">© 2024 StockPulse. 保留所有权利。</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function updateLoginThemeIcon() {
+            const icon = document.getElementById('loginThemeIcon');
+            if (icon) {
+                const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+                icon.className = isDark ? 'bi bi-moon-stars' : 'bi bi-sun';
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            updateLoginThemeIcon();
+        });
+    </script>
+</body>
+</html>

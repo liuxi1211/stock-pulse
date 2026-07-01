@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/common :: head(${pageTitle})}">
+</head>
+<body>
+<div class="app-container">
+    <!-- Sidebar -->
+    <nav th:replace="~{fragments/common :: sidebar}"></nav>
+
+    <!-- Sidebar Overlay -->
+    <div th:replace="~{fragments/common :: sidebarOverlay}"></div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+        <!-- Top Navbar -->
+        <header th:replace="~{fragments/common :: topNavbar}"></header>
+
+        <!-- Page Content -->
+        <main class="content-area">
+            <!-- Page Header -->
+            <div class="page-header">
+                <div>
+                    <h1 class="page-title">用户管理</h1>
+                    <p class="text-muted mb-0" style="font-size: 13px; margin-top: 4px;">管理系统用户账户、权限及安全设置</p>
+                </div>
+                <div class="page-actions">
+                    <button class="btn btn-success btn-sm" onclick="openCreateModal()">
+                        <i class="bi bi-plus-lg"></i> 新增用户
+                    </button>
+                </div>
+            </div>
+
+            <!-- Search & Actions -->
+            <div class="card card-glow mb-4 animate-in delay-1">
+                <div class="card-header">
+                    <h6 class="card-title">
+                        <span class="card-title-icon">
+                            <i class="bi bi-funnel"></i>
+                        </span>
+                        筛选条件
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <form class="row g-3 align-items-end" id="searchForm" onsubmit="return false;">
+                        <div class="col-md-4">
+                            <label class="form-label">关键词</label>
+                            <input type="text" class="form-control" id="searchKeyword"
+                                   placeholder="用户名、邮箱或手机号">
+                        </div>
+                        <div class="col-auto">
+                            <button class="btn btn-primary" onclick="loadUsers(1)">
+                                <i class="bi bi-search me-1"></i>搜索
+                            </button>
+                            <button class="btn btn-outline-secondary" onclick="resetSearch()">
+                                重置
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- User Table -->
+            <div class="card card-glow animate-in delay-2">
+                <div class="card-header">
+                    <h6 class="card-title">
+                        <span class="card-title-icon purple">
+                            <i class="bi bi-people"></i>
+                        </span>
+                        用户列表
+                    </h6>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover table-striped mb-0 align-middle">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>用户名</th>
+                                    <th>邮箱</th>
+                                    <th>手机号</th>
+                                    <th>角色</th>
+                                    <th>2FA</th>
+                                    <th>状态</th>
+                                    <th>创建时间</th>
+                                    <th class="text-center">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="userListBody">
+                                <tr>
+                                    <td colspan="9" class="text-center text-muted py-4">
+                                        <div class="spinner-border spinner-border-sm me-1"></div>加载中...
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="card-footer d-flex justify-content-between align-items-center">
+                    <small class="text-muted" id="pageInfo">共 0 条</small>
+                    <nav>
+                        <ul class="pagination pagination-sm mb-0" id="pagination"></ul>
+                    </nav>
+                </div>
+            </div>
+        </main>
+    </div>
+</div>
+
+<!-- Create User Modal -->
+<div class="modal fade" id="createUserModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-person-plus me-2"></i>新增用户</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="createUserForm">
+                    <div class="mb-3">
+                        <label class="form-label">用户名 <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="createUsername" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">密码 <span class="text-danger">*</span></label>
+                        <input type="password" class="form-control" id="createPassword" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">邮箱</label>
+                        <input type="email" class="form-control" id="createEmail">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">手机号</label>
+                        <input type="text" class="form-control" id="createPhone">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">角色</label>
+                        <select class="form-select" id="createRole">
+                            <option value="USER" selected>普通用户</option>
+                            <option value="ADMIN">管理员</option>
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="submitCreateUser()">
+                    <i class="bi bi-check-lg me-1"></i>创建
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- TOTP Setup Modal -->
+<div class="modal fade" id="totpSetupModal" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-shield-check me-2"></i>绑定两步验证</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="text-center mb-3">
+                    <p class="text-muted small mb-2">请用 Google Authenticator 扫描下方二维码</p>
+                    <div id="totpQrcode" class="d-inline-block mb-2"></div>
+                    <p class="text-muted small mb-1">或手动输入密钥：</p>
+                    <code id="totpSecretDisplay" class="user-select-all" style="font-size: 0.8rem; word-break: break-all;"></code>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div th:replace="~{fragments/common :: toastContainer}"></div>
+
+<div th:replace="~{fragments/common :: scripts}"></div>
+<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+<script th:src="@{/js/user-management.js}"></script>
+</body>
+</html>

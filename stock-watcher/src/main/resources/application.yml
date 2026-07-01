@@ -1,0 +1,51 @@
+server:
+  port: 8080
+  servlet:
+    context-path: /
+
+spring:
+  application:
+    name: stock-watcher
+  profiles:
+    active: dev
+  datasource:
+    url: jdbc:sqlite:./data/stock_watcher.db
+    driver-class-name: org.sqlite.JDBC
+  thymeleaf:
+    prefix: classpath:/templates/
+    suffix: .html
+    encoding: UTF-8
+
+mybatis-plus:
+  mapper-locations: classpath:mapper/*.xml
+  type-aliases-package: com.arthur.stock.model
+  configuration:
+    map-underscore-to-camel-case: true
+  global-config:
+    db-config:
+      id-type: auto
+      logic-delete-field: deleted
+
+# ========== Stock API Configuration (fill in your own) ==========
+stock:
+  api:
+    key: your_api_key_here
+    base-url: https://api.example.com
+    timeout: 5000
+  refresh:
+    cron: "0 */5 9-15 * * MON-FRI"
+  sync:
+    cron: "0 0 18 * * MON-FRI"
+
+# ========== Auth Configuration ==========
+auth:
+  admin-skip-totp: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+  endpoint:
+    health:
+      show-details: always

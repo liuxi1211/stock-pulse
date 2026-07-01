@@ -1,0 +1,23 @@
+spring:
+  thymeleaf:
+    cache: true
+  devtools:
+    restart:
+      enabled: false
+
+auth:
+  admin-skip-totp: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: when-authorized
+
+logging:
+  level:
+    com.arthur.stock: INFO
+    org.springframework.web: WARN

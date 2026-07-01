@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/common :: head(${pageTitle})}">
+</head>
+<body>
+<div class="app-container">
+    <nav th:replace="~{fragments/common :: sidebar}"></nav>
+
+    <div th:replace="~{fragments/common :: sidebarOverlay}"></div>
+
+    <div class="main-content">
+        <header th:replace="~{fragments/common :: topNavbar}"></header>
+
+        <main class="content-area">
+            <div class="page-header animate-in delay-1">
+                <div>
+                    <h1 class="page-title">我的自选股</h1>
+                    <p class="text-muted mb-0" style="font-size: 13px; margin-top: 4px;">实时追踪关注的股票动态，掌握投资先机</p>
+                </div>
+                <div class="page-actions">
+                    <button class="btn btn-secondary btn-sm" onclick="refreshWatchlist()">
+                        <i class="bi bi-arrow-clockwise"></i> 刷新
+                    </button>
+                </div>
+            </div>
+
+            <div class="animate-in delay-2">
+                <div class="card card-glow">
+                    <div class="card-header">
+                        <h6 class="card-title">
+                            <span class="card-title-icon yellow">
+                                <i class="bi bi-star-fill"></i>
+                            </span>
+                            自选股列表
+                        </h6>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0 align-middle">
+                                <thead>
+                                    <tr>
+                                        <th>代码</th>
+                                        <th>名称</th>
+                                        <th class="text-end">最新价</th>
+                                        <th class="text-end">涨跌额</th>
+                                        <th class="text-end">涨跌幅</th>
+                                        <th class="text-end">成交量</th>
+                                        <th class="text-center">操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="watchlistTable">
+                                    <tr><td colspan="7" class="text-center text-muted py-4">加载中...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+</div>
+
+<div class="toast-container position-fixed bottom-0 end-0 p-3" id="toastContainer"></div>
+
+<div th:replace="~{fragments/common :: scripts}"></div>
+<script>
+    function refreshWatchlist() {
+        StockApp.get('/api/watchlist', null, function(resp) {
+            if (resp.code !== 200) return;
+            const tbody = document.getElementById('watchlistTable');
+            const list = resp.data;
+            if (!list.length) {
+                tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4">暂无自选股</td></tr>';
+                return;
+            }
+            tbody.innerHTML = list.map(s => {
+                const e = StockApp.escapeHtml;
+                const upDown = s.changePercent >= 0 ? 'rise' : 'fall';
+                const sign = s.changeAmount >= 0 ? '+' : '';
+                return `
+                <tr>
+                    <td><code>${e(s.code)}</code></td>
+                    <td class="fw-medium">${e(s.name)}</td>
+                    <td class="text-end">${e(s.currentPrice)}</td>
+                    <td class="text-end ${upDown}">${sign}${e(s.changeAmount)}</td>
+                    <td class="text-end ${upDown}">${s.changePercent >= 0 ? '+' : ''}${e(s.changePercent)}%</td>
+                    <td class="text-end">${(s.volume / 10000).toFixed(1)}万</td>
+                    <td class="text-center">
+                        <button class="btn btn-sm btn-outline-danger" onclick="removeStock('${e(s.code)}')">
+                            <i class="bi bi-trash me-1"></i>移除
+                        </button>
+                    </td>
+                </tr>`;
+            }).join('');
+        });
+    }
+
+    async function removeStock(code) {
+        if (!await StockApp.confirm({
+            title: '移除自选股',
+            message: '确认移除该自选股？',
+            confirmText: '移除',
+            confirmClass: 'btn-danger',
+            icon: 'bi-trash'
+        })) return;
+        StockApp.delete('/api/watchlist/' + code, function(resp) {
+            StockApp.toast(resp.message, resp.code === 200 ? 'success' : 'danger');
+            if (resp.code === 200) refreshWatchlist();
+        });
+    }
+
+    refreshWatchlist();
+</script>
+</body>
+</html>

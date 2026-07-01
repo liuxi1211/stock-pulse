@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/common :: head(${pageTitle})}">
+</head>
+<body>
+<div class="app-container">
+    <nav th:replace="~{fragments/common :: sidebar}"></nav>
+
+    <div th:replace="~{fragments/common :: sidebarOverlay}"></div>
+
+    <div class="main-content">
+        <header th:replace="~{fragments/common :: topNavbar}"></header>
+
+        <main class="content-area">
+            <div class="page-header">
+                <div>
+                    <h1 class="page-title">
+                        <i class="bi bi-gear me-2"></i>系统设置
+                    </h1>
+                    <p class="text-muted mb-0" style="font-size: 13px; margin-top: 4px;">配置系统参数，管理数据源与定时任务</p>
+                </div>
+            </div>
+
+            <div class="row g-4">
+                <div class="col-lg-6 animate-in delay-1">
+                    <div class="card card-glow h-100">
+                        <div class="card-header">
+                            <h6 class="card-title">
+                                <span class="card-title-icon">
+                                    <i class="bi bi-database"></i>
+                                </span>
+                                数据源配置
+                            </h6>
+                        </div>
+                        <div class="card-body">
+                            <p class="text-muted small mb-3">请在 application.yml 中配置以下参数：</p>
+                            <table class="table table-sm">
+                                <tbody>
+                                    <tr>
+                                        <td class="text-muted">数据库地址</td>
+                                        <td><code>spring.datasource.url</code></td>
+                                    </tr>
+                                    <tr>
+                                        <td class="text-muted">数据库用户</td>
+                                        <td><code>spring.datasource.username</code></td>
+                                    </tr>
+                                    <tr>
+                                        <td class="text-muted">行情API Key</td>
+                                        <td><code>stock.api.key</code></td>
+                                    </tr>
+                                    <tr>
+                                        <td class="text-muted">行情API地址</td>
+                                        <td><code>stock.api.base-url</code></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-6 animate-in delay-2">
+                    <div class="card card-glow h-100">
+                        <div class="card-header">
+                            <h6 class="card-title">
+                                <span class="card-title-icon purple">
+                                    <i class="bi bi-clock-history"></i>
+                                </span>
+                                定时任务
+                            </h6>
+                        </div>
+                        <div class="card-body">
+                            <p class="text-muted small mb-3">Quartz 定时任务配置（需在 application.yml 中开启）：</p>
+                            <table class="table table-sm">
+                                <tbody>
+                                    <tr>
+                                        <td class="text-muted">行情刷新频率</td>
+                                        <td><code>stock.refresh.cron</code></td>
+                                    </tr>
+                                    <tr>
+                                        <td class="text-muted">数据同步时间</td>
+                                        <td><code>stock.sync.cron</code></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+</div>
+
+<div th:replace="~{fragments/common :: scripts}"></div>
+</body>
+</html>

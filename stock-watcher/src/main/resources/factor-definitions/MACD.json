@@ -1,0 +1,41 @@
+{
+  "factorKey": "MACD",
+  "displayName": "MACD 指数平滑异同平均线",
+  "category": "MOMENTUM",
+  "description": "由快慢两条 EMA 的差值及其信号线构成",
+  "params": [
+    {
+      "name": "fastperiod",
+      "displayName": "快线周期",
+      "type": "INT",
+      "defaultValue": 12,
+      "min": 1,
+      "max": 500,
+      "step": 1
+    },
+    {
+      "name": "slowperiod",
+      "displayName": "慢线周期",
+      "type": "INT",
+      "defaultValue": 26,
+      "min": 1,
+      "max": 500,
+      "step": 1
+    },
+    {
+      "name": "signalperiod",
+      "displayName": "信号线周期",
+      "type": "INT",
+      "defaultValue": 9,
+      "min": 1,
+      "max": 500,
+      "step": 1
+    }
+  ],
+  "inputs": ["close"],
+  "multiOutput": true,
+  "outputLabels": ["DIF", "DEA", "MACD柱"],
+  "defaultOutputIndex": 0,
+  "lookbackHint": "slowperiod + signalperiod - 2",
+  "lookbackDefault": 33
+}

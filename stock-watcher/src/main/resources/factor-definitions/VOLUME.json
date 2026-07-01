@@ -1,0 +1,13 @@
+{
+  "factorKey": "VOLUME",
+  "displayName": "成交量",
+  "category": "VOLUME",
+  "description": "当前 bar 的成交量",
+  "params": [],
+  "inputs": ["volume"],
+  "multiOutput": false,
+  "outputLabels": [],
+  "defaultOutputIndex": 0,
+  "lookbackHint": "0",
+  "lookbackDefault": 0
+}

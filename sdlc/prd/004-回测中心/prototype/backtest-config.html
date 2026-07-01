@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>新建回测 - Stock Watcher</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif; background: #f5f7fa; }
+
+        .sidebar { width: 240px; height: 100vh; background: #1f2937; color: #fff; position: fixed; left: 0; top: 0; overflow-y: auto; }
+        .sidebar-header { padding: 20px 16px; border-bottom: 1px solid #374151; font-size: 18px; font-weight: 600; }
+        .sidebar-header i { color: #60a5fa; }
+        .sidebar-nav { list-style: none; padding: 12px 0; margin: 0; }
+        .sidebar-item { padding: 0 8px; }
+        .sidebar-link { display: flex; align-items: center; padding: 10px 12px; color: #cbd5e1; text-decoration: none; border-radius: 6px; margin: 2px 0; transition: all .15s; font-size: 14px; }
+        .sidebar-link:hover { background: #374151; color: #fff; }
+        .sidebar-link.active { background: #3b82f6; color: #fff; }
+        .sidebar-link i { width: 24px; font-size: 18px; }
+        .sidebar-link span { margin-left: 12px; }
+
+        .main-wrapper { margin-left: 240px; min-height: 100vh; }
+        .top-navbar { background: #fff; border-bottom: 1px solid #e5e7eb; padding: 12px 24px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; }
+        .content-area { padding: 24px; max-width: 1200px; }
+
+        .card { border: 1px solid #e5e7eb; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); background: #fff; margin-bottom: 16px; }
+        .card-header { background: #fafbfc; border-bottom: 1px solid #e5e7eb; padding: 14px 16px; }
+        .card-header h6 { margin: 0; font-size: 14px; font-weight: 600; color: #111827; display: flex; align-items: center; gap: 8px; }
+        .card-header .step-num { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; background: #3b82f6; color: #fff; border-radius: 50%; font-size: 12px; font-weight: 700; }
+        .card-body { padding: 20px; }
+
+        .form-label { font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 6px; display: block; }
+        .form-help { font-size: 11px; color: #64748b; margin-top: 4px; }
+        .form-control, .form-select { font-size: 13px; padding: 8px 12px; border-radius: 6px; border: 1px solid #d1d5db; }
+        .form-control:focus, .form-select:focus { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.1); }
+
+        .mode-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+        .mode-card { border: 2px solid #e5e7eb; border-radius: 8px; padding: 16px; cursor: pointer; transition: all .15s; background: #fff; }
+        .mode-card:hover { border-color: #93c5fd; }
+        .mode-card.selected { border-color: #3b82f6; background: #eff6ff; }
+        .mode-card .mode-icon { width: 40px; height: 40px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 20px; margin-bottom: 10px; }
+        .mode-card .mode-title { font-size: 14px; font-weight: 600; color: #111827; margin-bottom: 4px; }
+        .mode-card .mode-desc { font-size: 12px; color: #64748b; line-height: 1.5; }
+        .mode-card.selected .mode-icon { background: #3b82f6; color: #fff; }
+        .mode-card:not(.selected) .mode-icon { background: #f3f4f6; color: #64748b; }
+
+        .universe-options { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+        .universe-option { padding: 12px 8px; border: 1px solid #e5e7eb; border-radius: 6px; text-align: center; cursor: pointer; transition: all .15s; background: #fff; }
+        .universe-option:hover { border-color: #93c5fd; }
+        .universe-option.selected { background: #3b82f6; color: #fff; border-color: #3b82f6; font-weight: 600; }
+        .universe-option .univ-name { font-size: 13px; }
+        .universe-option .univ-desc { font-size: 11px; opacity: 0.7; margin-top: 2px; }
+
+        .param-row { background: #fafbfc; border: 1px solid #e5e7eb; border-radius: 6px; padding: 12px; margin-bottom: 8px; }
+        .param-row-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .param-path { font-family: "SF Mono", Menlo, monospace; font-size: 11px; color: #64748b; background: #f1f5f9; padding: 3px 8px; border-radius: 4px; }
+        .param-label { font-size: 13px; font-weight: 600; color: #374151; }
+        .param-values { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+        .param-value-input { flex: 1; min-width: 80px; }
+        .param-value-tag { background: #dbeafe; color: #1e40af; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-family: monospace; }
+
+        .input-group-two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .input-group-three { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+        .input-group-four { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+
+        .btn-primary { background: #3b82f6; color: #fff; border-color: #3b82f6; padding: 8px 16px; font-size: 13px; border-radius: 6px; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; border: 1px solid; cursor: pointer; }
+        .btn-primary:hover { background: #2563eb; border-color: #2563eb; }
+        .btn-secondary { background: #fff; color: #374151; border: 1px solid #d1d5db; padding: 8px 16px; font-size: 13px; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+        .btn-secondary:hover { background: #f3f4f6; }
+        .btn-success { background: #10b981; color: #fff; border-color: #10b981; padding: 10px 20px; font-size: 14px; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; border: 1px solid; font-weight: 600; }
+        .btn-success:hover { background: #059669; border-color: #059669; }
+        .btn-ghost { background: transparent; border: 1px dashed #94a3b8; color: #64748b; padding: 8px 12px; font-size: 12px; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+        .btn-ghost:hover { border-color: #3b82f6; color: #3b82f6; background: #eff6ff; }
+        .btn-danger-sm { background: transparent; border: none; color: #dc2626; cursor: pointer; padding: 4px; font-size: 14px; }
+        .btn-danger-sm:hover { background: #fee2e2; border-radius: 4px; }
+
+        .bottom-bar { background: #fff; border-top: 1px solid #e5e7eb; padding: 14px 24px; position: sticky; bottom: 0; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 -4px 12px rgba(0,0,0,0.04); }
+        .estimate-info { font-size: 12px; color: #64748b; display: flex; align-items: center; gap: 8px; }
+        .estimate-info strong { color: #111827; }
+
+        .strategy-select-box { border: 1px solid #e5e7eb; border-radius: 6px; padding: 12px; background: #fafbfc; display: flex; justify-content: space-between; align-items: center; }
+        .strategy-info { display: flex; gap: 12px; align-items: center; }
+        .strategy-icon { width: 44px; height: 44px; border-radius: 8px; background: #dbeafe; color: #1e40af; display: flex; align-items: center; justify-content: center; font-size: 20px; }
+        .strategy-name { font-size: 14px; font-weight: 600; color: #111827; }
+        .strategy-meta { font-size: 12px; color: #64748b; margin-top: 2px; }
+
+        .checkbox-row { display: flex; align-items: center; gap: 8px; padding: 8px 0; }
+        .checkbox-row input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; }
+        .checkbox-row label { margin: 0; font-size: 13px; color: #374151; cursor: pointer; font-weight: normal; }
+
+        .info-box { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 10px 14px; font-size: 12px; color: #1e40af; display: flex; gap: 8px; align-items: flex-start; }
+        .info-box i { margin-top: 1px; }
+        .warning-box { background: #fffbeb; border: 1px solid #fde68a; border-radius: 6px; padding: 10px 14px; font-size: 12px; color: #92400e; display: flex; gap: 8px; align-items: flex-start; }
+
+        .tab-section { display: none; }
+        .tab-section.active { display: block; }
+
+        .metric-badge-row { display: flex; gap: 8px; flex-wrap: wrap; }
+        .metric-option { padding: 8px 14px; border: 1px solid #e5e7eb; border-radius: 6px; cursor: pointer; font-size: 12px; color: #374151; background: #fff; transition: all .15s; }
+        .metric-option:hover { border-color: #93c5fd; }
+        .metric-option.selected { background: #3b82f6; color: #fff; border-color: #3b82f6; font-weight: 600; }
+
+        .walkforward-diagram { background: #f8fafc; border-radius: 8px; padding: 16px; font-family: "SF Mono", Menlo, monospace; font-size: 11px; }
+        .wf-segment { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+        .wf-train { background: #fef3c7; color: #92400e; padding: 6px 12px; border-radius: 4px; }
+        .wf-test { background: #d1fae5; color: #065f46; padding: 6px 12px; border-radius: 4px; }
+        .wf-arrow { color: #94a3b8; }
+    </style>
+</head>
+<body>
+
+<nav class="sidebar">
+    <div class="sidebar-header">
+        <i class="bi bi-graph-up-arrow"></i> Stock Watcher
+    </div>
+    <ul class="sidebar-nav">
+        <li class="sidebar-item">
+            <a href="#" class="sidebar-link"><i class="bi bi-speedometer2"></i><span>仪表盘</span></a>
+        </li>
+        <li class="sidebar-item">
+            <a href="#" class="sidebar-link"><i class="bi bi-diagram-3"></i><span>策略管理</span></a>
+        </li>
+        <li class="sidebar-item">
+            <a href="#" class="sidebar-link"><i class="bi bi-filter-circle"></i><span>选股模块</span></a>
+        </li>
+        <li class="sidebar-item">
+            <a href="backtest-list.html" class="sidebar-link active"><i class="bi bi-cash-stack"></i><span>回测中心</span></a>
+        </li>
+        <li class="sidebar-item">
+            <a href="#" class="sidebar-link"><i class="bi bi-gear-wide-connected"></i><span>因子库</span></a>
+        </li>
+    </ul>
+</nav>
+
+<div class="main-wrapper">
+    <div class="top-navbar">
+        <div>
+            <small style="color: #64748b; font-size: 12px;">
+                <a href="backtest-list.html" style="color: #64748b; text-decoration: none;"><i class="bi bi-arrow-left"></i> 返回回测列表</a>
+            </small>
+            <h3 style="font-size: 18px; font-weight: 600; margin: 4px 0 0 0; color: #111827;">
+                <i class="bi bi-plus-circle" style="color: #3b82f6;"></i> 新建回测
+            </h3>
+        </div>
+    </div>
+
+    <div class="content-area">
+
+        <div class="card">
+            <div class="card-header">
+                <h6><span class="step-num">1</span> 选择策略</h6>
+            </div>
+            <div class="card-body">
+                <label class="form-label">策略 <span style="color: #dc2626;">*</span></label>
+                <div class="strategy-select-box">
+                    <div class="strategy-info">
+                        <div class="strategy-icon"><i class="bi bi-graph-up"></i></div>
+                        <div>
+                            <div class="strategy-name">双均线交叉策略</div>
+                            <div class="strategy-meta">版本 v3 · 趋势类 · 最近更新 2 天前</div>
+                        </div>
+                    </div>
+                    <select class="form-select" style="width: auto;">
+                        <option>双均线交叉策略 (v3)</option>
+                        <option>双均线交叉策略 (v2)</option>
+                        <option>RSI 超买超卖策略 (v2)</option>
+                        <option>MACD 金叉死叉 (v1)</option>
+                        <option>布林带突破策略 (v4)</option>
+                        <option>动量策略-双因子 (v2)</option>
+                    </select>
+                </div>
+                <div class="form-help">回测使用策略的完整规则配置（买入/卖出条件、仓位管理等）</div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h6><span class="step-num">2</span> 选择回测模式</h6>
+            </div>
+            <div class="card-body">
+                <div class="mode-cards">
+                    <div class="mode-card selected" onclick="selectMode('single', this)">
+                        <div class="mode-icon"><i class="bi bi-play-circle"></i></div>
+                        <div class="mode-title">单次回测</div>
+                        <div class="mode-desc">使用策略当前参数，跑一次完整回测。快速验证策略表现。</div>
+                    </div>
+                    <div class="mode-card" onclick="selectMode('grid', this)">
+                        <div class="mode-icon"><i class="bi bi-grid-3x3-gap"></i></div>
+                        <div class="mode-title">参数优化</div>
+                        <div class="mode-desc">对策略中的数值参数进行网格搜索，找出表现最佳的参数组合。</div>
+                    </div>
+                    <div class="mode-card" onclick="selectMode('walk', this)">
+                        <div class="mode-icon"><i class="bi bi-arrow-repeat"></i></div>
+                        <div class="mode-title">Walk-forward</div>
+                        <div class="mode-desc">滚动样本内外验证，检测策略是否存在过拟合风险。</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 单次回测配置 -->
+        <div class="card tab-section active" id="config-single">
+            <div class="card-header">
+                <h6><span class="step-num">3</span> 回测参数配置</h6>
+            </div>
+            <div class="card-body">
+
+                <div class="row mb-3" style="--bs-gutter-x: 16px;">
+                    <div class="col-md-6">
+                        <label class="form-label">回测开始日期 <span style="color: #dc2626;">*</span></label>
+                        <input type="date" class="form-control" value="2024-01-01">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">回测结束日期 <span style="color: #dc2626;">*</span></label>
+                        <input type="date" class="form-control" value="2025-12-31">
+                    </div>
+                </div>
+
+                <label class="form-label">选股范围 <span style="color: #dc2626;">*</span></label>
+                <div class="universe-options mb-3">
+                    <div class="universe-option selected" onclick="selectUniverse(this, 'index300')">
+                        <div class="univ-name">沪深300</div>
+                        <div class="univ-desc">300 只成分股</div>
+                    </div>
+                    <div class="universe-option" onclick="selectUniverse(this, 'index500')">
+                        <div class="univ-name">中证500</div>
+                        <div class="univ-desc">500 只成分股</div>
+                    </div>
+                    <div class="universe-option" onclick="selectUniverse(this, 'custom')">
+                        <div class="univ-name">自定义</div>
+                        <div class="univ-desc">手动选择股票</div>
+                    </div>
+                    <div class="universe-option" style="opacity: 0.4; cursor: not-allowed;">
+                        <div class="univ-name">全市场</div>
+                        <div class="univ-desc">暂未开放</div>
+                    </div>
+                </div>
+
+                <div class="info-box mb-3">
+                    <i class="bi bi-info-circle"></i>
+                    <div>沪深300 / 中证500 使用当前最新成分股回测。自定义模式最多选择 50 只股票。数据从日线数据表读取，已处理复权。</div>
+                </div>
+
+                <div class="row mb-3" style="--bs-gutter-x: 16px;">
+                    <div class="col-md-4">
+                        <label class="form-label">初始资金 (元)</label>
+                        <input type="number" class="form-control" value="1000000">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">佣金率 (%)</label>
+                        <input type="number" step="0.0001" class="form-control" value="0.03">
+                        <div class="form-help">默认 万三 (0.03%)</div>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">滑点 (%)</label>
+                        <input type="number" step="0.01" class="form-control" value="0.1">
+                        <div class="form-help">默认 0.1%，模拟成交价差</div>
+                    </div>
+                </div>
+
+                <div class="row mb-3" style="--bs-gutter-x: 16px;">
+                    <div class="col-md-4">
+                        <label class="form-label">调仓频率 (交易日)</label>
+                        <input type="number" class="form-control" value="5">
+                        <div class="form-help">每隔 N 个交易日重新评估买入机会</div>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">最大持仓数</label>
+                        <input type="number" class="form-control" value="10">
+                        <div class="form-help">留空使用策略默认值</div>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">单票最大仓位 (%)</label>
+                        <input type="number" class="form-control" value="10">
+                        <div class="form-help">单只股票占总资金的上限</div>
+                    </div>
+                </div>
+
+                <div class="checkbox-row">
+                    <input type="checkbox" id="benchmark" checked>
+                    <label for="benchmark">对比基准指数（沪深300）</label>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- 参数优化配置 -->
+        <div class="card tab-section" id="config-grid">
+            <div class="card-header">
+                <h6><span class="step-num">3</span> 参数优化配置</h6>
+            </div>
+            <div class="card-body">
+
+                <div class="info-box mb-3">
+                    <i class="bi bi-lightbulb"></i>
+                    <div>在策略配置中的数值型参数下方添加候选值，系统会对所有参数的组合进行笛卡尔积网格搜索。建议总组合数不超过 1000 组。</div>
+                </div>
+
+                <div class="row mb-3" style="--bs-gutter-x: 16px;">
+                    <div class="col-md-6">
+                        <label class="form-label">回测区间 <span style="color: #dc2626;">*</span></label>
+                        <div class="input-group-two">
+                            <input type="date" class="form-control" value="2024-01-01">
+                            <input type="date" class="form-control" value="2025-12-31">
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">选股范围</label>
+                        <select class="form-select">
+                            <option>沪深300</option>
+                            <option>中证500</option>
+                            <option>自定义</option>
+                        </select>
+                    </div>
+                </div>
+
+                <label class="form-label">优化目标指标 <span style="color: #dc2626;">*</span></label>
+                <div class="metric-badge-row mb-4">
+                    <div class="metric-option selected" onclick="selectMetric(this)">夏普比率</div>
+                    <div class="metric-option" onclick="selectMetric(this)">总收益率</div>
+                    <div class="metric-option" onclick="selectMetric(this)">胜率</div>
+                    <div class="metric-option" onclick="selectMetric(this)">卡尔马比率</div>
+                    <div class="metric-option" onclick="selectMetric(this)">索提诺比率</div>
+                </div>
+
+                <label class="form-label mb-2">待优化参数 <small style="color: #64748b; font-weight: normal;">共检测到 4 个数值型参数</small></label>
+
+                <div class="param-row">
+                    <div class="param-row-header">
+                        <div>
+                            <span class="param-label">MA 短周期</span>
+                            <span class="param-path" style="margin-left: 8px;">buy_rules.conditions[0].left.params.period</span>
+                        </div>
+                        <button class="btn-danger-sm" title="移除"><i class="bi bi-x-lg"></i></button>
+                    </div>
+                    <div class="param-values">
+                        <input type="number" class="form-control param-value-input" value="3" placeholder="起始">
+                        <span style="color: #64748b;">到</span>
+                        <input type="number" class="form-control param-value-input" value="10" placeholder="结束">
+                        <span style="color: #64748b;">步长</span>
+                        <input type="number" class="form-control param-value-input" value="1">
+                    </div>
+                    <div class="form-help mt-2">候选值: <span class="param-value-tag">3</span> <span class="param-value-tag">4</span> <span class="param-value-tag">5</span> <span class="param-value-tag">6</span> <span class="param-value-tag">7</span> <span class="param-value-tag">8</span> <span class="param-value-tag">9</span> <span class="param-value-tag">10</span> · 共 8 个</div>
+                </div>
+
+                <div class="param-row">
+                    <div class="param-row-header">
+                        <div>
+                            <span class="param-label">MA 长周期</span>
+                            <span class="param-path" style="margin-left: 8px;">buy_rules.conditions[0].right.params.period</span>
+                        </div>
+                        <button class="btn-danger-sm" title="移除"><i class="bi bi-x-lg"></i></button>
+                    </div>
+                    <div class="param-values">
+                        <input type="number" class="form-control param-value-input" value="15">
+                        <span style="color: #64748b;">到</span>
+                        <input type="number" class="form-control param-value-input" value="60">
+                        <span style="color: #64748b;">步长</span>
+                        <input type="number" class="form-control param-value-input" value="5">
+                    </div>
+                    <div class="form-help mt-2">候选值: <span class="param-value-tag">15</span> <span class="param-value-tag">20</span> <span class="param-value-tag">25</span> <span class="param-value-tag">30</span> <span class="param-value-tag">35</span> <span class="param-value-tag">40</span> <span class="param-value-tag">45</span> <span class="param-value-tag">50</span> <span class="param-value-tag">55</span> <span class="param-value-tag">60</span> · 共 10 个</div>
+                </div>
+
+                <div class="param-row">
+                    <div class="param-row-header">
+                        <div>
+                            <span class="param-label">止损比例</span>
+                            <span class="param-path" style="margin-left: 8px;">sell_rules.stop_loss.percent</span>
+                        </div>
+                        <button class="btn-danger-sm" title="移除"><i class="bi bi-x-lg"></i></button>
+                    </div>
+                    <div class="param-values">
+                        <input type="number" step="0.5" class="form-control param-value-input" value="5">
+                        <span style="color: #64748b;">到</span>
+                        <input type="number" step="0.5" class="form-control param-value-input" value="15">
+                        <span style="color: #64748b;">步长</span>
+                        <input type="number" step="0.5" class="form-control param-value-input" value="2.5">
+                    </div>
+                    <div class="form-help mt-2">候选值: <span class="param-value-tag">5%</span> <span class="param-value-tag">7.5%</span> <span class="param-value-tag">10%</span> <span class="param-value-tag">12.5%</span> <span class="param-value-tag">15%</span> · 共 5 个</div>
+                </div>
+
+                <div class="param-row">
+                    <div class="param-row-header">
+                        <div>
+                            <span class="param-label">止盈比例</span>
+                            <span class="param-path" style="margin-left: 8px;">sell_rules.take_profit.percent</span>
+                        </div>
+                        <button class="btn-danger-sm" title="移除"><i class="bi bi-x-lg"></i></button>
+                    </div>
+                    <div class="param-values">
+                        <input type="number" step="1" class="form-control param-value-input" value="15">
+                        <span style="color: #64748b;">到</span>
+                        <input type="number" step="1" class="form-control param-value-input" value="30">
+                        <span style="color: #64748b;">步长</span>
+                        <input type="number" step="1" class="form-control param-value-input" value="5">
+                    </div>
+                    <div class="form-help mt-2">候选值: <span class="param-value-tag">15%</span> <span class="param-value-tag">20%</span> <span class="param-value-tag">25%</span> <span class="param-value-tag">30%</span> · 共 4 个</div>
+                </div>
+
+                <button class="btn-ghost mt-2"><i class="bi bi-plus-circle"></i> 添加其他参数</button>
+
+                <div class="warning-box mt-4">
+                    <i class="bi bi-exclamation-triangle"></i>
+                    <div><strong>预计总组合数: 8 × 10 × 5 × 4 = 1,600 组</strong>，超过建议的 1,000 组。建议缩小参数范围或减少参数数量，否则回测耗时较长。</div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- Walk-forward 配置 -->
+        <div class="card tab-section" id="config-walk">
+            <div class="card-header">
+                <h6><span class="step-num">3</span> Walk-forward 配置</h6>
+            </div>
+            <div class="card-body">
+
+                <div class="info-box mb-3">
+                    <i class="bi bi-info-circle"></i>
+                    <div>Walk-forward 通过「滚动训练+验证」的方式模拟真实交易：每次只用训练期的数据优化参数，然后在下一个验证期用该参数回测，避免未来信息泄露。</div>
+                </div>
+
+                <label class="form-label">回测总区间 <span style="color: #dc2626;">*</span></label>
+                <div class="input-group-two mb-4">
+                    <input type="date" class="form-control" value="2023-01-01">
+                    <input type="date" class="form-control" value="2025-12-31">
+                </div>
+
+                <div class="row mb-4" style="--bs-gutter-x: 16px;">
+                    <div class="col-md-4">
+                        <label class="form-label">训练窗口 (交易日)</label>
+                        <input type="number" class="form-control" value="252">
+                        <div class="form-help">用于参数优化的历史数据长度 · 约 1 年</div>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">验证窗口 (交易日)</label>
+                        <input type="number" class="form-control" value="63">
+                        <div class="form-help">每次验证期长度 · 约 3 个月</div>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">滚动步长 (交易日)</label>
+                        <input type="number" class="form-control" value="63">
+                        <div class="form-help">每次滚动向前推进的长度</div>
+                    </div>
+                </div>
+
+                <label class="form-label">参数优化目标指标</label>
+                <div class="metric-badge-row mb-4">
+                    <div class="metric-option selected" onclick="selectMetric(this)">夏普比率</div>
+                    <div class="metric-option" onclick="selectMetric(this)">总收益率</div>
+                    <div class="metric-option" onclick="selectMetric(this)">胜率</div>
+                </div>
+
+                <label class="form-label mb-2">待优化参数配置 (与「参数优化」模式相同，此处复用)</label>
+                <div style="background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 6px; padding: 12px; font-size: 12px; color: #64748b;">
+                    <div style="margin-bottom: 6px;"><i class="bi bi-check-circle-fill" style="color: #10b981;"></i> MA 短周期 · 候选值: 3,4,5,6,7,8,9,10</div>
+                    <div style="margin-bottom: 6px;"><i class="bi bi-check-circle-fill" style="color: #10b981;"></i> MA 长周期 · 候选值: 15,20,25,30,35,40,45,50,55,60</div>
+                    <div style="margin-bottom: 6px;"><i class="bi bi-check-circle-fill" style="color: #10b981;"></i> 止损比例 · 候选值: 5%,7.5%,10%,12.5%,15%</div>
+                    <div><i class="bi bi-check-circle-fill" style="color: #10b981;"></i> 止盈比例 · 候选值: 15%,20%,25%,30%</div>
+                    <a href="#" style="color: #2563eb; text-decoration: none; margin-left: 22px; display: inline-block; margin-top: 8px;">
+                        <i class="bi bi-pencil"></i> 修改参数范围
+                    </a>
+                </div>
+
+                <div class="walkforward-diagram mt-4">
+                    <div style="font-size: 12px; color: #374151; margin-bottom: 10px; font-weight: 600;">滚动验证示意图 (共 6 段):</div>
+                    <div class="wf-segment">
+                        <span class="wf-train">[训练期 252天] 2023-01 ~ 2024-01</span>
+                        <span class="wf-arrow">→</span>
+                        <span class="wf-test">[验证期 63天] 2024-01 ~ 2024-04</span>
+                    </div>
+                    <div class="wf-segment">
+                        <span class="wf-train">[训练期 252天] 2023-04 ~ 2024-04</span>
+                        <span class="wf-arrow">→</span>
+                        <span class="wf-test">[验证期 63天] 2024-04 ~ 2024-07</span>
+                    </div>
+                    <div class="wf-segment">
+                        <span class="wf-train">[训练期 252天] 2023-07 ~ 2024-07</span>
+                        <span class="wf-arrow">→</span>
+                        <span class="wf-test">[验证期 63天] 2024-07 ~ 2024-10</span>
+                    </div>
+                    <div style="color: #94a3b8; text-align: center; padding: 4px;">...</div>
+                    <div class="wf-segment">
+                        <span class="wf-train">[训练期 252天] 2024-07 ~ 2025-07</span>
+                        <span class="wf-arrow">→</span>
+                        <span class="wf-test">[验证期 63天] 2025-07 ~ 2025-10</span>
+                    </div>
+                    <div class="wf-segment">
+                        <span class="wf-train">[训练期 252天] 2024-10 ~ 2025-10</span>
+                        <span class="wf-arrow">→</span>
+                        <span class="wf-test">[验证期 63天] 2025-10 ~ 2025-12</span>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+    </div>
+
+    <div class="bottom-bar">
+        <div class="estimate-info">
+            <i class="bi bi-clock"></i>
+            <span>预估耗时: <strong id="est-time">约 2 分钟</strong> · 预计执行 <strong id="est-runs">1</strong> 次回测</span>
+        </div>
+        <div style="display: flex; gap: 8px;">
+            <a href="backtest-list.html" class="btn-secondary"><i class="bi bi-x"></i> 取消</a>
+            <a href="backtest-report.html" class="btn-success"><i class="bi bi-play-fill"></i> 开始回测</a>
+        </div>
+    </div>
+
+</div>
+
+<script>
+function selectMode(mode, el) {
+    document.querySelectorAll('.mode-card').forEach(c => c.classList.remove('selected'));
+    el.classList.add('selected');
+
+    document.querySelectorAll('.tab-section').forEach(s => s.classList.remove('active'));
+    if (mode === 'single') {
+        document.getElementById('config-single').classList.add('active');
+        document.getElementById('est-time').textContent = '约 2 分钟';
+        document.getElementById('est-runs').textContent = '1';
+    } else if (mode === 'grid') {
+        document.getElementById('config-grid').classList.add('active');
+        document.getElementById('est-time').textContent = '约 15-30 分钟';
+        document.getElementById('est-runs').textContent = '1600';
+    } else {
+        document.getElementById('config-walk').classList.add('active');
+        document.getElementById('est-time').textContent = '约 40-60 分钟';
+        document.getElementById('est-runs').textContent = '6 段 × 1600';
+    }
+}
+
+function selectUniverse(el, type) {
+    document.querySelectorAll('.universe-option').forEach(o => o.classList.remove('selected'));
+    el.classList.add('selected');
+}
+
+function selectMetric(el) {
+    el.parentElement.querySelectorAll('.metric-option').forEach(m => m.classList.remove('selected'));
+    el.classList.add('selected');
+}
+</script>
+
+</body>
+</html>

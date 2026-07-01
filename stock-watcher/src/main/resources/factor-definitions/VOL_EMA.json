@@ -1,0 +1,23 @@
+{
+  "factorKey": "VOL_EMA",
+  "displayName": "成交量指数均线（EMA）",
+  "category": "VOLUME",
+  "description": "对成交量取 N 周期指数移动平均",
+  "params": [
+    {
+      "name": "timeperiod",
+      "displayName": "周期",
+      "type": "INT",
+      "defaultValue": 20,
+      "min": 2,
+      "max": 500,
+      "step": 1
+    }
+  ],
+  "inputs": ["volume"],
+  "multiOutput": false,
+  "outputLabels": [],
+  "defaultOutputIndex": 0,
+  "lookbackHint": "timeperiod - 1",
+  "lookbackDefault": 19
+}

@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>登录 - StockPulse</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+    <link th:href="@{/css/theme.css}" rel="stylesheet">
+    <link th:href="@{/css/components.css}" rel="stylesheet">
+    <link th:href="@{/css/custom.css}" rel="stylesheet">
+    <script th:src="@{/js/theme.js}"></script>
+    <style>
+        .login-wrapper {
+            min-height: 100vh;
+            display: flex;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .login-bg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: 0;
+        }
+
+        .login-bg::before {
+            content: '';
+            position: absolute;
+            top: -20%;
+            left: -10%;
+            width: 60%;
+            height: 80%;
+            background: radial-gradient(ellipse, rgba(59, 130, 246, 0.15) 0%, transparent 60%);
+            border-radius: 50%;
+            filter: blur(80px);
+        }
+
+        .login-bg::after {
+            content: '';
+            position: absolute;
+            bottom: -20%;
+            right: -10%;
+            width: 50%;
+            height: 70%;
+            background: radial-gradient(ellipse, rgba(139, 92, 246, 0.12) 0%, transparent 60%);
+            border-radius: 50%;
+            filter: blur(80px);
+        }
+
+        .login-brand {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            padding: 60px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .login-brand-logo {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 48px;
+        }
+
+        .login-brand-icon {
+            width: 64px;
+            height: 64px;
+            background: var(--gradient-primary);
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 32px;
+            color: white;
+            box-shadow: 0 8px 32px rgba(59, 130, 246, 0.4);
+        }
+
+        .login-brand-title {
+            font-family: var(--font-display);
+            font-size: 28px;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--text-primary) 0%, var(--text-secondary) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            letter-spacing: -1px;
+        }
+
+        .login-brand-subtitle {
+            font-size: 12px;
+            color: var(--text-muted);
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            margin-top: 2px;
+        }
+
+        .login-brand-hero h1 {
+            font-family: var(--font-display);
+            font-size: 48px;
+            font-weight: 700;
+            line-height: 1.2;
+            margin-bottom: 20px;
+            letter-spacing: -2px;
+            color: var(--text-primary);
+        }
+
+        .login-brand-hero h1 span {
+            background: var(--gradient-primary);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .login-brand-hero p {
+            font-size: 16px;
+            color: var(--text-secondary);
+            line-height: 1.8;
+            max-width: 480px;
+            margin-bottom: 40px;
+        }
+
+        .login-brand-features {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            max-width: 480px;
+        }
+
+        .login-brand-feature {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+        }
+
+        .login-brand-feature-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            flex-shrink: 0;
+            background: color-mix(in srgb, var(--accent-blue) 15%, transparent);
+            color: var(--accent-cyan-light);
+        }
+
+        .login-brand-feature-text h6 {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 4px;
+        }
+
+        .login-brand-feature-text p {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-bottom: 0;
+            line-height: 1.5;
+        }
+
+        .login-card-wrapper {
+            width: 480px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 40px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .login-card {
+            width: 100%;
+            max-width: 400px;
+            background: var(--bg-card);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--border-color);
+            border-radius: 20px;
+            padding: 40px 36px;
+            box-shadow: 0 24px 64px rgba(0, 0, 0, 0.3);
+            animation: scaleIn 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        @keyframes scaleIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px) scale(0.98);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+
+        .login-card-header {
+            text-align: center;
+            margin-bottom: 32px;
+        }
+
+        .login-card-icon {
+            width: 56px;
+            height: 56px;
+            background: var(--gradient-primary);
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            color: white;
+            margin: 0 auto 16px;
+            box-shadow: 0 8px 24px rgba(59, 130, 246, 0.3);
+        }
+
+        .login-card-title {
+            font-family: var(--font-display);
+            font-size: 22px;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 6px;
+        }
+
+        .login-card-subtitle {
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+
+        .login-form .form-label {
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+        }
+
+        .login-form .input-group-text {
+            background: var(--bg-tertiary) !important;
+            border-color: var(--border-color) !important;
+            color: var(--text-muted) !important;
+        }
+
+        .login-form .btn-primary {
+            height: 44px;
+            font-size: 14px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+
+        .login-footer {
+            text-align: center;
+            margin-top: 24px;
+            padding-top: 24px;
+            border-top: 1px solid var(--border-light);
+        }
+
+        .login-footer p {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-bottom: 0;
+        }
+
+        .theme-toggle-btn {
+            position: fixed;
+            top: 24px;
+            right: 24px;
+            width: 44px;
+            height: 44px;
+            border-radius: 12px;
+            background: var(--bg-card);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid var(--border-color);
+            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            z-index: 100;
+            transition: all var(--transition-fast);
+            font-size: 18px;
+        }
+
+        .theme-toggle-btn:hover {
+            background: var(--bg-card-hover);
+            color: var(--text-primary);
+            border-color: var(--accent-blue);
+            transform: translateY(-2px);
+        }
+
+        @media (max-width: 991.98px) {
+            .login-brand {
+                display: none;
+            }
+
+            .login-card-wrapper {
+                width: 100%;
+                flex: 1;
+            }
+        }
+
+        @media (max-width: 575.98px) {
+            .login-card-wrapper {
+                padding: 24px 20px;
+            }
+
+            .login-card {
+                padding: 32px 24px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="login-wrapper">
+        <div class="login-bg"></div>
+
+        <!-- Theme Toggle -->
+        <button class="theme-toggle-btn" onclick="toggleTheme(); updateLoginThemeIcon();" title="切换主题">
+            <i class="bi bi-moon-stars" id="loginThemeIcon"></i>
+        </button>
+
+        <!-- Left: Brand Section -->
+        <div class="login-brand">
+            <div class="login-brand-logo">
+                <div class="login-brand-icon">
+                    <i class="bi bi-graph-up-arrow"></i>
+                </div>
+                <div>
+                    <div class="login-brand-title">StockPulse</div>
+                    <div class="login-brand-subtitle">智能股票监控平台</div>
+                </div>
+            </div>
+
+            <div class="login-brand-hero">
+                <h1>掌握市场脉动<br><span>决胜千里之外</span></h1>
+                <p>
+                    专业的股票监控与分析平台，实时追踪市场动态，
+                    智能预警提醒，助您做出更明智的投资决策。
+                </p>
+            </div>
+
+            <div class="login-brand-features">
+                <div class="login-brand-feature">
+                    <div class="login-brand-feature-icon">
+                        <i class="bi bi-lightning-charge"></i>
+                    </div>
+                    <div class="login-brand-feature-text">
+                        <h6>实时行情</h6>
+                        <p>毫秒级数据更新，精准追踪每一次波动</p>
+                    </div>
+                </div>
+                <div class="login-brand-feature">
+                    <div class="login-brand-feature-icon">
+                        <i class="bi bi-bell"></i>
+                    </div>
+                    <div class="login-brand-feature-text">
+                        <h6>智能预警</h6>
+                        <p>多维度条件设置，及时捕捉投资机会</p>
+                    </div>
+                </div>
+                <div class="login-brand-feature">
+                    <div class="login-brand-feature-icon">
+                        <i class="bi bi-graph-up"></i>
+                    </div>
+                    <div class="login-brand-feature-text">
+                        <h6>技术分析</h6>
+                        <p>丰富的技术指标，深度分析市场走势</p>
+                    </div>
+                </div>
+                <div class="login-brand-feature">
+                    <div class="login-brand-feature-icon">
+                        <i class="bi bi-shield-check"></i>
+                    </div>
+                    <div class="login-brand-feature-text">
+                        <h6>安全可靠</h6>
+                        <p>双重身份认证，保障账户安全</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right: Login Card -->
+        <div class="login-card-wrapper">
+            <div class="login-card">
+                <div class="login-card-header">
+                    <div class="login-card-icon">
+                        <i class="bi bi-person-circle"></i>
+                    </div>
+                    <h2 class="login-card-title">欢迎回来</h2>
+                    <p class="login-card-subtitle">登录您的账户继续使用</p>
+                </div>
+
+                <div th:if="${error}" class="alert alert-danger py-2 mb-3" th:text="${error}"></div>
+                <div th:if="${message}" class="alert alert-success py-2 mb-3" th:text="${message}"></div>
+
+                <form method="post" th:action="@{/login}" class="login-form">
+                    <div class="mb-3">
+                        <label class="form-label">用户名</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-person"></i></span>
+                            <input type="text" name="username" class="form-control" placeholder="请输入用户名"
+                                   th:value="${username}" required autofocus>
+                        </div>
+                    </div>
+                    <div class="mb-4">
+                        <label class="form-label">密码</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-lock"></i></span>
+                            <input type="password" name="password" id="passwordInput" class="form-control" placeholder="请输入密码" required>
+                            <button type="button" class="input-group-text" onclick="togglePassword()" style="cursor: pointer;" id="passwordToggleBtn">
+                                <i class="bi bi-eye" id="passwordIcon"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="bi bi-box-arrow-in-right me-2"></i>登录
+                    </button>
+                </form>
+
+                <div class="login-footer">
+                    <p>© 2024 StockPulse. 保留所有权利。</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function togglePassword() {
+            const input = document.getElementById('passwordInput');
+            const icon = document.getElementById('passwordIcon');
+            if (input.type === 'password') {
+                input.type = 'text';
+                icon.className = 'bi bi-eye-slash';
+            } else {
+                input.type = 'password';
+                icon.className = 'bi bi-eye';
+            }
+        }
+
+        function updateLoginThemeIcon() {
+            const icon = document.getElementById('loginThemeIcon');
+            if (icon) {
+                const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+                icon.className = isDark ? 'bi bi-moon-stars' : 'bi bi-sun';
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            updateLoginThemeIcon();
+        });
+    </script>
+</body>
+</html>

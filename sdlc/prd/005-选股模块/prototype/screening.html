@@ -1,0 +1,860 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>选股中心 - Stock Watcher 原型</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif; background: #f5f7fa; }
+
+        /* Sidebar */
+        .sidebar { width: 240px; height: 100vh; background: #1f2937; color: #fff; position: fixed; left: 0; top: 0; overflow-y: auto; }
+        .sidebar-header { padding: 20px 16px; border-bottom: 1px solid #374151; font-size: 18px; font-weight: 600; }
+        .sidebar-header i { color: #60a5fa; }
+        .sidebar-nav { list-style: none; padding: 12px 0; margin: 0; }
+        .sidebar-item { padding: 0 8px; }
+        .sidebar-link { display: flex; align-items: center; padding: 10px 12px; color: #cbd5e1; text-decoration: none; border-radius: 6px; margin: 2px 0; transition: all .15s; }
+        .sidebar-link:hover { background: #374151; color: #fff; }
+        .sidebar-link.active { background: #3b82f6; color: #fff; }
+        .sidebar-link i { width: 24px; font-size: 18px; }
+        .sidebar-link span { margin-left: 12px; font-size: 14px; }
+        .sidebar-divider { height: 1px; background: #374151; margin: 8px 12px; }
+        .badge-new { background: #ef4444; font-size: 10px; padding: 2px 6px; border-radius: 4px; margin-left: 8px; }
+
+        /* Main Content */
+        .main-wrapper { margin-left: 240px; min-height: 100vh; }
+        .top-navbar { background: #fff; border-bottom: 1px solid #e5e7eb; padding: 12px 24px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; }
+        .content-area { padding: 24px; }
+
+        /* Cards */
+        .card { border: 1px solid #e5e7eb; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+        .card-header { background: #fafbfc; border-bottom: 1px solid #e5e7eb; padding: 12px 16px; }
+        .card-header h6 { margin: 0; font-weight: 600; font-size: 14px; color: #374151; }
+
+        /* Rule Tree */
+        .rule-node { background: #fff; border: 1px solid #e5e7eb; border-radius: 6px; padding: 12px; margin-bottom: 8px; position: relative; }
+        .rule-logic-node { background: #f0f9ff; border-color: #bae6fd; }
+        .rule-compare-node { background: #fefce8; border-color: #fde68a; }
+        .logic-operator { display: inline-block; padding: 4px 12px; background: #0ea5e9; color: #fff; border-radius: 4px; font-weight: 600; font-size: 13px; cursor: pointer; }
+        .logic-or { background: #f97316; }
+        .expr-input { font-size: 13px; }
+        .comparator-select { font-size: 13px; font-weight: 600; color: #2563eb; }
+
+        /* Table */
+        .table-sm th { background: #f8fafc; font-weight: 600; font-size: 12px; color: #475569; }
+        .table-sm td { font-size: 13px; }
+
+        /* Colors for stock changes */
+        .text-up { color: #dc2626; }
+        .text-down { color: #16a34a; }
+
+        /* SQL Preview */
+        .sql-preview { background: #1e293b; color: #e2e8f0; padding: 12px; border-radius: 6px; font-family: "SF Mono", Monaco, Consolas, monospace; font-size: 12px; white-space: pre-wrap; overflow-x: auto; }
+
+        /* Warning */
+        .warning-box { background: #fffbeb; border-left: 4px solid #f59e0b; padding: 12px 16px; border-radius: 4px; }
+
+        /* Add button */
+        .btn-add-rule { border: 2px dashed #cbd5e1; background: transparent; color: #64748b; padding: 12px; border-radius: 6px; width: 100%; transition: all .15s; font-size: 13px; }
+        .btn-add-rule:hover { border-color: #3b82f6; color: #3b82f6; background: #eff6ff; }
+
+        /* Tabs */
+        .nav-tabs .nav-link { color: #64748b; border: none; font-size: 14px; padding: 10px 16px; }
+        .nav-tabs .nav-link.active { color: #2563eb; border-bottom: 2px solid #2563eb; font-weight: 600; background: transparent; }
+
+        /* Mode Switch */
+        .mode-switch { display: inline-flex; background: #f1f5f9; border-radius: 6px; padding: 4px; }
+        .mode-btn { padding: 6px 16px; font-size: 13px; border: none; background: transparent; color: #64748b; border-radius: 4px; cursor: pointer; transition: all .15s; }
+        .mode-btn.active { background: #fff; color: #2563eb; font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+
+        /* Prototype badge */
+        .prototype-badge { position: fixed; bottom: 20px; right: 20px; background: #8b5cf6; color: #fff; padding: 8px 16px; border-radius: 20px; font-size: 12px; box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3); z-index: 1000; }
+
+        /* Collapse */
+        .collapse-btn { cursor: pointer; user-select: none; }
+
+        /* Factor badge */
+        .factor-badge { display: inline-block; padding: 3px 8px; background: #ede9fe; color: #6d28d9; border-radius: 4px; font-size: 11px; font-weight: 600; margin-left: 8px; }
+
+        /* Result Stats */
+        .result-stat { background: #fff; border-radius: 8px; padding: 16px; text-align: center; border: 1px solid #e5e7eb; }
+        .result-stat .stat-value { font-size: 24px; font-weight: 700; color: #1e40af; }
+        .result-stat .stat-label { font-size: 12px; color: #64748b; margin-top: 4px; }
+
+        /* Small helper */
+        .btn-xxs { padding: 2px 6px; font-size: 11px; }
+    </style>
+</head>
+<body>
+
+<!-- Sidebar -->
+<nav class="sidebar">
+    <div class="sidebar-header">
+        <i class="bi bi-graph-up-arrow"></i>Stock Watcher
+    </div>
+    <ul class="sidebar-nav">
+        <li class="sidebar-item">
+            <a href="#" class="sidebar-link"><i class="bi bi-speedometer2"></i><span>仪表盘</span></a>
+        </li>
+        <li class="sidebar-item">
+            <a href="#" class="sidebar-link"><i class="bi bi-bar-chart-line"></i><span>行情中心</span></a>
+        </li>
+        <li class="sidebar-item">
+            <a href="#" class="sidebar-link"><i class="bi bi-star"></i><span>自选股</span></a>
+        </li>
+        <li class="sidebar-item">
+            <a href="#" class="sidebar-link active"><i class="bi bi-filter-circle"></i><span>选股中心</span><span class="badge-new">NEW</span></a>
+        </li>
+        <li class="sidebar-item">
+            <a href="#" class="sidebar-link"><i class="bi bi-candlestick"></i><span>K线分析</span></a>
+        </li>
+        <li class="sidebar-item">
+            <a href="#" class="sidebar-link"><i class="bi bi-arrow-repeat"></i><span>策略回测</span></a>
+        </li>
+        <li class="sidebar-item">
+            <a href="#" class="sidebar-link"><i class="bi bi-people"></i><span>用户管理</span></a>
+        </li>
+        <li class="sidebar-divider"></li>
+        <li class="sidebar-item">
+            <a href="#" class="sidebar-link"><i class="bi bi-gear"></i><span>系统设置</span></a>
+        </li>
+    </ul>
+</nav>
+
+<!-- Main Content -->
+<div class="main-wrapper">
+
+    <!-- Navbar -->
+    <header class="top-navbar">
+        <div class="d-flex align-items-center">
+            <button class="btn btn-link text-dark"><i class="bi bi-list fs-4"></i></button>
+            <h5 class="mb-0 ms-2"><i class="bi bi-filter-circle text-primary me-2"></i>选股中心</h5>
+            <span class="badge bg-light text-secondary ms-3">根据技术指标条件筛选股票</span>
+        </div>
+        <div class="d-flex align-items-center gap-3">
+            <form class="d-flex">
+                <div class="input-group input-group-sm" style="width: 280px;">
+                    <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
+                    <input type="text" class="form-control" placeholder="搜索股票代码或名称...">
+                </div>
+            </form>
+            <span class="badge bg-light text-dark"><i class="bi bi-circle-fill text-success me-1" style="font-size: 8px;"></i>交易中</span>
+            <div class="dropdown">
+                <button class="btn btn-link text-dark dropdown-toggle"><i class="bi bi-person-circle fs-5 me-1"></i>admin</button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Page Content -->
+    <main class="content-area">
+
+        <!-- Page Title & Quick Stats -->
+        <div class="row mb-4">
+            <div class="col-md-9">
+                <h4 class="mb-1">条件选股</h4>
+                <small class="text-muted">通过技术指标条件筛选符合要求的股票。支持 MA、MACD、KDJ、RSI、VOL 等常用指标组合。</small>
+            </div>
+            <div class="col-md-3 text-end">
+                <button class="btn btn-outline-secondary btn-sm me-2"><i class="bi bi-bookmark-plus me-1"></i>保存策略</button>
+                <button class="btn btn-outline-secondary btn-sm"><i class="bi bi-clock-history me-1"></i>历史记录</button>
+            </div>
+        </div>
+
+        <!-- ============ Row: Configuration Panel ============ -->
+        <div class="row mb-4">
+            <!-- Left: Rule Tree -->
+            <div class="col-lg-8">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h6><i class="bi bi-diagram-3 me-2 text-primary"></i>选股条件配置</h6>
+                        <div class="btn-group btn-group-sm">
+                            <button class="btn btn-outline-secondary"><i class="bi bi-stars me-1"></i>预设策略</button>
+                            <button class="btn btn-outline-secondary" onclick="clearRules()"><i class="bi bi-eraser me-1"></i>清空</button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+
+                        <!-- Logic Group: AND (top-level) -->
+                        <div class="rule-node rule-logic-node">
+                            <div class="d-flex align-items-center mb-3">
+                                <span class="small text-muted me-2">顶层组合逻辑：</span>
+                                <span class="logic-operator" onclick="toggleOperator(this)" title="点击切换">AND</span>
+                                <small class="text-muted ms-2" style="font-size: 12px;">（所有条件需同时满足）</small>
+                            </div>
+
+                            <!-- Rule 1: MA5 cross_up MA20 -->
+                            <div class="rule-node rule-compare-node" style="margin-left: 20px;">
+                                <div class="d-flex align-items-center justify-content-between mb-2">
+                                    <small class="text-muted"><i class="bi bi-filter me-1"></i>条件 1</small>
+                                    <button class="btn btn-link btn-sm text-danger p-0" onclick="removeRule(this)"><i class="bi bi-trash"></i></button>
+                                </div>
+                                <div class="d-flex align-items-center gap-2 flex-wrap">
+                                    <!-- Left Expression: MA(5) -->
+                                    <div class="d-flex align-items-center gap-1">
+                                        <select class="form-select form-select-sm expr-input" style="width: 110px;">
+                                            <option>MA</option>
+                                            <option>EMA</option>
+                                            <option>MACD</option>
+                                            <option>KDJ</option>
+                                            <option>RSI</option>
+                                            <option>VOL_MA</option>
+                                            <option>CLOSE</option>
+                                            <option>VOLUME</option>
+                                            <option>HIGH</option>
+                                            <option>LOW</option>
+                                        </select>
+                                        <span class="text-muted small">(</span>
+                                        <input type="number" class="form-control form-control-sm expr-input" value="5" style="width: 60px;" placeholder="N">
+                                        <span class="text-muted small">)</span>
+                                    </div>
+
+                                    <!-- Comparator: cross_up -->
+                                    <select class="form-select form-select-sm comparator-select" style="width: 120px;">
+                                        <option>cross_up</option>
+                                        <option>cross_down</option>
+                                        <option>&gt;</option>
+                                        <option>&lt;</option>
+                                        <option>&ge;</option>
+                                        <option>&le;</option>
+                                        <option>=</option>
+                                    </select>
+
+                                    <!-- Right Expression: MA(20) -->
+                                    <div class="d-flex align-items-center gap-1">
+                                        <select class="form-select form-select-sm expr-input" style="width: 110px;">
+                                            <option>MA</option>
+                                            <option>EMA</option>
+                                            <option>MACD</option>
+                                            <option>KDJ</option>
+                                            <option>RSI</option>
+                                            <option>VOL_MA</option>
+                                            <option>CLOSE</option>
+                                            <option>VOLUME</option>
+                                        </select>
+                                        <span class="text-muted small">(</span>
+                                        <input type="number" class="form-control form-control-sm expr-input" value="20" style="width: 60px;" placeholder="N">
+                                        <span class="text-muted small">)</span>
+                                    </div>
+                                </div>
+                                <div class="mt-2">
+                                    <span class="factor-badge"><i class="bi bi-info-circle"></i> 金叉：短期均线上穿长期均线，买入信号</span>
+                                </div>
+                            </div>
+
+                            <!-- Rule 2: VOLUME > VOL_MA(20) * 1.5 -->
+                            <div class="rule-node rule-compare-node" style="margin-left: 20px;">
+                                <div class="d-flex align-items-center justify-content-between mb-2">
+                                    <small class="text-muted"><i class="bi bi-filter me-1"></i>条件 2</small>
+                                    <button class="btn btn-link btn-sm text-danger p-0" onclick="removeRule(this)"><i class="bi bi-trash"></i></button>
+                                </div>
+                                <div class="d-flex align-items-center gap-2 flex-wrap">
+                                    <!-- Left: VOLUME -->
+                                    <div class="d-flex align-items-center gap-1">
+                                        <select class="form-select form-select-sm expr-input" style="width: 110px;">
+                                            <option>VOLUME</option>
+                                            <option>MA</option>
+                                            <option>EMA</option>
+                                            <option>CLOSE</option>
+                                            <option>VOL_MA</option>
+                                        </select>
+                                    </div>
+
+                                    <!-- Comparator: > -->
+                                    <select class="form-select form-select-sm comparator-select" style="width: 80px;">
+                                        <option>&gt;</option>
+                                        <option>&lt;</option>
+                                        <option>&ge;</option>
+                                        <option>&le;</option>
+                                        <option>=</option>
+                                        <option>cross_up</option>
+                                        <option>cross_down</option>
+                                    </select>
+
+                                    <!-- Right: VOL_MA(20) * 1.5 -->
+                                    <div class="d-flex align-items-center gap-1">
+                                        <select class="form-select form-select-sm expr-input" style="width: 110px;">
+                                            <option>VOL_MA</option>
+                                            <option>MA</option>
+                                            <option>VOLUME</option>
+                                        </select>
+                                        <span class="text-muted small">(</span>
+                                        <input type="number" class="form-control form-control-sm expr-input" value="20" style="width: 60px;">
+                                        <span class="text-muted small">)</span>
+                                        <select class="form-select form-select-sm expr-input" style="width: 60px;">
+                                            <option>&times;</option>
+                                            <option>+</option>
+                                            <option>-</option>
+                                            <option>&divide;</option>
+                                        </select>
+                                        <input type="number" class="form-control form-control-sm expr-input" value="1.5" step="0.1" style="width: 70px;">
+                                    </div>
+                                </div>
+                                <div class="mt-2">
+                                    <span class="factor-badge"><i class="bi bi-info-circle"></i> 放量：成交量达到20日均量的1.5倍</span>
+                                </div>
+                            </div>
+
+                            <!-- Add Rule Button -->
+                            <button class="btn-add-rule" onclick="addCompareRule()" style="margin-left: 20px;">
+                                <i class="bi bi-plus-circle me-1"></i>添加比较条件
+                            </button>
+
+                            <!-- Add Logic Group Button -->
+                            <button class="btn-add-rule mt-2" onclick="addLogicGroup()" style="margin-left: 20px;">
+                                <i class="bi bi-diagram-3 me-1"></i>添加逻辑组合（OR / AND 嵌套）
+                            </button>
+
+                            <!-- Demo: Nested OR group (collapsed) -->
+                            <div class="rule-node rule-logic-node mt-3" style="margin-left: 20px; background: #fdf4ff; border-color: #e9d5ff;">
+                                <div class="d-flex align-items-center justify-content-between">
+                                    <div class="d-flex align-items-center">
+                                        <small class="text-muted me-2">嵌套组合：</small>
+                                        <span class="logic-operator logic-or">OR</span>
+                                        <small class="text-muted ms-2" style="font-size: 12px;">（满足任一子条件）</small>
+                                        <span class="factor-badge" style="background: #fce7f3; color: #be185d;"><i class="bi bi-lightbulb"></i> 示例：RSI超买 或 KDJ超买</span>
+                                    </div>
+                                    <span class="collapse-btn text-muted small" onclick="this.closest('.rule-node').querySelector('.nested-content').classList.toggle('d-none'); this.querySelector('i').classList.toggle('bi-chevron-down'); this.querySelector('i').classList.toggle('bi-chevron-right');"><i class="bi bi-chevron-down"></i> 展开</span>
+                                </div>
+                                <div class="nested-content mt-3 d-none">
+                                    <div class="rule-node rule-compare-node" style="margin-left: 16px; background: #fffbeb; border-color: #fde68a;">
+                                        <div class="d-flex align-items-center gap-2">
+                                            <select class="form-select form-select-sm expr-input" style="width: 90px;"><option>RSI</option></select>
+                                            <span class="text-muted small">(14)</span>
+                                            <select class="form-select form-select-sm comparator-select" style="width: 80px;"><option>&gt;</option></select>
+                                            <input type="number" class="form-control form-control-sm expr-input" value="70" style="width: 80px;">
+                                        </div>
+                                    </div>
+                                    <div class="rule-node rule-compare-node" style="margin-left: 16px; background: #fffbeb; border-color: #fde68a;">
+                                        <div class="d-flex align-items-center gap-2">
+                                            <select class="form-select form-select-sm expr-input" style="width: 90px;"><option>KDJ</option></select>
+                                            <span class="text-muted small">: J</span>
+                                            <select class="form-select form-select-sm comparator-select" style="width: 80px;"><option>&gt;</option></select>
+                                            <input type="number" class="form-control form-select-sm expr-input" value="80" style="width: 80px;">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Visual Preview of Rule Tree -->
+                        <div class="mt-4 p-3" style="background: #f8fafc; border-radius: 6px;">
+                            <small class="text-muted mb-2 d-block"><i class="bi bi-code me-1"></i>条件表达式预览</small>
+                            <code style="font-size: 13px; color: #334155;">
+                                [<span style="color: #2563eb;">MA(5)</span> <span style="color: #dc2626;">cross_up</span> <span style="color: #2563eb;">MA(20)</span>]
+                                <span style="color: #7c3aed; font-weight: 600;"> AND </span>
+                                [<span style="color: #2563eb;">VOLUME</span> <span style="color: #dc2626;">&gt;</span> <span style="color: #2563eb;">VOL_MA(20)</span> <span style="color: #6b7280;">×</span> <span style="color: #059669;">1.5</span>]
+                            </code>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right: Query Options -->
+            <div class="col-lg-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h6><i class="bi bi-sliders me-2 text-primary"></i>查询选项</h6>
+                    </div>
+                    <div class="card-body">
+
+                        <!-- Mode Switch -->
+                        <div class="mb-4">
+                            <label class="form-label small">查询模式</label>
+                            <div class="mode-switch w-100">
+                                <button class="mode-btn active w-50" onclick="switchMode('snapshot', this)"><i class="bi bi-calendar-day me-1"></i>快照模式</button>
+                                <button class="mode-btn w-50" onclick="switchMode('range', this)"><i class="bi bi-calendar-range me-1"></i>区间模式</button>
+                            </div>
+                            <small class="text-muted mt-2 d-block" id="modeHint">查询某日的选股结果</small>
+                        </div>
+
+                        <!-- Snapshot Mode Inputs -->
+                        <div id="snapshotInputs" class="mb-4">
+                            <label class="form-label small">查询日期</label>
+                            <div class="input-group">
+                                <input type="date" class="form-control form-control-sm" value="2024-01-15">
+                                <button class="btn btn-outline-secondary btn-sm" type="button"><i class="bi bi-calendar"></i></button>
+                            </div>
+                            <small class="text-muted d-block mt-1" style="font-size: 11px;">选择一个交易日，格式 YYYYMMDD</small>
+                        </div>
+
+                        <!-- Range Mode Inputs -->
+                        <div id="rangeInputs" class="mb-4 d-none">
+                            <label class="form-label small">日期区间</label>
+                            <div class="d-flex gap-2 align-items-center">
+                                <input type="date" class="form-control form-control-sm" value="2024-01-01">
+                                <span class="text-muted">~</span>
+                                <input type="date" class="form-control form-control-sm" value="2024-01-15">
+                            </div>
+                            <small class="text-muted d-block mt-1" style="font-size: 11px;">最大跨度 90 个交易日</small>
+                        </div>
+
+                        <!-- Filters -->
+                        <div class="border-top pt-3">
+                            <h6 class="mb-3 small" style="font-weight: 600; color: #374151;"><i class="bi bi-funnel me-1"></i>前置过滤</h6>
+
+                            <div class="mb-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="excludeST" checked>
+                                    <label class="form-check-label small" for="excludeST">剔除 ST 股票</label>
+                                    <span class="factor-badge" style="background: #fee2e2; color: #b91c1c;">推荐</span>
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label small">剔除上市未满 <input type="number" value="365" style="width: 60px; border: none; border-bottom: 1px solid #cbd5e1; text-align: center; font-size: 12px;"> 天的新股</label>
+                                <div>
+                                    <input type="range" min="0" max="730" value="365" class="form-range" style="width: 100%;">
+                                    <small class="text-muted" style="font-size: 11px;">0 = 不剔除 | 默认 365 天</small>
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label small">最低成交额（万元）</label>
+                                <div class="input-group input-group-sm">
+                                    <input type="number" class="form-control" value="5000">
+                                    <span class="input-group-text">= 5000万</span>
+                                </div>
+                                <small class="text-muted d-block mt-1" style="font-size: 11px;">0 = 不过滤 | 避免选出低成交的冷门股</small>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label small">结果集最大条数</label>
+                                <div class="input-group input-group-sm">
+                                    <input type="number" class="form-control" value="200" max="500">
+                                    <span class="input-group-text">条</span>
+                                </div>
+                                <small class="text-muted d-block mt-1" style="font-size: 11px;">最大 500 条</small>
+                            </div>
+                        </div>
+
+                        <!-- Query Button -->
+                        <div class="d-grid gap-2 mt-4 border-top pt-3">
+                            <button class="btn btn-primary btn-sm" onclick="runQuery()">
+                                <i class="bi bi-search me-2"></i>执行选股查询
+                            </button>
+                            <div class="d-flex gap-2">
+                                <button class="btn btn-outline-secondary btn-sm flex-grow-1"><i class="bi bi-stars me-1"></i>预设策略</button>
+                                <button class="btn btn-outline-secondary btn-sm flex-grow-1"><i class="bi bi-cloud-download me-1"></i>导入条件</button>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============ Row: Query Results ============ -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <div class="d-flex align-items-center gap-3">
+                            <h6 class="mb-0"><i class="bi bi-table me-2 text-primary"></i>查询结果</h6>
+                            <span class="badge bg-light text-dark" style="font-size: 12px;">查询日期：2024-01-15</span>
+                        </div>
+                        <div class="d-flex align-items-center gap-2">
+                            <button class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-clockwise me-1"></i>重新查询</button>
+                            <button class="btn btn-sm btn-success"><i class="bi bi-file-earmark-spreadsheet me-1"></i>导出 CSV</button>
+                        </div>
+                    </div>
+
+                    <!-- Stats Row -->
+                    <div class="card-body" style="padding-bottom: 8px;">
+                        <div class="row g-3">
+                            <div class="col-md-3">
+                                <div class="result-stat">
+                                    <div class="stat-value">23</div>
+                                    <div class="stat-label">命中股票数</div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="result-stat">
+                                    <div class="stat-value text-up">+12</div>
+                                    <div class="stat-label">上涨股票</div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="result-stat">
+                                    <div class="stat-value text-down">-8</div>
+                                    <div class="stat-label">下跌股票</div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="result-stat">
+                                    <div class="stat-value" style="color: #6b7280;">186.5亿</div>
+                                    <div class="stat-label">总成交额</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Warning Box -->
+                        <div class="warning-box mt-3">
+                            <div class="d-flex align-items-start">
+                                <i class="bi bi-exclamation-triangle-fill me-2" style="color: #d97706;"></i>
+                                <div>
+                                    <small style="font-size: 12px; color: #92400e;">因子参数提示：MA(8) 无对应预计算列，已降级到最接近的标准参数 MA(10)。建议直接使用标准参数（5/10/20/60/120/250）以获得更准确的结果。</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tabs -->
+                    <ul class="nav nav-tabs" style="padding: 0 16px;">
+                        <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#resultTable"><i class="bi bi-table me-1"></i>结果表格</a></li>
+                        <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#sqlPreview"><i class="bi bi-code-square me-1"></i>SQL 预览</a></li>
+                    </ul>
+
+                    <!-- Tab Content -->
+                    <div class="tab-content p-3">
+
+                        <!-- Tab 1: Result Table -->
+                        <div class="tab-pane fade show active" id="resultTable">
+
+                            <!-- Search & Filter in table -->
+                            <div class="d-flex align-items-center gap-3 mb-3">
+                                <div class="input-group input-group-sm" style="max-width: 300px;">
+                                    <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
+                                    <input type="text" class="form-control" placeholder="在结果中搜索代码或名称...">
+                                </div>
+                                <small class="text-muted" style="font-size: 12px;"><i class="bi bi-info-circle me-1"></i>点击表头可排序</small>
+                                <div class="ms-auto">
+                                    <small class="text-muted" style="font-size: 12px;">共 23 条记录</small>
+                                </div>
+                            </div>
+
+                            <!-- Result Table -->
+                            <div class="table-responsive">
+                                <table class="table table-hover table-sm mb-0 align-middle">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th style="width: 40px;">#</th>
+                                            <th>股票代码</th>
+                                            <th>名称</th>
+                                            <th class="text-end">收盘价</th>
+                                            <th class="text-end">日涨跌额</th>
+                                            <th class="text-end">日涨跌幅</th>
+                                            <th class="text-end">成交额（万）</th>
+                                            <th class="text-center">触发条件</th>
+                                            <th class="text-center" style="width: 180px;">操作</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="resultTableBody">
+                                        <tr>
+                                            <td class="text-muted">1</td>
+                                            <td><code>600519.SH</code></td>
+                                            <td class="fw-medium">贵州茅台</td>
+                                            <td class="text-end fw-medium">1756.80</td>
+                                            <td class="text-end text-down">-18.50</td>
+                                            <td class="text-end text-down">-1.02%</td>
+                                            <td class="text-end">892,000.00</td>
+                                            <td class="text-center"><span class="badge" style="background: #dbeafe; color: #1e40af;">MA金叉 + 放量</span></td>
+                                            <td class="text-center">
+                                                <button class="btn btn-xxs btn-outline-primary"><i class="bi bi-bar-chart-line me-1"></i>查看</button>
+                                                <button class="btn btn-xxs btn-outline-warning"><i class="bi bi-star me-1"></i>加自选</button>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td class="text-muted">2</td>
+                                            <td><code>000001.SZ</code></td>
+                                            <td class="fw-medium">平安银行</td>
+                                            <td class="text-end fw-medium">12.35</td>
+                                            <td class="text-end text-up">+0.40</td>
+                                            <td class="text-end text-up">+3.35%</td>
+                                            <td class="text-end">125,600.50</td>
+                                            <td class="text-center"><span class="badge" style="background: #dbeafe; color: #1e40af;">MA金叉 + 放量</span></td>
+                                            <td class="text-center">
+                                                <button class="btn btn-xxs btn-outline-primary"><i class="bi bi-bar-chart-line me-1"></i>查看</button>
+                                                <button class="btn btn-xxs btn-outline-warning"><i class="bi bi-star me-1"></i>加自选</button>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td class="text-muted">3</td>
+                                            <td><code>601318.SH</code></td>
+                                            <td class="fw-medium">中国平安</td>
+                                            <td class="text-end fw-medium">48.26</td>
+                                            <td class="text-end text-up">+1.85</td>
+                                            <td class="text-end text-up">+3.98%</td>
+                                            <td class="text-end">256,800.00</td>
+                                            <td class="text-center"><span class="badge" style="background: #dbeafe; color: #1e40af;">MA金叉 + 放量</span></td>
+                                            <td class="text-center">
+                                                <button class="btn btn-xxs btn-outline-primary"><i class="bi bi-bar-chart-line me-1"></i>查看</button>
+                                                <button class="btn btn-xxs btn-outline-warning"><i class="bi bi-star me-1"></i>加自选</button>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td class="text-muted">4</td>
+                                            <td><code>000858.SZ</code></td>
+                                            <td class="fw-medium">五粮液</td>
+                                            <td class="text-end fw-medium">152.30</td>
+                                            <td class="text-end text-up">+4.80</td>
+                                            <td class="text-end text-up">+3.25%</td>
+                                            <td class="text-end">198,500.00</td>
+                                            <td class="text-center"><span class="badge" style="background: #dbeafe; color: #1e40af;">MA金叉 + 放量</span></td>
+                                            <td class="text-center">
+                                                <button class="btn btn-xxs btn-outline-primary"><i class="bi bi-bar-chart-line me-1"></i>查看</button>
+                                                <button class="btn btn-xxs btn-outline-warning"><i class="bi bi-star me-1"></i>加自选</button>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td class="text-muted">5</td>
+                                            <td><code>600036.SH</code></td>
+                                            <td class="fw-medium">招商银行</td>
+                                            <td class="text-end fw-medium">35.80</td>
+                                            <td class="text-end text-up">+1.20</td>
+                                            <td class="text-end text-up">+3.47%</td>
+                                            <td class="text-end">186,200.00</td>
+                                            <td class="text-center"><span class="badge" style="background: #dbeafe; color: #1e40af;">MA金叉 + 放量</span></td>
+                                            <td class="text-center">
+                                                <button class="btn btn-xxs btn-outline-primary"><i class="bi bi-bar-chart-line me-1"></i>查看</button>
+                                                <button class="btn btn-xxs btn-outline-warning"><i class="bi bi-star me-1"></i>加自选</button>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td class="text-muted">6</td>
+                                            <td><code>600887.SH</code></td>
+                                            <td class="fw-medium">伊利股份</td>
+                                            <td class="text-end fw-medium">28.65</td>
+                                            <td class="text-end text-up">+0.85</td>
+                                            <td class="text-end text-up">+3.06%</td>
+                                            <td class="text-end">98,650.00</td>
+                                            <td class="text-center"><span class="badge" style="background: #dbeafe; color: #1e40af;">MA金叉 + 放量</span></td>
+                                            <td class="text-center">
+                                                <button class="btn btn-xxs btn-outline-primary"><i class="bi bi-bar-chart-line me-1"></i>查看</button>
+                                                <button class="btn btn-xxs btn-outline-warning"><i class="bi bi-star me-1"></i>加自选</button>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td class="text-muted">7</td>
+                                            <td><code>601888.SH</code></td>
+                                            <td class="fw-medium">中国中免</td>
+                                            <td class="text-end fw-medium">86.50</td>
+                                            <td class="text-end text-up">+2.60</td>
+                                            <td class="text-end text-up">+3.10%</td>
+                                            <td class="text-end">156,800.00</td>
+                                            <td class="text-center"><span class="badge" style="background: #dbeafe; color: #1e40af;">MA金叉 + 放量</span></td>
+                                            <td class="text-center">
+                                                <button class="btn btn-xxs btn-outline-primary"><i class="bi bi-bar-chart-line me-1"></i>查看</button>
+                                                <button class="btn btn-xxs btn-outline-warning"><i class="bi bi-star me-1"></i>加自选</button>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td class="text-muted">8</td>
+                                            <td><code>002415.SZ</code></td>
+                                            <td class="fw-medium">海康威视</td>
+                                            <td class="text-end fw-medium">32.18</td>
+                                            <td class="text-end text-up">+1.08</td>
+                                            <td class="text-end text-up">+3.47%</td>
+                                            <td class="text-end">145,300.00</td>
+                                            <td class="text-center"><span class="badge" style="background: #dbeafe; color: #1e40af;">MA金叉 + 放量</span></td>
+                                            <td class="text-center">
+                                                <button class="btn btn-xxs btn-outline-primary"><i class="bi bi-bar-chart-line me-1"></i>查看</button>
+                                                <button class="btn btn-xxs btn-outline-warning"><i class="bi bi-star me-1"></i>加自选</button>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td colspan="9" class="text-center text-muted py-3" style="background: #f8fafc;">
+                                                <small>... 共 23 条，展示前 8 条 ...</small><br>
+                                                <nav class="mt-2">
+                                                    <ul class="pagination pagination-sm justify-content-center mb-0">
+                                                        <li class="page-item disabled"><span class="page-link">&laquo;</span></li>
+                                                        <li class="page-item active"><span class="page-link">1</span></li>
+                                                        <li class="page-item"><a class="page-link" href="#">2</a></li>
+                                                        <li class="page-item"><a class="page-link" href="#">3</a></li>
+                                                        <li class="page-item"><a class="page-link" href="#">&raquo;</a></li>
+                                                    </ul>
+                                                </nav>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Tab 2: SQL Preview -->
+                        <div class="tab-pane fade" id="sqlPreview">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <small class="text-muted"><i class="bi bi-info-circle me-1"></i>实际执行的 SQL 语句（带参数）</small>
+                                <button class="btn btn-outline-secondary btn-sm"><i class="bi bi-clipboard me-1"></i>复制 SQL</button>
+                            </div>
+                            <div class="sql-preview">SELECT sb.ts_code, sb.name, sid.close, sid.trade_date,
+       (sid.close - COALESCE(prev.close, sid.close)) * 100.0
+           / NULLIF(COALESCE(prev.close, sid.close), 0) AS daily_change_pct,
+       (sid.close * sid.volume) / 10000.0 AS turnover_10k
+FROM stock_indicator_daily sid
+LEFT JOIN stock_indicator_daily prev
+  ON prev.stock_code = sid.stock_code
+ AND prev.trade_date = (SELECT MAX(trade_date)
+                        FROM stock_indicator_daily
+                        WHERE stock_code = sid.stock_code AND trade_date < sid.trade_date)
+JOIN stock_basic sb ON sb.ts_code = sid.stock_code
+WHERE sid.trade_date = '20240115'
+  AND (sid.ma_5 > sid.ma_20 AND prev.ma_5 <= prev.ma_20)    -- MA5 cross_up MA20
+  AND (sid.volume > (sid.vol_ma_20 * 1.5))                   -- VOLUME > VOL_MA20 * 1.5
+  AND sb.name NOT LIKE '%ST%'                                -- 剔除ST
+  AND (sb.list_date IS NULL OR sb.list_date <= '20230115')  -- 上市满1年
+  AND (sid.close * sid.volume) >= 50000000                   -- 成交额>=5000万
+ORDER BY (sid.close * sid.volume) DESC
+LIMIT 200;</div>
+
+                            <div class="mt-3 p-3" style="background: #f0fdf4; border-radius: 6px; border-left: 3px solid #22c55e;">
+                                <small style="color: #166534;"><i class="bi bi-lightbulb me-1"></i>查询性能：预计扫描 ~3000 行（单日），执行时间 &lt; 200ms。如需更快，可在 stock_indicator_daily 表对 trade_date 字段建索引。</small>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============ Row: Preset Strategies Demo ============ -->
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h6><i class="bi bi-stars me-2 text-primary"></i>预设选股策略（快速加载）</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-3">
+                                <div class="card" style="border: 1px solid #bae6fd; cursor: pointer;">
+                                    <div class="card-body">
+                                        <div class="d-flex align-items-center mb-2">
+                                            <i class="bi bi-arrow-up-right-circle text-primary fs-5 me-2"></i>
+                                            <h6 class="mb-0">均线多头排列</h6>
+                                        </div>
+                                        <small class="text-muted d-block mb-2">MA5 > MA10 > MA20 > MA60</small>
+                                        <small class="text-muted"><i class="bi bi-check2-circle text-success me-1"></i>趋势向上</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="card" style="border: 1px solid #fed7aa; cursor: pointer;">
+                                    <div class="card-body">
+                                        <div class="d-flex align-items-center mb-2">
+                                            <i class="bi bi-lightning-charge-fill text-warning fs-5 me-2"></i>
+                                            <h6 class="mb-0">放量突破</h6>
+                                        </div>
+                                        <small class="text-muted d-block mb-2">VOLUME > VOL_MA20 × 2 且 CLOSE > MA60</small>
+                                        <small class="text-muted"><i class="bi bi-check2-circle text-success me-1"></i>突破信号</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="card" style="border: 1px solid #fecaca; cursor: pointer;">
+                                    <div class="card-body">
+                                        <div class="d-flex align-items-center mb-2">
+                                            <i class="bi bi-graph-up text-danger fs-5 me-2"></i>
+                                            <h6 class="mb-0">MACD 金叉</h6>
+                                        </div>
+                                        <small class="text-muted d-block mb-2">MACD_DIFF cross_up 0 且 DEA > 0</small>
+                                        <small class="text-muted"><i class="bi bi-check2-circle text-success me-1"></i>经典信号</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="card" style="border: 1px solid #e9d5ff; cursor: pointer;">
+                                    <div class="card-body">
+                                        <div class="d-flex align-items-center mb-2">
+                                            <i class="bi bi-search text-purple fs-5 me-2"></i>
+                                            <h6 class="mb-0">RSI 超卖反弹</h6>
+                                        </div>
+                                        <small class="text-muted d-block mb-2">RSI14 cross_up 30 且 前日 RSI &lt; 25</small>
+                                        <small class="text-muted"><i class="bi bi-check2-circle text-success me-1"></i>反转信号</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+</div>
+
+<!-- Prototype Badge -->
+<div class="prototype-badge">
+    <i class="bi bi-bezier me-1"></i>原型图 v1.0 - 005选股模块
+</div>
+
+<!-- Modal: Stock Detail View -->
+<div class="modal fade" id="stockDetailModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-bar-chart-line me-2"></i>股票详情 - 600519 贵州茅台</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-center text-muted py-4"><i class="bi bi-graph-up fs-3 mb-2 d-block"></i>K线图表区（对接 K线分析页面）</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+                <button type="button" class="btn btn-warning"><i class="bi bi-star me-1"></i>加入自选</button>
+                <button type="button" class="btn btn-primary"><i class="bi bi-bar-chart-line me-1"></i>查看K线</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    function toggleOperator(el) {
+        if (el.textContent === 'AND') {
+            el.textContent = 'OR';
+            el.classList.add('logic-or');
+        } else {
+            el.textContent = 'AND';
+            el.classList.remove('logic-or');
+        }
+    }
+
+    function switchMode(mode, el) {
+        document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+        el.classList.add('active');
+
+        const snapshot = document.getElementById('snapshotInputs');
+        const range = document.getElementById('rangeInputs');
+        const hint = document.getElementById('modeHint');
+
+        if (mode === 'snapshot') {
+            snapshot.classList.remove('d-none');
+            range.classList.add('d-none');
+            hint.textContent = '查询某日的选股结果';
+        } else {
+            snapshot.classList.add('d-none');
+            range.classList.remove('d-none');
+            hint.textContent = '查询某日期区间内任一交易日命中的股票';
+        }
+    }
+
+    function removeRule(el) {
+        if (confirm('确认删除此条件？')) {
+            el.closest('.rule-node').remove();
+        }
+    }
+
+    function addCompareRule() {
+        alert('添加新的比较条件...');
+    }
+
+    function addLogicGroup() {
+        alert('添加新的逻辑组合...');
+    }
+
+    function clearRules() {
+        if (confirm('确认清空所有选股条件？')) {
+            alert('已清空');
+        }
+    }
+
+    function runQuery() {
+        alert('执行选股查询...\n\n将调用 POST /api/screening/query 接口');
+    }
+</script>
+
+</body>
+</html>

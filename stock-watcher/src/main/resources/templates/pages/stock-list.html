@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/common :: head(${pageTitle})}"></head>
+<body>
+<div class="app-container">
+    <nav th:replace="~{fragments/common :: sidebar}"></nav>
+
+    <div th:replace="~{fragments/common :: sidebarOverlay}"></div>
+
+    <div class="main-content">
+        <header th:replace="~{fragments/common :: topNavbar}"></header>
+
+        <main class="content-area">
+            <div class="page-header">
+                <div>
+                    <h1 class="page-title">行情中心</h1>
+                    <p class="text-muted mb-0" style="font-size: 13px; margin-top: 4px;">搜索股票，查看实时行情数据</p>
+                </div>
+                <div class="page-actions">
+                    <button class="btn btn-secondary btn-sm" onclick="searchStocks(1)">
+                        <i class="bi bi-arrow-clockwise"></i> 刷新
+                    </button>
+                    <button class="btn btn-primary btn-sm" onclick="exportData()">
+                        <i class="bi bi-download"></i> 导出
+                    </button>
+                </div>
+            </div>
+
+            <div class="animate-in delay-1 mb-4">
+                <div class="card card-glow">
+                    <div class="card-header">
+                        <h6 class="card-title">
+                            <span class="card-title-icon">
+                                <i class="bi bi-funnel"></i>
+                            </span>
+                            筛选条件
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <form class="row g-3 align-items-end" id="searchForm" onsubmit="return false;">
+                            <div class="col-md-4">
+                                <label class="form-label">关键词</label>
+                                <input type="text" class="form-control" id="searchKeyword"
+                                       placeholder="股票代码或名称">
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label">每页条数</label>
+                                <select class="form-select" id="pageSizeSelect">
+                                    <option value="5">5</option>
+                                    <option value="10" selected>10</option>
+                                    <option value="20">20</option>
+                                </select>
+                            </div>
+                            <div class="col-auto">
+                                <button class="btn btn-primary" onclick="searchStocks(1)">
+                                    <i class="bi bi-search"></i>搜索
+                                </button>
+                                <button class="btn btn-outline-secondary" onclick="resetSearch()">
+                                    <i class="bi bi-arrow-counterclockwise"></i>重置
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <div class="animate-in delay-2">
+                <div class="card card-glow">
+                    <div class="card-header">
+                        <h6 class="card-title">
+                            <span class="card-title-icon purple">
+                                <i class="bi bi-table"></i>
+                            </span>
+                            股票列表
+                        </h6>
+                        <div class="card-actions">
+                            <small class="text-muted" id="pageInfo">共 0 条</small>
+                        </div>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover table-striped mb-0 align-middle">
+                                <thead>
+                                    <tr>
+                                        <th>代码</th>
+                                        <th>名称</th>
+                                        <th>市场</th>
+                                        <th class="text-end">最新价</th>
+                                        <th class="text-end">涨跌额</th>
+                                        <th class="text-end">涨跌幅</th>
+                                        <th class="text-end">成交量</th>
+                                        <th class="text-center">操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="stockListBody">
+                                    <tr>
+                                        <td colspan="8" class="text-center text-muted py-4">
+                                            <div class="spinner-border spinner-border-sm me-1"></div>加载中...
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="card-footer">
+                        <small class="text-muted" id="pageInfoFooter">共 0 条</small>
+                        <nav>
+                            <ul class="pagination pagination-sm mb-0" id="pagination"></ul>
+                        </nav>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+</div>
+
+<div th:replace="~{fragments/common :: toastContainer}"></div>
+
+<div th:replace="~{fragments/common :: scripts}"></div>
+<script>
+    function searchStocks(page) {
+        const keyword = document.getElementById('searchKeyword').value;
+        const size = document.getElementById('pageSizeSelect').value;
+
+        StockApp.get('/api/search', {keyword, page, size}, function(resp) {
+            if (resp.code !== 200) return;
+            const result = resp.data;
+            renderTable(result.list);
+            renderPagination(result);
+            const totalText = `共 ${result.total} 条`;
+            document.getElementById('pageInfo').textContent = totalText;
+            document.getElementById('pageInfoFooter').textContent = totalText;
+        });
+    }
+
+    function renderTable(list) {
+        const tbody = document.getElementById('stockListBody');
+        if (!list.length) {
+            tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4">无数据</td></tr>';
+            return;
+        }
+        tbody.innerHTML = list.map(s => {
+            const e = StockApp.escapeHtml;
+            const upDown = s.changePercent >= 0 ? 'text-rise' : 'text-fall';
+            const sign = s.changeAmount >= 0 ? '+' : '';
+            return `
+            <tr>
+                <td><code>${e(s.code)}</code></td>
+                <td class="fw-medium">${e(s.name)}</td>
+                <td><span class="badge badge-secondary">${e(s.market)}</span></td>
+                <td class="text-end">${e(s.currentPrice)}</td>
+                <td class="text-end ${upDown}">${sign}${e(s.changeAmount)}</td>
+                <td class="text-end ${upDown}">${s.changePercent >= 0 ? '+' : ''}${e(s.changePercent)}%</td>
+                <td class="text-end">${(s.volume / 10000).toFixed(1)}万</td>
+                <td class="text-center">
+                    <button class="btn btn-sm btn-outline-primary btn-icon" onclick="StockApp.addWatchlist('${e(s.code)}', this)">
+                        <i class="bi bi-star"></i>
+                    </button>
+                </td>
+            </tr>`;
+        }).join('');
+    }
+
+    function renderPagination(result) {
+        const ul = document.getElementById('pagination');
+        const totalPages = Math.ceil(result.total / result.size);
+        if (totalPages <= 1) { ul.innerHTML = ''; return; }
+
+        let html = '';
+        html += `<li class="page-item ${result.page <= 1 ? 'disabled' : ''}">
+                    <a class="page-link" href="#" onclick="searchStocks(${result.page - 1})">上一页</a>
+                 </li>`;
+        for (let i = 1; i <= totalPages; i++) {
+            html += `<li class="page-item ${i === result.page ? 'active' : ''}">
+                        <a class="page-link" href="#" onclick="searchStocks(${i})">${i}</a>
+                     </li>`;
+        }
+        html += `<li class="page-item ${result.page >= totalPages ? 'disabled' : ''}">
+                    <a class="page-link" href="#" onclick="searchStocks(${result.page + 1})">下一页</a>
+                 </li>`;
+        ul.innerHTML = html;
+    }
+
+    function resetSearch() {
+        document.getElementById('searchKeyword').value = '';
+        document.getElementById('pageSizeSelect').value = '10';
+        searchStocks(1);
+    }
+
+    function exportData() {
+        StockApp.showToast('导出功能开发中...', 'info');
+    }
+
+    searchStocks(1);
+</script>
+</body>
+</html>

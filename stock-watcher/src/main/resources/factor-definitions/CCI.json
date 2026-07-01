@@ -1,0 +1,32 @@
+{
+  "factorKey": "CCI",
+  "displayName": "CCI 顺势指标",
+  "category": "MOMENTUM",
+  "description": "衡量价格偏离统计平均值的程度",
+  "params": [
+    {
+      "name": "timeperiod",
+      "displayName": "周期",
+      "type": "INT",
+      "defaultValue": 14,
+      "min": 1,
+      "max": 500,
+      "step": 1
+    },
+    {
+      "name": "c",
+      "displayName": "CCI 缩放系数",
+      "type": "FLOAT",
+      "defaultValue": 0.015,
+      "min": 0.01,
+      "max": 10.0,
+      "step": 0.01
+    }
+  ],
+  "inputs": ["high", "low", "close"],
+  "multiOutput": false,
+  "outputLabels": [],
+  "defaultOutputIndex": 0,
+  "lookbackHint": "timeperiod - 1",
+  "lookbackDefault": 13
+}

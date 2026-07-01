@@ -1,0 +1,32 @@
+{
+  "factorKey": "SAR",
+  "displayName": "SAR 抛物线指标",
+  "category": "OVERLAP",
+  "description": "基于价格极值和加速因子动态调整的止损/反转指标",
+  "params": [
+    {
+      "name": "acceleration",
+      "displayName": "加速因子",
+      "type": "FLOAT",
+      "defaultValue": 0.02,
+      "min": 0.01,
+      "max": 10.0,
+      "step": 0.01
+    },
+    {
+      "name": "maximum",
+      "displayName": "加速因子上限",
+      "type": "FLOAT",
+      "defaultValue": 0.2,
+      "min": 0.01,
+      "max": 10.0,
+      "step": 0.01
+    }
+  ],
+  "inputs": ["high", "low"],
+  "multiOutput": false,
+  "outputLabels": [],
+  "defaultOutputIndex": 0,
+  "lookbackHint": "1",
+  "lookbackDefault": 1
+}

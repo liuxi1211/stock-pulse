@@ -1,0 +1,23 @@
+{
+  "factorKey": "EMA",
+  "displayName": "EMA 指数移动均线",
+  "category": "OVERLAP",
+  "description": "对近期价格赋予更大权重的指数移动均线，对趋势变化更敏感",
+  "params": [
+    {
+      "name": "timeperiod",
+      "displayName": "周期",
+      "type": "INT",
+      "defaultValue": 12,
+      "min": 1,
+      "max": 500,
+      "step": 1
+    }
+  ],
+  "inputs": ["close"],
+  "multiOutput": false,
+  "outputLabels": [],
+  "defaultOutputIndex": 0,
+  "lookbackHint": "timeperiod - 1",
+  "lookbackDefault": 11
+}

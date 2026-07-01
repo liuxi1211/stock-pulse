@@ -1,0 +1,72 @@
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE / Editor
+.idea/
+*.iws
+*.iml
+*.ipr
+out/
+.vscode/
+.kiro/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+*.egg-info/
+.eggs/
+build/
+dist/
+
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+.ipynb_checkpoints
+
+.python-version
+.env
+.venv
+.env.*
+!*.env.example
+!*.env.template
+env/
+venv/
+ENV/
+
+.mypy_cache/
+
+# Java / Maven
+HELP.md
+target/
+.mvn/wrapper/maven-wrapper.jar
+
+# 项目数据文件
+data/logs/
+*.sqlite
+*.sqlite3
+*.db-journal
+
+# 敏感配置
+application-secret.properties
+application-secret.yml
+application-secret.yaml
+
+# 第三方文档 / 临时目录
+sdlc/tushare-master/
+
+# 日志
+*.log
+logs/
+
+# 临时文件
+*~
+*.swp
+*.swo
+*.tmp
+*.bak
