@@ -3,7 +3,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from core.logger import logger
 from core.exceptions import StockBaseException
-from api.v1 import quote, backtest, compute  # noqa: F401
 from config import settings
 
 # 创建FastAPI应用
@@ -11,13 +10,12 @@ app = FastAPI(
     title="Stock Calculation API",
     version="1.0.0",
     description="""
-本地化股票分析系统 - Python计算服务API
+本地化股票分析系统 - Python 计算服务（骨架）。
 
-负责量化计算、策略回测等核心能力，
-提供REST API供Java业务服务调用。
+业务层（技术指标 / 因子计算 / 策略回测）已清空，待基于
+「统一策略配置 Schema」+ akquant 知识库重写后在此挂载。
 
-【重要】Python服务不直接操作数据库，所有数据通过API返回给Java服务处理。
-【新协议】/python/v1/* —— Java 持有因子定义，Python 只做无状态数值计算。
+【硬约束】Python 服务不直接操作数据库，所有数据通过 API 返回给 Java 服务处理。
     """,
     docs_url="/docs",
     redoc_url="/redoc"
@@ -56,10 +54,7 @@ async def global_exception_handler(request: Request, exc: Exception):
         }
     )
 
-# 注册路由
-app.include_router(quote.router, prefix="/api/v1")
-app.include_router(backtest.router, prefix="/api/v1")
-app.include_router(compute.router)
+# 路由注册（业务层待重写后在此挂载）
 
 # 启动事件
 @app.on_event("startup")

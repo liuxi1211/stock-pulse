@@ -27,9 +27,3 @@ class ValidationException(StockBaseException):
     """参数验证异常"""
     code = 400
     message = "参数验证失败"
-
-
-class StrategyNotFoundException(StockBaseException):
-    """策略不存在异常"""
-    code = 404
-    message = "指定的策略不存在"

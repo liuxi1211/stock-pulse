@@ -4,7 +4,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     # 服务配置
     host: str = "127.0.0.1"
-    port: int = 8000
+    port: int = 8085
     
     # 日志配置
     log_level: str = "INFO"

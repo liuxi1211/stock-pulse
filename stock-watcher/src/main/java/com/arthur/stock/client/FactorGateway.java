@@ -36,7 +36,7 @@ public class FactorGateway {
 
     private static final String REGISTRY_CACHE_KEY = "factor-registry";
 
-    @Value("${python.compute.url:http://127.0.0.1:8000}")
+    @Value("${python.compute.url:http://127.0.0.1:8085}")
     private String pythonUrl;
 
     private final RestTemplate restTemplate;
@@ -183,7 +183,7 @@ public class FactorGateway {
     private String baseUrl() {
         String url = (pythonUrl == null) ? "" : pythonUrl.trim();
         if (url.isEmpty()) {
-            return "http://127.0.0.1:8000";
+            return "http://127.0.0.1:8085";
         }
         if (url.endsWith("/")) {
             return url.substring(0, url.length() - 1);

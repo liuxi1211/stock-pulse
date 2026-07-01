@@ -27,7 +27,7 @@ import java.util.UUID;
 @Component
 public class PythonComputeClient {
 
-    @Value("${python.compute.url:http://127.0.0.1:8000}")
+    @Value("${python.compute.url:http://127.0.0.1:8085}")
     private String baseUrl;
 
     private final RestTemplate restTemplate;

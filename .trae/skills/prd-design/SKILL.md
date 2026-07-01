@@ -9,8 +9,14 @@ parameters:
 
 # PRD + 原型图 → 研发设计方案 生成 Skill
 
-> 面向 Stock Watcher 项目：读取 `sdlc/prd/<需求目录>/` 下的 PRD 文档 + `prototype/` 原型图（HTML），结合项目知识库，产出完整的研发设计文档。
+> 面向 Stock Watcher 项目：读取 `sdlc/prd/<需求目录>/` 下的 PRD 文档（+ 可选 `prototype/` 原型图），结合项目知识库，产出完整的研发设计文档。
 > 设计文档中显式引用 PRD 和原型图路径，方便后续编码时回溯。
+
+> ⚠️ **文档结构对齐当前仓库实况**（2026-07）：
+> - **产出位置**：设计文档落在 `sdlc/prd/<需求目录>/`（旧 `sdlc/design/` 已并入 prd，不再使用）。
+> - **HTML 原型**：项目已移除 `prototype/` 工作流；若 `<需求目录>/prototype/` 不存在，跳过原型相关步骤，模板中 prototype 引用一律按"若存在"处理。
+> - **规则文件**：`.claude/rules/` → `.trae/rules/`（`general/`、`stock-watcher/`、`stock-engine/`、`akquant/`）。
+> - **量化类模块**（选股/策略/回测）的字段与接口权威是 `sdlc/prd/004-策略管理/统一策略配置Schema.md`，不适用本 Skill 的 4-文档产出；本 Skill 面向其外的业务模块（信号/交易/复盘/系统等）。
 
 ---
 
@@ -36,7 +42,7 @@ prd-design 回测          # 携带名称 → 按名称模糊匹配
 
 ### 1.3 知识库加载（不写死文件名）
 - 必选：读取 `CLAUDE.md`（项目总览 + 规则文件索引）
-- 扫描：`Glob .claude/rules/*.md` 获取当前所有规则文件列表
+- 扫描：`Glob .trae/rules/**/*.md` 获取当前所有规则文件列表
 - 按需：根据 PRD 核心主题加载匹配的规则文件（如涉及 Tushare → `07-*`，权限 → `06-*`，K线 → `09-*`）
 - 无法判断时优先读取编号 01~10 范围内实际存在的文件
 - 文件名变化/新增是正常的，以当前目录实际文件为准
@@ -56,7 +62,7 @@ prd-design 回测          # 携带名称 → 按名称模糊匹配
 
 ## 2. 产出物
 
-在 `sdlc/design/` 下新建一个与需求目录同名的目录。
+在 `sdlc/prd/<需求目录>/` 下新建设计文档（设计已并入 prd，不再用 `sdlc/design/`）。
 
 **文件版本策略（不覆盖已有文件）**：目标文件不存在 → 直接创建；已存在 → 使用 `-YYYYMMDD` 日期后缀新建版本；同日已有版本 → 追加 `-1` / `-2`。
 
@@ -416,10 +422,10 @@ Step 1. 扫描 `sdlc/prd/` 目录 → 空目录则结束任务
 Step 2. 选择目标目录 → 不携带参数时单目录直接选中、多目录让用户选择；携带参数时模糊匹配目录名
 Step 3. 读取 PRD 文档 → 主 PRD（优先文件名含 "PRD"）+ 验收文档 + 补充文档
 Step 4. 读取 `prototype/` 原型图 → 建立「原型图索引表（文件名 → 页面标题 → 核心功能）；不存在则标注
-Step 5. 加载知识库 → `CLAUDE.md` + `.claude/rules/*.md`（按需读取匹配的规则文件）
+Step 5. 加载知识库 → `CLAUDE.md` + `.trae/rules/**/*.md`（按需读取匹配的规则文件）
 Step 6. 扫描现有代码基底 → `schema.sql` / `*Controller.java` / `application.yml` / `ErrorCode.java` / `*Mapper.java` / `*ServiceImpl.java`
 Step 7. 做复用决策 → 基于 Step 6 的扫描结果，对表/接口/错误码逐一判断：复用 / 扩展 / 新增
-Step 8. 在 `sdlc/design/` 下新建同名需求目录 → 已有文件加日期后缀，不覆盖
+Step 8. 在 `sdlc/prd/<需求目录>/` 下新建设计文档 → 已有文件加日期后缀，不覆盖
 Step 9. 产出 4 份文档 → 按第 3 节模板撰写，引用 PRD 和原型图路径
 Step 10. 自检与修复 → 按第 5 节「自检清单」逐条检查并修复
 Step 11. 输出总结 → 列出文件路径 + 记录自检通过项 + 标注 PRD/原型图信息不足项
@@ -491,7 +497,7 @@ Step 11. 输出总结 → 列出文件路径 + 记录自检通过项 + 标注 PR
 
 1. **文档语言**：**中文**（与 PRD 及现有 design 文档风格一致）
 2. **代码块语言标注**：SQL 用 ` ```sql `，JSON 用 ` ```json `，Java 用 ` ```java `
-3. **保持与现有架构一致**：任何与 `CLAUDE.md` / `.claude/rules/` / `schema.sql` 冲突的设计，需要在主设计文档的「6. 风险与 TODO」中显式列出并说明替代方案
+3. **保持与现有架构一致**：任何与 `CLAUDE.md` / `.trae/rules/` / `schema.sql` 冲突的设计，需要在主设计文档的「6. 风险与 TODO」中显式列出并说明替代方案
 4. **不要编造具体 Tushare 接口名**：若 PRD 涉及新的外部数据源但接口未确定，写成 `TushareClient.<待定方法>` 并标注 TODO
 5. **字段命名遵循现有习惯**：股票代码一律使用 `ts_code`（如 `000001.SZ`）与 `symbol`（如 `000001`）双字段，日期统一使用 `trade_date`（YYYYMMDD 字符串）或 `created_at` / `updated_at`（ISO 字符串）
 6. **JSON 响应字段强制小驼峰**：面向前端的 HTTP API 文档中，所有 JSON 字段名必须为小驼峰（`tsCode`、`tradeDate`、`createdAt`），以匹配 Spring Boot Jackson 默认行为

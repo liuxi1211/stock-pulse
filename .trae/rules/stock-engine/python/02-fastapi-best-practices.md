@@ -260,7 +260,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     host: str = "127.0.0.1"
-    port: int = 8000
+    port: int = 8085
     log_level: str = "INFO"
     data_history_years: int = 5
 

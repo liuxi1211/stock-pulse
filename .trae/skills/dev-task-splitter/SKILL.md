@@ -195,7 +195,7 @@ doc/task/
 
 ## 实现约束
 - 不直接连接 SQLite，数据通过 Java 侧 REST API 获取
-- 遵循项目 `.claude/rules/` 命名规范
+- 遵循项目 `.trae/rules/` 命名规范
 ```
 
 ### 4.3 state.json 格式
@@ -304,7 +304,7 @@ doc/task/
 
 1. **不覆盖已完成任务**：status=done 的任务保持不动
 2. **seq 编号永不重置**：新任务 seq = 当前最大 + 1
-3. **遵循项目代码规范**：阅读 `.claude/rules/`，Python 遵循 FastAPI + Pydantic 规范
+3. **遵循项目代码规范**：阅读 `.trae/rules/`，Python 遵循 FastAPI + Pydantic 规范
 4. **不自动提交 git**：本 skill 只负责拆分与状态记录
 5. **stats 必须与实际一致**：每次保存前重新计算
 6. **本 skill 只负责任务拆分**：不负责执行任务代码编写

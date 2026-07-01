@@ -26,6 +26,11 @@ mybatis-plus:
       id-type: auto
       logic-delete-field: deleted
 
+# ========== Python Compute Service ==========
+python:
+  compute:
+    url: http://127.0.0.1:8085
+
 # ========== Stock API Configuration (fill in your own) ==========
 stock:
   api:

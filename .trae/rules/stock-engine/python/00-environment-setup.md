@@ -42,13 +42,13 @@ python -c "import akquant; print('akquant', akquant.__version__)"
 ```bash
 conda activate stock
 cd stock-engine
-uvicorn main:app --host 127.0.0.1 --port 8000          # 默认端口
-uvicorn main:app --host 127.0.0.1 --port 8000 --reload  # 开发热重载
+uvicorn main:app --host 127.0.0.1 --port 8085          # 默认端口
+uvicorn main:app --host 127.0.0.1 --port 8085 --reload  # 开发热重载
 ```
 
 启动后验证：
-- http://127.0.0.1:8000/docs — Swagger API 文档
-- http://127.0.0.1:8000/health — 健康检查
+- http://127.0.0.1:8085/docs — Swagger API 文档
+- http://127.0.0.1:8085/health — 健康检查
 
 > 端口被占用时换端口（如 8001），并同步修改 Java 侧 `python.compute.url`（见 §4）。
 
@@ -56,12 +56,12 @@ uvicorn main:app --host 127.0.0.1 --port 8000 --reload  # 开发热重载
 
 **启动顺序**：先 Python（stock-engine），再 Java（stock-watcher）。
 
-Java 通过 `PythonComputeClient` / `FactorGateway` 调用，配置项 `python.compute.url`，默认 `http://127.0.0.1:8000`：
+Java 通过 `PythonComputeClient` / `FactorGateway` 调用，配置项 `python.compute.url`，默认 `http://127.0.0.1:8085`：
 
 ```yaml
 python:
   compute:
-    url: http://127.0.0.1:8000
+    url: http://127.0.0.1:8085
 ```
 
 **联调检查**：Python 已起且 `/docs` 可访问 → Java 的 `python.compute.url` 与实际端口一致 → Java 日志无连接错误 → 触发一次因子计算验证链路。
@@ -73,7 +73,7 @@ python:
 | 变量名 | 默认值 | 说明 |
 |--------|--------|------|
 | `HOST` | 127.0.0.1 | 监听地址 |
-| `PORT` | 8000 | 监听端口 |
+| `PORT` | 8085 | 监听端口 |
 | `LOG_LEVEL` | INFO | 日志级别（DEBUG/INFO/WARNING/ERROR） |
 | `DATA_HISTORY_YEARS` | 5 | 数据采集默认历史年数 |
 
@@ -90,5 +90,5 @@ python:
 
 - Miniforge：`D:\javaApp\miniforge`（conda.exe：`D:\javaApp\miniforge\Scripts\conda.exe`）
 - stock 环境：`D:\javaApp\miniforge\envs\stock`，Python 3.14.4
-- **端口**：8000 被 C-Lodop 打印服务占用，本机用 **8001**，Java 配置改为 `http://127.0.0.1:8001`。
-- 本机启动：`cd d:\lcProject\stock-pulse\stock-engine` → `uvicorn main:app --host 127.0.0.1 --port 8001`，验证 http://127.0.0.1:8001/docs。
+- **端口**：默认 8085；如需改端口，同步修改 Java 配置 `python.compute.url`。
+- 本机启动：`cd d:\lcProject\stock-pulse\stock-engine` → `uvicorn main:app --host 127.0.0.1 --port 8085`，验证 http://127.0.0.1:8085/docs。
