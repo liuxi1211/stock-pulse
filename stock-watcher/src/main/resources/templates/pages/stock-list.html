@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
 <head th:replace="~{fragments/common :: head(${pageTitle})}"></head>
 <body>
@@ -122,7 +122,7 @@
         const keyword = document.getElementById('searchKeyword').value;
         const size = document.getElementById('pageSizeSelect').value;
 
-        StockApp.get('/api/search', {keyword, page, size}, function(resp) {
+        StockApp.get('/search', {keyword, page, size}, function(resp) {
             if (resp.code !== 200) return;
             const result = resp.data;
             renderTable(result.list);

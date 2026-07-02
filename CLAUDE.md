@@ -10,7 +10,6 @@
 | 改数据库 / 写 SQL(**勿凭记忆**)             | [`stock-watcher/src/main/resources/schema.sql`](./stock-watcher/src/main/resources/schema.sql)      |
 | 模块研发设计（架构/DB/API/Schema）           | `sdlc/prd/`（003 选股与回测边界设计·004 统一策略配置Schema）+ `.trae/rules/akquant/`（旧 `sdlc/design/` 已并入）           |
 | 模块需求                               | `sdlc/prd/`（001 系统PRD·002 因子库·003 多因子选股中心·004 策略管理·005 回测中心）                                        |
-| **策略配置 Schema（唯一权威）**              | [`sdlc/prd/004-策略管理/统一策略配置Schema.md`](sdlc/prd/004-策略管理/统一策略配置Schema.md) — 字段定义以此为准；003 §6.2 已降级为引用 |
 | 写代码前的编码规范                          | `.trae/rules/`（组织方式见下）                                                                              |
 | 理解两系统运行时协作                         | 本文「硬约束」段                                                                                            |
 | 搭 Python 环境 / 启动 engine            | `.trae/rules/stock-engine/python/00-environment-setup.md`                                           |

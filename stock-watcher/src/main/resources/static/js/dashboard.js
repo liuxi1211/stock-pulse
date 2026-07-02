@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Dashboard page JavaScript
  * K-line + Watchlist linkage, Market Rankings, Dynamic Charts
  */
@@ -28,7 +28,7 @@ function loadKline(stockCode, stockName, btn) {
     highlightWatchlistRow(stockCode);
     updateKlineTitle();
 
-    StockApp.get('/api/kline/' + stockCode, { period: currentPeriod }, function(resp) {
+    StockApp.get('/kline/' + stockCode, { period: currentPeriod }, function(resp) {
         if (resp.code !== 200) return;
         renderKline(resp.data, stockCode);
     });
@@ -42,7 +42,7 @@ function changePeriod(period, btn) {
     currentPeriod = period;
     updateKlineTitle();
 
-    StockApp.get('/api/kline/' + currentStockCode, { period: period }, function(resp) {
+    StockApp.get('/kline/' + currentStockCode, { period: period }, function(resp) {
         if (resp.code !== 200) return;
         renderKline(resp.data, currentStockCode);
     });
@@ -223,7 +223,7 @@ function updateKlineTheme() {
 
 // ========== Watchlist (AJAX) ==========
 function refreshWatchlist() {
-    StockApp.get('/api/watchlist', null, function(resp) {
+    StockApp.get('/watchlist', null, function(resp) {
         if (resp.code !== 200) return;
         watchlistData = resp.data || [];
         renderWatchlistTable(watchlistData);
@@ -296,7 +296,7 @@ async function removeFromWatchlist(stockCode, btn) {
         confirmClass: 'btn-danger',
         icon: 'bi-trash'
     })) return;
-    StockApp.delete('/api/watchlist/' + stockCode, function(resp) {
+    StockApp.delete('/watchlist/' + stockCode, function(resp) {
         StockApp.toast(resp.message, resp.code === 200 ? 'success' : 'warning');
         if (resp.code === 200) refreshWatchlist();
     });
@@ -308,7 +308,7 @@ function submitAddStock() {
         StockApp.toast('请输入股票代码', 'warning');
         return;
     }
-    StockApp.post('/api/watchlist/' + code, null, function(resp) {
+    StockApp.post('/watchlist/' + code, null, function(resp) {
         StockApp.toast(resp.message, resp.code === 200 ? 'success' : 'warning');
         if (resp.code === 200) {
             const modal = bootstrap.Modal.getInstance(document.getElementById('addStockModal'));
@@ -321,7 +321,7 @@ function submitAddStock() {
 
 // ========== Market Rankings ==========
 function refreshRanking() {
-    StockApp.get('/api/market/ranking', null, function(resp) {
+    StockApp.get('/market/ranking', null, function(resp) {
         if (resp.code !== 200 || !resp.data) return;
         renderRankingTable('topGainersBody', resp.data.topGainers, 'pctChg');
         renderRankingTable('topLosersBody', resp.data.topLosers, 'pctChg');

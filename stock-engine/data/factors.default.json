@@ -1,0 +1,1474 @@
+{
+  "version": "2.0",
+  "description": "StockPulse 标准因子库 v2.0 - 技术面基于 akquant.talib，基本面基于 Tushare",
+  "categories": [
+    {
+      "key": "OVERLAP",
+      "name": "趋势指标",
+      "source": "AKQUANT"
+    },
+    {
+      "key": "MOMENTUM",
+      "name": "动量指标",
+      "source": "AKQUANT"
+    },
+    {
+      "key": "VOLATILITY",
+      "name": "波动率指标",
+      "source": "AKQUANT"
+    },
+    {
+      "key": "VOLUME",
+      "name": "成交量指标",
+      "source": "AKQUANT"
+    },
+    {
+      "key": "STATISTIC",
+      "name": "统计指标",
+      "source": "AKQUANT"
+    },
+    {
+      "key": "PRICE",
+      "name": "价格/成交量直通",
+      "source": "RAW"
+    },
+    {
+      "key": "VALUATION",
+      "name": "估值因子",
+      "source": "TUSHARE"
+    },
+    {
+      "key": "QUALITY",
+      "name": "质量因子",
+      "source": "TUSHARE"
+    },
+    {
+      "key": "GROWTH",
+      "name": "成长因子",
+      "source": "TUSHARE"
+    },
+    {
+      "key": "FINANCE",
+      "name": "财务结构",
+      "source": "TUSHARE"
+    }
+  ],
+  "factors": [
+    {
+      "factorKey": "MA",
+      "displayName": "MA 简单移动平均线",
+      "category": "OVERLAP",
+      "source": "AKQUANT",
+      "akquantFunc": "MA",
+      "dataSource": "ohlcv",
+      "description": "对收盘价取 N 周期简单移动平均值（SMA）",
+      "params": [
+        {
+          "name": "timeperiod",
+          "displayName": "周期",
+          "type": "INT",
+          "defaultValue": 5,
+          "min": 1,
+          "max": 500,
+          "step": 1
+        }
+      ],
+      "inputs": [
+        "close"
+      ],
+      "multiOutput": false,
+      "outputLabels": [],
+      "defaultOutputIndex": 0,
+      "lookbackHint": "timeperiod - 1",
+      "lookbackDefault": 4
+    },
+    {
+      "factorKey": "EMA",
+      "displayName": "EMA 指数移动平均线",
+      "category": "OVERLAP",
+      "source": "AKQUANT",
+      "akquantFunc": "EMA",
+      "dataSource": "ohlcv",
+      "description": "对近期价格赋予更大权重的指数移动平均线，对趋势变化更敏感",
+      "params": [
+        {
+          "name": "timeperiod",
+          "displayName": "周期",
+          "type": "INT",
+          "defaultValue": 12,
+          "min": 1,
+          "max": 500,
+          "step": 1
+        }
+      ],
+      "inputs": [
+        "close"
+      ],
+      "multiOutput": false,
+      "outputLabels": [],
+      "defaultOutputIndex": 0,
+      "lookbackHint": "timeperiod - 1",
+      "lookbackDefault": 11
+    },
+    {
+      "factorKey": "WMA",
+      "displayName": "WMA 加权移动平均线",
+      "category": "OVERLAP",
+      "source": "AKQUANT",
+      "akquantFunc": "WMA",
+      "dataSource": "ohlcv",
+      "description": "线性加权移动平均，越近的数据权重越大",
+      "params": [
+        {
+          "name": "timeperiod",
+          "displayName": "周期",
+          "type": "INT",
+          "defaultValue": 30,
+          "min": 1,
+          "max": 500,
+          "step": 1
+        }
+      ],
+      "inputs": [
+        "close"
+      ],
+      "multiOutput": false,
+      "outputLabels": [],
+      "defaultOutputIndex": 0,
+      "lookbackHint": "timeperiod - 1",
+      "lookbackDefault": 29
+    },
+    {
+      "factorKey": "DEMA",
+      "displayName": "DEMA 双指数移动平均线",
+      "category": "OVERLAP",
+      "source": "AKQUANT",
+      "akquantFunc": "DEMA",
+      "dataSource": "ohlcv",
+      "description": "双指数移动平均线，比单一 EMA 更平滑、滞后更小",
+      "params": [
+        {
+          "name": "timeperiod",
+          "displayName": "周期",
+          "type": "INT",
+          "defaultValue": 30,
+          "min": 1,
+          "max": 500,
+          "step": 1
+        }
+      ],
+      "inputs": [
+        "close"
+      ],
+      "multiOutput": false,
+      "outputLabels": [],
+      "defaultOutputIndex": 0,
+      "lookbackHint": "2 * timeperiod - 1",
+      "lookbackDefault": 59
+    },
+    {
+      "factorKey": "TEMA",
+      "displayName": "TEMA 三指数移动平均线",
+      "category": "OVERLAP",
+      "source": "AKQUANT",
+      "akquantFunc": "TEMA",
+      "dataSource": "ohlcv",
+      "description": "三指数移动平均线，进一步减小滞后",
+      "params": [
+        {
+          "name": "timeperiod",
+          "displayName": "周期",
+          "type": "INT",
+          "defaultValue": 30,
+          "min": 1,
+          "max": 500,
+          "step": 1
+        }
+      ],
+      "inputs": [
+        "close"
+      ],
+      "multiOutput": false,
+      "outputLabels": [],
+      "defaultOutputIndex": 0,
+      "lookbackHint": "3 * timeperiod - 2",
+      "lookbackDefault": 88
+    },
+    {
+      "factorKey": "TRIMA",
+      "displayName": "TRIMA 三角移动平均线",
+      "category": "OVERLAP",
+      "source": "AKQUANT",
+      "akquantFunc": "TRIMA",
+      "dataSource": "ohlcv",
+      "description": "三角形加权移动平均，中间周期权重最大",
+      "params": [
+        {
+          "name": "timeperiod",
+          "displayName": "周期",
+          "type": "INT",
+          "defaultValue": 30,
+          "min": 1,
+          "max": 500,
+          "step": 1
+        }
+      ],
+      "inputs": [
+        "close"
+      ],
+      "multiOutput": false,
+      "outputLabels": [],
+      "defaultOutputIndex": 0,
+      "lookbackHint": "timeperiod - 1",
+      "lookbackDefault": 29
+    },
+    {
+      "factorKey": "KAMA",
+      "displayName": "KAMA 考夫曼自适应均线",
+      "category": "OVERLAP",
+      "source": "AKQUANT",
+      "akquantFunc": "KAMA",
+      "dataSource": "ohlcv",
+      "description": "考夫曼自适应移动平均线，根据市场波动率自动调整平滑系数",
+      "params": [
+        {
+          "name": "timeperiod",
+          "displayName": "周期",
+          "type": "INT",
+          "defaultValue": 30,
+          "min": 1,
+          "max": 500,
+          "step": 1
+        }
+      ],
+      "inputs": [
+        "close"
+      ],
+      "multiOutput": false,
+      "outputLabels": [],
+      "defaultOutputIndex": 0,
+      "lookbackHint": "timeperiod + 10",
+      "lookbackDefault": 40
+    },
+    {
+      "factorKey": "T3",
+      "displayName": "T3 三重指数均线",
+      "category": "OVERLAP",
+      "source": "AKQUANT",
+      "akquantFunc": "T3",
+      "dataSource": "ohlcv",
+      "description": "T3 三重指数平滑移动平均线，由 Tim Tillson 提出",
+      "params": [
+        {
+          "name": "timeperiod",
+          "displayName": "周期",
+          "type": "INT",
+          "defaultValue": 5,
+          "min": 1,
+          "max": 500,
+          "step": 1
+        },
+        {
+          "name": "vfactor",
+          "displayName": "容量因子",
+          "type": "FLOAT",
+          "defaultValue": 0.7,
+          "min": 0.0,
+          "max": 1.0,
+          "step": 0.01
+        }
+      ],
+      "inputs": [
+        "close"
+      ],
+      "multiOutput": false,
+      "outputLabels": [],
+      "defaultOutputIndex": 0,
+      "lookbackHint": "6 * timeperiod - 5",
+      "lookbackDefault": 25
+    },
+    {
+      "factorKey": "MAMA",
+      "displayName": "MESA 自适应移动均线",
+      "category": "OVERLAP",
+      "source": "AKQUANT",
+      "akquantFunc": "MAMA",
+      "dataSource": "ohlcv",
+      "description": "MESA 自适应移动平均，双输出：MAMA（主线）和 FAMA（信号线）",
+      "params": [
+        {
+          "name": "fastlimit",
+          "displayName": "快速限制",
+          "type": "FLOAT",
+          "defaultValue": 0.5,
+          "min": 0.01,
+          "max": 1.0,
+          "step": 0.01
+        },
+        {
+          "name": "slowlimit",
+          "displayName": "慢速限制",
+          "type": "FLOAT",
+          "defaultValue": 0.05,
+          "min": 0.01,
+          "max": 1.0,
+          "step": 0.01
+        }
+      ],
+      "inputs": [
+        "close"
+      ],
+      "multiOutput": true,
+      "outputLabels": [
+        "MAMA",
+        "FAMA"
+      ],
+      "defaultOutputIndex": 0,
+      "lookbackHint": "32",
+      "lookbackDefault": 32
+    },
+    {
+      "factorKey": "BOLL",
+      "displayName": "BOLL 布林带",
+      "category": "OVERLAP",
+      "source": "AKQUANT",
+      "akquantFunc": "BBANDS",
+      "dataSource": "ohlcv",
+      "description": "由中轨（MA）和上下 N 倍标准差通道构成",
+      "params": [
+        {
+          "name": "timeperiod",
+          "displayName": "周期",
+          "type": "INT",
+          "defaultValue": 20,
+          "min": 1,
+          "max": 500,
+          "step": 1
+        },
+        {
+          "name": "nbdevup",
+          "displayName": "上轨标准差倍数",
+          "type": "FLOAT",
+          "defaultValue": 2.0,
+          "min": 0.01,
+          "max": 10.0,
+          "step": 0.01
+        },
+        {
+          "name": "nbdevdn",
+          "displayName": "下轨标准差倍数",
+          "type": "FLOAT",
+          "defaultValue": 2.0,
+          "min": 0.01,
+          "max": 10.0,
+          "step": 0.01
+        }
+      ],
+      "inputs": [
+        "close"
+      ],
+      "multiOutput": true,
+      "outputLabels": [
+        "上轨",
+        "中轨",
+        "下轨"
+      ],
+      "defaultOutputIndex": 1,
+      "lookbackHint": "timeperiod - 1",
+      "lookbackDefault": 19
+    },
+    {
+      "factorKey": "SAR",
+      "displayName": "SAR 抛物线指标",
+      "category": "OVERLAP",
+      "source": "AKQUANT",
+      "akquantFunc": "SAR",
+      "dataSource": "ohlcv",
+      "description": "基于价格极值和加速因子动态调整的止损/反转指标",
+      "params": [
+        {
+          "name": "acceleration",
+          "displayName": "加速因子",
+          "type": "FLOAT",
+          "defaultValue": 0.02,
+          "min": 0.01,
+          "max": 10.0,
+          "step": 0.01
+        },
+        {
+          "name": "maximum",
+          "displayName": "加速因子上限",
+          "type": "FLOAT",
+          "defaultValue": 0.2,
+          "min": 0.01,
+          "max": 10.0,
+          "step": 0.01
+        }
+      ],
+      "inputs": [
+        "high",
+        "low"
+      ],
+      "multiOutput": false,
+      "outputLabels": [],
+      "defaultOutputIndex": 0,
+      "lookbackHint": "1",
+      "lookbackDefault": 1
+    },
+    {
+      "factorKey": "MACD",
+      "displayName": "MACD 指数平滑异同平均线",
+      "category": "MOMENTUM",
+      "source": "AKQUANT",
+      "akquantFunc": "MACD",
+      "dataSource": "ohlcv",
+      "description": "由快慢两条 EMA 的差值（DIF）及其信号线（DEA）构成",
+      "params": [
+        {
+          "name": "fastperiod",
+          "displayName": "快线周期",
+          "type": "INT",
+          "defaultValue": 12,
+          "min": 1,
+          "max": 500,
+          "step": 1
+        },
+        {
+          "name": "slowperiod",
+          "displayName": "慢线周期",
+          "type": "INT",
+          "defaultValue": 26,
+          "min": 1,
+          "max": 500,
+          "step": 1
+        },
+        {
+          "name": "signalperiod",
+          "displayName": "信号线周期",
+          "type": "INT",
+          "defaultValue": 9,
+          "min": 1,
+          "max": 500,
+          "step": 1
+        }
+      ],
+      "inputs": [
+        "close"
+      ],
+      "multiOutput": true,
+      "outputLabels": [
+        "DIF",
+        "DEA",
+        "MACD柱"
+      ],
+      "defaultOutputIndex": 0,
+      "lookbackHint": "slowperiod + signalperiod - 2",
+      "lookbackDefault": 33
+    },
+    {
+      "factorKey": "RSI",
+      "displayName": "RSI 相对强弱指数",
+      "category": "MOMENTUM",
+      "source": "AKQUANT",
+      "akquantFunc": "RSI",
+      "dataSource": "ohlcv",
+      "description": "衡量一段时间内涨跌幅度的比例，>70 超买，<30 超卖",
+      "params": [
+        {
+          "name": "timeperiod",
+          "displayName": "周期",
+          "type": "INT",
+          "defaultValue": 14,
+          "min": 1,
+          "max": 500,
+          "step": 1
+        }
+      ],
+      "inputs": [
+        "close"
+      ],
+      "multiOutput": false,
+      "outputLabels": [],
+      "defaultOutputIndex": 0,
+      "lookbackHint": "timeperiod",
+      "lookbackDefault": 14
+    },
+    {
+      "factorKey": "KDJ",
+      "displayName": "KDJ 随机指标",
+      "category": "MOMENTUM",
+      "source": "AKQUANT",
+      "akquantFunc": "STOCH",
+      "dataSource": "ohlcv",
+      "description": "基于最高价/最低价/收盘价计算 K、D、J 三条线",
+      "params": [
+        {
+          "name": "fastk_period",
+          "displayName": "Fast K 周期",
+          "type": "INT",
+          "defaultValue": 9,
+          "min": 1,
+          "max": 500,
+          "step": 1
+        },
+        {
+          "name": "slowk_period",
+          "displayName": "Slow K 周期",
+          "type": "INT",
+          "defaultValue": 3,
+          "min": 1,
+          "max": 500,
+          "step": 1
+        },
+        {
+          "name": "slowk_matype",
+          "displayName": "Slow K 均线类型",
+          "type": "INT",
+          "defaultValue": 0,
+          "min": 0,
+          "max": 8,
+          "step": 1
+        },
+        {
+          "name": "slowd_period",
+          "displayName": "Slow D 周期",
+          "type": "INT",
+          "defaultValue": 3,
+          "min": 1,
+          "max": 500,
+          "step": 1
+        },
+        {
+          "name": "slowd_matype",
+          "displayName": "Slow D 均线类型",
+          "type": "INT",
+          "defaultValue": 0,
+          "min": 0,
+          "max": 8,
+          "step": 1
+        }
+      ],
+      "inputs": [
+        "high",
+        "low",
+        "close"
+      ],
+      "multiOutput": true,
+      "outputLabels": [
+        "K",
+        "D",
+        "J"
+      ],
+      "defaultOutputIndex": 2,
+      "lookbackHint": "fastk_period + slowk_period + slowd_period - 3",
+      "lookbackDefault": 12
+    },
+    {
+      "factorKey": "CCI",
+      "displayName": "CCI 顺势指标",
+      "category": "MOMENTUM",
+      "source": "AKQUANT",
+      "akquantFunc": "CCI",
+      "dataSource": "ohlcv",
+      "description": "衡量价格偏离统计平均值的程度，>100 超买，<-100 超卖",
+      "params": [
+        {
+          "name": "timeperiod",
+          "displayName": "周期",
+          "type": "INT",
+          "defaultValue": 14,
+          "min": 1,
+          "max": 500,
+          "step": 1
+        }
+      ],
+      "inputs": [
+        "high",
+        "low",
+        "close"
+      ],
+      "multiOutput": false,
+      "outputLabels": [],
+      "defaultOutputIndex": 0,
+      "lookbackHint": "timeperiod - 1",
+      "lookbackDefault": 13
+    },
+    {
+      "factorKey": "WILLR",
+      "displayName": "WILLR 威廉指标",
+      "category": "MOMENTUM",
+      "source": "AKQUANT",
+      "akquantFunc": "WILLR",
+      "dataSource": "ohlcv",
+      "description": "衡量当前收盘价在近期价格区间中的位置，范围 -100~0",
+      "params": [
+        {
+          "name": "timeperiod",
+          "displayName": "周期",
+          "type": "INT",
+          "defaultValue": 14,
+          "min": 1,
+          "max": 500,
+          "step": 1
+        }
+      ],
+      "inputs": [
+        "high",
+        "low",
+        "close"
+      ],
+      "multiOutput": false,
+      "outputLabels": [],
+      "defaultOutputIndex": 0,
+      "lookbackHint": "timeperiod - 1",
+      "lookbackDefault": 13
+    },
+    {
+      "factorKey": "ADX",
+      "displayName": "ADX 平均趋向指数",
+      "category": "MOMENTUM",
+      "source": "AKQUANT",
+      "akquantFunc": "ADX",
+      "dataSource": "ohlcv",
+      "description": "衡量趋势强度，>25 表示趋势明确，<20 表示盘整",
+      "params": [
+        {
+          "name": "timeperiod",
+          "displayName": "周期",
+          "type": "INT",
+          "defaultValue": 14,
+          "min": 1,
+          "max": 500,
+          "step": 1
+        }
+      ],
+      "inputs": [
+        "high",
+        "low",
+        "close"
+      ],
+      "multiOutput": false,
+      "outputLabels": [],
+      "defaultOutputIndex": 0,
+      "lookbackHint": "2 * timeperiod - 1",
+      "lookbackDefault": 27
+    },
+    {
+      "factorKey": "PLUS_DI",
+      "displayName": "+DI 上升趋向指标",
+      "category": "MOMENTUM",
+      "source": "AKQUANT",
+      "akquantFunc": "PLUS_DI",
+      "dataSource": "ohlcv",
+      "description": "DMI 体系中的 +DI 线，衡量上升方向力度",
+      "params": [
+        {
+          "name": "timeperiod",
+          "displayName": "周期",
+          "type": "INT",
+          "defaultValue": 14,
+          "min": 1,
+          "max": 500,
+          "step": 1
+        }
+      ],
+      "inputs": [
+        "high",
+        "low",
+        "close"
+      ],
+      "multiOutput": false,
+      "outputLabels": [],
+      "defaultOutputIndex": 0,
+      "lookbackHint": "timeperiod",
+      "lookbackDefault": 14
+    },
+    {
+      "factorKey": "MINUS_DI",
+      "displayName": "-DI 下降趋向指标",
+      "category": "MOMENTUM",
+      "source": "AKQUANT",
+      "akquantFunc": "MINUS_DI",
+      "dataSource": "ohlcv",
+      "description": "DMI 体系中的 -DI 线，衡量下降方向力度",
+      "params": [
+        {
+          "name": "timeperiod",
+          "displayName": "周期",
+          "type": "INT",
+          "defaultValue": 14,
+          "min": 1,
+          "max": 500,
+          "step": 1
+        }
+      ],
+      "inputs": [
+        "high",
+        "low",
+        "close"
+      ],
+      "multiOutput": false,
+      "outputLabels": [],
+      "defaultOutputIndex": 0,
+      "lookbackHint": "timeperiod",
+      "lookbackDefault": 14
+    },
+    {
+      "factorKey": "ROC",
+      "displayName": "ROC 变动率",
+      "category": "MOMENTUM",
+      "source": "AKQUANT",
+      "akquantFunc": "ROC",
+      "dataSource": "ohlcv",
+      "description": "价格变动率指标，(当前价 - N日前价) / N日前价 * 100",
+      "params": [
+        {
+          "name": "timeperiod",
+          "displayName": "周期",
+          "type": "INT",
+          "defaultValue": 10,
+          "min": 1,
+          "max": 500,
+          "step": 1
+        }
+      ],
+      "inputs": [
+        "close"
+      ],
+      "multiOutput": false,
+      "outputLabels": [],
+      "defaultOutputIndex": 0,
+      "lookbackHint": "timeperiod",
+      "lookbackDefault": 10
+    },
+    {
+      "factorKey": "MOM",
+      "displayName": "MOM 动量",
+      "category": "MOMENTUM",
+      "source": "AKQUANT",
+      "akquantFunc": "MOM",
+      "dataSource": "ohlcv",
+      "description": "价格动量指标，当前价 - N日前价",
+      "params": [
+        {
+          "name": "timeperiod",
+          "displayName": "周期",
+          "type": "INT",
+          "defaultValue": 10,
+          "min": 1,
+          "max": 500,
+          "step": 1
+        }
+      ],
+      "inputs": [
+        "close"
+      ],
+      "multiOutput": false,
+      "outputLabels": [],
+      "defaultOutputIndex": 0,
+      "lookbackHint": "timeperiod",
+      "lookbackDefault": 10
+    },
+    {
+      "factorKey": "APO",
+      "displayName": "APO 绝对价格振荡器",
+      "category": "MOMENTUM",
+      "source": "AKQUANT",
+      "akquantFunc": "APO",
+      "dataSource": "ohlcv",
+      "description": "绝对价格振荡器，快慢两条均线的差值",
+      "params": [
+        {
+          "name": "fastperiod",
+          "displayName": "快线周期",
+          "type": "INT",
+          "defaultValue": 12,
+          "min": 1,
+          "max": 500,
+          "step": 1
+        },
+        {
+          "name": "slowperiod",
+          "displayName": "慢线周期",
+          "type": "INT",
+          "defaultValue": 26,
+          "min": 1,
+          "max": 500,
+          "step": 1
+        }
+      ],
+      "inputs": [
+        "close"
+      ],
+      "multiOutput": false,
+      "outputLabels": [],
+      "defaultOutputIndex": 0,
+      "lookbackHint": "slowperiod - 1",
+      "lookbackDefault": 25
+    },
+    {
+      "factorKey": "PPO",
+      "displayName": "PPO 百分比价格振荡器",
+      "category": "MOMENTUM",
+      "source": "AKQUANT",
+      "akquantFunc": "PPO",
+      "dataSource": "ohlcv",
+      "description": "百分比价格振荡器，快慢均线差值 / 慢均线 * 100",
+      "params": [
+        {
+          "name": "fastperiod",
+          "displayName": "快线周期",
+          "type": "INT",
+          "defaultValue": 12,
+          "min": 1,
+          "max": 500,
+          "step": 1
+        },
+        {
+          "name": "slowperiod",
+          "displayName": "慢线周期",
+          "type": "INT",
+          "defaultValue": 26,
+          "min": 1,
+          "max": 500,
+          "step": 1
+        }
+      ],
+      "inputs": [
+        "close"
+      ],
+      "multiOutput": false,
+      "outputLabels": [],
+      "defaultOutputIndex": 0,
+      "lookbackHint": "slowperiod - 1",
+      "lookbackDefault": 25
+    },
+    {
+      "factorKey": "TRIX",
+      "displayName": "TRIX 三重光滑EMA变化率",
+      "category": "MOMENTUM",
+      "source": "AKQUANT",
+      "akquantFunc": "TRIX",
+      "dataSource": "ohlcv",
+      "description": "三重指数平滑平均的变化率，过滤短期波动",
+      "params": [
+        {
+          "name": "timeperiod",
+          "displayName": "周期",
+          "type": "INT",
+          "defaultValue": 30,
+          "min": 1,
+          "max": 500,
+          "step": 1
+        }
+      ],
+      "inputs": [
+        "close"
+      ],
+      "multiOutput": false,
+      "outputLabels": [],
+      "defaultOutputIndex": 0,
+      "lookbackHint": "3 * timeperiod - 1",
+      "lookbackDefault": 89
+    },
+    {
+      "factorKey": "ATR",
+      "displayName": "ATR 真实波幅均值",
+      "category": "VOLATILITY",
+      "source": "AKQUANT",
+      "akquantFunc": "ATR",
+      "dataSource": "ohlcv",
+      "description": "衡量价格波动的平均幅度",
+      "params": [
+        {
+          "name": "timeperiod",
+          "displayName": "周期",
+          "type": "INT",
+          "defaultValue": 14,
+          "min": 1,
+          "max": 500,
+          "step": 1
+        }
+      ],
+      "inputs": [
+        "high",
+        "low",
+        "close"
+      ],
+      "multiOutput": false,
+      "outputLabels": [],
+      "defaultOutputIndex": 0,
+      "lookbackHint": "timeperiod",
+      "lookbackDefault": 14
+    },
+    {
+      "factorKey": "NATR",
+      "displayName": "NATR 归一化真实波幅",
+      "category": "VOLATILITY",
+      "source": "AKQUANT",
+      "akquantFunc": "NATR",
+      "dataSource": "ohlcv",
+      "description": "归一化 ATR，ATR / 收盘价 * 100，便于不同价格股票间对比",
+      "params": [
+        {
+          "name": "timeperiod",
+          "displayName": "周期",
+          "type": "INT",
+          "defaultValue": 14,
+          "min": 1,
+          "max": 500,
+          "step": 1
+        }
+      ],
+      "inputs": [
+        "high",
+        "low",
+        "close"
+      ],
+      "multiOutput": false,
+      "outputLabels": [],
+      "defaultOutputIndex": 0,
+      "lookbackHint": "timeperiod",
+      "lookbackDefault": 14
+    },
+    {
+      "factorKey": "TRANGE",
+      "displayName": "TRANGE 真实波幅",
+      "category": "VOLATILITY",
+      "source": "AKQUANT",
+      "akquantFunc": "TRANGE",
+      "dataSource": "ohlcv",
+      "description": "单根K线的真实波幅，max(高低差, 高-昨收, 昨收-低)",
+      "params": [],
+      "inputs": [
+        "high",
+        "low",
+        "close"
+      ],
+      "multiOutput": false,
+      "outputLabels": [],
+      "defaultOutputIndex": 0,
+      "lookbackHint": "1",
+      "lookbackDefault": 1
+    },
+    {
+      "factorKey": "STDDEV",
+      "displayName": "STDDEV 标准差",
+      "category": "STATISTIC",
+      "source": "AKQUANT",
+      "akquantFunc": "STDDEV",
+      "dataSource": "ohlcv",
+      "description": "N 周期收盘价的标准差",
+      "params": [
+        {
+          "name": "timeperiod",
+          "displayName": "周期",
+          "type": "INT",
+          "defaultValue": 5,
+          "min": 1,
+          "max": 500,
+          "step": 1
+        },
+        {
+          "name": "nbdev",
+          "displayName": "标准差倍数",
+          "type": "FLOAT",
+          "defaultValue": 1.0,
+          "min": 0.01,
+          "max": 10.0,
+          "step": 0.01
+        }
+      ],
+      "inputs": [
+        "close"
+      ],
+      "multiOutput": false,
+      "outputLabels": [],
+      "defaultOutputIndex": 0,
+      "lookbackHint": "timeperiod - 1",
+      "lookbackDefault": 4
+    },
+    {
+      "factorKey": "OBV",
+      "displayName": "OBV 能量潮",
+      "category": "VOLUME",
+      "source": "AKQUANT",
+      "akquantFunc": "OBV",
+      "dataSource": "ohlcv",
+      "description": "根据涨跌累加/扣减成交量，衡量量能累积",
+      "params": [],
+      "inputs": [
+        "close",
+        "volume"
+      ],
+      "multiOutput": false,
+      "outputLabels": [],
+      "defaultOutputIndex": 0,
+      "lookbackHint": "0",
+      "lookbackDefault": 0
+    },
+    {
+      "factorKey": "AD",
+      "displayName": "AD 累积派发线",
+      "category": "VOLUME",
+      "source": "AKQUANT",
+      "akquantFunc": "AD",
+      "dataSource": "ohlcv",
+      "description": "累积/派发线，基于收盘价在日内波幅的位置加权成交量",
+      "params": [],
+      "inputs": [
+        "high",
+        "low",
+        "close",
+        "volume"
+      ],
+      "multiOutput": false,
+      "outputLabels": [],
+      "defaultOutputIndex": 0,
+      "lookbackHint": "0",
+      "lookbackDefault": 0
+    },
+    {
+      "factorKey": "ADOSC",
+      "displayName": "ADOSC 振荡指标",
+      "category": "VOLUME",
+      "source": "AKQUANT",
+      "akquantFunc": "ADOSC",
+      "dataSource": "ohlcv",
+      "description": "Chaikin 振荡指标，AD 线的快慢 EMA 差值",
+      "params": [
+        {
+          "name": "fastperiod",
+          "displayName": "快线周期",
+          "type": "INT",
+          "defaultValue": 3,
+          "min": 1,
+          "max": 500,
+          "step": 1
+        },
+        {
+          "name": "slowperiod",
+          "displayName": "慢线周期",
+          "type": "INT",
+          "defaultValue": 10,
+          "min": 1,
+          "max": 500,
+          "step": 1
+        }
+      ],
+      "inputs": [
+        "high",
+        "low",
+        "close",
+        "volume"
+      ],
+      "multiOutput": false,
+      "outputLabels": [],
+      "defaultOutputIndex": 0,
+      "lookbackHint": "slowperiod - 1",
+      "lookbackDefault": 9
+    },
+    {
+      "factorKey": "VOL_MA",
+      "displayName": "成交量均线（SMA）",
+      "category": "VOLUME",
+      "source": "DERIVED",
+      "akquantFunc": "MA",
+      "dataSource": "ohlcv",
+      "description": "对成交量取 N 周期简单移动平均",
+      "params": [
+        {
+          "name": "timeperiod",
+          "displayName": "周期",
+          "type": "INT",
+          "defaultValue": 20,
+          "min": 2,
+          "max": 500,
+          "step": 1
+        }
+      ],
+      "inputs": [
+        "volume"
+      ],
+      "multiOutput": false,
+      "outputLabels": [],
+      "defaultOutputIndex": 0,
+      "lookbackHint": "timeperiod - 1",
+      "lookbackDefault": 19
+    },
+    {
+      "factorKey": "VOL_EMA",
+      "displayName": "成交量指数均线（EMA）",
+      "category": "VOLUME",
+      "source": "DERIVED",
+      "akquantFunc": "EMA",
+      "dataSource": "ohlcv",
+      "description": "对成交量取 N 周期指数移动平均",
+      "params": [
+        {
+          "name": "timeperiod",
+          "displayName": "周期",
+          "type": "INT",
+          "defaultValue": 20,
+          "min": 2,
+          "max": 500,
+          "step": 1
+        }
+      ],
+      "inputs": [
+        "volume"
+      ],
+      "multiOutput": false,
+      "outputLabels": [],
+      "defaultOutputIndex": 0,
+      "lookbackHint": "timeperiod - 1",
+      "lookbackDefault": 19
+    },
+    {
+      "factorKey": "OPEN",
+      "displayName": "开盘价",
+      "category": "PRICE",
+      "source": "RAW",
+      "akquantFunc": null,
+      "dataSource": "ohlcv",
+      "description": "当前 bar 的开盘价",
+      "params": [],
+      "inputs": [
+        "open"
+      ],
+      "multiOutput": false,
+      "outputLabels": [],
+      "defaultOutputIndex": 0,
+      "lookbackHint": "0",
+      "lookbackDefault": 0
+    },
+    {
+      "factorKey": "HIGH",
+      "displayName": "最高价",
+      "category": "PRICE",
+      "source": "RAW",
+      "akquantFunc": null,
+      "dataSource": "ohlcv",
+      "description": "当前 bar 的最高价",
+      "params": [],
+      "inputs": [
+        "high"
+      ],
+      "multiOutput": false,
+      "outputLabels": [],
+      "defaultOutputIndex": 0,
+      "lookbackHint": "0",
+      "lookbackDefault": 0
+    },
+    {
+      "factorKey": "LOW",
+      "displayName": "最低价",
+      "category": "PRICE",
+      "source": "RAW",
+      "akquantFunc": null,
+      "dataSource": "ohlcv",
+      "description": "当前 bar 的最低价",
+      "params": [],
+      "inputs": [
+        "low"
+      ],
+      "multiOutput": false,
+      "outputLabels": [],
+      "defaultOutputIndex": 0,
+      "lookbackHint": "0",
+      "lookbackDefault": 0
+    },
+    {
+      "factorKey": "CLOSE",
+      "displayName": "收盘价",
+      "category": "PRICE",
+      "source": "RAW",
+      "akquantFunc": null,
+      "dataSource": "ohlcv",
+      "description": "当前 bar 的收盘价",
+      "params": [],
+      "inputs": [
+        "close"
+      ],
+      "multiOutput": false,
+      "outputLabels": [],
+      "defaultOutputIndex": 0,
+      "lookbackHint": "0",
+      "lookbackDefault": 0
+    },
+    {
+      "factorKey": "VOLUME",
+      "displayName": "成交量",
+      "category": "PRICE",
+      "source": "RAW",
+      "akquantFunc": null,
+      "dataSource": "ohlcv",
+      "description": "当前 bar 的成交量",
+      "params": [],
+      "inputs": [
+        "volume"
+      ],
+      "multiOutput": false,
+      "outputLabels": [],
+      "defaultOutputIndex": 0,
+      "lookbackHint": "0",
+      "lookbackDefault": 0
+    },
+    {
+      "factorKey": "PE_TTM",
+      "displayName": "市盈率 PE(TTM)",
+      "category": "VALUATION",
+      "source": "TUSHARE",
+      "tushareField": "pe_ttm",
+      "dataSource": "daily_basic",
+      "description": "滚动市盈率，总市值 / 最近12个月净利润",
+      "params": [],
+      "inputs": [],
+      "multiOutput": false,
+      "outputLabels": [],
+      "defaultOutputIndex": 0,
+      "lookbackHint": "0",
+      "lookbackDefault": 0
+    },
+    {
+      "factorKey": "PB",
+      "displayName": "市净率 PB",
+      "category": "VALUATION",
+      "source": "TUSHARE",
+      "tushareField": "pb",
+      "dataSource": "daily_basic",
+      "description": "市净率，总市值 / 净资产",
+      "params": [],
+      "inputs": [],
+      "multiOutput": false,
+      "outputLabels": [],
+      "defaultOutputIndex": 0,
+      "lookbackHint": "0",
+      "lookbackDefault": 0
+    },
+    {
+      "factorKey": "PS_TTM",
+      "displayName": "市销率 PS(TTM)",
+      "category": "VALUATION",
+      "source": "TUSHARE",
+      "tushareField": "ps_ttm",
+      "dataSource": "daily_basic",
+      "description": "滚动市销率，总市值 / 最近12个月营业收入",
+      "params": [],
+      "inputs": [],
+      "multiOutput": false,
+      "outputLabels": [],
+      "defaultOutputIndex": 0,
+      "lookbackHint": "0",
+      "lookbackDefault": 0
+    },
+    {
+      "factorKey": "DV_RATIO",
+      "displayName": "股息率",
+      "category": "VALUATION",
+      "source": "TUSHARE",
+      "tushareField": "dv_ratio",
+      "dataSource": "daily_basic",
+      "description": "股息率（%），每股分红 / 股价 * 100",
+      "params": [],
+      "inputs": [],
+      "multiOutput": false,
+      "outputLabels": [],
+      "defaultOutputIndex": 0,
+      "lookbackHint": "0",
+      "lookbackDefault": 0
+    },
+    {
+      "factorKey": "TOTAL_MV",
+      "displayName": "总市值",
+      "category": "VALUATION",
+      "source": "TUSHARE",
+      "tushareField": "total_mv",
+      "dataSource": "daily_basic",
+      "description": "总市值（万元）",
+      "params": [],
+      "inputs": [],
+      "multiOutput": false,
+      "outputLabels": [],
+      "defaultOutputIndex": 0,
+      "lookbackHint": "0",
+      "lookbackDefault": 0
+    },
+    {
+      "factorKey": "CIRC_MV",
+      "displayName": "流通市值",
+      "category": "VALUATION",
+      "source": "TUSHARE",
+      "tushareField": "circ_mv",
+      "dataSource": "daily_basic",
+      "description": "流通市值（万元）",
+      "params": [],
+      "inputs": [],
+      "multiOutput": false,
+      "outputLabels": [],
+      "defaultOutputIndex": 0,
+      "lookbackHint": "0",
+      "lookbackDefault": 0
+    },
+    {
+      "factorKey": "ROE_TTM",
+      "displayName": "净资产收益率 ROE(TTM)",
+      "category": "QUALITY",
+      "source": "TUSHARE",
+      "tushareField": "roe_ttm",
+      "dataSource": "fina_indicator",
+      "description": "滚动净资产收益率，净利润 / 平均净资产 * 100",
+      "params": [],
+      "inputs": [],
+      "multiOutput": false,
+      "outputLabels": [],
+      "defaultOutputIndex": 0,
+      "lookbackHint": "0",
+      "lookbackDefault": 0
+    },
+    {
+      "factorKey": "ROA_TTM",
+      "displayName": "总资产收益率 ROA(TTM)",
+      "category": "QUALITY",
+      "source": "TUSHARE",
+      "tushareField": "roa_ttm",
+      "dataSource": "fina_indicator",
+      "description": "滚动总资产收益率，净利润 / 平均总资产 * 100",
+      "params": [],
+      "inputs": [],
+      "multiOutput": false,
+      "outputLabels": [],
+      "defaultOutputIndex": 0,
+      "lookbackHint": "0",
+      "lookbackDefault": 0
+    },
+    {
+      "factorKey": "GROSS_MARGIN",
+      "displayName": "销售毛利率",
+      "category": "QUALITY",
+      "source": "TUSHARE",
+      "tushareField": "gross_margin",
+      "dataSource": "fina_indicator",
+      "description": "销售毛利率（%），(营业收入 - 营业成本) / 营业收入 * 100",
+      "params": [],
+      "inputs": [],
+      "multiOutput": false,
+      "outputLabels": [],
+      "defaultOutputIndex": 0,
+      "lookbackHint": "0",
+      "lookbackDefault": 0
+    },
+    {
+      "factorKey": "NETPROFIT_MARGIN",
+      "displayName": "销售净利率",
+      "category": "QUALITY",
+      "source": "TUSHARE",
+      "tushareField": "netprofit_margin",
+      "dataSource": "fina_indicator",
+      "description": "销售净利率（%），净利润 / 营业收入 * 100",
+      "params": [],
+      "inputs": [],
+      "multiOutput": false,
+      "outputLabels": [],
+      "defaultOutputIndex": 0,
+      "lookbackHint": "0",
+      "lookbackDefault": 0
+    },
+    {
+      "factorKey": "REVENUE_YOY",
+      "displayName": "营收同比增长率",
+      "category": "GROWTH",
+      "source": "TUSHARE",
+      "tushareField": "tr_yoy",
+      "dataSource": "fina_indicator",
+      "description": "营业收入同比增长率（%）",
+      "params": [],
+      "inputs": [],
+      "multiOutput": false,
+      "outputLabels": [],
+      "defaultOutputIndex": 0,
+      "lookbackHint": "0",
+      "lookbackDefault": 0
+    },
+    {
+      "factorKey": "PROFIT_YOY",
+      "displayName": "净利润同比增长率",
+      "category": "GROWTH",
+      "source": "TUSHARE",
+      "tushareField": "profit_yoy",
+      "dataSource": "fina_indicator",
+      "description": "净利润同比增长率（%）",
+      "params": [],
+      "inputs": [],
+      "multiOutput": false,
+      "outputLabels": [],
+      "defaultOutputIndex": 0,
+      "lookbackHint": "0",
+      "lookbackDefault": 0
+    },
+    {
+      "factorKey": "EPS_YOY",
+      "displayName": "EPS同比增长率",
+      "category": "GROWTH",
+      "source": "TUSHARE",
+      "tushareField": "eps_yoy",
+      "dataSource": "fina_indicator",
+      "description": "每股收益同比增长率（%）",
+      "params": [],
+      "inputs": [],
+      "multiOutput": false,
+      "outputLabels": [],
+      "defaultOutputIndex": 0,
+      "lookbackHint": "0",
+      "lookbackDefault": 0
+    },
+    {
+      "factorKey": "DEBT_TO_ASSETS",
+      "displayName": "资产负债率",
+      "category": "FINANCE",
+      "source": "TUSHARE",
+      "tushareField": "debt_to_assets",
+      "dataSource": "fina_indicator",
+      "description": "资产负债率（%），总负债 / 总资产 * 100",
+      "params": [],
+      "inputs": [],
+      "multiOutput": false,
+      "outputLabels": [],
+      "defaultOutputIndex": 0,
+      "lookbackHint": "0",
+      "lookbackDefault": 0
+    },
+    {
+      "factorKey": "CURRENT_RATIO",
+      "displayName": "流动比率",
+      "category": "FINANCE",
+      "source": "TUSHARE",
+      "tushareField": "current_ratio",
+      "dataSource": "fina_indicator",
+      "description": "流动比率，流动资产 / 流动负债",
+      "params": [],
+      "inputs": [],
+      "multiOutput": false,
+      "outputLabels": [],
+      "defaultOutputIndex": 0,
+      "lookbackHint": "0",
+      "lookbackDefault": 0
+    },
+    {
+      "factorKey": "TURNOVER_RATE",
+      "displayName": "换手率",
+      "category": "VALUATION",
+      "source": "TUSHARE",
+      "tushareField": "turnover_rate",
+      "dataSource": "daily_basic",
+      "description": "换手率（%），成交量 / 流通股 * 100",
+      "params": [],
+      "inputs": [],
+      "multiOutput": false,
+      "outputLabels": [],
+      "defaultOutputIndex": 0,
+      "lookbackHint": "0",
+      "lookbackDefault": 0
+    }
+  ]
+}

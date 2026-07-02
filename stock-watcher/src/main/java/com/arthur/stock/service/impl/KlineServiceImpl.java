@@ -50,4 +50,16 @@ public class KlineServiceImpl implements KlineService {
 
         return Collections.unmodifiableList(klineData);
     }
+
+    @Override
+    public List<KlineDataVO> getKlineData(String stockCode, String period, String startDate, String endDate) {
+        List<KlineDataVO> all = getKlineData(stockCode, period);
+        if (all.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        return all.stream()
+                .filter(k -> k.getDate().compareTo(startDate) >= 0 && k.getDate().compareTo(endDate) <= 0)
+                .toList();
+    }
 }

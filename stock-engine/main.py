@@ -4,6 +4,7 @@ from fastapi.responses import JSONResponse
 from core.logger import logger
 from core.exceptions import StockBaseException
 from config import settings
+from api.v1 import factor as factor_api
 
 # 创建FastAPI应用
 app = FastAPI(
@@ -33,13 +34,17 @@ app.add_middleware(
 # 全局异常处理
 @app.exception_handler(StockBaseException)
 async def stock_exception_handler(request: Request, exc: StockBaseException):
+    # 机器可读错误码（如 UNKNOWN_FACTOR）仅当业务异常显式设置时才返回
+    content = {
+        "success": False,
+        "message": exc.message,
+        "code": exc.code
+    }
+    if exc.error_code:
+        content["errorCode"] = exc.error_code
     return JSONResponse(
         status_code=exc.code,
-        content={
-            "success": False,
-            "message": exc.message,
-            "code": exc.code
-        }
+        content=content
     )
 
 @app.exception_handler(Exception)
@@ -54,7 +59,8 @@ async def global_exception_handler(request: Request, exc: Exception):
         }
     )
 
-# 路由注册（业务层待重写后在此挂载）
+# 路由注册
+app.include_router(factor_api.router)
 
 # 启动事件
 @app.on_event("startup")
@@ -63,7 +69,8 @@ async def startup_event():
     logger.info("Python计算服务启动中...")
     logger.info(f"运行环境: Python 3.12")
     logger.info(f"监听地址: {settings.host}:{settings.port}")
-    
+    logger.info(f"因子库已加载：{len(factor_api.factor_registry.list_factors())} 个因子")
+
     logger.info("服务启动完成！")
     logger.info(f"API文档地址: http://{settings.host}:{settings.port}/docs")
     logger.info("=" * 50)

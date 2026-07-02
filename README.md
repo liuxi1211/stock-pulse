@@ -309,18 +309,13 @@ cd stock-watcher
 mvn spring-boot:run              # 开发模式
 # 或 mvn clean package -DskipTests && java -jar target/*.jar
 ```
-访问 http://localhost:8080 · 默认管理员 `admin` / `admin123`（首次登录引导设置 TOTP）
+访问 http://localhost:8080 · 默认管理员 `admin` / `admin123`
 
 ### 启动 Python 计算服务（stock-engine）
-```bash
-cd stock-engine
-conda activate stock
-pip install -r requirements.txt  # 首次
-uvicorn main:app --host 127.0.0.1 --port 8085
-```
-API 文档 http://127.0.0.1:8085/docs
-
-> 端口被占用时 engine 可改 8001，同步改 Java 侧 `python.compute.url` 配置。
+> 详见 [`.trae/rules/stock-engine/python/00-environment-setup.md`](.trae/rules/stock-engine/python/00-environment-setup.md)（环境配置与启动的权威文档）
+> 
+> 快速提示：使用启动脚本 `stock-engine/start-dev.bat`（Windows）或 `stock-engine/start.sh`（macOS/Linux）
+> API 文档 http://127.0.0.1:8085/docs
 
 ### 配置 Tushare Token
 在 `stock-watcher/src/main/resources/application-secret.properties`：

@@ -29,7 +29,7 @@ public class PageController {
     /**
      * 行情中心页面
      */
-    @GetMapping("/stock-list")
+    @GetMapping("/page/stock-list")
     public String stockList(Model model) {
         model.addAttribute("pageTitle", "行情中心");
         model.addAttribute("activeMenu", "stock-list");
@@ -39,7 +39,7 @@ public class PageController {
     /**
      * 自选股页面
      */
-    @GetMapping("/watchlist")
+    @GetMapping("/page/watchlist")
     public String watchlist(Model model) {
         model.addAttribute("pageTitle", "自选股");
         model.addAttribute("activeMenu", "watchlist");
@@ -49,7 +49,7 @@ public class PageController {
     /**
      * 系统设置页面
      */
-    @GetMapping("/settings")
+    @GetMapping("/page/settings")
     public String settings(Model model) {
         model.addAttribute("pageTitle", "系统设置");
         model.addAttribute("activeMenu", "settings");
@@ -57,9 +57,19 @@ public class PageController {
     }
 
     /**
+     * 因子库页面（标准因子库：元数据浏览 / 试算 / CRUD）
+     */
+    @GetMapping("/page/factor-library")
+    public String factorLibrary(Model model) {
+        model.addAttribute("pageTitle", "因子库");
+        model.addAttribute("activeMenu", "factor-library");
+        return "pages/factor-library";
+    }
+
+    /**
      * 用户管理页面（仅管理员可访问）
      */
-    @GetMapping("/user-management")
+    @GetMapping("/page/user-management")
     public String userManagement(Model model) {
         model.addAttribute("pageTitle", "用户管理");
         model.addAttribute("activeMenu", "user-management");

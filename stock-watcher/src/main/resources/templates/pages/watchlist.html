@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
 <head th:replace="~{fragments/common :: head(${pageTitle})}">
 </head>
@@ -65,7 +65,7 @@
 <div th:replace="~{fragments/common :: scripts}"></div>
 <script>
     function refreshWatchlist() {
-        StockApp.get('/api/watchlist', null, function(resp) {
+        StockApp.get('/watchlist', null, function(resp) {
             if (resp.code !== 200) return;
             const tbody = document.getElementById('watchlistTable');
             const list = resp.data;
@@ -103,7 +103,7 @@
             confirmClass: 'btn-danger',
             icon: 'bi-trash'
         })) return;
-        StockApp.delete('/api/watchlist/' + code, function(resp) {
+        StockApp.delete('/watchlist/' + code, function(resp) {
             StockApp.toast(resp.message, resp.code === 200 ? 'success' : 'danger');
             if (resp.code === 200) refreshWatchlist();
         });

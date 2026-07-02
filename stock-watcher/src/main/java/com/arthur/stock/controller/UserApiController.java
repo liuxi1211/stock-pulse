@@ -4,6 +4,8 @@ import com.arthur.stock.annotation.RequireAdmin;
 import com.arthur.stock.context.UserContext;
 import com.arthur.stock.dto.ApiResponse;
 import com.arthur.stock.dto.CreateUserRequestDTO;
+import com.arthur.stock.dto.UserCreateResponseDTO;
+import com.arthur.stock.dto.UserTotpResetResponseDTO;
 import com.arthur.stock.exception.BusinessException;
 import com.arthur.stock.exception.ErrorCode;
 import com.arthur.stock.model.Role;
@@ -11,41 +13,37 @@ import com.arthur.stock.model.UserDO;
 import com.arthur.stock.service.UserService;
 import com.arthur.stock.util.TotpUtil;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.Map;
-
-/**
- * 用户管理API控制器，仅管理员可访问
- */
+@Tag(name = "用户管理", description = "用户管理相关接口，仅管理员可访问")
 @Slf4j
 @RestController
-@RequestMapping("/api/users")
+@RequestMapping("/users")
 @RequiredArgsConstructor
 @RequireAdmin
 public class UserApiController {
 
     private final UserService userService;
 
-    /**
-     * 分页查询用户列表，支持按关键字模糊搜索
-     */
+    @Operation(summary = "分页查询用户列表", description = "支持按关键字模糊搜索用户名/邮箱")
     @GetMapping
-    public ApiResponse<Page<UserDO>> list(@RequestParam(required = false) String keyword,
-                                        @RequestParam(defaultValue = "1") int page,
-                                        @RequestParam(defaultValue = "10") int size) {
+    public ApiResponse<Page<UserDO>> list(
+            @Parameter(description = "搜索关键字（用户名/邮箱）") @RequestParam(required = false) String keyword,
+            @Parameter(description = "页码，从1开始") @RequestParam(defaultValue = "1") int page,
+            @Parameter(description = "每页数量") @RequestParam(defaultValue = "10") int size) {
         Page<UserDO> result = userService.listUsers(keyword, page, size);
         return ApiResponse.success(result);
     }
 
-    /**
-     * 创建新用户，返回用户信息及TOTP设置链接
-     */
+    @Operation(summary = "创建新用户", description = "创建新用户并返回用户信息及TOTP设置链接")
     @PostMapping
-    public ApiResponse<Map<String, Object>> create(@RequestBody @Valid CreateUserRequestDTO req) {
+    public ApiResponse<UserCreateResponseDTO> create(@RequestBody @Valid CreateUserRequestDTO req) {
         Role role = null;
         if (req.getRole() != null && !req.getRole().isBlank()) {
             try {
@@ -59,18 +57,13 @@ public class UserApiController {
         String secret = user.getTotpSecret();
         user.setTotpSecret(null);
         String otpAuthUrl = TotpUtil.getOtpAuthUrl(req.getUsername(), secret);
-        return ApiResponse.success(Map.of(
-                "user", user,
-                "otpAuthUrl", otpAuthUrl,
-                "secret", secret
-        ));
+        return ApiResponse.success(new UserCreateResponseDTO(user, otpAuthUrl, secret));
     }
 
-    /**
-     * 删除指定用户，不允许删除自己
-     */
+    @Operation(summary = "删除用户", description = "删除指定用户，不允许删除自己")
     @DeleteMapping("/{id}")
-    public ApiResponse<Void> delete(@PathVariable Long id) {
+    public ApiResponse<Void> delete(
+            @Parameter(description = "用户ID", required = true) @PathVariable Long id) {
         UserDO currentUser = UserContext.get();
         if (currentUser.getId().equals(id)) {
             throw new BusinessException(ErrorCode.SELF_DELETE);
@@ -80,11 +73,10 @@ public class UserApiController {
         return ApiResponse.success("删除成功", null);
     }
 
-    /**
-     * 重置指定用户的TOTP认证密钥，返回新密钥和设置链接
-     */
+    @Operation(summary = "重置用户TOTP密钥", description = "重置指定用户的TOTP认证密钥，返回新密钥和设置链接")
     @PostMapping("/{id}/reset-totp")
-    public ApiResponse<Map<String, String>> resetTotp(@PathVariable Long id) {
+    public ApiResponse<UserTotpResetResponseDTO> resetTotp(
+            @Parameter(description = "用户ID", required = true) @PathVariable Long id) {
         UserDO user = userService.findById(id);
         if (user == null) {
             throw new BusinessException(ErrorCode.USER_NOT_FOUND);
@@ -92,10 +84,7 @@ public class UserApiController {
 
         String newSecret = userService.resetTotp(id);
         String otpAuthUrl = TotpUtil.getOtpAuthUrl(user.getUsername(), newSecret);
-        return ApiResponse.success(Map.of(
-                "secret", newSecret,
-                "otpAuthUrl", otpAuthUrl
-        ));
+        return ApiResponse.success(new UserTotpResetResponseDTO(newSecret, otpAuthUrl));
     }
 
 }

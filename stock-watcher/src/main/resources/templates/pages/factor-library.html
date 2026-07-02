@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/common :: head(${pageTitle})}"></head>
+<body>
+<div class="app-container">
+    <nav th:replace="~{fragments/common :: sidebar}"></nav>
+    <div th:replace="~{fragments/common :: sidebarOverlay}"></div>
+
+    <div class="main-content">
+        <header th:replace="~{fragments/common :: topNavbar}"></header>
+
+        <main class="content-area">
+            <!-- 页头 -->
+            <div class="page-header">
+                <div>
+                    <h1 class="page-title">标准因子库 <span class="count" id="topCount">—</span></h1>
+                    <p class="text-muted mb-0" style="font-size: 13px; margin-top: 4px;">
+                        元数据管理（CRUD）+ 因子计算（技术面走 akquant.talib）· engine 不触库
+                    </p>
+                </div>
+                <div class="page-actions">
+                    <button class="btn btn-secondary btn-sm" onclick="FactorLib.openBatchModal()">
+                        <i class="bi bi-layer-forward"></i> 批量试算
+                    </button>
+                    <button class="btn btn-secondary btn-sm" title="watcher Caffeine 缓存失效后重新拉取"
+                            onclick="FactorLib.refresh()">
+                        <i class="bi bi-arrow-clockwise"></i> 刷新
+                    </button>
+                    <button class="btn btn-primary btn-sm" onclick="FactorLib.openCreateModal()">
+                        <i class="bi bi-plus-lg"></i> 新建因子
+                    </button>
+                </div>
+            </div>
+
+            <!-- 统计条 -->
+            <div class="stat-strip">
+                <div class="stat-card" style="--stat-accent: var(--accent-blue);">
+                    <div class="stat-head">
+                        <div class="stat-label"><i class="bi bi-collection"></i>因子总数</div>
+                        <span class="stat-tag">v2.0</span>
+                    </div>
+                    <div class="stat-value" id="statTotal">—</div>
+                    <div class="stat-foot" id="statTotalFoot">分类加载中</div>
+                </div>
+                <div class="stat-card" style="--stat-accent: var(--accent-cyan);">
+                    <div class="stat-head">
+                        <div class="stat-label"><i class="bi bi-cpu"></i>可实时计算</div>
+                        <span class="stat-tag">AKQUANT+RAW+DERIVED</span>
+                    </div>
+                    <div class="stat-value" id="statCompute">—</div>
+                    <div class="stat-foot">
+                        <span class="dot" style="--c: var(--accent-cyan);">akquant.talib</span>
+                        <span class="dot" style="--c: var(--src-raw);">价格直通</span>
+                    </div>
+                </div>
+                <div class="stat-card" style="--stat-accent: var(--accent-purple);">
+                    <div class="stat-head">
+                        <div class="stat-label"><i class="bi bi-database"></i>基本面元数据</div>
+                        <span class="stat-tag">TUSHARE</span>
+                    </div>
+                    <div class="stat-value" id="statFund">—</div>
+                    <div class="stat-foot">engine 仅注册 · 由 watcher 取数</div>
+                </div>
+                <div class="stat-card" style="--stat-accent: var(--accent-yellow);">
+                    <div class="stat-head">
+                        <div class="stat-label"><i class="bi bi-diagram-3"></i>多输出因子</div>
+                        <span class="stat-tag">multiOutput</span>
+                    </div>
+                    <div class="stat-value" id="statMulti">—</div>
+                    <div class="stat-foot">MACD / BOLL / KDJ / MAMA ...</div>
+                </div>
+            </div>
+
+            <!-- 来源图例 -->
+            <div class="legend-bar">
+                <span class="legend-label">来源</span>
+                <div class="legend-chips" id="legendChips"></div>
+                <span class="legend-hint"><i class="bi bi-info-circle"></i> 来源决定该因子是否可由 engine 实时计算</span>
+            </div>
+
+            <!-- 主从布局 -->
+            <div class="md-grid">
+                <aside class="rail">
+                    <div class="rail-title">分类导航</div>
+                    <div class="rail-search">
+                        <i class="bi bi-search"></i>
+                        <input type="text" id="railSearch" placeholder="搜索 factorKey / 名称">
+                    </div>
+                    <div class="cat-list" id="catList"></div>
+                    <div class="rail-toggle">
+                        <label class="toggle-row">
+                            <span><i class="bi bi-toggle-on"></i> 仅可计算</span>
+                            <input type="checkbox" id="onlyCompute">
+                        </label>
+                    </div>
+                </aside>
+
+                <section class="table-wrap">
+                    <div class="table-head-bar">
+                        <div class="title">因子列表 <span class="n" id="resultCount">—</span></div>
+                        <div class="sort-group">
+                            <button class="sort-btn active" data-sort="cat">按分类</button>
+                            <button class="sort-btn" data-sort="key">按 Key</button>
+                            <button class="sort-btn" data-sort="lookback">按回看</button>
+                        </div>
+                    </div>
+                    <div class="table-scroll">
+                        <table class="ftable">
+                            <thead>
+                            <tr>
+                                <th style="width: 30%;">因子</th>
+                                <th>来源</th>
+                                <th>参数</th>
+                                <th>输入</th>
+                                <th>回看</th>
+                                <th style="text-align: right;">操作</th>
+                            </tr>
+                            </thead>
+                            <tbody id="factorBody"></tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <aside class="detail-panel" id="detailPanel"></aside>
+            </div>
+        </main>
+    </div>
+</div>
+
+<!-- 新建/编辑模态框 -->
+<div class="fl-modal-mask" id="createModal">
+    <div class="fl-modal">
+        <div class="fl-modal-head">
+            <div class="fl-modal-title" id="modalTitle">新建因子</div>
+            <button class="fl-modal-close" onclick="FactorLib.closeModal('createModal')"><i class="bi bi-x-lg"></i></button>
+        </div>
+        <div class="fl-modal-body">
+            <div class="form-grid">
+                <div class="field">
+                    <label>factorKey <span class="hint">唯一标识 · 大写蛇形</span></label>
+                    <input type="text" class="mono" placeholder="如 NEW_FACTOR" id="f_key">
+                    <div class="err" id="f_key_err" style="display:none;"><i class="bi bi-exclamation-circle"></i><span id="f_key_err_msg"></span></div>
+                </div>
+                <div class="field">
+                    <label>displayName 展示名</label>
+                    <input type="text" placeholder="如 自定义动量因子" id="f_name">
+                </div>
+                <div class="field">
+                    <label>category 分类</label>
+                    <select id="f_cat"></select>
+                </div>
+                <div class="field">
+                    <label>source 来源</label>
+                    <select id="f_source">
+                        <option value="AKQUANT">AKQUANT — 走 akquant.talib</option>
+                        <option value="DERIVED">DERIVED — 复用基础函数衍生</option>
+                        <option value="RAW">RAW — 价格/量直通</option>
+                        <option value="TUSHARE">TUSHARE — 仅元数据</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label>akquantFunc / tushareField 底层映射</label>
+                    <input type="text" class="mono" placeholder="如 MA / pe_ttm" id="f_func">
+                </div>
+                <div class="field">
+                    <label>dataSource</label>
+                    <select id="f_ds">
+                        <option value="ohlcv">ohlcv</option>
+                        <option value="daily_basic">daily_basic</option>
+                        <option value="fina_indicator">fina_indicator</option>
+                    </select>
+                </div>
+                <div class="field full">
+                    <label>description 描述</label>
+                    <textarea id="f_desc" placeholder="一句话说明该因子的语义与典型用法"></textarea>
+                </div>
+                <div class="field full">
+                    <label>inputs 输入列</label>
+                    <div class="inputs-check">
+                        <label><input type="checkbox" value="open"><span>OPEN</span></label>
+                        <label><input type="checkbox" value="high"><span>HIGH</span></label>
+                        <label><input type="checkbox" value="low"><span>LOW</span></label>
+                        <label><input type="checkbox" value="close" checked><span>CLOSE</span></label>
+                        <label><input type="checkbox" value="volume"><span>VOLUME</span></label>
+                    </div>
+                </div>
+                <div class="field full">
+                    <label>params 参数定义（JSON）</label>
+                    <textarea class="mono" id="f_params" style="min-height:160px;" placeholder='[{
+  "name": "timeperiod",
+  "displayName": "周期",
+  "type": "INT",
+  "defaultValue": 5,
+  "min": 1,
+  "max": 500,
+  "step": 1
+}]'></textarea>
+                </div>
+            </div>
+        </div>
+        <div class="fl-modal-foot">
+            <div style="font-size: 11px; color: var(--text-muted);">
+                <i class="bi bi-shield-lock"></i> 原子写入 data/factors.json · 写临时文件 + rename
+            </div>
+            <div style="display: flex; gap: 8px;">
+                <button class="btn btn-secondary btn-sm" onclick="FactorLib.closeModal('createModal')">取消</button>
+                <button class="btn btn-primary btn-sm" onclick="FactorLib.submitFactor()">
+                    <i class="bi bi-check-lg"></i><span id="submitBtnText">创建因子</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 批量试算模态框 -->
+<div class="fl-modal-mask" id="batchModal">
+    <div class="fl-modal">
+        <div class="fl-modal-head">
+            <div class="fl-modal-title">批量试算 · POST /python/v1/factors/batch-compute</div>
+            <button class="fl-modal-close" onclick="FactorLib.closeModal('batchModal')"><i class="bi bi-x-lg"></i></button>
+        </div>
+        <div class="fl-modal-body">
+            <div class="code-hint">{
+  <span class="k">"data"</span>: {
+    <span class="s">"600519"</span>: [ {<span class="c">/* ohlcv records, 前复权 · 已剔除停牌涨跌停 ST */</span>} ],
+    <span class="s">"300750"</span>: [ ... ]
+  },
+  <span class="k">"factors"</span>: [
+    { <span class="k">"factorKey"</span>: <span class="s">"RSI"</span>, <span class="k">"params"</span>: { <span class="k">"timeperiod"</span>: <span class="n">14</span> } },
+    { <span class="k">"factorKey"</span>: <span class="s">"MACD"</span>, <span class="k">"outputIndex"</span>: <span class="n">0</span> }
+  ]
+}
+<span class="c">// NFR-1 目标：50 只 × 5 因子（250 bar）&lt; 500ms</span></div>
+            <div class="fund-card" style="margin-top: 14px;">
+                <div class="fh"><i class="bi bi-info-circle"></i>计算由 engine 实时完成</div>
+                <div class="fb">批量请求中的 TUSHARE 因子由 watcher 在请求前从
+                    <code>daily_basic</code> / <code>fina_indicator</code> 取值并入参，engine 对其计算返回
+                    <code>400 FACTOR_NOT_COMPUTABLE</code>，建议调用方按来源分流。此面板仅展示请求结构。</div>
+            </div>
+        </div>
+        <div class="fl-modal-foot">
+            <div></div>
+            <div style="display: flex; gap: 8px;">
+                <button class="btn btn-secondary btn-sm" onclick="FactorLib.closeModal('batchModal')">关闭</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- JSON 大屏展示模态框 -->
+<div class="json-viewer-mask" id="jsonViewerModal" onclick="if(event.target === this) FactorLib.closeJsonViewer()">
+    <div class="json-viewer-modal">
+        <div class="json-viewer-head">
+            <div class="json-viewer-title"><i class="bi bi-code-square"></i> JSON 数据查看</div>
+            <div style="display: flex; gap: 8px;">
+                <button class="btn btn-sm btn-outline-secondary" onclick="FactorLib.copyViewerJson()"><i class="bi bi-clipboard"></i> 复制</button>
+                <button class="btn btn-sm btn-outline-secondary" onclick="FactorLib.closeJsonViewer()"><i class="bi bi-x-lg"></i> 关闭</button>
+            </div>
+        </div>
+        <div class="json-viewer-body">
+            <pre class="json-viewer-content" id="jsonViewerContent"></pre>
+        </div>
+    </div>
+</div>
+
+<div th:replace="~{fragments/common :: toastContainer}"></div>
+<div th:replace="~{fragments/common :: scripts}"></div>
+<link rel="stylesheet" th:href="@{/css/factor-library.css}">
+<script th:src="@{/js/factor-library.js}"></script>
+</body>
+</html>

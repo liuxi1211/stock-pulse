@@ -1,0 +1,311 @@
+# 标准因子库 - The Implementation Plan (Decomposed and Prioritized Task List)
+
+## [ ] Task 1: 验证 akquant.talib 函数可用性
+- **Priority**: high
+- **Depends On**: None
+- **Description**: 
+  - 编写一个验证脚本，检查 akquant 0.2.47 的 `akquant.talib` 子模块是否包含标准因子库中引用的所有函数
+  - 待验证函数清单：MA, EMA, WMA, DEMA, TEMA, TRIMA, KAMA, T3, MAMA, BBANDS, SAR, MACD, RSI, STOCH, STOCHRSI, CCI, WILLR, ADX, PLUS_DI, MINUS_DI, ROC, MOM, APO, PPO, TRIX, ATR, NATR, TRANGE, STDDEV, OBV, AD, ADOSC
+  - 对每个函数验证：可导入、参数名一致、返回 ndarray 或 tuple[ndarray]
+  - 输出验证报告：支持的函数、不支持的函数、参数差异
+- **Acceptance Criteria Addressed**: AC-2（前置依赖）
+- **Test Requirements**:
+  - `programmatic` TR-1.1: 运行验证脚本，列出所有 talib 函数的导入状态
+  - `programmatic` TR-1.2: 对每个支持的函数，用随机数据调用一次，验证返回类型正确
+  - `programmatic` TR-1.3: 生成验证报告（支持/不支持清单），存入项目文档
+- **Notes**: 这是 P0 前置任务。如果某些函数 akquant 不支持，需要在 Task 2 前确定替代方案（降级或自实现）。
+
+## [ ] Task 2: 运行时因子 JSON 文件初始化
+- **Priority**: high
+- **Depends On**: Task 1
+- **Description**:
+  - 在 `stock-engine/` 下创建 `data/` 目录（如果不存在）
+  - 从 `sdlc/prd/002-因子库/标准因子库-v2.json` 拷贝一份到 `stock-engine/data/factors.json` 作为初始运行时文件
+  - 在 `.gitignore` 中添加 `stock-engine/data/`（运行时数据，代码库只存初始默认值的话考虑放 resources）
+  - 确认：是把 `data/factors.json` 提交到 Git（作为默认初始值），还是完全运行时生成？建议提交默认值，方便开箱即用
+- **Acceptance Criteria Addressed**: FR-1（前置）
+- **Test Requirements**:
+  - `programmatic` TR-2.1: `stock-engine/data/factors.json` 文件存在且格式正确
+  - `programmatic` TR-2.2: 包含完整的 49 个因子定义
+  - `human-judgement` TR-2.3: .gitignore 策略合理
+
+## [ ] Task 3: FactorRegistry - 因子注册中心（含 CRUD + 持久化）
+- **Priority**: high
+- **Depends On**: Task 2
+- **Description**: 
+  - 在 `stock-engine/services/factor/` 下创建 `registry.py`
+  - 实现 `FactorRegistry` 单例类：
+    - 启动时从 `data/factors.json` 加载因子定义到内存（dict[factorKey, FactorDef]）
+    - 若文件不存在或损坏，从内置默认定义初始化并写入文件
+    - 原子写入：写临时文件 + os.replace，防止半写损坏
+    - 线程锁：所有写操作（新增/修改/删除）加 `threading.Lock`
+  - CRUD 方法：
+    - `get_factor(factorKey) -> FactorDef`（不存在抛 FactorNotFoundError）
+    - `list_factors(category=None, source=None) -> list[FactorDef]`
+    - `list_categories() -> list[str]`
+    - `add_factor(factor_def: FactorDef)`（factorKey 已存在抛 FactorAlreadyExistsError）
+    - `update_factor(factorKey, updates: dict)`（不存在抛 FactorNotFoundError）
+    - `delete_factor(factorKey)`（不存在抛 FactorNotFoundError）
+  - 校验逻辑：
+    - factorKey 唯一性
+    - 分类有效性（在预定义分类列表中）
+    - 参数完整性（name/type/default/min/max）
+    - source 有效性（AKQUANT/TUSHARE/RAW/DERIVED）
+  - `get_lookback(factorKey, params) -> int`：基于 lookbackHint + 参数动态计算
+  - 定义 `FactorDef` dataclass 或 Pydantic 模型（与 JSON schema 对齐）
+  - 在 `stock-engine/services/factor/__init__.py` 导出公共 API
+- **Acceptance Criteria Addressed**: FR-1, FR-2, FR-8, AC-1, AC-13, AC-14, AC-15, AC-16, AC-17
+- **Test Requirements**:
+  - `programmatic` TR-3.1: `list_factors()` 返回 49 个因子，分类正确
+  - `programmatic` TR-3.2: `get_factor("MA")` 返回正确的定义
+  - `programmatic` TR-3.3: `get_factor("NOT_EXIST")` 抛出 FactorNotFoundError
+  - `programmatic` TR-3.4: `add_factor()` 成功后，重启服务仍然存在（持久化验证）
+  - `programmatic` TR-3.5: `update_factor()` 成功后，文件内容同步更新
+  - `programmatic` TR-3.6: `delete_factor()` 成功后，文件中不再有该因子
+  - `programmatic` TR-3.7: 重复新增相同 factorKey 抛出 FactorAlreadyExistsError
+  - `programmatic` TR-3.8: 并发写入测试：多线程同时 add，结果正确无损坏
+  - `programmatic` TR-3.9: `get_lookback("MA", {"timeperiod": 5})` 返回 4
+  - `human-judgement` TR-3.10: 代码结构清晰，单例模式正确，异常处理完善
+
+## [ ] Task 4: 数据输入标准化工具（data_utils）
+- **Priority**: high
+- **Depends On**: None
+- **Description**:
+  - 在 `stock-engine/services/factor/` 下创建 `data_utils.py`
+  - 实现 `kline_to_arrays(kline_data: list[dict]) -> dict[str, np.ndarray]`：将 watcher 传入的 OHLCV list[dict] 转成 numpy 数组字典（open/high/low/close/volume）
+  - 自动识别时间列（date/trade_date/datetime/timestamp）并按时间排序
+  - 确保数值列为 float64，长度一致
+  - 实现输入校验：缺列时报错、空数据报错
+- **Acceptance Criteria Addressed**: NFR-3
+- **Test Requirements**:
+  - `programmatic` TR-4.1: 传入标准格式 list[dict]，正确返回 5 个 ndarray
+  - `programmatic` TR-4.2: 数据按日期升序排列（即使输入乱序）
+  - `programmatic` TR-4.3: 缺少 close 列时抛出明确异常
+  - `programmatic` TR-4.4: 空数据列表抛出 ValueError
+
+## [ ] Task 5: AkquantTalibProvider - 技术面因子计算提供者
+- **Priority**: high
+- **Depends On**: Task 1, Task 3
+- **Description**:
+  - 在 `stock-engine/services/factor/providers/` 下创建 `akquant_provider.py`
+  - 实现 `AkquantTalibProvider` 类，封装 `akquant.talib` 调用
+  - 从 FactorRegistry 读取因子定义的 `akquantFunc` 字段获取映射关系
+  - 核心方法：`compute(factorKey: str, inputs: dict[str, np.ndarray], **params) -> np.ndarray | tuple[np.ndarray, ...]`
+  - 输入列映射：根据因子定义的 `inputs` 字段从 inputs dict 中取对应列
+  - KDJ 特殊处理：STOCH 返回 (K,D) 后合成 J=3K−2D，返回三元组
+  - 参数透传：将 params 透传给 akquant.talib 函数（参数名需匹配）
+  - 在 `stock-engine/services/factor/providers/__init__.py` 导出
+- **Acceptance Criteria Addressed**: FR-3, AC-2, AC-3, AC-4, AC-8
+- **Test Requirements**:
+  - `programmatic` TR-5.1: 计算 MA(timeperiod=5) 结果与 `akquant.talib.MA` 原生调用 np.allclose
+  - `programmatic` TR-5.2: 计算 MACD 返回三元组 (dif, dea, hist)，顺序正确
+  - `programmatic` TR-5.3: 计算 KDJ 返回三元组 (K, D, J)，验证 J = 3*K - 2*D
+  - `programmatic` TR-5.4: 计算 BOLL(BBANDS) 返回三元组 (upper, mid, lower)，顺序与因子定义一致
+  - `programmatic` TR-5.5: 输入数据不足时，结果前补 NaN，不报错
+  - `programmatic` TR-5.6: 非法 factorKey 抛出 `UNKNOWN_FACTOR` 异常
+
+## [ ] Task 6: RawDataProvider + DerivedProvider - 价格直通与衍生因子
+- **Priority**: high
+- **Depends On**: Task 3, Task 5
+- **Description**:
+  - 在 `stock-engine/services/factor/providers/` 下创建 `raw_provider.py`
+  - 实现 `RawDataProvider`：PRICE 类 5 个因子（OPEN/HIGH/LOW/CLOSE/VOLUME），直接返回 inputs 中对应列
+  - 在 `stock-engine/services/factor/providers/` 下创建 `derived_provider.py`
+  - 实现 `DerivedProvider`：DERIVED 类因子
+    - VOL_MA: 对 volume 列调用 MA（即 akquant.talib.MA on volume）
+    - VOL_EMA: 对 volume 列调用 EMA
+  - 复用 `AkquantTalibProvider` 的计算逻辑，只切换输入列
+  - 两个 Provider 都实现相同的 `compute(factorKey, inputs, **params)` 接口
+- **Acceptance Criteria Addressed**: FR-4, AC-5, AC-6
+- **Test Requirements**:
+  - `programmatic` TR-6.1: 计算 CLOSE 返回值与输入 close 数组完全相同
+  - `programmatic` TR-6.2: 计算 VOLUME 返回值与输入 volume 数组完全相同
+  - `programmatic` TR-6.3: 计算 VOL_MA(timeperiod=20) 结果等于对 volume 调 akquant.talib.MA 的结果
+  - `programmatic` TR-6.4: 计算 VOL_EMA(timeperiod=20) 结果等于对 volume 调 akquant.talib.EMA 的结果
+
+## [ ] Task 7: FactorCalculatorService - 服务层（Provider 路由 + 批量计算）
+- **Priority**: high
+- **Depends On**: Task 3, Task 5, Task 6
+- **Description**:
+  - 在 `stock-engine/services/factor/` 下创建 `calculator.py`
+  - 实现 `FactorCalculatorService` 类，统一对外提供因子计算服务
+  - Provider 路由逻辑：根据因子的 `source` 字段路由到对应 Provider
+    - AKQUANT → AkquantTalibProvider
+    - RAW → RawDataProvider
+    - DERIVED → DerivedProvider
+    - TUSHARE → 抛出 `FACTOR_NOT_COMPUTABLE` 异常
+  - 统一方法：
+    - `compute_single(factorKey, inputs, params=None, output_index=None) -> np.ndarray` - 单因子，支持 output_index 降维
+    - `compute_batch(factor_list, inputs) -> dict[str, np.ndarray]` - 批量因子，返回 {factorKey: array}
+    - `compute_multi_symbol(symbols_data, factor_list) -> dict[str, dict[str, np.ndarray]]` - 多标的批量
+  - 参数校验：检查 params 是否在因子定义的合法范围内
+  - 在 `stock-engine/services/factor/__init__.py` 导出 `FactorCalculatorService`
+- **Acceptance Criteria Addressed**: FR-3, FR-4, FR-5, FR-7, FR-8, AC-9, AC-10, AC-11
+- **Test Requirements**:
+  - `programmatic` TR-7.1: `compute_single("MA", inputs, {"timeperiod": 5})` 返回正确 ndarray
+  - `programmatic` TR-7.2: `compute_single("MACD", inputs, output_index=2)` 返回 MACD 柱（第三个输出）
+  - `programmatic` TR-7.3: `output_index` 越界时抛出 `INVALID_OUTPUT_INDEX` 异常
+  - `programmatic` TR-7.4: `compute_single("PE_TTM", inputs)` 抛出 `FACTOR_NOT_COMPUTABLE` 异常
+  - `programmatic` TR-7.5: `compute_batch(["MA", "RSI", "CLOSE"], inputs)` 返回 3 个因子的结果 dict
+  - `programmatic` TR-7.6: 参数超出 min/max 范围时抛出 `INVALID_PARAM` 异常
+
+## [ ] Task 8: Pydantic 模型定义（schemas）
+- **Priority**: high
+- **Depends On**: Task 3
+- **Description**:
+  - 在 `stock-engine/models/schemas/` 下创建 `factor.py`
+  - 定义元数据模型：
+    - `FactorParam` / `FactorInput` / `FactorDef` / `FactorCategory`
+  - 定义查询请求/响应：
+    - `FactorListResponse` / `FactorDetailResponse` / `FactorCategoryListResponse`
+  - 定义 CRUD 请求：
+    - `FactorCreateRequest` / `FactorUpdateRequest`
+  - 定义计算请求/响应：
+    - `FactorComputeSpec`（factorKey + params + outputIndex?）
+    - `FactorComputeRequest`（data + factors）
+    - `FactorComputeResponse`（success + data）
+    - `BatchFactorComputeRequest`（data: dict + factors）
+    - `BatchFactorComputeResponse`（success + data: dict）
+  - 统一错误响应：`ErrorResponse`（success: false + code + message）
+  - 所有模型支持示例值，用于 Swagger 文档
+- **Acceptance Criteria Addressed**: FR-2, FR-6, FR-7, NFR-3
+- **Test Requirements**:
+  - `programmatic` TR-8.1: FactorComputeRequest 能正确解析标准 JSON 请求
+  - `programmatic` TR-8.2: 缺少必填字段时 Pydantic 抛出 422 校验错误
+  - `human-judgement` TR-8.3: 模型命名规范，与项目其他 schema 风格一致
+
+## [ ] Task 9: FastAPI 路由层（CRUD + 计算 API）
+- **Priority**: high
+- **Depends On**: Task 7, Task 8
+- **Description**:
+  - 在 `stock-engine/api/v1/` 下创建 `factor.py`
+  - 实现 CRUD 路由：
+    - `GET /python/v1/factors/categories` - 获取因子分类列表
+    - `GET /python/v1/factors` - 获取因子列表（支持 category/source 查询参数）
+    - `GET /python/v1/factors/{factorKey}` - 获取单个因子详情
+    - `POST /python/v1/factors` - 新增因子
+    - `PUT /python/v1/factors/{factorKey}` - 修改因子
+    - `DELETE /python/v1/factors/{factorKey}` - 删除因子
+  - 实现计算路由：
+    - `POST /python/v1/factors/compute` - 单标的多因子计算
+    - `POST /python/v1/factors/batch-compute` - 多标的批量因子计算
+  - 使用 APIRouter 组织路由，prefix="/python/v1/factors"
+  - 在 `main.py` 中注册路由
+  - 每个接口都有 summary、description、响应模型
+  - 统一异常处理：将 FactorNotFoundError 等业务异常转为 HTTP 400 + 结构化错误响应
+- **Acceptance Criteria Addressed**: FR-2, FR-6, FR-7, AC-19
+- **Test Requirements**:
+  - `programmatic` TR-9.1: `GET /python/v1/factors` 返回 49 个因子，HTTP 200
+  - `programmatic` TR-9.2: `GET /python/v1/factors/MA` 返回正确的因子定义
+  - `programmatic` TR-9.3: `GET /python/v1/factors/NOT_EXIST` 返回 404
+  - `programmatic` TR-9.4: `POST /python/v1/factors` 新增因子返回 201
+  - `programmatic` TR-9.5: `PUT /python/v1/factors/MA` 修改因子返回 200
+  - `programmatic` TR-9.6: `DELETE /python/v1/factors/SOME` 删除因子返回 200
+  - `programmatic` TR-9.7: `POST /python/v1/factors/compute` 正常计算并返回结果
+  - `programmatic` TR-9.8: 非法 factorKey 返回 400 + 错误码 UNKNOWN_FACTOR
+  - `human-judgement` TR-9.9: /docs 页面接口文档完整，描述清晰，有示例
+
+## [ ] Task 10: 单元测试与集成测试（engine 侧）
+- **Priority**: high
+- **Depends On**: Task 7, Task 9
+- **Description**:
+  - 在 `stock-engine/tests/` 下创建 `test_factor/` 目录
+  - 测试文件：
+    - `test_registry.py` - FactorRegistry 单元测试（CRUD + 持久化 + 并发）
+    - `test_data_utils.py` - 数据转换工具测试
+    - `test_akquant_provider.py` - AkquantTalibProvider 正确性测试
+    - `test_calculator.py` - FactorCalculatorService 集成测试
+    - `test_api.py` - FastAPI 路由集成测试（用 TestClient）
+  - 测试数据：生成 250 根模拟日线数据（随机游走 + 趋势）
+  - 验证所有 AC 中 programmatic 的条目（engine 侧部分）
+- **Acceptance Criteria Addressed**: AC-1 ~ AC-17
+- **Test Requirements**:
+  - `programmatic` TR-10.1: 所有单元测试通过（pytest -v）
+  - `programmatic` TR-10.2: 测试覆盖率 > 80%
+  - `programmatic` TR-10.3: 边界值测试（数据为 0 根、1 根、刚好 lookback 根）
+  - `human-judgement` TR-10.4: 测试用例命名清晰，覆盖正常路径和异常路径
+
+## [ ] Task 11: 性能基准测试
+- **Priority**: medium
+- **Depends On**: Task 9, Task 10
+- **Description**:
+  - 编写性能基准脚本 `tests/test_factor/benchmark.py`
+  - 基准场景：
+    - 单标的单因子（250 根）
+    - 单标的 10 个因子（250 根）
+    - 50 只股票 5 个因子（250 根）
+    - 元数据查询（全量列表）
+    - 新增/修改操作
+  - 记录平均响应时间、P95、P99
+  - 与 NFR-1 指标对比，不达标时优化
+- **Acceptance Criteria Addressed**: NFR-1, AC-7
+- **Test Requirements**:
+  - `programmatic` TR-11.1: 单标的单因子 < 10ms
+  - `programmatic` TR-11.2: 单标的 10 因子 < 50ms
+  - `programmatic` TR-11.3: 50 只股票 5 因子 < 500ms
+  - `programmatic` TR-11.4: 元数据全量查询 < 5ms
+  - `programmatic` TR-11.5: 新增/修改 < 50ms
+  - `human-judgement` TR-11.6: 如果性能不达标，提出优化建议
+
+## [ ] Task 12: 不触库硬约束验证
+- **Priority**: high
+- **Depends On**: Task 3, Task 5, Task 7, Task 9
+- **Description**:
+  - 编写检查脚本，扫描 `stock-engine/services/factor/` 和 `stock-engine/api/v1/factor.py`
+  - 检查是否出现 `sqlite3`、`sqlalchemy`、`.db`、`connect`、`cursor` 等数据库操作关键词
+  - 确认所有输入数据都通过参数传入，无任何数据库读取代码
+- **Acceptance Criteria Addressed**: AC-12
+- **Test Requirements**:
+  - `programmatic` TR-12.1: 扫描脚本通过，因子模块中无数据库操作代码
+  - `human-judgement` TR-12.2: 人工抽查关键文件，确认无不触库违规
+
+## [ ] Task 13: Watcher 侧 Java 因子缓存服务
+- **Priority**: high
+- **Depends On**: Task 9（engine API 完成后）
+- **Description**:
+  - 在 stock-watcher Java 项目中实现 `FactorCacheService`
+  - 依赖：Spring Boot + Caffeine + RestTemplate（或 WebClient）
+  - 缓存内容：
+    - 全量因子列表（key: "factor:list"）
+    - 单因子详情（key: "factor:detail:{factorKey}"）
+    - 分类列表（key: "factor:categories"）
+  - 缓存配置：
+    - Caffeine：初始容量 100，最大 500，写入后 5 分钟过期（兜底 TTL）
+  - 读方法：
+    - `listFactors(category?, source?)` - 先查缓存，未命中调 engine API 并缓存
+    - `getFactor(factorKey)` - 先查缓存，未命中调 engine API 并缓存
+    - `listCategories()` - 同上
+  - 写方法（调用 engine API 后主动失效缓存）：
+    - `createFactor(request)` - 调 `POST /python/v1/factors`，成功后清除 list/categories 缓存
+    - `updateFactor(factorKey, request)` - 调 `PUT`，成功后清除 list + detail + categories 缓存
+    - `deleteFactor(factorKey)` - 调 `DELETE`，成功后清除 list + detail + categories 缓存
+  - 配置项：engine 的 base URL 通过 `application.yml` 配置
+  - 在 watcher 侧提供对应的 Controller 接口（供前端调用）：
+    - `GET /api/factors` - 查询因子列表
+    - `GET /api/factors/{factorKey}` - 因子详情
+    - `GET /api/factors/categories` - 分类列表
+    - `POST /api/factors` - 新增因子
+    - `PUT /api/factors/{factorKey}` - 修改因子
+    - `DELETE /api/factors/{factorKey}` - 删除因子
+- **Acceptance Criteria Addressed**: FR-9, AC-18
+- **Test Requirements**:
+  - `programmatic` TR-13.1: 首次查询后缓存中有数据，第二次查询不走 HTTP（可通过 mock 验证）
+  - `programmatic` TR-13.2: 新增因子后，list 缓存被清除，下次查询重新拉取
+  - `programmatic` TR-13.3: 修改因子后，list 和 detail 缓存都被清除
+  - `programmatic` TR-13.4: 删除因子后，list 和 detail 缓存都被清除
+  - `human-judgement` TR-13.5: 代码结构清晰，缓存策略合理，异常处理完善
+
+## [ ] Task 14: 代码风格与文档完善
+- **Priority**: medium
+- **Depends On**: Task 1 ~ Task 13
+- **Description**:
+  - 按 `.trae/rules/stock-engine/python/` 规范检查代码风格
+  - 为公共类和方法添加 docstring
+  - 在 `stock-engine/README.md` 中添加因子库模块说明
+  - 在 watcher 侧 README 或文档中添加因子缓存服务说明
+  - 补充 `.env.example` / `application.yml` 中相关配置
+- **Acceptance Criteria Addressed**: NFR-5, AC-20
+- **Test Requirements**:
+  - `human-judgement` TR-14.1: 代码符合编码规范，命名清晰
+  - `human-judgement` TR-14.2: 四层架构（定义加载→Provider→Service→API）职责清晰
+  - `human-judgement` TR-14.3: README 中有因子库模块的使用说明

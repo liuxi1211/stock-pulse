@@ -22,7 +22,7 @@ public class WebConfig implements WebMvcConfigurer {
      */
     @Override
     public void addCorsMappings(CorsRegistry registry) {
-        registry.addMapping("/api/**")
+        registry.addMapping("/**")
                 .allowedOriginPatterns("*")
                 .allowedMethods("GET", "POST", "PUT", "DELETE")
                 .allowedHeaders("*")
@@ -49,7 +49,9 @@ public class WebConfig implements WebMvcConfigurer {
                 .excludePathPatterns(
                         "/login", "/login/**", "/logout",
                         "/css/**", "/js/**", "/static/**",
-                        "/error/**", "/favicon.ico"
+                        "/error/**", "/favicon.ico",
+                        "/swagger-ui/**", "/swagger-ui.html",
+                        "/v3/api-docs/**", "/webjars/**"
                 );
     }
 }

@@ -52,6 +52,9 @@ data/logs/
 *.sqlite3
 *.db-journal
 
+# engine 运行时因子定义：种子 factors.default.json 入库，factors.json 由 engine 运行时写
+stock-engine/data/factors.json
+
 # 敏感配置
 application-secret.properties
 application-secret.yml

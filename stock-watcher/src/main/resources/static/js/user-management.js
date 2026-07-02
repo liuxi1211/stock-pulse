@@ -1,9 +1,9 @@
-let currentPage = 1;
+﻿let currentPage = 1;
 
 function loadUsers(page) {
     currentPage = page;
     const keyword = document.getElementById('searchKeyword').value;
-    StockApp.get('/api/users', {keyword, page, size: 10}, function (resp) {
+    StockApp.get('/users', {keyword, page, size: 10}, function (resp) {
         if (resp.code !== 200) {
             StockApp.toast(resp.message || '加载失败', 'danger');
             return;
@@ -90,7 +90,7 @@ function submitCreateUser() {
         return;
     }
 
-    StockApp.post('/api/users', {username, password, email, phone, role}, function (resp) {
+    StockApp.post('/users', {username, password, email, phone, role}, function (resp) {
         if (resp.code !== 200) {
             StockApp.toast(resp.message || '创建失败', 'danger');
             return;
@@ -134,7 +134,7 @@ async function resetTotp(id, username) {
         icon: 'bi-shield-lock'
     })) return;
 
-    StockApp.post('/api/users/' + id + '/reset-totp', null, function (resp) {
+    StockApp.post('/users/' + id + '/reset-totp', null, function (resp) {
         if (resp.code !== 200) {
             StockApp.toast(resp.message || '重置失败', 'danger');
             return;
@@ -158,7 +158,7 @@ async function confirmDeleteUser(id, username) {
         icon: 'bi-trash'
     })) return;
 
-    StockApp.delete('/api/users/' + id, function (resp) {
+    StockApp.delete('/users/' + id, function (resp) {
         if (resp.code !== 200) {
             StockApp.toast(resp.message || '删除失败', 'danger');
             return;

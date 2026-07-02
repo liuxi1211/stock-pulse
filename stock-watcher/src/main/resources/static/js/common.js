@@ -1,4 +1,4 @@
-/**
+﻿/**
  * StockPulse - Common utilities
  * Provides: AJAX helpers, toast notifications, sidebar toggle, global search
  */
@@ -78,7 +78,7 @@ const StockApp = {
 
     // ========== Add to Watchlist (reusable) ==========
     addWatchlist(code, btn) {
-        this.post('/api/watchlist/' + code, null, function(resp) {
+        this.post('/watchlist/' + code, null, function(resp) {
             StockApp.toast(resp.message, resp.code === 200 ? 'success' : 'warning');
         });
     },
@@ -89,7 +89,7 @@ const StockApp = {
             if (callback) callback(this._enumCache);
             return;
         }
-        this.get('/api/constants', null, function(resp) {
+        this.get('/constants', null, function(resp) {
             if (resp.code === 200) {
                 StockApp._enumCache = resp.data;
             }
@@ -318,7 +318,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (e.key === 'Enter') {
                 const keyword = globalSearchInput.value.trim();
                 if (keyword) {
-                    window.location.href = StockApp.contextPath + '/stock-list?keyword=' + encodeURIComponent(keyword);
+                    window.location.href = StockApp.contextPath + '/page/stock-list?keyword=' + encodeURIComponent(keyword);
                 }
             }
         });
@@ -327,7 +327,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (typeof SearchSuggest !== 'undefined') {
             new SearchSuggest(globalSearchInput, {
                 onSelect: function(item) {
-                    window.location.href = StockApp.contextPath + '/stock-list?keyword=' + encodeURIComponent(item.code);
+                    window.location.href = StockApp.contextPath + '/page/stock-list?keyword=' + encodeURIComponent(item.code);
                 }
             });
         }

@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org" lang="zh-CN">
 
 <!-- ============================================================
@@ -42,11 +42,11 @@
                 <i class="bi bi-speedometer2"></i>
                 <span>仪表盘</span>
             </a>
-            <a th:href="@{/stock-list}" class="nav-item" th:classappend="${activeMenu == 'stock-list'} ? 'active'">
+            <a th:href="@{/page/stock-list}" class="nav-item" th:classappend="${activeMenu == 'stock-list'} ? 'active'">
                 <i class="bi bi-bar-chart-line"></i>
                 <span>行情中心</span>
             </a>
-            <a th:href="@{/watchlist}" class="nav-item" th:classappend="${activeMenu == 'watchlist'} ? 'active'">
+            <a th:href="@{/page/watchlist}" class="nav-item" th:classappend="${activeMenu == 'watchlist'} ? 'active'">
                 <i class="bi bi-star"></i>
                 <span>自选股</span>
             </a>
@@ -60,9 +60,25 @@
             </a>
         </div>
 
+        <div class="nav-section">
+            <div class="nav-section-title">量化研究</div>
+            <a th:href="@{/page/factor-library}" class="nav-item" th:classappend="${activeMenu == 'factor-library'} ? 'active'">
+                <i class="bi bi-calculator"></i>
+                <span>因子库</span>
+            </a>
+            <a href="#" class="nav-item">
+                <i class="bi bi-funnel"></i>
+                <span>选股中心</span>
+            </a>
+            <a href="#" class="nav-item">
+                <i class="bi bi-play-circle"></i>
+                <span>回测中心</span>
+            </a>
+        </div>
+
         <div class="nav-section" th:if="${session.AUTH_USER?.role?.name() == 'ADMIN'}">
             <div class="nav-section-title">管理中心</div>
-            <a th:href="@{/user-management}" class="nav-item" th:classappend="${activeMenu == 'user-management'} ? 'active'">
+            <a th:href="@{/page/user-management}" class="nav-item" th:classappend="${activeMenu == 'user-management'} ? 'active'">
                 <i class="bi bi-people"></i>
                 <span>用户管理</span>
             </a>
@@ -70,7 +86,7 @@
 
         <div class="nav-section">
             <div class="nav-section-title">系统</div>
-            <a th:href="@{/settings}" class="nav-item" th:classappend="${activeMenu == 'settings'} ? 'active'">
+            <a th:href="@{/page/settings}" class="nav-item" th:classappend="${activeMenu == 'settings'} ? 'active'">
                 <i class="bi bi-gear"></i>
                 <span>系统设置</span>
             </a>
@@ -87,7 +103,7 @@
             <i class="bi bi-chevron-down text-muted" style="font-size: 12px;"></i>
         </div>
         <ul class="dropdown-menu" style="width: 228px; margin: 8px 0 0;">
-            <li><a class="dropdown-item" th:href="@{/settings}"><i class="bi bi-gear me-2"></i>系统设置</a></li>
+            <li><a class="dropdown-item" th:href="@{/page/settings}"><i class="bi bi-gear me-2"></i>系统设置</a></li>
             <li><hr class="dropdown-divider"></li>
             <li><a class="dropdown-item" th:href="@{/logout}"><i class="bi bi-box-arrow-right me-2"></i>退出登录</a></li>
         </ul>
@@ -132,7 +148,7 @@
             <i class="bi bi-chevron-down" style="font-size:12px;color:var(--text-muted);"></i>
         </div>
         <ul class="dropdown-menu dropdown-menu-end">
-            <li><a class="dropdown-item" th:href="@{/settings}"><i class="bi bi-gear me-2"></i>系统设置</a></li>
+            <li><a class="dropdown-item" th:href="@{/page/settings}"><i class="bi bi-gear me-2"></i>系统设置</a></li>
             <li><hr class="dropdown-divider"></li>
             <li><a class="dropdown-item" th:href="@{/logout}"><i class="bi bi-box-arrow-right me-2"></i>退出登录</a></li>
         </ul>

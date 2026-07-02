@@ -1,4 +1,4 @@
-/**
+﻿/**
  * SearchSuggest - 通用搜索提示组件
  * 可绑定到任意 <input> 元素，输入时显示匹配建议下拉列表
  *
@@ -22,7 +22,7 @@ class SearchSuggest {
 
         this.input = inputEl;
         this.onSelect = options.onSelect || null;
-        this.url = options.url || '/api/search/suggest';
+        this.url = options.url || '/search/suggest';
         this.debounceMs = options.debounceMs || 300;
         this.minLength = options.minLength || 1;
 

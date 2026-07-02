@@ -3,6 +3,8 @@ package com.arthur.stock.controller;
 import com.arthur.stock.constant.DisplayableEnum;
 import com.arthur.stock.dto.ApiResponse;
 import com.arthur.stock.dto.EnumOptionDTO;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.AnnotatedBeanDefinition;
@@ -16,13 +18,10 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.*;
 import java.util.stream.Collectors;
 
-/**
- * 常量枚举API控制器，自动扫描项目中实现了DisplayableEnum接口的枚举类，
- * 将其转换为前端下拉框等选择组件可用的选项数据
- */
+@Tag(name = "常量枚举", description = "系统常量枚举数据，用于前端下拉框等选择组件")
 @Slf4j
 @RestController
-@RequestMapping("/api/constants")
+@RequestMapping("/constants")
 public class ConstantController {
 
     private static final List<String> SCAN_PACKAGES = List.of(
@@ -32,9 +31,6 @@ public class ConstantController {
 
     private Map<String, List<EnumOptionDTO>> cache;
 
-    /**
-     * 初始化时扫描指定包路径下的DisplayableEnum枚举类，缓存选项数据
-     */
     @PostConstruct
     public void init() {
         cache = new LinkedHashMap<>();
@@ -63,17 +59,12 @@ public class ConstantController {
         log.info("Loaded {} enum constants: {}", cache.size(), cache.keySet());
     }
 
-    /**
-     * 获取所有枚举常量选项数据
-     */
+    @Operation(summary = "获取所有枚举常量", description = "返回系统中所有实现了DisplayableEnum接口的枚举类，用于前端下拉选择框。返回 Map<枚举类名, 选项列表> 属于「纯键值缓存返回」例外（见 api-design §11.3-2）")
     @GetMapping
     public ApiResponse<Map<String, List<EnumOptionDTO>>> getAllConstants() {
         return ApiResponse.success(cache);
     }
 
-    /**
-     * 将枚举类注册到缓存中，提取每个枚举值的code和label
-     */
     private void registerEnum(Class<?> clazz) {
         Object[] constants = clazz.getEnumConstants();
         if (constants == null || constants.length == 0) return;
