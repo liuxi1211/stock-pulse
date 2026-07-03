@@ -1,0 +1,137 @@
+"""
+第 11 章：参数优化与过拟合 (Optimization & Overfitting).
+
+本示例展示了如何使用 AKQuant 的网格搜索 (Grid Search) 功能来寻找最优的策略参数。
+同时，我们也会探讨过度优化带来的风险。
+
+策略逻辑：
+- 依然使用双均线策略 (MA_Short vs MA_Long)
+- 优化目标：寻找夏普比率 (Sharpe Ratio) 最高的参数组合
+    - short_window: [3, 5, 10]
+    - long_window: [15, 20, 30, 60]
+
+AKQuant 特性：
+- `run_grid_search`: 自动多进程并行回测，极大提高优化效率。
+"""
+
+from typing import Any
+
+import akquant as aq
+import numpy as np
+import pandas as pd
+from akquant import Bar, Strategy
+
+
+# 模拟数据生成
+def generate_mock_data(length: int = 1000) -> pd.DataFrame:
+    """生成模拟数据."""
+    np.random.seed(42)
+    dates = pd.date_range(start="2020-01-01", periods=length, freq="D")
+    prices = 100 + np.cumsum(np.random.randn(length))
+    df = pd.DataFrame(
+        {
+            "date": dates,
+            "open": prices,
+            "high": prices + 1,
+            "low": prices - 1,
+            "close": prices,
+            "volume": 100000,
+            "symbol": "MOCK",
+        }
+    )
+    return df
+
+
+class OptStrategy(Strategy):
+    """参数优化演示策略."""
+
+    def __init__(self, short_window: int = 5, long_window: int = 20) -> None:
+        """初始化策略."""
+        super().__init__()
+        self.short_window = short_window
+        self.long_window = long_window
+        # 动态设置 warmup_period，确保足够计算最长的均线
+        self.warmup_period = long_window + 1
+
+    def on_bar(self, bar: Bar) -> None:
+        """收到 Bar 事件的回调."""
+        symbol = bar.symbol
+        closes = self.get_history(
+            count=self.long_window + 1, symbol=symbol, field="close"
+        )
+        if len(closes) < self.long_window + 1:
+            return
+
+        history_closes = closes[:-1]
+        ma_short = history_closes[-self.short_window :].mean()
+        ma_long = history_closes[-self.long_window :].mean()
+
+        pos = self.get_position(symbol)
+
+        if ma_short > ma_long and pos == 0:
+            self.order_target_percent(symbol=symbol, target_percent=0.95)
+        elif ma_short < ma_long and pos > 0:
+            self.close_position(symbol)
+
+
+if __name__ == "__main__":
+    df = generate_mock_data()
+
+    print("开始运行第 11 章参数优化示例...")
+    print("正在进行网格搜索 (Grid Search)...")
+
+    # 定义参数网格
+    # 键名必须与策略 __init__ 中的参数名一致
+    param_grid = {"short_window": [3, 5, 10], "long_window": [15, 20, 30, 60]}
+
+    # 运行网格搜索
+    # max_workers: 并行进程数。注意：Windows 下以 spawn 方式多进程时，策略类必须
+    # 可被子进程导入（不能定义在 __main__，详见第 11.4.0 节）。直接运行本脚本时，
+    # 若并行不可用则自动回退为单进程，保证示例随处可跑。
+    try:
+        results: Any = aq.run_grid_search(
+            strategy=OptStrategy,
+            data=df,
+            param_grid=param_grid,
+            initial_cash=100_000,
+            commission_rate=0.0003,
+            max_workers=4,  # 限制为 4 个进程
+        )
+    except Exception as exc:  # noqa: BLE001 - 直接运行的脚本可能无法多进程，回退单进程
+        print(f"并行优化不可用（{exc}），回退为单进程 (max_workers=1)。")
+        results = aq.run_grid_search(
+            strategy=OptStrategy,
+            data=df,
+            param_grid=param_grid,
+            initial_cash=100_000,
+            commission_rate=0.0003,
+            max_workers=1,
+        )
+
+    # run_grid_search 默认 return_df=True，返回一个已按 sharpe_ratio 降序排好的
+    # DataFrame，列中同时包含参数列（short_window/long_window）与指标列
+    # （sharpe_ratio/total_return_pct/max_drawdown_pct 等）。
+    print("\n" + "=" * 40)
+    print("优化结果 (按夏普比率排序，前 5 名)")
+    print("=" * 40)
+
+    if isinstance(results, pd.DataFrame) and not results.empty:
+        cols = [
+            "short_window",
+            "long_window",
+            "sharpe_ratio",
+            "total_return_pct",
+            "max_drawdown_pct",
+        ]
+        available = [c for c in cols if c in results.columns]
+        print(results[available].head().to_string(index=False))
+
+        best = results.iloc[0]
+        print("\n最佳参数组合:")
+        print(
+            f"  short_window={int(best['short_window'])}, "
+            f"long_window={int(best['long_window'])}, "
+            f"sharpe_ratio={float(best['sharpe_ratio']):.2f}"
+        )
+    else:
+        print(results)

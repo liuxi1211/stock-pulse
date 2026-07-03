@@ -1,0 +1,618 @@
+import json
+import logging
+import sys
+from dataclasses import dataclass
+from logging.handlers import RotatingFileHandler
+from typing import Any, Optional, Union
+
+# Default format: Time | Level | Logger | Message
+DEFAULT_FORMAT = "%(asctime)s | %(levelname)s | %(name)s | %(message)s"
+OPTIMIZE_FORMAT = (
+    "%(asctime)s | %(levelname)s | %(processName)s | %(name)s | %(message)s"
+)
+DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
+ROOT_LOGGER_NAME = "akquant"
+RUST_CONTEXT_MARKER = " [akq_ctx="
+CONTEXT_FIELDS = (
+    "phase",
+    "event_time",
+    "event_time_iso",
+    "strategy_id",
+    "slot",
+    "symbol",
+    "order_id",
+    "client_order_id",
+)
+
+
+def _normalize_context_value(value: Any) -> Optional[str]:
+    """Normalize structured logging context values to trimmed strings."""
+    if value is None:
+        return None
+    normalized = str(value).strip()
+    return normalized or None
+
+
+def _parse_rust_context_message(message: str) -> tuple[str, dict[str, Any] | None]:
+    """Parse an AKQuant Rust log payload appended to the rendered message."""
+    marker_index = message.rfind(RUST_CONTEXT_MARKER)
+    if marker_index < 0 or not message.endswith("]"):
+        return message, None
+    payload_text = message[marker_index + len(RUST_CONTEXT_MARKER) : -1]
+    try:
+        payload = json.loads(payload_text)
+    except json.JSONDecodeError:
+        return message, None
+    if not isinstance(payload, dict):
+        return message, None
+    return message[:marker_index], payload
+
+
+def _extract_rust_context(record: logging.LogRecord) -> None:
+    """Lift AKQuant Rust log context payloads into structured LogRecord fields."""
+    if getattr(record, "_akquant_rust_context_parsed", False):
+        return
+    record._akquant_rust_context_parsed = True
+    if not str(getattr(record, "name", "") or "").startswith(ROOT_LOGGER_NAME):
+        return
+    rendered_message = record.getMessage()
+    stripped_message, payload = _parse_rust_context_message(rendered_message)
+    if payload is None:
+        return
+    record.msg = stripped_message
+    record.args = ()
+    for field_name in CONTEXT_FIELDS:
+        if field_name in payload:
+            value = payload[field_name]
+            if field_name == "event_time":
+                setattr(record, field_name, value)
+            else:
+                setattr(record, field_name, _normalize_context_value(value))
+        elif not hasattr(record, field_name):
+            setattr(record, field_name, None)
+
+
+def _install_log_record_factory() -> None:
+    """Install a LogRecord factory that restores Rust logging context early."""
+    current_factory = logging.getLogRecordFactory()
+    if getattr(current_factory, "_akquant_rust_context_factory", False):
+        return
+
+    def akquant_record_factory(*args: Any, **kwargs: Any) -> logging.LogRecord:
+        record = current_factory(*args, **kwargs)
+        _extract_rust_context(record)
+        return record
+
+    akquant_record_factory._akquant_rust_context_factory = True  # type: ignore[attr-defined]
+    logging.setLogRecordFactory(akquant_record_factory)
+
+
+class AKQuantFormatter(logging.Formatter):
+    """Formatter that can safely render AKQuant logging context."""
+
+    def __init__(
+        self,
+        fmt: str,
+        *,
+        datefmt: str = DATE_FORMAT,
+        include_context: bool = False,
+    ) -> None:
+        """Initialize a formatter with optional AKQuant context rendering."""
+        super().__init__(fmt, datefmt=datefmt)
+        self.include_context = include_context
+
+    def format(self, record: logging.LogRecord) -> str:
+        """Format a log record and optionally append structured context text."""
+        for field_name in CONTEXT_FIELDS:
+            if not hasattr(record, field_name):
+                setattr(record, field_name, None)
+
+        rendered = super().format(record)
+        if not self.include_context:
+            return rendered
+
+        context_parts: list[str] = []
+        for field_name in (
+            "phase",
+            "strategy_id",
+            "slot",
+            "symbol",
+            "order_id",
+            "client_order_id",
+            "event_time_iso",
+        ):
+            value = getattr(record, field_name, None)
+            if value is None or value == "":
+                continue
+            context_parts.append(f"{field_name}={value}")
+        if not context_parts:
+            return rendered
+        return f"{rendered} | {' '.join(context_parts)}"
+
+
+def _ensure_context_fields(record: logging.LogRecord) -> None:
+    """Populate missing AKQuant context fields on a log record."""
+    _extract_rust_context(record)
+    for field_name in CONTEXT_FIELDS:
+        if not hasattr(record, field_name):
+            setattr(record, field_name, None)
+
+
+def _to_jsonable(value: Any) -> Any:
+    """Convert log values into JSON-safe payloads."""
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    if isinstance(value, dict):
+        return {str(key): _to_jsonable(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple, set)):
+        return [_to_jsonable(item) for item in value]
+    isoformat = getattr(value, "isoformat", None)
+    if callable(isoformat):
+        try:
+            return isoformat()
+        except Exception:
+            return str(value)
+    return str(value)
+
+
+class AKQuantJsonFormatter(logging.Formatter):
+    """Formatter that renders AKQuant log records as JSON lines."""
+
+    def __init__(self, *, datefmt: str = DATE_FORMAT) -> None:
+        """Initialize a JSON formatter with the configured timestamp format."""
+        super().__init__(datefmt=datefmt)
+
+    def format(self, record: logging.LogRecord) -> str:
+        """Format a log record as one JSON object per line."""
+        _ensure_context_fields(record)
+        payload: dict[str, Any] = {
+            "timestamp": self.formatTime(record, self.datefmt),
+            "level": record.levelname,
+            "logger": record.name,
+            "message": record.getMessage(),
+            "pid": record.process,
+            "process_name": record.processName,
+        }
+        for field_name in CONTEXT_FIELDS:
+            value = getattr(record, field_name, None)
+            if value is None or value == "":
+                continue
+            payload[field_name] = _to_jsonable(value)
+        if record.exc_info:
+            payload["exc_info"] = self.formatException(record.exc_info)
+        return json.dumps(payload, ensure_ascii=False, sort_keys=True)
+
+
+PROFILE_DEFAULTS: dict[str, dict[str, Any]] = {
+    "research": {
+        "console_format": DEFAULT_FORMAT,
+        "file_format": DEFAULT_FORMAT,
+        "console_show_context": False,
+        "file_show_context": True,
+    },
+    "optimize": {
+        "console_format": OPTIMIZE_FORMAT,
+        "file_format": OPTIMIZE_FORMAT,
+        "console_show_context": False,
+        "file_show_context": True,
+    },
+    "live": {
+        "console_format": DEFAULT_FORMAT,
+        "file_format": DEFAULT_FORMAT,
+        "console_show_context": True,
+        "file_show_context": True,
+    },
+}
+
+
+def _normalize_level(level: Union[str, int]) -> int:
+    """Normalize a logging level into its integer form."""
+    if isinstance(level, int):
+        return level
+    normalized_name = level.strip().upper()
+    if normalized_name == "WARN":
+        normalized_name = "WARNING"
+    normalized = getattr(logging, normalized_name, None)
+    if isinstance(normalized, int):
+        return normalized
+    raise ValueError(f"Unknown log level: {level}")
+
+
+def build_log_extra(
+    *,
+    phase: Optional[str] = None,
+    event_time: Any = None,
+    event_time_iso: Optional[str] = None,
+    strategy_id: Optional[str] = None,
+    slot: Optional[str] = None,
+    symbol: Optional[str] = None,
+    order_id: Optional[str] = None,
+    client_order_id: Optional[str] = None,
+) -> dict[str, Any]:
+    """Build a normalized AKQuant structured logging payload."""
+    return {
+        "phase": _normalize_context_value(phase),
+        "event_time": event_time,
+        "event_time_iso": _normalize_context_value(event_time_iso),
+        "strategy_id": _normalize_context_value(strategy_id),
+        "slot": _normalize_context_value(slot),
+        "symbol": _normalize_context_value(symbol),
+        "order_id": _normalize_context_value(order_id),
+        "client_order_id": _normalize_context_value(client_order_id),
+    }
+
+
+_install_log_record_factory()
+
+
+def has_configured_handler(
+    name: Optional[str] = None, *, namespace_only: bool = False
+) -> bool:
+    """Return True when the logger hierarchy has a visible handler configured."""
+    current: Optional[logging.Logger] = logging.getLogger(
+        ROOT_LOGGER_NAME if name is None else name
+    )
+    while current is not None:
+        if any(
+            not isinstance(handler, logging.NullHandler) for handler in current.handlers
+        ):
+            return True
+        if namespace_only and current.name == ROOT_LOGGER_NAME:
+            return False
+        if not current.propagate:
+            return False
+        parent = current.parent
+        current = parent if isinstance(parent, logging.Logger) else None
+    return False
+
+
+@dataclass
+class LogConfig:
+    """Advanced logging configuration for AKQuant."""
+
+    level: Union[str, int] = "INFO"
+    console: bool = True
+    console_level: Optional[Union[str, int]] = None
+    console_format: Optional[str] = None
+    console_show_context: Optional[bool] = None
+    console_json: Optional[bool] = None
+    filename: Optional[str] = None
+    file_level: Optional[Union[str, int]] = None
+    file_format: Optional[str] = None
+    file_show_context: Optional[bool] = None
+    file_json: Optional[bool] = None
+    file_mode: str = "a"
+    file_max_bytes: Optional[int] = None
+    file_backup_count: int = 3
+    profile: Optional[str] = None
+    reset_handlers: bool = True
+    propagate: bool = True
+
+
+class Logger:
+    r"""
+    akquant 日志封装.
+
+    :description: 提供控制台与文件日志的快捷配置
+    """
+
+    _instance = None
+
+    def __init__(self) -> None:
+        """Initialize the Logger."""
+        self._logger = logging.getLogger(ROOT_LOGGER_NAME)
+        self._logger.setLevel(logging.INFO)
+        self._logger.propagate = True
+        self._handlers: dict[str, logging.Handler] = {}  # key -> handler
+
+        self._sync_handlers()
+        if not self._logger.handlers:
+            self._ensure_null_handler()
+
+    @classmethod
+    def get_logger(cls) -> logging.Logger:
+        """Get the singleton logger instance."""
+        if cls._instance is None:
+            cls._instance = Logger()
+        return cls._instance._logger
+
+    def set_level(self, level: Union[str, int]) -> None:
+        r"""
+        设置日志等级.
+
+        :param level: 日志等级字符串或整数 (DEBUG/INFO/WARNING/ERROR/CRITICAL)
+        :type level: str | int
+        """
+        self._logger.setLevel(level)
+
+    def _sync_handlers(self) -> None:
+        """同步内部 handler 索引，移除已脱离 logger 的引用."""
+        active_handlers = set(self._logger.handlers)
+        stale_keys = [
+            key
+            for key, handler in self._handlers.items()
+            if handler not in active_handlers
+        ]
+        for key in stale_keys:
+            del self._handlers[key]
+
+    def _ensure_null_handler(self) -> None:
+        """Attach a NullHandler when no other handler is configured."""
+        self._sync_handlers()
+        if self._logger.handlers:
+            return
+        handler = logging.NullHandler()
+        self._logger.addHandler(handler)
+        self._handlers["null"] = handler
+
+    def _remove_handler(self, key: str) -> None:
+        """Remove a managed handler by key if present."""
+        self._sync_handlers()
+        handler = self._handlers.pop(key, None)
+        if handler is None:
+            return
+        self._logger.removeHandler(handler)
+        handler.close()
+
+    def _remove_null_handler(self) -> None:
+        """Remove the fallback NullHandler before enabling visible handlers."""
+        self._remove_handler("null")
+
+    def reset_managed_handlers(self) -> None:
+        """Remove all AKQuant-managed handlers while preserving external ones."""
+        self._sync_handlers()
+        for key in list(self._handlers):
+            self._remove_handler(key)
+
+    def enable_console(
+        self,
+        format_str: str = DEFAULT_FORMAT,
+        level: Optional[Union[str, int]] = None,
+        show_context: bool = False,
+        json_output: bool = False,
+    ) -> None:
+        r"""
+        启用控制台日志.
+
+        :param format_str: 日志格式字符串
+        :type format_str: str
+        :param level: 控制台日志等级，为 None 时不修改
+        :type level: str | int, optional
+        """
+        self._sync_handlers()
+        self._remove_null_handler()
+        handler = self._handlers.get("console")
+        if handler is None:
+            handler = logging.StreamHandler(sys.stdout)
+            self._logger.addHandler(handler)
+            self._handlers["console"] = handler
+        handler.setFormatter(
+            AKQuantJsonFormatter(datefmt=DATE_FORMAT)
+            if json_output
+            else AKQuantFormatter(
+                format_str,
+                datefmt=DATE_FORMAT,
+                include_context=show_context,
+            )
+        )
+        if level is not None:
+            handler.setLevel(_normalize_level(level))
+
+    def disable_console(self) -> None:
+        r"""禁用控制台日志."""
+        self._remove_handler("console")
+        self._ensure_null_handler()
+
+    def enable_file(
+        self,
+        filename: str,
+        format_str: str = DEFAULT_FORMAT,
+        mode: str = "a",
+        level: Optional[Union[str, int]] = None,
+        show_context: bool = False,
+        max_bytes: Optional[int] = None,
+        backup_count: int = 3,
+        json_output: bool = False,
+    ) -> None:
+        r"""
+        启用文件日志.
+
+        :param filename: 日志文件路径
+        :type filename: str
+        :param format_str: 日志格式字符串
+        :type format_str: str
+        :param mode: 文件打开模式 ('a' 追加 或 'w' 覆写)
+        :type mode: str
+        :param level: 文件日志等级，为 None 时不修改
+        :type level: str | int, optional
+        """
+        self._sync_handlers()
+        self._remove_null_handler()
+        key = f"file_{filename}"
+        handler = self._handlers.get(key)
+        max_bytes_value = int(max_bytes) if max_bytes is not None else 0
+        rotation_enabled = max_bytes_value > 0
+        needs_rotating_handler = rotation_enabled
+        if handler is not None and needs_rotating_handler != isinstance(
+            handler, RotatingFileHandler
+        ):
+            self._remove_handler(key)
+            handler = None
+        if handler is None:
+            if rotation_enabled:
+                handler = RotatingFileHandler(
+                    filename=filename,
+                    mode=mode,
+                    maxBytes=max_bytes_value,
+                    backupCount=max(int(backup_count), 1),
+                    encoding="utf-8",
+                )
+            else:
+                handler = logging.FileHandler(filename, mode=mode, encoding="utf-8")
+            self._logger.addHandler(handler)
+            self._handlers[key] = handler
+        handler.setFormatter(
+            AKQuantJsonFormatter(datefmt=DATE_FORMAT)
+            if json_output
+            else AKQuantFormatter(
+                format_str,
+                datefmt=DATE_FORMAT,
+                include_context=show_context,
+            )
+        )
+        if level is not None:
+            handler.setLevel(_normalize_level(level))
+
+    def disable_file(self, filename: Optional[str] = None) -> None:
+        """禁用一个或全部文件日志."""
+        self._sync_handlers()
+        file_keys = [
+            key
+            for key in self._handlers
+            if key.startswith("file_")
+            and (filename is None or key == f"file_{filename}")
+        ]
+        for key in file_keys:
+            self._remove_handler(key)
+        self._ensure_null_handler()
+
+    def apply_config(self, config: LogConfig) -> logging.Logger:
+        """Apply a structured logging configuration to the root logger."""
+        if config.reset_handlers:
+            self.reset_managed_handlers()
+
+        self._logger.propagate = bool(config.propagate)
+        profile_defaults = PROFILE_DEFAULTS.get(str(config.profile or "").strip())
+        console_format = (
+            config.console_format
+            if config.console_format is not None
+            else profile_defaults.get("console_format", DEFAULT_FORMAT)
+            if profile_defaults
+            else DEFAULT_FORMAT
+        )
+        file_format = (
+            config.file_format
+            if config.file_format is not None
+            else profile_defaults.get("file_format", DEFAULT_FORMAT)
+            if profile_defaults
+            else DEFAULT_FORMAT
+        )
+        console_show_context = (
+            config.console_show_context
+            if config.console_show_context is not None
+            else profile_defaults.get("console_show_context", False)
+            if profile_defaults
+            else False
+        )
+        file_show_context = (
+            config.file_show_context
+            if config.file_show_context is not None
+            else profile_defaults.get("file_show_context", True)
+            if profile_defaults
+            else True
+        )
+        console_json = (
+            bool(config.console_json) if config.console_json is not None else False
+        )
+        file_json = bool(config.file_json) if config.file_json is not None else False
+
+        effective_levels: list[int] = []
+        if config.console:
+            console_level = config.console_level or config.level
+            self.enable_console(
+                format_str=console_format,
+                level=console_level,
+                show_context=console_show_context,
+                json_output=console_json,
+            )
+            effective_levels.append(_normalize_level(console_level))
+        else:
+            self.disable_console()
+
+        if config.filename:
+            file_level = config.file_level or config.level
+            self.disable_file()
+            self.enable_file(
+                filename=config.filename,
+                format_str=file_format,
+                mode=config.file_mode,
+                level=file_level,
+                show_context=file_show_context,
+                max_bytes=config.file_max_bytes,
+                backup_count=config.file_backup_count,
+                json_output=file_json,
+            )
+            effective_levels.append(_normalize_level(file_level))
+        else:
+            self.disable_file()
+
+        if effective_levels:
+            self._logger.setLevel(min(effective_levels))
+            self._remove_null_handler()
+        else:
+            self._logger.setLevel(_normalize_level(config.level))
+            self._ensure_null_handler()
+
+        return self._logger
+
+
+# Global helper functions
+def get_logger(name: Optional[str] = None) -> logging.Logger:
+    r"""
+    获取 AKQuant logger 实例.
+
+    :param name: 子 logger 名称；不传时返回根 logger
+    :type name: str, optional
+    :return: 已初始化的 logger
+    :rtype: logging.Logger
+    """
+    logger = Logger.get_logger()
+    if not name or name == ROOT_LOGGER_NAME:
+        return logger
+    full_name = (
+        name
+        if name.startswith(f"{ROOT_LOGGER_NAME}.")
+        else f"{ROOT_LOGGER_NAME}.{name}"
+    )
+    return logging.getLogger(full_name)
+
+
+def set_log_level(level: Union[str, int]) -> None:
+    r"""
+    设置全局日志等级.
+
+    :param level: 日志等级字符串或整数
+    :type level: str | int
+    """
+    Logger.get_logger().setLevel(level)
+
+
+def configure_logging(config: LogConfig) -> logging.Logger:
+    """Configure the AKQuant root logger via a structured config."""
+    logger_manager = Logger._instance or Logger()
+    Logger._instance = logger_manager
+    return logger_manager.apply_config(config)
+
+
+def register_logger(
+    filename: Optional[str] = None, console: bool = True, level: str = "INFO"
+) -> None:
+    r"""
+    日志一体化配置.
+
+    :param filename: 日志文件路径，提供则写入文件
+    :type filename: str, optional
+    :param console: 是否输出到控制台
+    :type console: bool
+    :param level: 日志等级 ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL")
+    :type level: str
+    """
+    configure_logging(
+        LogConfig(
+            level=level.upper(),
+            console=console,
+            filename=filename,
+            file_max_bytes=None,
+            reset_handlers=True,
+        )
+    )
