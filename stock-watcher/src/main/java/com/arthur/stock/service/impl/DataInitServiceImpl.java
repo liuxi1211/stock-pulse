@@ -8,6 +8,7 @@ import com.arthur.stock.exception.ErrorCode;
 import com.arthur.stock.service.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.CacheManager;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -29,6 +30,9 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class DataInitServiceImpl implements DataInitService {
+
+    @Value("${app.db-type:mysql}")
+    private String dbType;
 
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("yyyyMMdd");
     private static final DateTimeFormatter DATETIME_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
@@ -197,7 +201,36 @@ public class DataInitServiceImpl implements DataInitService {
         return local;
     }
 
-    private static final Map<String, String> CREATE_TABLE_SQL = Map.of(
+    private static final Map<String, String> CREATE_TABLE_SQL_MYSQL = Map.of(
+            "stock_basic", "CREATE TABLE IF NOT EXISTS stock_basic ("
+                    + "id BIGINT AUTO_INCREMENT PRIMARY KEY,"
+                    + "ts_code VARCHAR(16) NOT NULL UNIQUE,"
+                    + "symbol VARCHAR(16),name VARCHAR(64),area VARCHAR(32),industry VARCHAR(64),fullname VARCHAR(128),enname VARCHAR(128),"
+                    + "cnspell VARCHAR(32),market VARCHAR(16),exchange VARCHAR(16),curr_type VARCHAR(8),list_status VARCHAR(4),"
+                    + "list_date VARCHAR(8),delist_date VARCHAR(8),is_hs VARCHAR(4),act_name VARCHAR(128),act_ent_type VARCHAR(32)"
+                    + ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+            "trade_cal", "CREATE TABLE IF NOT EXISTS trade_cal ("
+                    + "id BIGINT AUTO_INCREMENT PRIMARY KEY,"
+                    + "exchange VARCHAR(16),cal_date VARCHAR(8) NOT NULL,is_open VARCHAR(4),pretrade_date VARCHAR(8),"
+                    + "UNIQUE(exchange, cal_date)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+            "daily_quote", "CREATE TABLE IF NOT EXISTS daily_quote ("
+                    + "ts_code VARCHAR(16) NOT NULL,trade_date VARCHAR(8) NOT NULL,"
+                    + "open DECIMAL(20,4),high DECIMAL(20,4),low DECIMAL(20,4),close DECIMAL(20,4),pre_close DECIMAL(20,4),change_amt DECIMAL(20,4),"
+                    + "pct_chg DECIMAL(20,4),vol DECIMAL(20,4),amount DECIMAL(20,4),"
+                    + "PRIMARY KEY (ts_code, trade_date)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+            "adj_factor", "CREATE TABLE IF NOT EXISTS adj_factor ("
+                    + "ts_code VARCHAR(16) NOT NULL,trade_date VARCHAR(8) NOT NULL,adj_factor DECIMAL(20,4),"
+                    + "PRIMARY KEY (ts_code, trade_date)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+            "dividend", "CREATE TABLE IF NOT EXISTS dividend ("
+                    + "id BIGINT AUTO_INCREMENT PRIMARY KEY,"
+                    + "ts_code VARCHAR(16) NOT NULL,end_date VARCHAR(8),ann_date VARCHAR(8),div_proc VARCHAR(16),"
+                    + "stk_div DECIMAL(20,4),stk_bo_rate DECIMAL(20,4),stk_co_rate DECIMAL(20,4),cash_div DECIMAL(20,4),cash_div_tax DECIMAL(20,4),"
+                    + "record_date VARCHAR(8),ex_date VARCHAR(8),pay_date VARCHAR(8),div_listdate VARCHAR(8),imp_ann_date VARCHAR(8),"
+                    + "base_date VARCHAR(8),base_share DECIMAL(20,4),"
+                    + "UNIQUE(ts_code, end_date, ann_date)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
+    );
+
+    private static final Map<String, String> CREATE_TABLE_SQL_SQLITE = Map.of(
             "stock_basic", "CREATE TABLE IF NOT EXISTS stock_basic ("
                     + "id INTEGER PRIMARY KEY AUTOINCREMENT,"
                     + "ts_code TEXT NOT NULL UNIQUE,"
@@ -225,12 +258,17 @@ public class DataInitServiceImpl implements DataInitService {
                     + "UNIQUE(ts_code, end_date, ann_date))"
     );
 
+    private Map<String, String> getCreateTableSql() {
+        return "sqlite".equalsIgnoreCase(dbType) ? CREATE_TABLE_SQL_SQLITE : CREATE_TABLE_SQL_MYSQL;
+    }
+
     private void clearSelectedData(List<InitStep> steps) {
         updateStep("重建数据表");
+        Map<String, String> createTableSql = getCreateTableSql();
         for (InitStep step : steps) {
             String table = step.getTableName();
             jdbcTemplate.execute("DROP TABLE IF EXISTS " + table);
-            jdbcTemplate.execute(CREATE_TABLE_SQL.get(table));
+            jdbcTemplate.execute(createTableSql.get(table));
             log.info("Recreated table: {}", table);
         }
     }

@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>多因子选股中心 · StockPulse</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a href="#main" class="skip-link">跳转到主内容</a>
+
+  <header class="top-bar">
+    <div class="brand">
+      <div class="logo-mark" aria-hidden="true"><i class="bi bi-funnel"></i></div>
+      <div>
+        <h1 class="brand-title">多因子选股中心</h1>
+        <p class="brand-subtitle">Multi-Factor Screener</p>
+      </div>
+    </div>
+
+    <div class="global-controls" role="toolbar" aria-label="全局选股控制">
+      <div class="control-group">
+        <label for="screenDate" class="visually-hidden">选股日期</label>
+        <input type="date" id="screenDate" class="sp-input" value="2026-07-03">
+      </div>
+      <div class="control-group">
+        <label for="universeSelect" class="visually-hidden">候选池</label>
+        <select id="universeSelect" class="sp-select">
+          <option value="all_a_shares">全市场 A 股</option>
+          <option value="csi300">沪深 300</option>
+          <option value="csi500">中证 500</option>
+          <option value="manual">手动导入</option>
+        </select>
+      </div>
+      <button id="runBtn" class="seal-btn" type="button">
+        <span class="seal-icon"><i class="bi bi-stamp-fill"></i></span>
+        <span class="seal-text">运行选股</span>
+      </button>
+    </div>
+  </header>
+
+  <div class="workspace">
+    <aside class="side-rail" aria-label="方案与模式">
+      <section class="rail-section">
+        <h2 class="rail-heading">选股模式</h2>
+        <div class="mode-switch" role="group" aria-label="选股模式切换">
+          <button class="mode-btn active" data-mode="snapshot" type="button">
+            <i class="bi bi-camera-fill"></i>
+            <span>快照选股</span>
+          </button>
+          <button class="mode-btn" data-mode="range" type="button">
+            <i class="bi bi-calendar-range-fill"></i>
+            <span>区间选股</span>
+          </button>
+        </div>
+      </section>
+
+      <section class="rail-section">
+        <div class="rail-section-header">
+          <h2 class="rail-heading">方案库</h2>
+          <button id="newPlanBtn" class="icon-btn" type="button" aria-label="新建方案">
+            <i class="bi bi-plus-lg"></i>
+          </button>
+        </div>
+        <div id="planList" class="plan-list" role="listbox" aria-label="选股方案列表"></div>
+      </section>
+    </aside>
+
+    <main id="main" class="editor-canvas">
+      <div class="editor-header">
+        <div class="plan-meta">
+          <label for="planName" class="visually-hidden">方案名称</label>
+          <input type="text" id="planName" class="plan-name-input" placeholder="未命名方案" autocomplete="off">
+          <label for="planNote" class="visually-hidden">方案备注</label>
+          <input type="text" id="planNote" class="plan-note-input" placeholder="备注：本方案用于…">
+        </div>
+        <div class="editor-actions">
+          <button id="savePlanBtn" class="sp-btn secondary" type="button">
+            <i class="bi bi-save"></i> 保存
+          </button>
+          <button id="runEditorBtn" class="sp-btn primary" type="button">
+            <i class="bi bi-lightning-charge-fill"></i> 运行
+          </button>
+        </div>
+      </div>
+
+      <nav class="editor-tabs" aria-label="编辑器标签">
+        <button class="editor-tab active" data-tab="conditions" type="button">条件规则</button>
+        <button class="editor-tab" data-tab="filters" type="button">静态过滤</button>
+        <button class="editor-tab" data-tab="ranking" type="button">排序打分</button>
+      </nav>
+
+      <div class="editor-body">
+        <section id="tab-conditions" class="tab-panel active" aria-labelledby="条件规则">
+          <div class="tree-toolbar">
+            <span class="tree-hint"><i class="bi bi-info-circle"></i> 截面选股仅支持 >、<、>=、<=、==、!=，禁止 cross_up / cross_down / ref</span>
+            <div class="tree-actions">
+              <button class="sp-btn small" id="addLeafBtn" type="button"><i class="bi bi-plus-lg"></i> 添加条件</button>
+              <button class="sp-btn small" id="addGroupBtn" type="button"><i class="bi bi-diagram-3"></i> 添加分组</button>
+            </div>
+          </div>
+          <div id="conditionTree" class="condition-tree" role="tree" aria-label="选股条件规则树"></div>
+        </section>
+
+        <section id="tab-filters" class="tab-panel" aria-labelledby="静态过滤">
+          <div class="filter-grid">
+            <div class="filter-card">
+              <h3 class="filter-title">风险与状态</h3>
+              <label class="switch-row"><input type="checkbox" id="excludeSt" checked><span>排除 ST 股票</span></label>
+              <label class="switch-row"><input type="checkbox" id="excludeSuspended" checked><span>排除停牌</span></label>
+              <label class="switch-row"><input type="checkbox" id="excludeLimitUp" checked><span>排除涨停</span></label>
+              <label class="switch-row"><input type="checkbox" id="excludeLimitDown"><span>排除跌停</span></label>
+            </div>
+            <div class="filter-card">
+              <h3 class="filter-title">行业范围</h3>
+              <label class="field-label" for="industryAllow">行业白名单（逗号分隔）</label>
+              <input type="text" id="industryAllow" class="sp-input" placeholder="例如：银行,白酒,新能源">
+              <label class="field-label" for="industryBlock">行业黑名单</label>
+              <input type="text" id="industryBlock" class="sp-input" placeholder="例如：房地产,钢铁">
+            </div>
+            <div class="filter-card">
+              <h3 class="filter-title">上市时间</h3>
+              <label class="field-label" for="minListDays">最低上市天数</label>
+              <div class="input-with-unit">
+                <input type="number" id="minListDays" class="sp-input" value="180" min="0">
+                <span>天</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="tab-ranking" class="tab-panel" aria-labelledby="排序打分">
+          <div class="ranking-layout">
+            <div class="ranking-main">
+              <div class="ranking-method">
+                <label class="field-label">排序方式</label>
+                <div class="radio-row">
+                  <label><input type="radio" name="rankMethod" value="single" checked><span>单因子排序</span></label>
+                  <label><input type="radio" name="rankMethod" value="composite"><span>多因子综合打分</span></label>
+                </div>
+              </div>
+
+              <div id="singleRanking" class="ranking-config">
+                <label class="field-label" for="singleFactor">排序因子</label>
+                <select id="singleFactor" class="sp-select"></select>
+                <label class="field-label" for="singleOrder">方向</label>
+                <select id="singleOrder" class="sp-select">
+                  <option value="asc">升序（越小越靠前）</option>
+                  <option value="desc">降序（越大越靠前）</option>
+                </select>
+              </div>
+
+              <div id="compositeRanking" class="ranking-config hidden">
+                <div class="weight-list" id="weightList"></div>
+                <button class="sp-btn small" id="addWeightBtn" type="button"><i class="bi bi-plus-lg"></i> 添加权重</button>
+              </div>
+            </div>
+
+            <div class="ranking-side">
+              <label class="field-label" for="topN">取前 N</label>
+              <input type="number" id="topN" class="sp-input" value="30" min="1">
+              <p class="field-hint">最终返回排名 1~N 的股票，total_count 保留满足条件的总数。</p>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <aside class="result-panel" aria-label="选股结果与追踪">
+      <div class="result-empty" id="resultEmpty">
+        <div class="empty-illustration" aria-hidden="true"><i class="bi bi-binoculars"></i></div>
+        <p class="empty-title">暂无结果</p>
+        <p class="empty-desc">配置条件后点击「运行选股」查看命中股票</p>
+      </div>
+
+      <div id="resultContent" class="result-content hidden">
+        <div class="result-summary" id="resultSummary"></div>
+
+        <div class="result-tabs" role="group" aria-label="结果视图">
+          <button class="result-tab active" data-result-tab="stocks" type="button">命中名单</button>
+          <button class="result-tab" data-result-tab="excluded" type="button">过滤明细</button>
+          <button class="result-tab" data-result-tab="tracking" type="button">追踪</button>
+        </div>
+
+        <div class="result-views">
+          <div id="result-stocks" class="result-view active"></div>
+          <div id="result-excluded" class="result-view"></div>
+          <div id="result-tracking" class="result-view"></div>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <footer class="prototype-footer">
+    <p>原型 · 多因子选股中心 · 交互稿供评审</p>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

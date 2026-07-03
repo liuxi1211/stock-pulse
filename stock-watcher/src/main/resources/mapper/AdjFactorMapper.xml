@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.arthur.stock.mapper.AdjFactorMapper">
+
+    <insert id="insertBatch">
+        INSERT INTO adj_factor (ts_code, trade_date, adj_factor) VALUES
+        <foreach collection="list" item="item" separator=",">
+            (#{item.tsCode}, #{item.tradeDate}, #{item.adjFactor})
+        </foreach>
+    </insert>
+
+    <delete id="deleteBatchByKeys">
+        DELETE FROM adj_factor WHERE (ts_code, trade_date) IN
+        <foreach collection="list" item="item" open="(" separator="," close=")">
+            (#{item.tsCode}, #{item.tradeDate})
+        </foreach>
+    </delete>
+
+</mapper>

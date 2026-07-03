@@ -129,9 +129,12 @@ public class DividendServiceImpl implements DividendService {
     }
 
     /**
-     * 批量保存分红数据，使用 INSERT OR IGNORE 语句，已存在的记录（相同ts_code+end_date+ann_date）不重复插入
+     * 批量保存分红数据。先删除同唯一键（ts_code+end_date+ann_date）已存在记录，再插入；跨方言通用。
      */
     private void saveDividends(List<DividendDO> dividends) {
-        Lists.partition(dividends, BATCH_SIZE).forEach(dividendMapper::insertOrIgnoreBatch);
+        Lists.partition(dividends, BATCH_SIZE).forEach(batch -> {
+            dividendMapper.deleteBatchByKeys(batch);
+            dividendMapper.insertBatch(batch);
+        });
     }
 }

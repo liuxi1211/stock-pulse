@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.arthur.stock.mapper.TradeCalMapper">
+
+    <insert id="insertBatch">
+        INSERT INTO trade_cal (exchange, cal_date, is_open, pretrade_date) VALUES
+        <foreach collection="list" item="item" separator=",">
+            (#{item.exchange}, #{item.calDate}, #{item.isOpen}, #{item.pretradeDate})
+        </foreach>
+    </insert>
+
+    <delete id="deleteBatchByKeys">
+        DELETE FROM trade_cal WHERE (exchange, cal_date) IN
+        <foreach collection="list" item="item" open="(" separator="," close=")">
+            (#{item.exchange}, #{item.calDate})
+        </foreach>
+    </delete>
+
+</mapper>

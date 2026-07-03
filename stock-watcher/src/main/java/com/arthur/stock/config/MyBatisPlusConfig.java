@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.extension.plugins.MybatisPlusInterceptor;
 import com.baomidou.mybatisplus.extension.plugins.inner.PaginationInnerInterceptor;
 import org.apache.ibatis.reflection.MetaObject;
 import org.mybatis.spring.annotation.MapperScan;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -18,13 +19,17 @@ import java.time.LocalDateTime;
 @MapperScan("com.arthur.stock.mapper")
 public class MyBatisPlusConfig {
 
+    @Value("${app.db-type:mysql}")
+    private String dbType;
+
     /**
-     * 配置MyBatis-Plus分页拦截器，适配SQLite数据库
+     * 配置MyBatis-Plus分页拦截器，根据 app.db-type 动态选择数据库方言
      */
     @Bean
     public MybatisPlusInterceptor mybatisPlusInterceptor() {
         MybatisPlusInterceptor interceptor = new MybatisPlusInterceptor();
-        interceptor.addInnerInterceptor(new PaginationInnerInterceptor(DbType.SQLITE));
+        DbType type = "sqlite".equalsIgnoreCase(dbType) ? DbType.SQLITE : DbType.MYSQL;
+        interceptor.addInnerInterceptor(new PaginationInnerInterceptor(type));
         return interceptor;
     }
 

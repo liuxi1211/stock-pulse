@@ -7,10 +7,18 @@ spring:
   application:
     name: stock-watcher
   profiles:
-    active: dev
+    active: ${SPRING_PROFILES_ACTIVE:mysql}
+  config:
+    import: classpath:application-secret.properties
   datasource:
-    url: jdbc:sqlite:./data/stock_watcher.db
-    driver-class-name: org.sqlite.JDBC
+    url: ${db.url}
+    username: ${db.username}
+    password: ${db.password}
+    driver-class-name: ${DB_DRIVER:com.mysql.cj.jdbc.Driver}
+  sql:
+    init:
+      mode: always
+      schema-locations: ${SCHEMA_LOCATION:classpath:schema-mysql.sql}
   thymeleaf:
     prefix: classpath:/templates/
     suffix: .html
@@ -31,20 +39,31 @@ python:
   compute:
     url: http://127.0.0.1:8085
 
-# ========== Stock API Configuration (fill in your own) ==========
-stock:
-  api:
-    key: your_api_key_here
-    base-url: https://api.example.com
-    timeout: 5000
-  refresh:
-    cron: "0 */5 9-15 * * MON-FRI"
-  sync:
-    cron: "0 0 18 * * MON-FRI"
+# ========== Tushare API Configuration ==========
+# 真实 token 请填写在 application-secret.properties 中，避免提交到版本控制
+tushare:
+  token: ${tushare.token}
+  base-url: http://api.tushare.pro
+  timeout: 30000
+  rate-limit:
+    daily:
+      permits-per-minute: 500
+    stock_basic:
+      permits-per-minute: 500
+    trade_cal:
+      permits-per-minute: 500
+    adj_factor:
+      permits-per-minute: 500
+    dividend:
+      permits-per-minute: 500
 
 # ========== Auth Configuration ==========
 auth:
   admin-skip-totp: true
+
+# ========== App Database Type (mysql / sqlite) ==========
+app:
+  db-type: ${DB_TYPE:mysql}
 
 management:
   endpoints:

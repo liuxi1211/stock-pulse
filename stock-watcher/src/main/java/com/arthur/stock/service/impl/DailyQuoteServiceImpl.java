@@ -215,9 +215,12 @@ public class DailyQuoteServiceImpl implements DailyQuoteService {
     }
 
     /**
-     * 批量保存日线数据，使用 INSERT OR IGNORE 语句，已存在的记录（相同ts_code+trade_date）不重复插入
+     * 批量保存日线数据。先删除同主键（ts_code+trade_date）已存在记录，再插入；跨方言通用。
      */
     private void saveQuotes(List<DailyQuoteDO> quotes) {
-        Lists.partition(quotes, BATCH_SIZE).forEach(dailyQuoteMapper::insertOrIgnoreBatch);
+        Lists.partition(quotes, BATCH_SIZE).forEach(batch -> {
+            dailyQuoteMapper.deleteBatchByKeys(batch);
+            dailyQuoteMapper.insertBatch(batch);
+        });
     }
 }

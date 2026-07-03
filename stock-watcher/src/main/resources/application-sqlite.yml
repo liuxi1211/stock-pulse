@@ -1,0 +1,11 @@
+spring:
+  datasource:
+    url: jdbc:sqlite:./data/stock_watcher.db
+    driver-class-name: org.sqlite.JDBC
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:schema-sqlite.sql
+
+app:
+  db-type: sqlite

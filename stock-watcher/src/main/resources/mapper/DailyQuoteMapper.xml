@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.arthur.stock.mapper.DailyQuoteMapper">
+
+    <resultMap id="dailyQuoteMap" type="com.arthur.stock.model.DailyQuoteDO">
+        <result column="ts_code" property="tsCode"/>
+        <result column="trade_date" property="tradeDate"/>
+        <result column="open" property="open"/>
+        <result column="high" property="high"/>
+        <result column="low" property="low"/>
+        <result column="close" property="close"/>
+        <result column="pre_close" property="preClose"/>
+        <result column="change_amt" property="changeAmt"/>
+        <result column="pct_chg" property="pctChg"/>
+        <result column="vol" property="vol"/>
+        <result column="amount" property="amount"/>
+    </resultMap>
+
+    <insert id="insertBatch">
+        INSERT INTO daily_quote (ts_code, trade_date, open, high, low, close, pre_close,
+                                 change_amt, pct_chg, vol, amount) VALUES
+        <foreach collection="list" item="item" separator=",">
+            (#{item.tsCode}, #{item.tradeDate}, #{item.open}, #{item.high}, #{item.low}, #{item.close},
+             #{item.preClose}, #{item.changeAmt}, #{item.pctChg}, #{item.vol}, #{item.amount})
+        </foreach>
+    </insert>
+
+    <delete id="deleteBatchByKeys">
+        DELETE FROM daily_quote WHERE (ts_code, trade_date) IN
+        <foreach collection="list" item="item" open="(" separator="," close=")">
+            (#{item.tsCode}, #{item.tradeDate})
+        </foreach>
+    </delete>
+
+    <select id="selectTradeDateStockCount" resultType="map">
+        SELECT trade_date, COUNT(DISTINCT ts_code) AS cnt
+        FROM daily_quote
+        WHERE trade_date &gt;= #{startDate} AND trade_date &lt;= #{endDate}
+        GROUP BY trade_date
+    </select>
+
+    <select id="selectLatestTradeDate" resultType="string">
+        SELECT MAX(trade_date) FROM daily_quote
+    </select>
+
+    <select id="selectTopGainers" resultMap="dailyQuoteMap">
+        SELECT * FROM daily_quote WHERE trade_date = #{tradeDate}
+        AND ts_code IN (SELECT ts_code FROM stock_basic WHERE list_status = 'L')
+        ORDER BY pct_chg DESC LIMIT #{limit}
+    </select>
+
+    <select id="selectTopLosers" resultMap="dailyQuoteMap">
+        SELECT * FROM daily_quote WHERE trade_date = #{tradeDate}
+        AND ts_code IN (SELECT ts_code FROM stock_basic WHERE list_status = 'L')
+        ORDER BY pct_chg ASC LIMIT #{limit}
+    </select>
+
+    <select id="selectTopAmount" resultMap="dailyQuoteMap">
+        SELECT * FROM daily_quote WHERE trade_date = #{tradeDate}
+        AND ts_code IN (SELECT ts_code FROM stock_basic WHERE list_status = 'L')
+        ORDER BY amount DESC LIMIT #{limit}
+    </select>
+
+</mapper>

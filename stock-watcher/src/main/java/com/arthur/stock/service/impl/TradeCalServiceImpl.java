@@ -107,9 +107,12 @@ public class TradeCalServiceImpl implements TradeCalService {
     }
 
     /**
-     * 批量保存交易日历数据，使用 INSERT OR REPLACE 语句，已存在的记录（相同exchange+cal_date）会被替换
+     * 批量保存交易日历数据。先删除同唯一键（exchange+cal_date）已存在记录，再插入；跨方言通用。
      */
     private void saveCalendars(List<TradeCalDO> calendars) {
-        Lists.partition(calendars, BATCH_SIZE).forEach(tradeCalMapper::insertOrReplaceBatch);
+        Lists.partition(calendars, BATCH_SIZE).forEach(batch -> {
+            tradeCalMapper.deleteBatchByKeys(batch);
+            tradeCalMapper.insertBatch(batch);
+        });
     }
 }

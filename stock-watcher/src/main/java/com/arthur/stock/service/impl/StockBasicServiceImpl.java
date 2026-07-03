@@ -130,9 +130,12 @@ public class StockBasicServiceImpl implements StockBasicService {
     }
 
     /**
-     * 批量保存股票基础信息，使用 INSERT OR REPLACE 语句，已存在的记录（相同ts_code）会被替换
+     * 批量保存股票基础信息。先删除同 ts_code 已存在记录，再插入；跨方言通用。
      */
     private void saveStocks(List<StockBasicDO> stocks) {
-        Lists.partition(stocks, BATCH_SIZE).forEach(stockBasicMapper::insertOrReplaceBatch);
+        Lists.partition(stocks, BATCH_SIZE).forEach(batch -> {
+            stockBasicMapper.deleteBatchByKeys(batch);
+            stockBasicMapper.insertBatch(batch);
+        });
     }
 }

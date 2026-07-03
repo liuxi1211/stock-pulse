@@ -146,9 +146,12 @@ public class AdjFactorServiceImpl implements AdjFactorService {
     }
 
     /**
-     * 批量保存复权因子数据，使用 INSERT OR IGNORE 语句，已存在的记录（相同ts_code+trade_date）不重复插入
+     * 批量保存复权因子数据。先删除同主键（ts_code+trade_date）已存在记录，再插入；跨方言通用。
      */
     private void saveAdjFactors(List<AdjFactorDO> factors) {
-        Lists.partition(factors, BATCH_SIZE).forEach(adjFactorMapper::insertOrIgnoreBatch);
+        Lists.partition(factors, BATCH_SIZE).forEach(batch -> {
+            adjFactorMapper.deleteBatchByKeys(batch);
+            adjFactorMapper.insertBatch(batch);
+        });
     }
 }

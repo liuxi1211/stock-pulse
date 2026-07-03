@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.arthur.stock.mapper.StockBasicMapper">
+
+    <insert id="insertBatch">
+        INSERT INTO stock_basic (ts_code, symbol, name, area, industry, fullname, enname, cnspell,
+                                 market, exchange, curr_type, list_status, list_date, delist_date,
+                                 is_hs, act_name, act_ent_type) VALUES
+        <foreach collection="list" item="item" separator=",">
+            (#{item.tsCode}, #{item.symbol}, #{item.name}, #{item.area}, #{item.industry}, #{item.fullname},
+             #{item.enname}, #{item.cnspell}, #{item.market}, #{item.exchange}, #{item.currType},
+             #{item.listStatus}, #{item.listDate}, #{item.delistDate}, #{item.isHs}, #{item.actName},
+             #{item.actEntType})
+        </foreach>
+    </insert>
+
+    <delete id="deleteBatchByKeys">
+        DELETE FROM stock_basic WHERE ts_code IN
+        <foreach collection="list" item="item" open="(" separator="," close=")">
+            #{item.tsCode}
+        </foreach>
+    </delete>
+
+</mapper>
