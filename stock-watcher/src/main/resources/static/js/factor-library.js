@@ -30,6 +30,7 @@ const FactorLib = (function () {
     let CATEGORIES = [];
     const state = { cat: 'ALL', src: 'ALL', q: '', onlyCompute: false, sort: 'cat', selected: null, pgParams: {}, pgOutputIdx: null };
     const PG = { ohlcv: null, code: '600519', synthetic: false, _loadedCode: null };
+    let detailKey = null; // 当前已渲染的因子 key，用于避免切换输出时误重置参数/输出索引
 
     const e = StockApp.escapeHtml;
 
@@ -175,9 +176,13 @@ const FactorLib = (function () {
         if (!f) { panel.innerHTML = '<div class="empty-row">未选中因子</div>'; return; }
         const sm = SOURCES[f.source] || { name: f.source, color: 'var(--text-muted)', computable: false };
         panel.style.setProperty('--src-bar', sm.color);
-        state.pgParams = {};
-        (f.params || []).forEach(p => { state.pgParams[p.name] = p.defaultValue; });
-        state.pgOutputIdx = f.defaultOutputIndex || 0;
+        // 仅在切换因子时初始化参数/输出索引；否则切换输出或重算会保留用户已选的状态
+        if (detailKey !== f.factorKey) {
+            detailKey = f.factorKey;
+            state.pgParams = {};
+            (f.params || []).forEach(p => { state.pgParams[p.name] = p.defaultValue; });
+            state.pgOutputIdx = f.defaultOutputIndex || 0;
+        }
 
         const metaItems = [
             ['factorKey', e(f.factorKey), true],
@@ -197,9 +202,9 @@ const FactorLib = (function () {
                     <div class="param-row" data-pname="${e(p.name)}">
                         <div class="param-head">
                             <div class="param-name"><span class="pn">${e(p.name)}</span><span style="color:var(--text-muted);"> · ${e(p.displayName || '')}</span><span class="ptype">${e(p.type)}</span></div>
-                            <div class="param-val" id="pv_${e(p.name)}">${p.defaultValue}</div>
+                            <div class="param-val" id="pv_${e(p.name)}">${state.pgParams[p.name] ?? p.defaultValue}</div>
                         </div>
-                        <input type="range" class="slider" min="${p.min}" max="${p.max}" step="${p.step}" value="${p.defaultValue}" data-pname="${e(p.name)}">
+                        <input type="range" class="slider" min="${p.min}" max="${p.max}" step="${p.step}" value="${state.pgParams[p.name] ?? p.defaultValue}" data-pname="${e(p.name)}">
                         <div class="param-range"><span>min ${p.min}</span><span>max ${p.max} · step ${p.step}</span></div>
                     </div>`).join('')}</div>`
             : `<div class="dp-section"><div class="dp-section-title"><i class="bi bi-sliders"></i>参数</div>
@@ -260,10 +265,11 @@ const FactorLib = (function () {
                 if (pv) pv.textContent = Number.isInteger(v) ? v : v.toFixed(2);
             };
         });
-        // 输出切换
+        // 输出切换：只切换高亮 + 立即按新输出重算，不整体重渲染（避免 innerHTML 重建导致滚动位置跳顶）
         panel.querySelectorAll('.out-tag[data-out]').forEach(t => t.onclick = () => {
             state.pgOutputIdx = parseInt(t.dataset.out, 10);
-            renderDetail();
+            panel.querySelectorAll('.out-tag[data-out]').forEach(x => x.classList.toggle('default', parseInt(x.dataset.out, 10) === state.pgOutputIdx));
+            renderPlayground();
         });
         const stockSel = document.getElementById('pgStock');
         if (stockSel) stockSel.onchange = () => { PG.code = stockSel.value; PG.ohlcv = null; };
@@ -449,7 +455,7 @@ const FactorLib = (function () {
             });
             const j = await r.json();
 
-            if (!j.success) throw new Error(j.message + (j.errorCode ? ' (' + j.errorCode + ')' : ''));
+            if (j.code !== 200) throw new Error(j.message || '计算失败');
 
             // 构建展示用的完整对象
             const result = {
