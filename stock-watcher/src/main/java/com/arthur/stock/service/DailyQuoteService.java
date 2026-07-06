@@ -57,4 +57,16 @@ public interface DailyQuoteService {
      * @param tsCode 股票代码，如 000001.SZ
      */
     List<DailyQuoteDO> queryLocalByTsCode(String tsCode);
+
+    /**
+     * 批量取多只股票末 N 个交易日的 OHLCV（按 ts_code 升序分组，每组取末 recentBars 根，已裁剪）。
+     * <p>
+     * 替代选股中心旧逻辑里逐股 {@link #queryLocalByTsCode} 全量查询再截断的 N+1 写法：
+     * 内部一次性 {@code IN} 查询 + 内存分组裁剪，显著降低 DB 往返与传输量。
+     *
+     * @param codes      股票代码列表
+     * @param recentBars 末尾交易日数（如 60）
+     * @return ts_code -&gt; 该股末 recentBars 根 OHLCV（升序）
+     */
+    Map<String, List<DailyQuoteDO>> queryRecentOhlcvByCodes(List<String> codes, int recentBars);
 }

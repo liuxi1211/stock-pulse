@@ -62,4 +62,30 @@
         ORDER BY amount DESC LIMIT #{limit}
     </select>
 
+    <!-- 批量取多只股票在 [startDate, endDate] 的 OHLCV（按 ts_code、trade_date 升序） -->
+    <select id="selectOhlcvByCodesAndDateRange" resultMap="dailyQuoteMap">
+        SELECT * FROM daily_quote
+        WHERE trade_date &gt;= #{startDate} AND trade_date &lt;= #{endDate}
+        AND ts_code IN
+        <foreach collection="codes" item="c" open="(" separator="," close=")">
+            #{c}
+        </foreach>
+        ORDER BY ts_code ASC, trade_date ASC
+    </select>
+
+    <!-- 一次性取多只股票在某交易日的行情 -->
+    <select id="selectByCodesAndTradeDate" resultMap="dailyQuoteMap">
+        SELECT * FROM daily_quote
+        WHERE trade_date = #{tradeDate}
+        AND ts_code IN
+        <foreach collection="codes" item="c" open="(" separator="," close=")">
+            #{c}
+        </foreach>
+    </select>
+
+    <!-- 全市场 distinct trade_date 升序（替换旧 selectList(null) 全表加载） -->
+    <select id="selectDistinctTradeDatesAsc" resultType="string">
+        SELECT DISTINCT trade_date FROM daily_quote ORDER BY trade_date ASC
+    </select>
+
 </mapper>

@@ -6,6 +6,7 @@ import com.arthur.stock.model.DailyQuoteDO;
 import com.arthur.stock.dto.tushare.DailyQueryDTO;
 import com.arthur.stock.dto.tushare.DailyQuoteDTO;
 import com.arthur.stock.service.DailyQuoteService;
+import com.arthur.stock.service.TradeCalendarService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -32,6 +33,7 @@ public class DailyQuoteServiceImpl implements DailyQuoteService {
 
     private final TushareClient tushareClient;
     private final DailyQuoteMapper dailyQuoteMapper;
+    private final TradeCalendarService tradeCalendarService;
 
     /**
      * 查询指定股票在日期范围内的日线行情（仅从Tushare获取，不保存）
@@ -153,6 +155,46 @@ public class DailyQuoteServiceImpl implements DailyQuoteService {
                 new LambdaQueryWrapper<DailyQuoteDO>()
                         .eq(DailyQuoteDO::getTsCode, tsCode)
                         .orderByAsc(DailyQuoteDO::getTradeDate));
+    }
+
+    /**
+     * 批量取多只股票末 N 个交易日的 OHLCV。
+     * <p>
+     * 策略：以最新交易日为锚，向前回溯 {@code recentBars * 2} 个自然日（保守覆盖停牌/节假日），
+     * 一次性 {@code IN} 查询 + 内存按 ts_code 分组 + 末 recentBars 根裁剪。
+     * 依赖 daily_quote 主键索引 (ts_code, trade_date)。
+     */
+    @Override
+    public Map<String, List<DailyQuoteDO>> queryRecentOhlcvByCodes(List<String> codes, int recentBars) {
+        if (codes == null || codes.isEmpty() || recentBars <= 0) {
+            return Collections.emptyMap();
+        }
+        String latest = tradeCalendarService.getLatestTradeDate();
+        if (latest == null || latest.length() != 8) {
+            log.warn("queryRecentOhlcvByCodes: 最新交易日缺失，返回空");
+            return Collections.emptyMap();
+        }
+        LocalDate latestDate = LocalDate.parse(latest, DATE_FMT);
+        // recentBars * 2 个自然日回溯（约覆盖 1.4 倍交易日，含节假日冗余）
+        String startDate = latestDate.minusDays((long) recentBars * 2).format(DATE_FMT);
+
+        List<DailyQuoteDO> rows = dailyQuoteMapper.selectOhlcvByCodesAndDateRange(codes, startDate, latest);
+        if (rows == null || rows.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        // 按 ts_code 分组（保留升序），每组取末 recentBars 根
+        Map<String, List<DailyQuoteDO>> grouped = rows.stream()
+                .collect(Collectors.groupingBy(DailyQuoteDO::getTsCode, LinkedHashMap::new, Collectors.toList()));
+        Map<String, List<DailyQuoteDO>> result = new LinkedHashMap<>(grouped.size());
+        for (Map.Entry<String, List<DailyQuoteDO>> e : grouped.entrySet()) {
+            List<DailyQuoteDO> list = e.getValue();
+            if (list.size() > recentBars) {
+                list = list.subList(list.size() - recentBars, list.size());
+            }
+            result.put(e.getKey(), list);
+        }
+        return result;
     }
 
     /**

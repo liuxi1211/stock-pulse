@@ -33,6 +33,10 @@ public class CacheConfig {
         manager.registerCustomCache("factorList", factorSpec.build());
         manager.registerCustomCache("factorDetail", factorSpec.build());
         manager.registerCustomCache("factorCategories", factorSpec.build());
+        // 选股中心交易日历缓存：1 天写入后过期（交易日历日内稳定，每日 DailyUpdateTask 拉数后自然演进）
+        Caffeine<Object, Object> calendarSpec = Caffeine.newBuilder().expireAfterWrite(1, TimeUnit.DAYS);
+        manager.registerCustomCache("tradeCalendar", calendarSpec.build());
+        manager.registerCustomCache("latestTradeDate", calendarSpec.build());
         return manager;
     }
 }

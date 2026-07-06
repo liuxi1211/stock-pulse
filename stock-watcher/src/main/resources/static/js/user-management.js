@@ -1,4 +1,4 @@
-﻿let currentPage = 1;
+let currentPage = 1;
 
 function loadUsers(page) {
     currentPage = page;
@@ -158,7 +158,7 @@ async function confirmDeleteUser(id, username) {
         icon: 'bi-trash'
     })) return;
 
-    StockApp.delete('/users/' + id, function (resp) {
+    StockApp.post('/users/' + id + '/delete', null, function (resp) {
         if (resp.code !== 200) {
             StockApp.toast(resp.message || '删除失败', 'danger');
             return;

@@ -28,4 +28,25 @@ public interface DailyQuoteMapper extends BaseMapper<DailyQuoteDO> {
     List<DailyQuoteDO> selectTopLosers(@Param("tradeDate") String tradeDate, @Param("limit") int limit);
 
     List<DailyQuoteDO> selectTopAmount(@Param("tradeDate") String tradeDate, @Param("limit") int limit);
+
+    /**
+     * 批量取多只股票在 [startDate, endDate] 的 OHLCV（按 ts_code、trade_date 升序）。
+     * <p>
+     * 替代旧逻辑里逐股 {@code queryLocalByTsCode} 全量查询再截断的 N+1 写法。
+     * 依赖 daily_quote 主键索引 (ts_code, trade_date)。
+     */
+    List<DailyQuoteDO> selectOhlcvByCodesAndDateRange(@Param("codes") List<String> codes,
+                                                     @Param("startDate") String startDate,
+                                                     @Param("endDate") String endDate);
+
+    /**
+     * 一次性取多只股票在某交易日的行情（主要用于批量取收盘价）。
+     */
+    List<DailyQuoteDO> selectByCodesAndTradeDate(@Param("codes") List<String> codes,
+                                                 @Param("tradeDate") String tradeDate);
+
+    /**
+     * 全市场 distinct trade_date 升序，作为简化交易日历。替换旧 {@code selectList(null)} 全表加载。
+     */
+    List<String> selectDistinctTradeDatesAsc();
 }

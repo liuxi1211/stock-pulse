@@ -20,4 +20,12 @@ public interface SearchService {
      * 搜索建议，返回匹配关键字的前10条股票代码和名称
      */
     List<SuggestItemVO> suggestStocks(String keyword);
+
+    /**
+     * 批量按 tsCode 查询股票详情（用于已保存方案的 stocks 回填名称）。
+     *
+     * @param tsCodes tsCode 列表（如 000001.SZ、600000.SH）
+     * @return 匹配到的 SuggestItemVO 列表（含 tsCode + code + name）
+     */
+    List<SuggestItemVO> batchByTsCodes(List<String> tsCodes);
 }

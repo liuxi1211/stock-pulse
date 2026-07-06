@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org" lang="zh-CN">
 
 <!-- ============================================================
@@ -66,7 +66,7 @@
                 <i class="bi bi-calculator"></i>
                 <span>因子库</span>
             </a>
-            <a href="#" class="nav-item">
+            <a th:href="@{/page/screener}" class="nav-item" th:classappend="${activeMenu == 'screener'} ? 'active'">
                 <i class="bi bi-funnel"></i>
                 <span>选股中心</span>
             </a>

@@ -67,6 +67,16 @@ public class PageController {
     }
 
     /**
+     * 选股中心页面（多因子选股：方案管理 + 规则树编辑 + 运行选股 + 结果追踪）
+     */
+    @GetMapping("/page/screener")
+    public String screener(Model model) {
+        model.addAttribute("pageTitle", "选股中心");
+        model.addAttribute("activeMenu", "screener");
+        return "pages/screener";
+    }
+
+    /**
      * 用户管理页面（仅管理员可访问）
      */
     @GetMapping("/page/user-management")

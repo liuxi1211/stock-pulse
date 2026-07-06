@@ -1,4 +1,4 @@
-﻿/**
+/**
  * StockPulse - Common utilities
  * Provides: AJAX helpers, toast notifications, sidebar toggle, global search
  */
@@ -31,17 +31,6 @@ const StockApp = {
             method: 'POST',
             headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
             body: typeof body === 'string' ? body : JSON.stringify(body)
-        })
-            .then(r => r.json())
-            .then(data => callback(data))
-            .catch(err => this.toast('请求失败: ' + err.message, 'danger'));
-    },
-
-    // ========== AJAX DELETE ==========
-    delete(url, callback) {
-        fetch(this.contextPath + url, {
-            method: 'DELETE',
-            headers: {'Accept': 'application/json'}
         })
             .then(r => r.json())
             .then(data => callback(data))
@@ -113,6 +102,7 @@ const StockApp = {
                 if (overlay) overlay.classList.toggle('active');
             } else {
                 sidebar.classList.toggle('collapsed');
+                document.body.classList.toggle('sidebar-collapsed');
             }
         }
     },
@@ -282,6 +272,146 @@ const StockApp = {
             modalEl.addEventListener('hidden.bs.modal', () => resolve(), {once: true});
             bsModal.show();
         });
+    },
+
+    // ========== Prompt Dialog (输入弹窗，Promise<string|null>) ==========
+    prompt({
+        title = '输入',
+        message = '',
+        placeholder = '',
+        defaultValue = '',
+        confirmText = '确定',
+        cancelText = '取消',
+        confirmClass = 'btn-primary',
+        required = false,
+        validate = null,
+        icon = 'bi-pencil-square',
+        backdrop = true
+    } = {}) {
+        return new Promise(resolve => {
+            let modalEl = document.getElementById('stockAppPromptModal');
+            if (!modalEl) {
+                modalEl = document.createElement('div');
+                modalEl.id = 'stockAppPromptModal';
+                modalEl.className = 'modal fade';
+                modalEl.tabIndex = -1;
+                modalEl.setAttribute('aria-hidden', 'true');
+                modalEl.innerHTML = `
+                    <div class="modal-dialog modal-dialog-centered modal-sm">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h6 class="modal-title">
+                                    <i class="bi sa-prompt-icon me-2"></i>
+                                    <span class="sa-prompt-title"></span>
+                                </h6>
+                                <button type="button" class="btn-close"
+                                        data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body">
+                                <div class="sa-prompt-message" style="font-size:13px;color:var(--text-muted);margin-bottom:8px;"></div>
+                                <input type="text" class="form-control sa-prompt-input" autocomplete="off">
+                                <div class="sa-prompt-error invalid-feedback" style="display:none;font-size:12px;"></div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary btn-sm"
+                                        data-bs-dismiss="modal" id="saPromptCancel"></button>
+                                <button type="button" class="btn btn-sm" id="saPromptOk"></button>
+                            </div>
+                        </div>
+                    </div>`;
+                document.body.appendChild(modalEl);
+            }
+
+            const titleEl = modalEl.querySelector('.sa-prompt-title');
+            const iconEl = modalEl.querySelector('.sa-prompt-icon');
+            const msgEl = modalEl.querySelector('.sa-prompt-message');
+            const inputEl = modalEl.querySelector('.sa-prompt-input');
+            const errEl = modalEl.querySelector('.sa-prompt-error');
+            const cancelBtn = document.getElementById('saPromptCancel');
+            const okBtn = document.getElementById('saPromptOk');
+
+            titleEl.textContent = title;
+            iconEl.className = 'bi sa-prompt-icon ' + icon + ' me-2';
+            msgEl.textContent = message;
+            msgEl.style.display = message ? '' : 'none';
+            inputEl.placeholder = placeholder;
+            inputEl.value = defaultValue;
+            cancelBtn.textContent = cancelText;
+            okBtn.textContent = confirmText;
+            okBtn.className = 'btn btn-sm ' + confirmClass;
+
+            let resolved = false;
+            const bsModal = new bootstrap.Modal(modalEl, {backdrop, keyboard: true});
+
+            const showErr = (msg) => {
+                if (msg) {
+                    errEl.textContent = msg;
+                    errEl.style.display = 'block';
+                    inputEl.classList.add('is-invalid');
+                } else {
+                    errEl.style.display = 'none';
+                    inputEl.classList.remove('is-invalid');
+                }
+            };
+
+            const refreshOk = () => {
+                const v = inputEl.value;
+                let disabled = false;
+                if (required && !v.trim()) disabled = true;
+                if (!disabled && validate) {
+                    const r = validate(v);
+                    if (r) disabled = true;
+                }
+                okBtn.disabled = disabled;
+            };
+
+            const onInput = () => {
+                if (validate) showErr(validate(inputEl.value));
+                else showErr('');
+                refreshOk();
+            };
+
+            const submit = () => {
+                if (okBtn.disabled) return;
+                const v = inputEl.value;
+                if (validate) {
+                    const r = validate(v);
+                    if (r) { showErr(r); return; }
+                }
+                resolved = true;
+                bsModal.hide();
+            };
+
+            const onKeydown = (e) => {
+                if (e.key === 'Enter') { e.preventDefault(); submit(); }
+            };
+
+            const cleanup = () => {
+                okBtn.removeEventListener('click', submit);
+                inputEl.removeEventListener('input', onInput);
+                inputEl.removeEventListener('keydown', onKeydown);
+                inputEl.classList.remove('is-invalid');
+                errEl.style.display = 'none';
+            };
+
+            okBtn.addEventListener('click', submit);
+            inputEl.addEventListener('input', onInput);
+            inputEl.addEventListener('keydown', onKeydown);
+
+            modalEl.addEventListener('hidden.bs.modal', () => {
+                resolve(resolved ? inputEl.value : null);
+                cleanup();
+            }, {once: true});
+
+            // 重置初始态后显示并聚焦
+            showErr('');
+            refreshOk();
+            bsModal.show();
+            setTimeout(() => {
+                inputEl.focus();
+                inputEl.select();
+            }, 200);
+        });
     }
 };
 
@@ -299,6 +429,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (overlay) overlay.classList.toggle('active');
             } else {
                 sidebar.classList.toggle('collapsed');
+                document.body.classList.toggle('sidebar-collapsed');
             }
         });
     }

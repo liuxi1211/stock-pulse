@@ -55,7 +55,7 @@ tushare:
     adj_factor:
       permits-per-minute: 500
     dividend:
-      permits-per-minute: 500
+      permits-per-minute: 180
 
 # ========== Auth Configuration ==========
 auth:

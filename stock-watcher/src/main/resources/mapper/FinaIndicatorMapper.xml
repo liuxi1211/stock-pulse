@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.arthur.stock.mapper.FinaIndicatorMapper">
+
+    <resultMap id="finaIndicatorMap" type="com.arthur.stock.model.FinaIndicatorDO">
+        <id column="id" property="id"/>
+        <result column="ts_code" property="tsCode"/>
+        <result column="end_date" property="endDate"/>
+        <result column="ann_date" property="annDate"/>
+        <result column="roe" property="roe"/>
+        <result column="roa" property="roa"/>
+        <result column="grossprofit_margin" property="grossprofitMargin"/>
+        <result column="netprofit_margin" property="netprofitMargin"/>
+        <result column="dt_netprofit_yoy" property="dtNetprofitYoy"/>
+        <result column="revenue_yoy" property="revenueYoy"/>
+        <result column="debt_to_assets" property="debtToAssets"/>
+        <result column="eps_yoy" property="epsYoy"/>
+    </resultMap>
+
+    <insert id="insertBatch">
+        INSERT INTO fina_indicator (ts_code, end_date, ann_date, roe, roa, grossprofit_margin,
+                                    netprofit_margin, dt_netprofit_yoy, revenue_yoy, debt_to_assets, eps_yoy) VALUES
+        <foreach collection="list" item="i" separator=",">
+            (#{i.tsCode}, #{i.endDate}, #{i.annDate}, #{i.roe}, #{i.roa}, #{i.grossprofitMargin},
+             #{i.netprofitMargin}, #{i.dtNetprofitYoy}, #{i.revenueYoy}, #{i.debtToAssets}, #{i.epsYoy})
+        </foreach>
+    </insert>
+
+    <delete id="deleteBatchByKeys">
+        DELETE FROM fina_indicator WHERE (ts_code, end_date) IN
+        <foreach collection="list" item="i" open="(" separator="," close=")">
+            (#{i.tsCode}, #{i.endDate})
+        </foreach>
+    </delete>
+
+    <!-- 取某股票「在 tradeDate 当日已公告」的最近一期（ann_date 非空且 <= tradeDate，按 end_date 降序取首条） -->
+    <select id="selectLatestAnnouncedBefore" resultMap="finaIndicatorMap">
+        SELECT * FROM fina_indicator
+        WHERE ts_code = #{tsCode}
+          AND ann_date IS NOT NULL
+          AND ann_date &lt;= #{tradeDate}
+        ORDER BY end_date DESC
+        LIMIT 1
+    </select>
+
+</mapper>

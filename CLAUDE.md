@@ -58,6 +58,7 @@
 | 场景 | 文档 | 内容要点 |
 |-----|------|---------|
 | 写 Java 代码、代码风格、命名规范 | `01-java-coding-style.md` | 包命名；类/接口命名（*DO/*DTO/*VO/*Service/*Controller/*Mapper/*Config/*Exception/*Util/枚举）；方法命名；变量命名；常量命名；代码格式；导入规范；注释规范；异常处理规范；日志规范；Lombok 使用；构造器注入；避免魔法值；空值处理 |
+| **常量与常量组使用（避免魔法值）** | `08-constants-usage.md` | ⭐ 常量 vs 常量组；常量类全大写定义；常量组必须定义成 DisplayableEnum 枚举；`GET /constants` + `StockApp.loadConstants` 用法；engine Schema 字面量前端集中维护；禁止事项与自查清单 |
 | Spring Boot 开发、分层架构、依赖注入 | `02-spring-boot-best-practices.md` | 分层架构（Controller→Service→Mapper）；依赖注入（构造器注入+Lombok）；配置管理；Controller 规范（统一返回 ApiResponse）；Service 规范（接口+impl/事务管理）；AOP 使用；缓存规范；定时任务规范；全局异常处理；Maven 依赖管理（starter优先/版本统一/范围管理/排除冲突/不重复造轮子） |
 | 数据库设计、SQL、MyBatis-Plus | `03-database-design.md` | 表设计（命名/字段/类型/主键）；索引设计（原则/类型/命名/常用示例）；SQL 编写（查询/插入/避免N+1）；MyBatis-Plus 使用（实体类/Mapper/Service/QueryWrapper/批量操作）；事务规范；数据迁移；SQLite 特定注意事项（WAL模式/分页/UPSERT） |
 | API 设计、RESTful、接口规范 | `04-api-design.md` | RESTful 设计原则（资源导向/HTTP方法语义/URL层级）；URL 命名规范（kebab-case/无/api前缀）；统一返回格式（ApiResponse）；错误码设计；分页规范；参数校验；Controller 规范；跨系统接口规范（watcher↔engine）；参数对象化与类型规范（>5个参数必须封装/禁止Map用DTO/命名规范） |
@@ -142,7 +143,8 @@
 │   │   ├── 04-api-design.md
 │   │   ├── 05-java-performance.md
 │   │   ├── 06-java-security.md
-│   │   └── 07-java-code-quality.md
+│   │   ├── 07-java-code-quality.md
+│   │   └── 08-constants-usage.md
 │   ├── frontend/                     # 前端规范
 │   │   ├── 01-html-css-style.md
 │   │   ├── 02-javascript-style.md

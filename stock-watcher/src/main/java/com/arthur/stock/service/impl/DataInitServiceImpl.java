@@ -201,61 +201,89 @@ public class DataInitServiceImpl implements DataInitService {
         return local;
     }
 
-    private static final Map<String, String> CREATE_TABLE_SQL_MYSQL = Map.of(
-            "stock_basic", "CREATE TABLE IF NOT EXISTS stock_basic ("
+    private static final Map<String, String> CREATE_TABLE_SQL_MYSQL = Map.ofEntries(
+            Map.entry("stock_basic", "CREATE TABLE IF NOT EXISTS stock_basic ("
                     + "id BIGINT AUTO_INCREMENT PRIMARY KEY,"
                     + "ts_code VARCHAR(16) NOT NULL UNIQUE,"
                     + "symbol VARCHAR(16),name VARCHAR(64),area VARCHAR(32),industry VARCHAR(64),fullname VARCHAR(128),enname VARCHAR(128),"
                     + "cnspell VARCHAR(32),market VARCHAR(16),exchange VARCHAR(16),curr_type VARCHAR(8),list_status VARCHAR(4),"
                     + "list_date VARCHAR(8),delist_date VARCHAR(8),is_hs VARCHAR(4),act_name VARCHAR(128),act_ent_type VARCHAR(32)"
-                    + ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
-            "trade_cal", "CREATE TABLE IF NOT EXISTS trade_cal ("
+                    + ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"),
+            Map.entry("trade_cal", "CREATE TABLE IF NOT EXISTS trade_cal ("
                     + "id BIGINT AUTO_INCREMENT PRIMARY KEY,"
                     + "exchange VARCHAR(16),cal_date VARCHAR(8) NOT NULL,is_open VARCHAR(4),pretrade_date VARCHAR(8),"
-                    + "UNIQUE(exchange, cal_date)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
-            "daily_quote", "CREATE TABLE IF NOT EXISTS daily_quote ("
+                    + "UNIQUE(exchange, cal_date)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"),
+            Map.entry("daily_quote", "CREATE TABLE IF NOT EXISTS daily_quote ("
                     + "ts_code VARCHAR(16) NOT NULL,trade_date VARCHAR(8) NOT NULL,"
                     + "open DECIMAL(20,4),high DECIMAL(20,4),low DECIMAL(20,4),close DECIMAL(20,4),pre_close DECIMAL(20,4),change_amt DECIMAL(20,4),"
                     + "pct_chg DECIMAL(20,4),vol DECIMAL(20,4),amount DECIMAL(20,4),"
-                    + "PRIMARY KEY (ts_code, trade_date)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
-            "adj_factor", "CREATE TABLE IF NOT EXISTS adj_factor ("
+                    + "PRIMARY KEY (ts_code, trade_date)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"),
+            Map.entry("adj_factor", "CREATE TABLE IF NOT EXISTS adj_factor ("
                     + "ts_code VARCHAR(16) NOT NULL,trade_date VARCHAR(8) NOT NULL,adj_factor DECIMAL(20,4),"
-                    + "PRIMARY KEY (ts_code, trade_date)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
-            "dividend", "CREATE TABLE IF NOT EXISTS dividend ("
+                    + "PRIMARY KEY (ts_code, trade_date)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"),
+            Map.entry("dividend", "CREATE TABLE IF NOT EXISTS dividend ("
                     + "id BIGINT AUTO_INCREMENT PRIMARY KEY,"
                     + "ts_code VARCHAR(16) NOT NULL,end_date VARCHAR(8),ann_date VARCHAR(8),div_proc VARCHAR(16),"
                     + "stk_div DECIMAL(20,4),stk_bo_rate DECIMAL(20,4),stk_co_rate DECIMAL(20,4),cash_div DECIMAL(20,4),cash_div_tax DECIMAL(20,4),"
                     + "record_date VARCHAR(8),ex_date VARCHAR(8),pay_date VARCHAR(8),div_listdate VARCHAR(8),imp_ann_date VARCHAR(8),"
                     + "base_date VARCHAR(8),base_share DECIMAL(20,4),"
-                    + "UNIQUE(ts_code, end_date, ann_date)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
+                    + "UNIQUE(ts_code, end_date, ann_date)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"),
+            Map.entry("screen_plan", "CREATE TABLE IF NOT EXISTS screen_plan ("
+                    + "id BIGINT AUTO_INCREMENT PRIMARY KEY,"
+                    + "name VARCHAR(128) NOT NULL,description VARCHAR(512),screen_config TEXT NOT NULL,"
+                    + "created_at VARCHAR(32),updated_at VARCHAR(32)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"),
+            Map.entry("screen_result", "CREATE TABLE IF NOT EXISTS screen_result ("
+                    + "id BIGINT AUTO_INCREMENT PRIMARY KEY,"
+                    + "plan_id BIGINT NOT NULL,screen_date VARCHAR(8) NOT NULL,total_count INT,"
+                    + "stocks_json TEXT,params_json TEXT,created_at VARCHAR(32)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"),
+            Map.entry("screen_lock", "CREATE TABLE IF NOT EXISTS screen_lock ("
+                    + "id BIGINT AUTO_INCREMENT PRIMARY KEY,"
+                    + "result_id BIGINT,plan_id BIGINT,lock_date VARCHAR(8),stocks_json TEXT,"
+                    + "ret_5d DECIMAL(20,4),ret_10d DECIMAL(20,4),ret_20d DECIMAL(20,4),"
+                    + "benchmark_ret_5d DECIMAL(20,4),benchmark_ret_10d DECIMAL(20,4),benchmark_ret_20d DECIMAL(20,4),"
+                    + "status VARCHAR(16),created_at VARCHAR(32),updated_at VARCHAR(32)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4")
     );
 
-    private static final Map<String, String> CREATE_TABLE_SQL_SQLITE = Map.of(
-            "stock_basic", "CREATE TABLE IF NOT EXISTS stock_basic ("
+    private static final Map<String, String> CREATE_TABLE_SQL_SQLITE = Map.ofEntries(
+            Map.entry("stock_basic", "CREATE TABLE IF NOT EXISTS stock_basic ("
                     + "id INTEGER PRIMARY KEY AUTOINCREMENT,"
                     + "ts_code TEXT NOT NULL UNIQUE,"
                     + "symbol TEXT,name TEXT,area TEXT,industry TEXT,fullname TEXT,enname TEXT,"
                     + "cnspell TEXT,market TEXT,exchange TEXT,curr_type TEXT,list_status TEXT,"
-                    + "list_date TEXT,delist_date TEXT,is_hs TEXT,act_name TEXT,act_ent_type TEXT)",
-            "trade_cal", "CREATE TABLE IF NOT EXISTS trade_cal ("
+                    + "list_date TEXT,delist_date TEXT,is_hs TEXT,act_name TEXT,act_ent_type TEXT)"),
+            Map.entry("trade_cal", "CREATE TABLE IF NOT EXISTS trade_cal ("
                     + "id INTEGER PRIMARY KEY AUTOINCREMENT,"
                     + "exchange TEXT,cal_date TEXT NOT NULL,is_open TEXT,pretrade_date TEXT,"
-                    + "UNIQUE(exchange, cal_date))",
-            "daily_quote", "CREATE TABLE IF NOT EXISTS daily_quote ("
+                    + "UNIQUE(exchange, cal_date))"),
+            Map.entry("daily_quote", "CREATE TABLE IF NOT EXISTS daily_quote ("
                     + "ts_code TEXT NOT NULL,trade_date TEXT NOT NULL,"
                     + "open REAL,high REAL,low REAL,close REAL,pre_close REAL,change_amt REAL,"
                     + "pct_chg REAL,vol REAL,amount REAL,"
-                    + "PRIMARY KEY (ts_code, trade_date))",
-            "adj_factor", "CREATE TABLE IF NOT EXISTS adj_factor ("
+                    + "PRIMARY KEY (ts_code, trade_date))"),
+            Map.entry("adj_factor", "CREATE TABLE IF NOT EXISTS adj_factor ("
                     + "ts_code TEXT NOT NULL,trade_date TEXT NOT NULL,adj_factor REAL,"
-                    + "PRIMARY KEY (ts_code, trade_date))",
-            "dividend", "CREATE TABLE IF NOT EXISTS dividend ("
+                    + "PRIMARY KEY (ts_code, trade_date))"),
+            Map.entry("dividend", "CREATE TABLE IF NOT EXISTS dividend ("
                     + "id INTEGER PRIMARY KEY AUTOINCREMENT,"
                     + "ts_code TEXT NOT NULL,end_date TEXT,ann_date TEXT,div_proc TEXT,"
                     + "stk_div REAL,stk_bo_rate REAL,stk_co_rate REAL,cash_div REAL,cash_div_tax REAL,"
                     + "record_date TEXT,ex_date TEXT,pay_date TEXT,div_listdate TEXT,imp_ann_date TEXT,"
                     + "base_date TEXT,base_share REAL,"
-                    + "UNIQUE(ts_code, end_date, ann_date))"
+                    + "UNIQUE(ts_code, end_date, ann_date))"),
+            Map.entry("screen_plan", "CREATE TABLE IF NOT EXISTS screen_plan ("
+                    + "id INTEGER PRIMARY KEY AUTOINCREMENT,"
+                    + "name VARCHAR(128) NOT NULL,description VARCHAR(512),screen_config TEXT NOT NULL,"
+                    + "created_at VARCHAR(32),updated_at VARCHAR(32))"),
+            Map.entry("screen_result", "CREATE TABLE IF NOT EXISTS screen_result ("
+                    + "id INTEGER PRIMARY KEY AUTOINCREMENT,"
+                    + "plan_id INTEGER NOT NULL,screen_date VARCHAR(8) NOT NULL,total_count INTEGER,"
+                    + "stocks_json TEXT,params_json TEXT,created_at VARCHAR(32))"),
+            Map.entry("screen_lock", "CREATE TABLE IF NOT EXISTS screen_lock ("
+                    + "id INTEGER PRIMARY KEY AUTOINCREMENT,"
+                    + "result_id INTEGER,plan_id INTEGER,lock_date VARCHAR(8),stocks_json TEXT,"
+                    + "ret_5d REAL,ret_10d REAL,ret_20d REAL,"
+                    + "benchmark_ret_5d REAL,benchmark_ret_10d REAL,benchmark_ret_20d REAL,"
+                    + "status VARCHAR(16),created_at VARCHAR(32),updated_at VARCHAR(32))")
     );
 
     private Map<String, String> getCreateTableSql() {

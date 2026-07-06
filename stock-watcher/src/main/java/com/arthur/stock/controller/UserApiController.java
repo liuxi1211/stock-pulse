@@ -61,7 +61,7 @@ public class UserApiController {
     }
 
     @Operation(summary = "删除用户", description = "删除指定用户，不允许删除自己")
-    @DeleteMapping("/{id}")
+    @PostMapping("/{id}/delete")
     public ApiResponse<Void> delete(
             @Parameter(description = "用户ID", required = true) @PathVariable Long id) {
         UserDO currentUser = UserContext.get();

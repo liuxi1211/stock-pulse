@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Dashboard page JavaScript
  * K-line + Watchlist linkage, Market Rankings, Dynamic Charts
  */
@@ -296,7 +296,7 @@ async function removeFromWatchlist(stockCode, btn) {
         confirmClass: 'btn-danger',
         icon: 'bi-trash'
     })) return;
-    StockApp.delete('/watchlist/' + stockCode, function(resp) {
+    StockApp.post('/watchlist/' + stockCode + '/delete', null, function(resp) {
         StockApp.toast(resp.message, resp.code === 200 ? 'success' : 'warning');
         if (resp.code === 200) refreshWatchlist();
     });

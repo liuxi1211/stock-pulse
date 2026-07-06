@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 因子库页面逻辑（API 驱动）。
  * - 元数据 / CRUD：GET/POST/PUT/DELETE /factors（watcher Caffeine 缓存）
  * - 试算台：GET /kline/{code}?startDate=...&endDate=... 取最近 1 年 OHLCV →
@@ -8,17 +8,43 @@
 const FactorLib = (function () {
     'use strict';
 
-    const SOURCES = {
-        AKQUANT: { name: 'AKQUANT', color: 'var(--src-akquant)', computable: true },
-        TUSHARE: { name: 'TUSHARE', color: 'var(--src-tushare)', computable: false },
-        RAW:     { name: 'RAW',     color: 'var(--src-raw)',     computable: true },
-        DERIVED: { name: 'DERIVED', color: 'var(--src-derived)', computable: true },
+    // ===================== 常量（与后端 Schema 对齐，详见 rules/frontend/07-constants-usage.md）=====================
+    // B 类：因子来源 source —— 权威来源 engine models/schemas/factor.py FactorDef.source: Literal["AKQUANT","TUSHARE","RAW","DERIVED"]
+    // computable 与 engine services/screener/factor_precompute.py 的 _TECH_SOURCES={"AKQUANT","RAW","DERIVED"} 对齐（TUSHARE 不可计算）
+    const FACTOR_SOURCES = {
+        AKQUANT: { label: 'AKQUANT', color: 'var(--src-akquant)', computable: true },
+        TUSHARE: { label: 'TUSHARE', color: 'var(--src-tushare)', computable: false },
+        RAW:     { label: 'RAW',     color: 'var(--src-raw)',     computable: true },
+        DERIVED: { label: 'DERIVED', color: 'var(--src-derived)', computable: true },
     };
+    // 单点比较用 sentinel（避免 'TUSHARE' 字面量散落多处）
+    const SOURCE_TUSHARE = 'TUSHARE';
+    const SOURCE_DEFAULT_NEW = 'AKQUANT';
+    // B 类：因子输入列 —— 权威来源 engine models/schemas/factor.py FactorDef.inputs（OHLCV 五列）
+    const OHLCV_COLUMNS = ['open', 'high', 'low', 'close', 'volume'];
+    // C 类：分类图标（前端私有展示，无后端对应）
     const CAT_ICONS = {
         OVERLAP: 'bi-activity', MOMENTUM: 'bi-speedometer', VOLATILITY: 'bi-wave',
         VOLUME: 'bi-bar-chart-fill', STATISTIC: 'bi-calculator', PRICE: 'bi-cash-coin',
         VALUATION: 'bi-piggy-bank', QUALITY: 'bi-award', GROWTH: 'bi-graph-up-arrow', FINANCE: 'bi-bank',
     };
+    // B 类：因子数据源 dataSource —— 权威来源 engine models/schemas/factor.py FactorDef.dataSource
+    // 展示 label 为前端私有文案（"OHLCV K 线"等不属后端 Schema）
+    const FACTOR_DATA_SOURCES = [
+        { code: 'ohlcv',         label: 'ohlcv — OHLCV K 线' },
+        { code: 'daily_basic',   label: 'daily_basic — 每日基本面' },
+        { code: 'fina_indicator', label: 'fina_indicator — 财务指标' },
+    ];
+    // B 类：因子来源 source 的展示用列表（label 含说明文案，前端私有）—— code 与 FACTOR_SOURCES 同源
+    const FACTOR_SOURCE_OPTIONS = [
+        { code: 'AKQUANT', label: 'AKQUANT — 走 akquant.talib' },
+        { code: 'DERIVED', label: 'DERIVED — 复用基础函数衍生' },
+        { code: 'RAW',     label: 'RAW — 价格/量直通' },
+        { code: 'TUSHARE', label: 'TUSHARE — 仅元数据' },
+    ];
+    // C 类：分类/来源过滤的"全部"哨位（前端状态机私有，无后端对应）
+    const ALL_SENTINEL = 'ALL';
+    // C 类：试算台内置股票（前端演示样本）
     const STOCKS = [
         { code: '600519', name: '贵州茅台' },
         { code: '300750', name: '宁德时代' },
@@ -28,7 +54,7 @@ const FactorLib = (function () {
     let FACTORS = [];
     let FACTOR_MAP = {};
     let CATEGORIES = [];
-    const state = { cat: 'ALL', src: 'ALL', q: '', onlyCompute: false, sort: 'cat', selected: null, pgParams: {}, pgOutputIdx: null };
+    const state = { cat: ALL_SENTINEL, src: ALL_SENTINEL, q: '', onlyCompute: false, sort: 'cat', selected: null, pgParams: {}, pgOutputIdx: null };
     const PG = { ohlcv: null, code: '600519', synthetic: false, _loadedCode: null };
     let detailKey = null; // 当前已渲染的因子 key，用于避免切换输出时误重置参数/输出索引
 
@@ -50,7 +76,7 @@ const FactorLib = (function () {
         FACTOR_MAP = Object.fromEntries(FACTORS.map(f => [f.factorKey, f]));
         if (!state.selected) {
             const first = FACTOR_MAP['MACD'] ? 'MACD'
-                : (FACTORS.find(f => SOURCES[f.source] && SOURCES[f.source].computable) || FACTORS[0] || {}).factorKey;
+                : (FACTORS.find(f => FACTOR_SOURCES[f.source] && FACTOR_SOURCES[f.source].computable) || FACTORS[0] || {}).factorKey;
             state.selected = first || null;
         }
     }
@@ -67,8 +93,8 @@ const FactorLib = (function () {
 
     function renderStats() {
         const total = FACTORS.length;
-        const compute = FACTORS.filter(f => SOURCES[f.source] && SOURCES[f.source].computable).length;
-        const fund = FACTORS.filter(f => f.source === 'TUSHARE').length;
+        const compute = FACTORS.filter(f => FACTOR_SOURCES[f.source] && FACTOR_SOURCES[f.source].computable).length;
+        const fund = FACTORS.filter(f => f.source === SOURCE_TUSHARE).length;
         const multi = FACTORS.filter(f => f.multiOutput).length;
         document.getElementById('topCount').textContent = total + ' factors';
         document.getElementById('statTotal').innerHTML = total + '<span class="unit">个</span>';
@@ -82,12 +108,12 @@ const FactorLib = (function () {
         const wrap = document.getElementById('legendChips');
         const counts = {};
         FACTORS.forEach(f => { counts[f.source] = (counts[f.source] || 0) + 1; });
-        let html = `<div class="src-chip ${state.src === 'ALL' ? 'active' : ''}" style="--cc: var(--text-muted);" data-src="ALL">
+        let html = `<div class="src-chip ${state.src === ALL_SENTINEL ? 'active' : ''}" style="--cc: var(--text-muted);" data-src="${ALL_SENTINEL}">
             <span class="swatch" style="background: var(--text-muted); box-shadow:none;"></span>全部<span class="num">${FACTORS.length}</span></div>`;
-        ['AKQUANT', 'TUSHARE', 'RAW', 'DERIVED'].forEach(s => {
-            const m = SOURCES[s];
+        Object.keys(FACTOR_SOURCES).forEach(s => {
+            const m = FACTOR_SOURCES[s];
             html += `<div class="src-chip ${state.src === s ? 'active' : ''}" style="--cc: ${m.color};" data-src="${s}">
-                <span class="swatch"></span>${m.name}<span class="num">${counts[s] || 0}</span></div>`;
+                <span class="swatch"></span>${m.label}<span class="num">${counts[s] || 0}</span></div>`;
         });
         wrap.innerHTML = html;
         wrap.querySelectorAll('.src-chip').forEach(el => el.onclick = () => { state.src = el.dataset.src; renderLegend(); renderTable(); });
@@ -97,21 +123,21 @@ const FactorLib = (function () {
         const list = document.getElementById('catList');
         const counts = {};
         FACTORS.forEach(f => { counts[f.category] = (counts[f.category] || 0) + 1; });
-        const cats = [{ key: 'ALL', name: '全部因子', icon: 'bi-grid-3x3-gap-fill' }]
+        const cats = [{ key: ALL_SENTINEL, name: '全部因子', icon: 'bi-grid-3x3-gap-fill' }]
             .concat(CATEGORIES.map(c => ({ key: c.key, name: c.name, icon: CAT_ICONS[c.key] || 'bi-tag' })));
         list.innerHTML = cats.map(c => `
             <div class="cat-item ${state.cat === c.key ? 'active' : ''}" data-cat="${c.key}">
                 <span class="cat-name"><i class="bi ${c.icon} ico"></i>${e(c.name)}</span>
-                <span class="cat-count">${c.key === 'ALL' ? FACTORS.length : (counts[c.key] || 0)}</span>
+                <span class="cat-count">${c.key === ALL_SENTINEL ? FACTORS.length : (counts[c.key] || 0)}</span>
             </div>`).join('');
         list.querySelectorAll('.cat-item').forEach(el => el.onclick = () => { state.cat = el.dataset.cat; renderRail(); renderTable(); });
     }
 
     function getFiltered() {
         let arr = FACTORS.slice();
-        if (state.cat !== 'ALL') arr = arr.filter(f => f.category === state.cat);
-        if (state.src !== 'ALL') arr = arr.filter(f => f.source === state.src);
-        if (state.onlyCompute) arr = arr.filter(f => SOURCES[f.source] && SOURCES[f.source].computable);
+        if (state.cat !== ALL_SENTINEL) arr = arr.filter(f => f.category === state.cat);
+        if (state.src !== ALL_SENTINEL) arr = arr.filter(f => f.source === state.src);
+        if (state.onlyCompute) arr = arr.filter(f => FACTOR_SOURCES[f.source] && FACTOR_SOURCES[f.source].computable);
         if (state.q) {
             const q = state.q.toLowerCase();
             arr = arr.filter(f => f.factorKey.toLowerCase().includes(q)
@@ -135,11 +161,11 @@ const FactorLib = (function () {
             return;
         }
         body.innerHTML = arr.map(f => {
-            const sm = SOURCES[f.source] || { name: f.source, color: 'var(--text-muted)', computable: false };
+            const sm = FACTOR_SOURCES[f.source] || { label: f.source, color: 'var(--text-muted)', computable: false };
             const paramStr = (f.params && f.params.length)
                 ? f.params.map(p => `<span class="pk">${e(p.name)}</span>=<span class="pv">${p.defaultValue}</span>`).join(' · ')
                 : '<span style="color:var(--text-muted);">无参数</span>';
-            const allInputs = ['open', 'high', 'low', 'close', 'volume'];
+            const allInputs = OHLCV_COLUMNS;
             const inDots = (f.inputs && f.inputs.length)
                 ? allInputs.map(i => `<span class="id ${f.inputs.includes(i) ? 'on' : ''}">${i[0].toUpperCase()}</span>`).join('')
                 : '<span style="font-size:10px;color:var(--text-muted);">基本面</span>';
@@ -148,7 +174,7 @@ const FactorLib = (function () {
             return `<tr class="${state.selected === f.factorKey ? 'selected' : ''}" data-key="${e(f.factorKey)}" style="--src-bar: ${sm.color};">
                 <td><span class="src-rail"></span><span class="fkey">${e(f.factorKey)}</span>${multiBadge}
                     <div class="fname">${e(f.displayName || '')}</div></td>
-                <td><span class="src-tag">${sm.name}</span></td>
+                <td><span class="src-tag">${sm.label}</span></td>
                 <td><div class="params-mini">${paramStr}</div></td>
                 <td><div class="input-dots">${inDots}</div></td>
                 <td><div class="lookback-cell">${f.lookbackDefault || 0}<div class="warm">bars 预热</div></div></td>
@@ -174,7 +200,7 @@ const FactorLib = (function () {
         const f = FACTOR_MAP[state.selected];
         const panel = document.getElementById('detailPanel');
         if (!f) { panel.innerHTML = '<div class="empty-row">未选中因子</div>'; return; }
-        const sm = SOURCES[f.source] || { name: f.source, color: 'var(--text-muted)', computable: false };
+        const sm = FACTOR_SOURCES[f.source] || { label: f.source, color: 'var(--text-muted)', computable: false };
         panel.style.setProperty('--src-bar', sm.color);
         // 仅在切换因子时初始化参数/输出索引；否则切换输出或重算会保留用户已选的状态
         if (detailKey !== f.factorKey) {
@@ -186,8 +212,8 @@ const FactorLib = (function () {
 
         const metaItems = [
             ['factorKey', e(f.factorKey), true],
-            ['来源', sm.name, false],
-            [f.source === 'TUSHARE' ? 'tushareField' : 'akquantFunc', e(f.source === 'TUSHARE' ? (f.tushareField || '—') : (f.akquantFunc || '—')), true],
+            ['来源', sm.label, false],
+            [f.source === SOURCE_TUSHARE ? 'tushareField' : 'akquantFunc', e(f.source === SOURCE_TUSHARE ? (f.tushareField || '—') : (f.akquantFunc || '—')), true],
             ['dataSource', e(f.dataSource || 'ohlcv'), false],
             ['multiOutput', f.multiOutput ? '是' : '否', false],
             ['defaultOutputIndex', f.defaultOutputIndex || 0, true],
@@ -237,7 +263,7 @@ const FactorLib = (function () {
 
         panel.innerHTML = `
             <div class="dp-head">
-                <div class="dp-keyrow"><span class="dp-key">${e(f.factorKey)}</span><span class="src-tag">${sm.name}</span></div>
+                <div class="dp-keyrow"><span class="dp-key">${e(f.factorKey)}</span><span class="src-tag">${sm.label}</span></div>
                 <div class="dp-name">${e(f.displayName || '')}</div>
                 <div class="dp-desc">${e(f.description || '')}</div>
             </div>
@@ -426,7 +452,7 @@ const FactorLib = (function () {
     async function renderPlayground() {
         const f = FACTOR_MAP[state.selected];
         if (!f) return;
-        const sm = SOURCES[f.source];
+        const sm = FACTOR_SOURCES[f.source];
         if (!sm || !sm.computable) return;
         const jsonEl = document.getElementById('pgJson');
         const statusEl = document.getElementById('pgStatus');
@@ -493,6 +519,15 @@ const FactorLib = (function () {
     function populateCategorySelect() {
         document.getElementById('f_cat').innerHTML = CATEGORIES
             .map(c => `<option value="${c.key}">${c.name} · ${c.key}</option>`).join('');
+        // source / dataSource 下拉由常量注入，避免 HTML 硬编码 Schema 字面量
+        const src = document.getElementById('f_source');
+        if (src && !src.options.length) {
+            src.innerHTML = FACTOR_SOURCE_OPTIONS.map(o => `<option value="${o.code}">${o.label}</option>`).join('');
+        }
+        const ds = document.getElementById('f_ds');
+        if (ds && !ds.options.length) {
+            ds.innerHTML = FACTOR_DATA_SOURCES.map(o => `<option value="${o.code}">${o.label}</option>`).join('');
+        }
     }
 
     function openCreateModal() {
@@ -503,7 +538,7 @@ const FactorLib = (function () {
         document.getElementById('f_name').value = '';
         document.getElementById('f_func').value = '';
         document.getElementById('f_desc').value = '';
-        document.getElementById('f_source').value = 'AKQUANT';
+        document.getElementById('f_source').value = SOURCE_DEFAULT_NEW;
         document.getElementById('f_ds').value = 'ohlcv';
         document.getElementById('f_params').value = JSON.stringify([{
             "name": "timeperiod",
@@ -527,7 +562,7 @@ const FactorLib = (function () {
         document.getElementById('f_key').value = f.factorKey;
         document.getElementById('f_key').disabled = true;
         document.getElementById('f_name').value = f.displayName || '';
-        document.getElementById('f_func').value = f.source === 'TUSHARE' ? (f.tushareField || '') : (f.akquantFunc || '');
+        document.getElementById('f_func').value = f.source === SOURCE_TUSHARE ? (f.tushareField || '') : (f.akquantFunc || '');
         document.getElementById('f_desc').value = f.description || '';
         document.getElementById('f_source').value = f.source;
         document.getElementById('f_ds').value = f.dataSource || 'ohlcv';
@@ -557,12 +592,12 @@ const FactorLib = (function () {
             lookbackHint: '0', lookbackDefault: 0,
         };
         const func = document.getElementById('f_func').value.trim();
-        if (payload.source === 'TUSHARE') payload.tushareField = func; else payload.akquantFunc = func || null;
+        if (payload.source === SOURCE_TUSHARE) payload.tushareField = func; else payload.akquantFunc = func || null;
 
         const done = async () => { closeModal('createModal'); await loadAll(); renderAll(); };
         if (isEdit) {
             const { factorKey, ...updates } = payload;
-            StockApp.put('/factors/' + encodeURIComponent(key), updates, function (resp) {
+            StockApp.post('/factors/' + encodeURIComponent(key) + '/update', updates, function (resp) {
                 if (resp.code === 200) { StockApp.toast('修改成功', 'success'); done(); }
                 else StockApp.toast(resp.message || '修改失败', 'danger');
             });
@@ -591,7 +626,7 @@ const FactorLib = (function () {
     }
 
     function doDelete(key) {
-        StockApp.delete('/factors/' + encodeURIComponent(key), async function (resp) {
+        StockApp.post('/factors/' + encodeURIComponent(key) + '/delete', null, async function (resp) {
             if (resp.code === 200) {
                 StockApp.toast('已删除 ' + key, 'success');
                 if (state.selected === key) state.selected = null;
@@ -632,19 +667,6 @@ const FactorLib = (function () {
         openJsonViewer, closeJsonViewer, copyViewerJson,
     };
 })();
-
-// StockApp.put 兜底（common.js 未提供 PUT 时的补充）
-if (typeof StockApp.put !== 'function') {
-    StockApp.put = function (url, body, callback) {
-        const base = typeof this.contextPath === 'string' ? this.contextPath : '';
-        fetch(base + url, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-            body: body == null ? null : JSON.stringify(body),
-        }).then(r => r.json()).then(data => callback(data))
-            .catch(err => this.toast('请求失败: ' + err.message, 'danger'));
-    };
-}
 
 // 页面卸载时清理资源
 window.addEventListener('beforeunload', cleanup);

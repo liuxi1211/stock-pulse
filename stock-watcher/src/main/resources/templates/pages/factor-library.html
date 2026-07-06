@@ -151,12 +151,8 @@
                 </div>
                 <div class="field">
                     <label>source 来源</label>
-                    <select id="f_source">
-                        <option value="AKQUANT">AKQUANT — 走 akquant.talib</option>
-                        <option value="DERIVED">DERIVED — 复用基础函数衍生</option>
-                        <option value="RAW">RAW — 价格/量直通</option>
-                        <option value="TUSHARE">TUSHARE — 仅元数据</option>
-                    </select>
+                    <!-- 选项由 factor-library.js 的 FACTOR_SOURCE_OPTIONS 常量动态注入 -->
+                    <select id="f_source"></select>
                 </div>
                 <div class="field">
                     <label>akquantFunc / tushareField 底层映射</label>
@@ -164,11 +160,8 @@
                 </div>
                 <div class="field">
                     <label>dataSource</label>
-                    <select id="f_ds">
-                        <option value="ohlcv">ohlcv</option>
-                        <option value="daily_basic">daily_basic</option>
-                        <option value="fina_indicator">fina_indicator</option>
-                    </select>
+                    <!-- 选项由 factor-library.js 的 FACTOR_DATA_SOURCES 常量动态注入 -->
+                    <select id="f_ds"></select>
                 </div>
                 <div class="field full">
                     <label>description 描述</label>
@@ -176,6 +169,7 @@
                 </div>
                 <div class="field full">
                     <label>inputs 输入列</label>
+                    <!-- checkbox value 与 factor-library.js 的 OHLCV_COLUMNS 对齐（schemas/factor.py FactorDef.inputs），修改时两处同步 -->
                     <div class="inputs-check">
                         <label><input type="checkbox" value="open"><span>OPEN</span></label>
                         <label><input type="checkbox" value="high"><span>HIGH</span></label>

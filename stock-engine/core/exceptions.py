@@ -81,3 +81,36 @@ class InvalidOutputIndexError(StockBaseException):
     code = 400
     message = "output_index 越界"
     error_code = "INVALID_OUTPUT_INDEX"
+
+
+# ============================================================
+# 选股中心异常
+# spec 003 阶段 0 Task 2：截面禁止时序节点（cross_up/cross_down/ref）
+# ============================================================
+
+class ScreenTimeSeriesForbiddenError(StockBaseException):
+    """选股条件树含截面��用的时序节点。
+
+    触发场景：选股路径下出现 ``cross_up`` / ``cross_down`` 比较器或 ``{ref}`` 状态引用节点。
+    选股为无状态截面计算，时序信号（穿越）与状态引用（持仓状态）只能在交易路径使用。
+    """
+
+    code = 422
+    message = "选股条件树含截面禁用时序节点"
+    error_code = "SCREEN_TIME_SERIES_FORBIDDEN"
+
+    def __init__(
+        self,
+        forbidden_paths: list[str] = None,
+        message: str = None,
+        code: int = None,
+        error_code: str = None,
+    ) -> None:
+        self.forbidden_paths: list[str] = list(forbidden_paths or [])
+        # 把违禁路径拼进 message，便于全局异常处理器统一输出（处理器只输出 success/message/code/errorCode）
+        if message is None:
+            if self.forbidden_paths:
+                message = f"{self.message}，违禁路径: {', '.join(self.forbidden_paths)}"
+            else:
+                message = self.message
+        super().__init__(message, code, error_code)

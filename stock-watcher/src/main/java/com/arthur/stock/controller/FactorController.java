@@ -17,11 +17,9 @@ import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
 import org.springframework.validation.annotation.Validated;
-import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -74,7 +72,7 @@ public class FactorController {
     }
 
     @Operation(summary = "更新因子", description = "根据 factorKey 更新因子配置信息")
-    @PutMapping("/{factorKey}")
+    @PostMapping("/{factorKey}/update")
     public ApiResponse<FactorVO> update(
             @Parameter(description = "因子唯一标识", required = true)
             @NotBlank(message = "factorKey 不能为空")
@@ -85,7 +83,7 @@ public class FactorController {
     }
 
     @Operation(summary = "删除因子", description = "根据 factorKey 删除指定因子")
-    @DeleteMapping("/{factorKey}")
+    @PostMapping("/{factorKey}/delete")
     public ApiResponse<Void> delete(
             @Parameter(description = "因子唯一标识", required = true)
             @NotBlank(message = "factorKey 不能为空")

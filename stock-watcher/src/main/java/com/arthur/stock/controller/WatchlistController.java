@@ -35,7 +35,7 @@ public class WatchlistController {
     }
 
     @Operation(summary = "移除自选股", description = "将指定股票从当前用户的自选股列表中移除")
-    @DeleteMapping("/{stockCode}")
+    @PostMapping("/{stockCode}/delete")
     public ApiResponse<Void> removeFromWatchlist(
             @Parameter(description = "股票代码", required = true) @PathVariable String stockCode) {
         watchlistService.removeFromWatchlist(UserContext.getUserId(), stockCode);

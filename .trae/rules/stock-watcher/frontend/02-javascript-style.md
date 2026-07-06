@@ -49,6 +49,8 @@ const COLORS = {
 };
 ```
 
+> ⚠️ 业务常量（因子来源、universe、比较器、排序方向等）禁止硬编码字面量，必须集中定义并标注后端 Schema 来源。详见 [07-constants-usage.md](../java/08-constants-usage.md)。
+
 ### 1.3 类/构造函数 💡 SHOULD
 
 - 大驼峰（PascalCase）

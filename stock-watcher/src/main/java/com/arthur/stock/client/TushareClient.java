@@ -7,10 +7,12 @@ import com.arthur.stock.constant.TushareApiEnum;
 import com.arthur.stock.config.TushareConfig;
 import com.arthur.stock.dto.tushare.AdjFactorDTO;
 import com.arthur.stock.dto.tushare.AdjFactorQueryDTO;
+import com.arthur.stock.dto.tushare.DailyBasicDTO;
 import com.arthur.stock.dto.tushare.DailyQueryDTO;
 import com.arthur.stock.dto.tushare.DailyQuoteDTO;
 import com.arthur.stock.dto.tushare.DividendDTO;
 import com.arthur.stock.dto.tushare.DividendQueryDTO;
+import com.arthur.stock.dto.tushare.FinaIndicatorDTO;
 import com.arthur.stock.dto.tushare.StockBasicQueryDTO;
 import com.arthur.stock.dto.tushare.StockBasicDTO;
 import com.arthur.stock.dto.tushare.TradeCalQueryDTO;
@@ -92,6 +94,46 @@ public class TushareClient {
     public List<DividendDTO> dividend(DividendQueryDTO param) {
         JSONObject params = buildDividendParams(param);
         return query(TushareApiEnum.DIVIDEND, params, DividendDTO.class);
+    }
+
+    /**
+     * 每日基本面接口（估值/换手率/市值）。
+     *
+     * @param tradeDate 交易日期 yyyyMMdd；与 tsCode 至少传一个
+     * @param tsCode    股票代码，可空（按交易日拉全市场时传 tradeDate 即可）
+     * @return 每日基本面列表
+     */
+    public List<DailyBasicDTO> dailyBasic(String tradeDate, String tsCode) {
+        JSONObject params = new JSONObject();
+        if (tradeDate != null) {
+            params.put("trade_date", tradeDate);
+        }
+        if (tsCode != null) {
+            params.put("ts_code", tsCode);
+        }
+        return query(TushareApiEnum.DAILY_BASIC, params, DailyBasicDTO.class);
+    }
+
+    /**
+     * 财务指标接口（ROE/ROA/毛利率/同比/资产负债率等）。
+     *
+     * @param tsCode    股票代码
+     * @param startDate 起始报告期 yyyyMMdd（含）
+     * @param endDate   结束报告期 yyyyMMdd（含）
+     * @return 财务指标列表
+     */
+    public List<FinaIndicatorDTO> finaIndicator(String tsCode, String startDate, String endDate) {
+        JSONObject params = new JSONObject();
+        if (tsCode != null) {
+            params.put("ts_code", tsCode);
+        }
+        if (startDate != null) {
+            params.put("start_date", startDate);
+        }
+        if (endDate != null) {
+            params.put("end_date", endDate);
+        }
+        return query(TushareApiEnum.FINA_INDICATOR, params, FinaIndicatorDTO.class);
     }
 
     // ==================== 通用请求方法 ====================

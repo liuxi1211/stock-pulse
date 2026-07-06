@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/common :: head(${pageTitle})}"></head>
+<body>
+<div class="app-container">
+    <nav th:replace="~{fragments/common :: sidebar}"></nav>
+    <div th:replace="~{fragments/common :: sidebarOverlay}"></div>
+
+    <div class="main-content">
+        <header th:replace="~{fragments/common :: topNavbar}"></header>
+
+        <main class="content-area">
+            <!-- 页头：标题 + 右侧控制条（日期 / 候选池 / 运行） -->
+            <div class="page-header">
+                <div>
+                    <h1 class="page-title">多因子选股中心</h1>
+                    <p class="text-muted mb-0" style="font-size: 13px; margin-top: 4px;">
+                        ConditionTree 条件筛选 + 静态过滤 + 单/复合排序打分 · 取数由 watcher 完成
+                    </p>
+                </div>
+                <div class="page-actions screener-runbar">
+                    <label class="runbar-field">
+                        <span>选股日期</span>
+                        <input type="date" id="screenDate" class="form-control form-control-sm">
+                    </label>
+                    <label class="runbar-field">
+                        <span>候选池</span>
+                        <!-- 选项由 screener.js 的 UNIVERSES 常量动态注入，禁止在此硬编码 universe 值 -->
+                        <select id="universeSel" class="form-select form-select-sm" onchange="Screener.onUniverseChange()"></select>
+                    </label>
+                    <button class="btn btn-outline-primary btn-sm" id="saveBtn"
+                            onclick="Screener.savePlan()" disabled title="保存当前方案">
+                        <i class="bi bi-save"></i> 保存
+                    </button>
+                    <button class="btn btn-primary btn-sm" id="runBtn"
+                            onclick="Screener.runScreen()" title="保存并以当前配置运行选股">
+                        <span class="btn-label"><i class="bi bi-play-fill"></i> 运行选股</span>
+                        <span class="btn-spinner" hidden><i class="bi bi-arrow-repeat"></i> 运行中…</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- manual 候选股编辑区（universe=manual 时显示） -->
+            <div id="manualStocksPanel" class="manual-stocks-panel" style="display:none;">
+                <div class="manual-stocks-head">
+                    <span class="manual-stocks-title"><i class="bi bi-tags"></i> 手动指定候选股</span>
+                    <span class="manual-stocks-count">已选 <b id="manualCount">0</b>/50</span>
+                    <div class="manual-stocks-search">
+                        <input type="text" id="manualSearchInput" class="form-control form-control-sm"
+                               placeholder="输入代码/名称/拼音搜索，点选添加（最多 50 只）" autocomplete="off">
+                    </div>
+                </div>
+                <div class="manual-stocks-cloud" id="manualStocksCloud">
+                    <div class="manual-stocks-empty">尚未添加候选股，请在上方搜索框输入代码或名称</div>
+                </div>
+            </div>
+
+            <!-- 三栏工作区 -->
+            <div class="screener-workspace">
+                <!-- 左栏：方案库 -->
+                <aside class="sw-plan-rail">
+                    <div class="sw-rail-head">
+                        <div class="sw-rail-title"><i class="bi bi-journal-text"></i> 方案库 <span class="sw-rail-count" id="planCount">—</span></div>
+                        <button class="btn btn-primary btn-sm" onclick="Screener.createPlan()">
+                            <i class="bi bi-plus-lg"></i> 新建
+                        </button>
+                    </div>
+                    <div class="plan-card-list" id="planList">
+                        <div class="sw-empty">加载中…</div>
+                    </div>
+                </aside>
+
+                <!-- 中栏：规则编辑器 -->
+                <section class="sw-editor">
+                    <div class="sw-editor-head">
+                        <div class="sw-field">
+                            <label>方案名称</label>
+                            <input type="text" class="form-control form-control-sm" id="planName" placeholder="未选中方案">
+                        </div>
+                        <div class="sw-field">
+                            <label>备注</label>
+                            <input type="text" class="form-control form-control-sm" id="planDesc" placeholder="一句话描述">
+                        </div>
+                    </div>
+
+                    <div class="sw-tabs">
+                        <button class="sw-tab active" data-tab="conditions"><i class="bi bi-funnel-fill"></i> 条件规则</button>
+                        <button class="sw-tab" data-tab="filters"><i class="bi bi-shield-check"></i> 静态过滤</button>
+                        <button class="sw-tab" data-tab="ranking"><i class="bi bi-sort-numeric-down"></i> 排序打分</button>
+                    </div>
+
+                    <!-- 条件规则 Tab -->
+                    <div class="sw-tab-pane active" id="pane-conditions">
+                        <div class="sw-cond-toolbar">
+                            <button class="btn btn-outline-primary btn-sm" onclick="Screener.addLeaf([])">
+                                <i class="bi bi-plus-circle"></i> 添加条件
+                            </button>
+                            <button class="btn btn-outline-secondary btn-sm" onclick="Screener.addGroup([])">
+                                <i class="bi bi-diagram-3"></i> 添加分组
+                            </button>
+                            <span class="muted-label" style="margin-left:auto;">支持 因子vs因子 · 因子参数 · 嵌套分组</span>
+                        </div>
+                        <div class="sw-cond-tree" id="conditionTree"></div>
+                    </div>
+
+                    <!-- 静态过滤 Tab -->
+                    <!-- checked 默认值与 screener.js DEFAULT_FILTERS（= engine filters.py _DEFAULT_FILTERS）对齐，由 applyConfig 在 init 时重置 -->
+                    <div class="sw-tab-pane" id="pane-filters">
+                        <div class="sw-check-grid">
+                            <label class="sw-check"><input type="checkbox" id="fSt" checked> 排除 ST</label>
+                            <label class="sw-check"><input type="checkbox" id="fSuspend" checked> 排除停牌</label>
+                            <label class="sw-check"><input type="checkbox" id="fUp" checked> 排除涨停</label>
+                            <label class="sw-check"><input type="checkbox" id="fDown"> 排除跌停</label>
+                        </div>
+                        <div class="sw-field-row">
+                            <label class="sw-field">
+                                <span>行业白名单（逗号分隔）</span>
+                                <input type="text" class="form-control form-control-sm" id="fIndustries" placeholder="如 银行,房地产">
+                            </label>
+                            <label class="sw-field">
+                                <span>行业黑名单（逗号分隔）</span>
+                                <input type="text" class="form-control form-control-sm" id="fExIndustries">
+                            </label>
+                        </div>
+                        <label class="sw-field" style="max-width:200px;">
+                            <span>最低上市天数</span>
+                            <input type="number" min="0" class="form-control form-control-sm" id="fMinListDays" value="0">
+                        </label>
+                    </div>
+
+                    <!-- 排序打分 Tab -->
+                    <div class="sw-tab-pane" id="pane-ranking">
+                        <!-- radio value 来自 screener.js 的 RANKING_METHODS 常量（schemas/screener.py Ranking.method），修改时两处同步 -->
+                        <div class="sw-rank-method">
+                            <label class="sw-radio"><input type="radio" name="rankMethod" value="single" checked> 单因子排序</label>
+                            <label class="sw-radio"><input type="radio" name="rankMethod" value="composite"> 复合加权打分</label>
+                        </div>
+
+                        <div id="rankSingleBlock" class="sw-rank-block">
+                            <label class="sw-field">
+                                <span>排序因子</span>
+                                <select id="rankSingleFactor" class="form-select form-select-sm"></select>
+                            </label>
+                            <label class="sw-field">
+                                <span>方向</span>
+                                <!-- 选项由 screener.js 的 RANKING_ORDERS 常量动态注入 -->
+                                <select id="rankSingleOrder" class="form-select form-select-sm" style="width:110px;"></select>
+                            </label>
+                        </div>
+
+                        <div id="rankCompositeBlock" class="sw-rank-block" style="display:none;">
+                            <div class="sw-cond-head">
+                                <span class="muted-label">权重列表（负值=反向）</span>
+                                <button class="btn btn-outline-primary btn-sm" onclick="Screener.addWeight()">
+                                    <i class="bi bi-plus-circle"></i> 添加因子
+                                </button>
+                            </div>
+                            <div class="sw-cond-list" id="weightList"></div>
+                        </div>
+
+                        <label class="sw-field" style="max-width:200px; margin-top:12px;">
+                            <span>取前 N 只 (topN)</span>
+                            <!-- 默认值由 screener.js 的 DEFAULT_TOP_N 注入，不在此硬编码 -->
+                            <input type="number" min="1" class="form-control form-control-sm" id="topN">
+                        </label>
+                    </div>
+                </section>
+
+                <!-- 右栏：结果面板（常驻） -->
+                <aside class="sw-result-panel" aria-label="选股结果">
+                    <div class="sw-panel-head">
+                        <div class="sw-rail-title"><i class="bi bi-table"></i> 选股结果</div>
+                        <div class="sw-panel-actions">
+                            <button class="btn btn-outline-primary btn-sm" id="lockBtn" onclick="Screener.lockResult()" disabled>
+                                <i class="bi bi-lock"></i> 锁定
+                            </button>
+                            <button class="sw-panel-toggle" id="resultPanelToggle"
+                                    onclick="Screener.collapseResultPanel()" title="折叠结果面板" aria-label="折叠结果面板">
+                                <i class="bi bi-chevron-right"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="sw-result-summary" id="resultSummary"></div>
+                    <div class="sw-result-body" id="resultBody">
+                        <div class="sw-empty">
+                            <i class="bi bi-search" style="font-size:24px;"></i>
+                            <div>配置条件后点击「运行选股」</div>
+                        </div>
+                    </div>
+                </aside>
+            </div>
+
+            <!-- 折叠态下的浮动展开按钮 -->
+            <button class="sw-result-show btn btn-primary btn-sm" id="resultShowBtn"
+                    onclick="Screener.expandResultPanel()" title="显示选股结果">
+                <i class="bi bi-chevron-left"></i> 结果
+            </button>
+        </main>
+    </div>
+</div>
+
+<div th:replace="~{fragments/common :: toastContainer}"></div>
+<div th:replace="~{fragments/common :: scripts}"></div>
+<link rel="stylesheet" th:href="@{/css/screener.css}">
+<script th:src="@{/js/screener.js}"></script>
+</body>
+</html>

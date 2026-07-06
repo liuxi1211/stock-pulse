@@ -11,6 +11,8 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 @Tag(name = "股票搜索", description = "股票搜索和自动补全建议")
@@ -35,5 +37,20 @@ public class SearchController {
     public ApiResponse<List<SuggestItemVO>> suggestStocks(
             @Parameter(description = "搜索关键字", required = true) @RequestParam String keyword) {
         return ApiResponse.success(searchService.suggestStocks(keyword));
+    }
+
+    @Operation(summary = "批量查询股票详情", description = "按 tsCode 列表批量查询股票详情（用于已保存方案的手动候选股回填名称）")
+    @GetMapping("/batch")
+    public ApiResponse<List<SuggestItemVO>> batchStocks(
+            @Parameter(description = "tsCode 列表，逗号分隔（如 000001.SZ,600000.SH）", required = true)
+            @RequestParam String tsCodes) {
+        if (tsCodes == null || tsCodes.isBlank()) {
+            return ApiResponse.success(Collections.emptyList());
+        }
+        List<String> codes = Arrays.stream(tsCodes.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .toList();
+        return ApiResponse.success(searchService.batchByTsCodes(codes));
     }
 }

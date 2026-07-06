@@ -14,9 +14,12 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class SuggestItemVO {
 
-    /** 股票代码 */
+    /** 股票代码（6位 symbol，如 000001，向后兼容 dashboard 用法） */
     private String code;
 
     /** 股票名称 */
     private String name;
+
+    /** tsCode（带交易所后缀，如 000001.SZ，选股方案 stocks 口径） */
+    private String tsCode;
 }

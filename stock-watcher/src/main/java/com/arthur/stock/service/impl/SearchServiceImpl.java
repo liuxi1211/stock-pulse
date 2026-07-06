@@ -58,7 +58,32 @@ public class SearchServiceImpl implements SearchService {
                 .last("LIMIT " + SUGGEST_LIMIT);
 
         return stockBasicMapper.selectList(wrapper).stream()
-                .map(b -> SuggestItemVO.builder().code(b.getSymbol()).name(b.getName()).build())
+                .map(b -> SuggestItemVO.builder()
+                        .code(b.getSymbol())
+                        .tsCode(b.getTsCode())
+                        .name(b.getName()).build())
+                .toList();
+    }
+
+    @Override
+    public List<SuggestItemVO> batchByTsCodes(List<String> tsCodes) {
+        if (tsCodes == null || tsCodes.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<String> normalized = tsCodes.stream()
+                .filter(c -> c != null && !c.isBlank())
+                .distinct()
+                .toList();
+        if (normalized.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return stockBasicMapper.selectList(new LambdaQueryWrapper<StockBasicDO>()
+                        .in(StockBasicDO::getTsCode, normalized))
+                .stream()
+                .map(b -> SuggestItemVO.builder()
+                        .code(b.getSymbol())
+                        .tsCode(b.getTsCode())
+                        .name(b.getName()).build())
                 .toList();
     }
 }
