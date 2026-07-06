@@ -49,7 +49,7 @@ public class UserApiController {
             try {
                 role = Role.valueOf(req.getRole());
             } catch (IllegalArgumentException e) {
-                throw new BusinessException(ErrorCode.INVALID_ROLE);
+                throw new BusinessException(ErrorCode.BAD_REQUEST, "无效的角色值");
             }
         }
 
@@ -66,7 +66,7 @@ public class UserApiController {
             @Parameter(description = "用户ID", required = true) @PathVariable Long id) {
         UserDO currentUser = UserContext.get();
         if (currentUser.getId().equals(id)) {
-            throw new BusinessException(ErrorCode.SELF_DELETE);
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "不能删除自己");
         }
 
         userService.deleteUser(id);
@@ -79,7 +79,7 @@ public class UserApiController {
             @Parameter(description = "用户ID", required = true) @PathVariable Long id) {
         UserDO user = userService.findById(id);
         if (user == null) {
-            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
+            throw new BusinessException(ErrorCode.NOT_FOUND, "用户不存在");
         }
 
         String newSecret = userService.resetTotp(id);

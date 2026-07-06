@@ -31,7 +31,7 @@ import java.util.List;
  *   <li>engine 业务级失败（{@code success:false}）：记录 warn 日志后抛 {@link BusinessException}，
  *       携带 engine 的 {@code code} 与 {@code message(errorCode)}。</li>
  *   <li>engine 不可达 / 超时 / 返回非 JSON（网络层故障）：记录 error 日志（含原始响应）后
- *       抛 {@link BusinessException}({@link ErrorCode#PYTHON_SERVICE_UNAVAILABLE})，
+ *       抛 {@link BusinessException}({@link ErrorCode#INTERNAL_ERROR})，
  *       <b>不把 engine 的原始堆栈/错误体透传给前端</b>。</li>
  * </ul>
  * <p>
@@ -171,12 +171,12 @@ public abstract class AbstractEngineClient {
     }
 
     /**
-     * engine 不可达 / 超时统一兜底：记 error 日志（含原始异常），抛 2001 服务不可用，
+     * engine 不可达 / 超时统一兜底：记 error 日志（含原始异常），抛 500 服务不可用，
      * 不向调用方暴露 engine 原始错误体。
      */
     private static BusinessException unavailable(String url, Object method, Exception cause) {
         log.error("engine {} {} 不可达: {}", method, url, cause.toString());
-        return new BusinessException(ErrorCode.PYTHON_SERVICE_UNAVAILABLE);
+        return new BusinessException(ErrorCode.INTERNAL_ERROR, "计算服务不可用");
     }
 
     private static <T> List<T> toList(JSONArray arr, Class<T> clazz) {

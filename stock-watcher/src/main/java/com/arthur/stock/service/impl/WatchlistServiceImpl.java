@@ -44,7 +44,7 @@ public class WatchlistServiceImpl implements WatchlistService {
                         .eq(StockBasicDO::getSymbol, stockCode)
                         .eq(StockBasicDO::getListStatus, "L"));
         if (count == 0) {
-            throw new BusinessException(ErrorCode.STOCK_NOT_FOUND, "股票不存在: " + stockCode);
+            throw new BusinessException(ErrorCode.NOT_FOUND, "股票不存在: " + stockCode);
         }
 
         Long exists = watchlistMapper.selectCount(
@@ -52,7 +52,7 @@ public class WatchlistServiceImpl implements WatchlistService {
                         .eq(WatchlistItemDO::getUserId, userId)
                         .eq(WatchlistItemDO::getStockCode, stockCode));
         if (exists > 0) {
-            throw new BusinessException(ErrorCode.WATCHLIST_EXISTS);
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "已在自选股中");
         }
 
         WatchlistItemDO item = new WatchlistItemDO();
@@ -68,7 +68,7 @@ public class WatchlistServiceImpl implements WatchlistService {
                         .eq(WatchlistItemDO::getUserId, userId)
                         .eq(WatchlistItemDO::getStockCode, stockCode));
         if (deleted == 0) {
-            throw new BusinessException(ErrorCode.STOCK_NOT_FOUND, "该股票不在自选中");
+            throw new BusinessException(ErrorCode.NOT_FOUND, "该股票不在自选中");
         }
     }
 }

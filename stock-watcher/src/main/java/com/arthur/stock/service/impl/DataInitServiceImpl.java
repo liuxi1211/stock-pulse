@@ -59,7 +59,7 @@ public class DataInitServiceImpl implements DataInitService {
     public DataInitProgress initialize(List<String> steps) {
         DataInitProgress current = progressRef.get();
         if ("RUNNING".equals(current.getStatus())) {
-            throw new BusinessException(ErrorCode.CONFLICT, "数据初始化正在进行中，请勿重复执行");
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "数据初始化正在进行中，请勿重复执行");
         }
 
         List<InitStep> parsedSteps = parseSteps(steps);
@@ -196,7 +196,7 @@ public class DataInitServiceImpl implements DataInitService {
         // 从本地数据库读取已有股票列表
         List<StockBasicDTO> local = stockBasicService.queryLocal(null, null, null, null);
         if (local.isEmpty()) {
-            throw new BusinessException(ErrorCode.STOCK_NOT_FOUND, "本地无股票基础信息，请先初始化 stock_basic 步骤");
+            throw new BusinessException(ErrorCode.NOT_FOUND, "本地无股票基础信息，请先初始化 stock_basic 步骤");
         }
         return local;
     }

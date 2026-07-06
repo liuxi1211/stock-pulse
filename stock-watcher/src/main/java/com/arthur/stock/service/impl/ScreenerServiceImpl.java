@@ -214,7 +214,7 @@ public class ScreenerServiceImpl implements ScreenerService {
     public ScreenResultVO getResult(Long resultId) {
         ScreenResultDO result = screenResultMapper.selectById(resultId);
         if (result == null) {
-            throw new BusinessException(ErrorCode.SCREEN_RESULT_NOT_FOUND);
+            throw new BusinessException(ErrorCode.NOT_FOUND, "选股结果不存在");
         }
         return toResultVO(result);
     }
@@ -236,14 +236,14 @@ public class ScreenerServiceImpl implements ScreenerService {
         // 1. 查 result
         ScreenResultDO result = screenResultMapper.selectById(resultId);
         if (result == null) {
-            throw new BusinessException(ErrorCode.SCREEN_RESULT_NOT_FOUND);
+            throw new BusinessException(ErrorCode.NOT_FOUND, "选股结果不存在");
         }
 
         // 2. 防重复锁定
         Long existCnt = screenLockMapper.selectCount(
                 new LambdaQueryWrapper<ScreenLockDO>().eq(ScreenLockDO::getResultId, resultId));
         if (existCnt != null && existCnt > 0) {
-            throw new BusinessException(ErrorCode.SCREEN_LOCK_ALREADY_EXISTS);
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "该选股结果已锁定");
         }
 
         // 3. 创建 ScreenLockDO（lockDate / stocksJson 冗余自 result；ret 全 null；status=TRACKING）
@@ -262,7 +262,7 @@ public class ScreenerServiceImpl implements ScreenerService {
     public ScreenLockDetailVO getLockDetail(Long lockId) {
         ScreenLockDO lock = screenLockMapper.selectById(lockId);
         if (lock == null) {
-            throw new BusinessException(ErrorCode.SCREEN_LOCK_NOT_FOUND);
+            throw new BusinessException(ErrorCode.NOT_FOUND, "选股锁定记录不存在");
         }
 
         ScreenLockDetailVO vo = new ScreenLockDetailVO();
@@ -572,12 +572,12 @@ public class ScreenerServiceImpl implements ScreenerService {
                     ? Collections.emptyList()
                     : config.getJSONArray(ScreenConfigFields.STOCKS).toJavaList(String.class);
             if (codes.isEmpty()) {
-                throw new BusinessException(ErrorCode.SCREEN_CONFIG_INVALID,
+                throw new BusinessException(ErrorCode.BAD_REQUEST,
                         "manual 候选池未配置 stocks 列表");
             }
             // manual 用更紧的上限
             if (codes.size() > ScreenerConstants.SCREEN_MANUAL_MAX_CANDIDATES) {
-                throw new BusinessException(ErrorCode.SCREEN_CONFIG_INVALID,
+                throw new BusinessException(ErrorCode.BAD_REQUEST,
                         "manual 候选股数量超过上限 "
                                 + ScreenerConstants.SCREEN_MANUAL_MAX_CANDIDATES
                                 + "（当前 " + codes.size() + "）");
@@ -799,7 +799,7 @@ public class ScreenerServiceImpl implements ScreenerService {
     private ScreenPlanDO requirePlan(Long id) {
         ScreenPlanDO plan = screenPlanMapper.selectById(id);
         if (plan == null) {
-            throw new BusinessException(ErrorCode.SCREEN_PLAN_NOT_FOUND);
+            throw new BusinessException(ErrorCode.NOT_FOUND, "选股方案不存在");
         }
         return plan;
     }
@@ -818,7 +818,7 @@ public class ScreenerServiceImpl implements ScreenerService {
             }
             return new JSONObject();
         } catch (Exception e) {
-            throw new BusinessException(ErrorCode.SCREEN_CONFIG_INVALID,
+            throw new BusinessException(ErrorCode.BAD_REQUEST,
                     "方案配置 JSON 解析失败: " + e.getMessage());
         }
     }

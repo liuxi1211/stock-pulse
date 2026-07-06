@@ -34,7 +34,7 @@ public class UserServiceImpl implements UserService {
         Long count = userMapper.selectCount(
                 new LambdaQueryWrapper<UserDO>().eq(UserDO::getUsername, username));
         if (count > 0) {
-            throw new BusinessException(ErrorCode.USER_EXISTS);
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "用户名已存在");
         }
 
         String secret = TotpUtil.generateSecret();

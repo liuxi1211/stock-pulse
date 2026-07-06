@@ -144,10 +144,10 @@ class ScreenerServiceImplTest {
 
     /**
      * F33-2：lockResult 防重复锁定。
-     * 已存在锁定记录（selectCount>0）→ 抛 SCREEN_LOCK_ALREADY_EXISTS。
+     * 已存在锁定记录（selectCount>0）→ 抛 BAD_REQUEST。
      */
     @Test
-    void lockResult_已锁定_应抛SCREEN_LOCK_ALREADY_EXISTS() {
+    void lockResult_已锁定_应抛BAD_REQUEST() {
         ScreenResultDO result = new ScreenResultDO();
         result.setId(1L);
         result.setPlanId(10L);
@@ -159,23 +159,23 @@ class ScreenerServiceImplTest {
         assertThatThrownBy(() -> screenerService.lockResult(1L))
                 .isInstanceOf(BusinessException.class)
                 .extracting("code")
-                .isEqualTo(ErrorCode.SCREEN_LOCK_ALREADY_EXISTS.getCode());
+                .isEqualTo(ErrorCode.BAD_REQUEST.getCode());
 
         verify(screenLockMapper, never()).insert(any(ScreenLockDO.class));
     }
 
     /**
      * F33-3：lockResult 结果不存在。
-     * selectById 返回 null → 抛 SCREEN_RESULT_NOT_FOUND。
+     * selectById 返回 null → 抛 NOT_FOUND。
      */
     @Test
-    void lockResult_结果不存在_应抛SCREEN_RESULT_NOT_FOUND() {
+    void lockResult_结果不存在_应抛NOT_FOUND() {
         when(screenResultMapper.selectById(999L)).thenReturn(null);
 
         assertThatThrownBy(() -> screenerService.lockResult(999L))
                 .isInstanceOf(BusinessException.class)
                 .extracting("code")
-                .isEqualTo(ErrorCode.SCREEN_RESULT_NOT_FOUND.getCode());
+                .isEqualTo(ErrorCode.NOT_FOUND.getCode());
 
         verify(screenLockMapper, never()).insert(any(ScreenLockDO.class));
     }
