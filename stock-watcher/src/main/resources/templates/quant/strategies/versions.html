@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/common :: head(${pageTitle})}"></head>
+<link rel="stylesheet" th:href="@{/css/strategy.css}">
+<body>
+<div class="app-container">
+    <nav th:replace="~{fragments/common :: sidebar}"></nav>
+    <div th:replace="~{fragments/common :: sidebarOverlay}"></div>
+
+    <div class="main-content">
+        <header th:replace="~{fragments/common :: topNavbar}"></header>
+
+        <main class="content-area strategy-page">
+            <div class="str-page-header">
+                <div>
+                    <h1 class="str-page-title">
+                        <i class="bi bi-clock-history"></i>
+                        <span th:text="${pageTitle}">版本历史</span>
+                    </h1>
+                    <p class="str-page-subtitle">
+                        策略 <span class="str-mono" th:text="${strategyId}">strategyId</span> 的版本时间线 ·
+                        <a th:href="@{|/quant/strategies/${strategyId}/edit|}" style="text-decoration:none;color:inherit;">返回编辑</a>
+                    </p>
+                </div>
+            </div>
+
+            <div id="strategyVersions">
+                <div class="str-ver-header" id="verHeader">
+                    <div style="display:flex;align-items:center;gap:14px;flex:1;">
+                        <div class="str-ver-icon"><i class="bi bi-triangle"></i></div>
+                        <div>
+                            <div class="str-ver-title">
+                                <span id="verStrategyName">加载中…</span>
+                                <span style="font-size:13px;color:var(--text-muted);font-weight:400;">· 版本历史</span>
+                            </div>
+                            <div class="str-ver-sub" id="verHeaderMeta">加载中…</div>
+                        </div>
+                    </div>
+                    <div class="str-page-actions">
+                        <a class="btn btn-outline-secondary btn-sm" id="verEditLink" href="#">
+                            <i class="bi bi-pencil-square"></i> 继续编辑
+                        </a>
+                    </div>
+                </div>
+
+                <div class="str-vdiff-layout">
+                    <div class="str-vdiff-list" id="verList">
+                        <div class="str-empty">
+                            <i class="bi bi-hourglass-split"></i>
+                            <div class="str-empty-t">加载中…</div>
+                        </div>
+                    </div>
+
+                    <div class="str-vdiff-detail" id="verDetail">
+                        <div class="str-vdiff-detail-head">
+                            <div>
+                                <div class="str-vdiff-detail-title" id="detailTitle">选择左侧版本查看详情</div>
+                                <div class="str-vdiff-detail-meta" id="detailMeta"></div>
+                            </div>
+                            <div class="str-page-actions" id="detailActions"></div>
+                        </div>
+                        <div class="str-vdiff-tabs" id="detailTabs">
+                            <button type="button" class="str-vdiff-tab active" data-tab="summary"><i class="bi bi-card-list"></i> 变更摘要</button>
+                            <button type="button" class="str-vdiff-tab" data-tab="diff"><i class="bi bi-code-slash"></i> JSON Diff</button>
+                            <button type="button" class="str-vdiff-tab" data-tab="backtest"><i class="bi bi-graph-up"></i> 回测对比</button>
+                            <button type="button" class="str-vdiff-tab" data-tab="config"><i class="bi bi-file-earmark-code"></i> 完整配置</button>
+                        </div>
+                        <div class="str-vdiff-pane active" id="paneSummary">
+                            <div class="str-empty">
+                                <i class="bi bi-card-list"></i>
+                                <div class="str-empty-t">选择一个版本查看变更摘要</div>
+                            </div>
+                        </div>
+                        <div class="str-vdiff-pane" id="paneDiff" style="display:none;"></div>
+                        <div class="str-vdiff-pane" id="paneBacktest" style="display:none;"></div>
+                        <div class="str-vdiff-pane" id="paneConfig" style="display:none;"></div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+</div>
+
+<script th:inline="javascript" type="application/json" id="versionsBootstrap">
+{ "strategyId": [[${strategyId}]] }
+</script>
+
+<div th:replace="~{fragments/common :: toastContainer}"></div>
+<div th:replace="~{fragments/common :: scripts}"></div>
+<script th:src="@{/js/strategy-versions.js}"></script>
+</body>
+</html>

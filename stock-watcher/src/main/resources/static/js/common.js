@@ -487,3 +487,5 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 });
+
+window.StockApp = StockApp;

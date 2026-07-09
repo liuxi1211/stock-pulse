@@ -73,3 +73,5 @@ logs/
 *.swo
 *.tmp
 *.bak
+
+.m2-repo/

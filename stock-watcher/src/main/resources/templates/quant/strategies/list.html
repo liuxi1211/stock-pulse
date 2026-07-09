@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/common :: head(${pageTitle})}"></head>
+<link rel="stylesheet" th:href="@{/css/strategy.css}">
+<body>
+<div class="app-container">
+    <nav th:replace="~{fragments/common :: sidebar}"></nav>
+    <div th:replace="~{fragments/common :: sidebarOverlay}"></div>
+
+    <div class="main-content">
+        <header th:replace="~{fragments/common :: topNavbar}"></header>
+
+        <main class="content-area strategy-page">
+            <div class="str-page-header">
+                <div>
+                    <h1 class="str-page-title">
+                        <span th:text="${pageTitle}">策略管理</span>
+                        <span class="str-count-badge" id="headerCountBadge">—</span>
+                    </h1>
+                    <p class="str-page-subtitle">统一策略配置 Schema · CRUD + 版本快照 · 回测/信号共用 config_json</p>
+                </div>
+                <div class="str-page-actions">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="btnRefresh" title="刷新">
+                        <i class="bi bi-arrow-clockwise"></i> 刷新
+                    </button>
+                    <div class="dropdown">
+                        <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button"
+                                id="templateDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-file-earmark-code"></i> 从模板 <span class="caret"></span>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end" id="templateMenu"
+                            aria-labelledby="templateDropdown">
+                            <li class="dropdown-item-text text-muted small">加载中…</li>
+                        </ul>
+                    </div>
+                    <a th:href="@{/quant/strategies/new}" class="btn btn-primary btn-sm">
+                        <i class="bi bi-plus-lg"></i> 新建策略
+                    </a>
+                </div>
+            </div>
+
+            <div id="strategyApp">
+                <div class="str-stat-strip" id="statStrip">
+                    <div class="str-stat-card" style="--stat-accent: var(--accent-blue);">
+                        <div class="str-stat-head">
+                            <div class="str-stat-label"><i class="bi bi-collection-fill"></i> 策略总数</div>
+                            <span class="str-stat-tag">v1.0</span>
+                        </div>
+                        <div class="str-stat-value str-grad-blue" id="statTotal">—</div>
+                        <div class="str-stat-foot">
+                            <span class="dot" style="--c: var(--accent-blue);">Schema v1.0</span>
+                            <span class="dot" style="--c: var(--accent-cyan);">engine 校验</span>
+                        </div>
+                    </div>
+                    <div class="str-stat-card" style="--stat-accent: var(--accent-green);">
+                        <div class="str-stat-head">
+                            <div class="str-stat-label"><i class="bi bi-patch-check-fill"></i> 已验证</div>
+                            <span class="str-stat-tag">VERIFIED</span>
+                        </div>
+                        <div class="str-stat-value str-grad-green" id="statVerified">—</div>
+                        <div class="str-stat-foot"><span class="dot" style="--c: var(--accent-green);">通过 Schema §7 全量校验</span></div>
+                    </div>
+                    <div class="str-stat-card" style="--stat-accent: var(--accent-purple);">
+                        <div class="str-stat-head">
+                            <div class="str-stat-label"><i class="bi bi-rocket-takeoff-fill"></i> 激活中</div>
+                            <span class="str-stat-tag">ACTIVE</span>
+                        </div>
+                        <div class="str-stat-value str-grad-purple" id="statActive">—</div>
+                        <div class="str-stat-foot"><span class="dot" style="--c: var(--accent-purple);">供信号中心订阅</span></div>
+                    </div>
+                    <div class="str-stat-card" style="--stat-accent: var(--accent-yellow);">
+                        <div class="str-stat-head">
+                            <div class="str-stat-label"><i class="bi bi-pencil-fill"></i> 草稿</div>
+                            <span class="str-stat-tag">DRAFT</span>
+                        </div>
+                        <div class="str-stat-value str-grad-gold" id="statDraft">—</div>
+                        <div class="str-stat-foot"><span class="dot" style="--c: var(--accent-yellow);">尚未通过校验</span></div>
+                    </div>
+                </div>
+
+                <div class="str-filter-bar">
+                    <div class="str-search-box">
+                        <i class="bi bi-search"></i>
+                        <input type="text" id="filterKeyword" placeholder="搜索策略名 / 描述 / 标签..." autocomplete="off">
+                    </div>
+                    <select class="str-filter-select" id="filterCategory">
+                        <option value="">🗂 全部分类</option>
+                    </select>
+                    <select class="str-filter-select" id="filterStatus">
+                        <option value="">⚡ 全部状态</option>
+                    </select>
+                    <select class="str-filter-select" id="filterScope">
+                        <option value="">🎯 全部范围</option>
+                    </select>
+                    <div class="str-filter-spacer"></div>
+                    <button type="button" class="btn btn-ghost btn-sm str-view-btn active" title="卡片视图" id="viewCardBtn">
+                        <i class="bi bi-grid-3x3-gap-fill"></i>
+                    </button>
+                    <button type="button" class="btn btn-ghost btn-sm str-view-btn" title="列表视图（开发中）" id="viewListBtn" disabled>
+                        <i class="bi bi-list-ul"></i>
+                    </button>
+                </div>
+
+                <div class="str-strategy-grid" id="strategyGrid">
+                    <div class="str-empty">
+                        <i class="bi bi-hourglass-split"></i>
+                        <div class="str-empty-t">加载中…</div>
+                    </div>
+                </div>
+
+                <div class="str-pagination" id="strategyPaginationWrap" style="display:none;">
+                    <button class="str-page-btn" data-rel="prev" title="上一页">‹</button>
+                    <span id="strategyPagination"></span>
+                    <button class="str-page-btn" data-rel="next" title="下一页">›</button>
+                </div>
+            </div>
+        </main>
+    </div>
+</div>
+
+<script th:inline="javascript" type="application/json" id="enumOptions">
+{
+    "category": [[${categoryOptions}]],
+    "scope":    [[${scopeOptions}]],
+    "status":   [[${statusOptions}]]
+}
+</script>
+
+<div th:replace="~{fragments/common :: toastContainer}"></div>
+<div th:replace="~{fragments/common :: scripts}"></div>
+<script th:src="@{/js/strategy-list.js}"></script>
+</body>
+</html>

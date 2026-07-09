@@ -1178,3 +1178,122 @@
         display: block;
     }
 }
+
+/* ============================================================
+   13. Stat Strip（统计条全局标准，新页面直接复用）
+   以 factor-library.css 为蓝本，全用 theme.css token，自动跟随双主题。
+   用法见 01-frontend.md §组件规范。
+   ============================================================ */
+
+.stat-strip {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 18px;
+}
+
+.stat-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    padding: 16px 18px;
+    position: relative;
+    overflow: hidden;
+    backdrop-filter: var(--blur-card);
+    transition: transform var(--transition-base), box-shadow var(--transition-base);
+}
+
+.stat-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--stat-accent, var(--accent-blue)), transparent);
+    opacity: 0.5;
+}
+
+.stat-card:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-lg);
+}
+
+.stat-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+}
+
+.stat-label {
+    font-size: 12px;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.stat-label i {
+    color: var(--stat-accent, var(--accent-blue));
+    font-size: 15px;
+}
+
+.stat-tag {
+    font-size: 10px;
+    font-family: var(--font-mono);
+    color: var(--text-muted);
+    padding: 2px 7px;
+    background: var(--bg-tertiary);
+    border-radius: var(--radius-full);
+}
+
+.stat-value {
+    font-family: var(--font-mono);
+    font-size: 30px;
+    font-weight: 700;
+    line-height: 1;
+    color: var(--text-primary);
+}
+
+.stat-value .unit {
+    font-size: 13px;
+    color: var(--text-muted);
+    font-weight: 500;
+    margin-left: 4px;
+}
+
+.stat-foot {
+    margin-top: 8px;
+    font-size: 11px;
+    color: var(--text-muted);
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.stat-foot .dot {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.stat-foot .dot::before {
+    content: '';
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--c, var(--accent-blue));
+}
+
+@media (max-width: 1280px) {
+    .stat-strip {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 640px) {
+    .stat-strip {
+        grid-template-columns: 1fr;
+    }
+}

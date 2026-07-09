@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/common :: head(${pageTitle})}"></head>
+<link rel="stylesheet" th:href="@{/css/strategy.css}">
+<link rel="stylesheet" th:href="@{/css/condition-tree-builder.css}">
+<body>
+<div class="app-container">
+    <nav th:replace="~{fragments/common :: sidebar}"></nav>
+    <div th:replace="~{fragments/common :: sidebarOverlay}"></div>
+
+    <div class="main-content">
+        <header th:replace="~{fragments/common :: topNavbar}"></header>
+
+        <main class="content-area strategy-page">
+            <!-- 页头 -->
+            <div class="str-page-header">
+                <div>
+                    <h1 class="str-page-title">
+                        <i class="bi bi-triangle"></i>
+                        <span id="editorStrategyName" th:text="${pageTitle}">策略编辑器</span>
+                        <span class="str-status-badge str-status-draft" id="editorStatusBadge" style="display:none;"></span>
+                    </h1>
+                    <p class="str-page-subtitle" id="editorSubtitle">
+                        <a th:href="@{/quant/strategies}" style="text-decoration:none;color:inherit;">← 返回列表</a>
+                    </p>
+                </div>
+                <div class="str-page-actions">
+                    <a th:href="@{/quant/strategies}" class="btn btn-secondary btn-sm">取消</a>
+                </div>
+            </div>
+
+            <!--
+                编辑器：左 8 Tab 表单 + 右 sticky JSON 预览 + 底部保存条（spec 004 Task 10）。
+                Tab 内具体表单控件由 Task 11 填充，本任务仅搭骨架与状态/保存逻辑。
+                Controller 注入：
+                  - strategyId  ：编辑模式有值，新建模式为 null
+                  - templates   ：StrategyTemplateDTO 列表，供「从模板创建」
+                  - categoryOptions / scopeOptions ：分类与范围下拉
+            -->
+            <div id="strategyEditor">
+                <div class="str-editor-layout">
+                    <!-- ============ 左侧：Tab 面板 ============ -->
+                    <div class="str-editor-main">
+                        <div class="str-editor-tabs" id="strategyTab" role="tablist">
+                            <button type="button" class="str-tab-btn active" data-bs-toggle="tab" data-bs-target="#tab-basic"><i class="bi bi-info-circle"></i> 基本信息</button>
+                            <button type="button" class="str-tab-btn" data-bs-toggle="tab" data-bs-target="#tab-screen"><i class="bi bi-funnel"></i> 选股范围</button>
+                            <button type="button" class="str-tab-btn" data-bs-toggle="tab" data-bs-target="#tab-buy"><i class="bi bi-arrow-up-circle"></i> 买入信号</button>
+                            <button type="button" class="str-tab-btn" data-bs-toggle="tab" data-bs-target="#tab-sell"><i class="bi bi-arrow-down-circle"></i> 卖出信号</button>
+                            <button type="button" class="str-tab-btn" data-bs-toggle="tab" data-bs-target="#tab-position"><i class="bi bi-wallet2"></i> 仓位管理</button>
+                            <button type="button" class="str-tab-btn" data-bs-toggle="tab" data-bs-target="#tab-exit"><i class="bi bi-shield-check"></i> 止损止盈</button>
+                            <button type="button" class="str-tab-btn" data-bs-toggle="tab" data-bs-target="#tab-rebalance" id="tab-btn-rebalance"><i class="bi bi-arrow-repeat"></i> 调仓</button>
+                            <button type="button" class="str-tab-btn" data-bs-toggle="tab" data-bs-target="#tab-backtest"><i class="bi bi-graph-up"></i> 回测参数</button>
+                        </div>
+
+                        <div class="str-tab-body">
+                        <div class="tab-content pt-3 str-tab-content" id="strategyTabContent">
+
+                            <!-- ============ Tab 1 基本信息 ============ -->
+                            <div class="tab-pane fade show active" id="tab-basic" role="tabpanel">
+                                <fieldset class="mb-3">
+                                    <legend class="fs-6 fw-semibold mb-2">策略元信息</legend>
+                                    <div class="row g-3">
+                                        <div class="col-md-8">
+                                            <label class="form-label">策略名称 <span class="text-danger">*</span></label>
+                                            <input type="text" class="form-control" id="f-name" maxlength="64" placeholder="如：双均线策略">
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="form-label">分类</label>
+                                            <select class="form-select" id="f-category"></select>
+                                        </div>
+                                        <div class="col-12">
+                                            <label class="form-label">描述</label>
+                                            <textarea class="form-control" id="f-description" rows="3" maxlength="500" placeholder="策略简介、适用场景"></textarea>
+                                        </div>
+                                        <div class="col-md-7">
+                                            <label class="form-label">适用范围 <span class="text-danger">*</span></label>
+                                            <div class="str-radio-cards" id="f-scope-group">
+                                                <label class="str-radio-card">
+                                                    <input class="form-check-input" type="radio" name="f-scope" id="f-scope-single" value="single">
+                                                    <span class="rico">🎯</span>单标的
+                                                </label>
+                                                <label class="str-radio-card">
+                                                    <input class="form-check-input" type="radio" name="f-scope" id="f-scope-portfolio" value="portfolio">
+                                                    <span class="rico">📊</span>组合
+                                                </label>
+                                                <label class="str-radio-card">
+                                                    <input class="form-check-input" type="radio" name="f-scope" id="f-scope-mixed" value="mixed">
+                                                    <span class="rico">🔀</span>混合
+                                                </label>
+                                            </div>
+                                            <div class="form-text">single 模式将禁用「调仓」Tab。</div>
+                                        </div>
+                                        <div class="col-md-5">
+                                            <label class="form-label">标签</label>
+                                            <input type="text" class="form-control" id="f-tags" placeholder="逗号分隔，如：均线,趋势">
+                                            <div class="form-text">watcher 元数据，不进入 config_json。</div>
+                                        </div>
+                                    </div>
+
+                                    <div class="str-meta-grid mt-3" id="f-meta-grid" style="display:none;">
+                                        <div class="str-meta-item">
+                                            <div class="str-meta-label">策略 ID</div>
+                                            <div class="str-meta-value cyan" id="f-meta-id">—</div>
+                                        </div>
+                                        <div class="str-meta-item">
+                                            <div class="str-meta-label">当前版本</div>
+                                            <div class="str-meta-value" id="f-meta-version">—</div>
+                                        </div>
+                                        <div class="str-meta-item">
+                                            <div class="str-meta-label">创建时间</div>
+                                            <div class="str-meta-value" id="f-meta-created">—</div>
+                                        </div>
+                                        <div class="str-meta-item">
+                                            <div class="str-meta-label">Schema 版本</div>
+                                            <div class="str-meta-value">v1.0</div>
+                                        </div>
+                                        <div class="str-meta-item">
+                                            <div class="str-meta-label">最近回测</div>
+                                            <div class="str-meta-value green" id="f-meta-backtest">—</div>
+                                        </div>
+                                        <div class="str-meta-item">
+                                            <div class="str-meta-label">最后修改</div>
+                                            <div class="str-meta-value" id="f-meta-updated">—</div>
+                                        </div>
+                                    </div>
+                                </fieldset>
+                            </div>
+
+                            <!-- ============ Tab 2 选股范围 ============ -->
+                            <div class="tab-pane fade" id="tab-screen" role="tabpanel">
+                                <fieldset class="mb-3">
+                                    <legend class="fs-6 fw-semibold mb-2">股票池 Universe</legend>
+                                    <div class="row g-3">
+                                        <div class="col-md-5">
+                                            <label class="form-label">股票池</label>
+                                            <select class="form-select" id="f-universe">
+                                                <option value="all_a_shares">全 A</option>
+                                                <option value="csi300">沪深 300</option>
+                                                <option value="csi500">中证 500</option>
+                                                <option value="etf_pool">ETF 池</option>
+                                                <option value="manual">手动指定</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="form-label">Top N</label>
+                                            <input type="number" class="form-control" id="f-top-n" min="1" step="1" placeholder="选出的标的数量">
+                                        </div>
+                                        <div class="col-12" id="f-stocks-wrap" style="display:none;">
+                                            <label class="form-label">标的代码</label>
+                                            <div class="manual-stocks-panel">
+                                                <div class="manual-stocks-head">
+                                                    <span class="manual-stocks-title"><i class="bi bi-tags"></i> 手动指定标的</span>
+                                                    <span class="manual-stocks-count">已选 <b id="f-stocks-count">0</b>/50</span>
+                                                    <div class="manual-stocks-search">
+                                                        <input type="text" id="f-stocks-search" class="form-control form-control-sm"
+                                                               placeholder="输入代码/名称/拼音搜索，点选添加（最多 50 只）" autocomplete="off">
+                                                    </div>
+                                                </div>
+                                                <div class="manual-stocks-cloud" id="f-stocks-cloud">
+                                                    <div class="manual-stocks-empty">尚未添加标的，请在上方搜索框输入代码或名称</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </fieldset>
+
+                                <fieldset class="mb-3">
+                                    <legend class="fs-6 fw-semibold mb-2 d-flex justify-content-between align-items-center">
+                                        <span>选股条件树 Conditions</span>
+                                        <div class="dropdown">
+                                            <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">插入因子</button>
+                                            <ul class="dropdown-menu dropdown-menu-end factors-menu" id="f-screen-factors" data-target="f-screen-conditions" style="max-height:320px;overflow:auto;min-width:220px;"></ul>
+                                        </div>
+                                    </legend>
+                                    <div class="cond-mode-switch" data-cond-target="f-screen-conditions">
+                                        <button type="button" class="cond-mode-btn active" data-mode="visual"><i class="bi bi-diagram-3"></i> 可视化</button>
+                                        <button type="button" class="cond-mode-btn" data-mode="json"><i class="bi bi-braces"></i> JSON</button>
+                                        <button type="button" class="cond-mode-btn" data-mode="ai" disabled><i class="bi bi-robot"></i> AI（敬请期待）</button>
+                                    </div>
+                                    <div class="cond-visual-wrap" data-cond-visual="f-screen-conditions"></div>
+                                    <textarea class="form-control font-monospace" id="f-screen-conditions" rows="8" spellcheck="false" style="display:none;" placeholder='{"operator":"AND","conditions":[{"type":"compare","left":{"factor":"PE_TTM"},"comparator":"<","right":{"value":30}}]}'></textarea>
+                                    <div class="form-text">JSON 结构：{operator:"AND"/"OR", conditions:[...]}，叶子 type="compare"。screen 内禁止 cross_up/cross_down 与 ref。</div>
+                                </fieldset>
+
+                                <fieldset class="mb-3">
+                                    <legend class="fs-6 fw-semibold mb-2">排序规则 Ranking</legend>
+                                    <div class="row g-3">
+                                        <div class="col-md-4">
+                                            <label class="form-label">method</label>
+                                            <select class="form-select" id="f-ranking-method">
+                                                <option value="disabled">disabled（不排序）</option>
+                                                <option value="single">single（单因子）</option>
+                                                <option value="composite">composite（加权）</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-4" id="f-ranking-single-wrap" style="display:none;">
+                                            <label class="form-label">factor</label>
+                                            <input type="text" class="form-control" id="f-ranking-factor" placeholder="如 RSI / PE_TTM">
+                                        </div>
+                                        <div class="col-md-4" id="f-ranking-order-wrap" style="display:none;">
+                                            <label class="form-label">order</label>
+                                            <select class="form-select" id="f-ranking-order">
+                                                <option value="desc">desc（降序）</option>
+                                                <option value="asc">asc（升序）</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="mt-2" id="f-ranking-weights-wrap" style="display:none;">
+                                        <div class="d-flex justify-content-between align-items-center mb-1">
+                                            <label class="form-label mb-0">权重列表（factorKey → 权重，负=越小越好）</label>
+                                            <button type="button" class="btn btn-sm btn-outline-primary" data-add="ranking-weight">+ 增行</button>
+                                        </div>
+                                        <div id="f-ranking-weights" class="d-flex flex-column gap-1"></div>
+                                    </div>
+                                </fieldset>
+
+                                <fieldset class="mb-3">
+                                    <legend class="fs-6 fw-semibold mb-2">静态过滤 Filters</legend>
+                                    <div class="row g-2">
+                                        <div class="col-md-3"><div class="form-check"><input class="form-check-input" type="checkbox" id="f-filter-exclude-st"><label class="form-check-label" for="f-filter-exclude-st">排除 ST</label></div></div>
+                                        <div class="col-md-3"><div class="form-check"><input class="form-check-input" type="checkbox" id="f-filter-exclude-suspended"><label class="form-check-label" for="f-filter-exclude-suspended">排除停牌</label></div></div>
+                                        <div class="col-md-3"><div class="form-check"><input class="form-check-input" type="checkbox" id="f-filter-exclude-limit-up"><label class="form-check-label" for="f-filter-exclude-limit-up">排除涨停</label></div></div>
+                                        <div class="col-md-3"><div class="form-check"><input class="form-check-input" type="checkbox" id="f-filter-exclude-limit-down"><label class="form-check-label" for="f-filter-exclude-limit-down">排除跌停</label></div></div>
+                                        <div class="col-md-6"><div class="form-check"><input class="form-check-input" type="checkbox" id="f-filter-use-industries"><label class="form-check-label" for="f-filter-use-industries">行业白名单（仅保留）</label></div></div>
+                                        <div class="col-md-6"><div class="form-check"><input class="form-check-input" type="checkbox" id="f-filter-use-exclude-industries"><label class="form-check-label" for="f-filter-use-exclude-industries">行业黑名单（排除）</label></div></div>
+                                        <div class="col-12" id="f-filter-industries-wrap" style="display:none;"><input type="text" class="form-control" id="f-filter-industries" placeholder="行业代码，逗号分隔"></div>
+                                        <div class="col-12" id="f-filter-exclude-industries-wrap" style="display:none;"><input type="text" class="form-control" id="f-filter-exclude-industries" placeholder="行业代码，逗号分隔"></div>
+                                        <div class="col-md-3"><div class="form-check"><input class="form-check-input" type="checkbox" id="f-filter-use-min-list-days"><label class="form-check-label" for="f-filter-use-min-list-days">上市天数下限</label></div></div>
+                                        <div class="col-md-3" id="f-filter-min-list-days-wrap" style="display:none;"><input type="number" class="form-control" id="f-filter-min-list-days" min="0" step="1"></div>
+                                    </div>
+                                </fieldset>
+                            </div>
+
+                            <!-- ============ Tab 3 买入信号 ============ -->
+                            <div class="tab-pane fade" id="tab-buy" role="tabpanel">
+                                <fieldset class="mb-3" id="f-symbols-fieldset">
+                                    <legend class="fs-6 fw-semibold mb-2">买入标的（scope=single 时使用）</legend>
+                                    <textarea class="form-control" id="f-symbols" rows="2" placeholder="代码逗号分隔，如 510300.SH,600000.SH（对应 trading_config.symbols）"></textarea>
+                                </fieldset>
+                                <fieldset class="mb-3">
+                                    <legend class="fs-6 fw-semibold mb-2 d-flex justify-content-between align-items-center">
+                                        <span>买入条件树 Signals.buy</span>
+                                        <div class="dropdown">
+                                            <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">插入因子</button>
+                                            <ul class="dropdown-menu dropdown-menu-end factors-menu" data-target="f-buy-conditions" style="max-height:320px;overflow:auto;min-width:220px;"></ul>
+                                        </div>
+                                    </legend>
+                                    <div class="cond-mode-switch" data-cond-target="f-buy-conditions">
+                                        <button type="button" class="cond-mode-btn active" data-mode="visual"><i class="bi bi-diagram-3"></i> 可视化</button>
+                                        <button type="button" class="cond-mode-btn" data-mode="json"><i class="bi bi-braces"></i> JSON</button>
+                                        <button type="button" class="cond-mode-btn" data-mode="ai" disabled><i class="bi bi-robot"></i> AI（敬请期待）</button>
+                                    </div>
+                                    <div class="cond-visual-wrap" data-cond-visual="f-buy-conditions"></div>
+                                    <textarea class="form-control font-monospace" id="f-buy-conditions" rows="9" spellcheck="false" style="display:none;" placeholder='{"operator":"AND","conditions":[{"type":"compare","left":{"factor":"MA","params":{"timeperiod":5}},"comparator":"cross_up","right":{"factor":"MA","params":{"timeperiod":20}}}]}'></textarea>
+                                    <div class="form-text">允许 cross_up/cross_down 时序比较和 ref（entry_price/position_pnl_pct 等）。</div>
+                                </fieldset>
+                            </div>
+
+                            <!-- ============ Tab 4 卖出信号 ============ -->
+                            <div class="tab-pane fade" id="tab-sell" role="tabpanel">
+                                <fieldset class="mb-3">
+                                    <legend class="fs-6 fw-semibold mb-2 d-flex justify-content-between align-items-center">
+                                        <span>卖出条件树 Signals.sell</span>
+                                        <div class="dropdown">
+                                            <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">插入因子</button>
+                                            <ul class="dropdown-menu dropdown-menu-end factors-menu" data-target="f-sell-conditions" style="max-height:320px;overflow:auto;min-width:220px;"></ul>
+                                        </div>
+                                    </legend>
+                                    <div class="cond-mode-switch" data-cond-target="f-sell-conditions">
+                                        <button type="button" class="cond-mode-btn active" data-mode="visual"><i class="bi bi-diagram-3"></i> 可视化</button>
+                                        <button type="button" class="cond-mode-btn" data-mode="json"><i class="bi bi-braces"></i> JSON</button>
+                                        <button type="button" class="cond-mode-btn" data-mode="ai" disabled><i class="bi bi-robot"></i> AI（敬请期待）</button>
+                                    </div>
+                                    <div class="cond-visual-wrap" data-cond-visual="f-sell-conditions"></div>
+                                    <textarea class="form-control font-monospace" id="f-sell-conditions" rows="9" spellcheck="false" style="display:none;" placeholder='{"operator":"AND","conditions":[{"type":"compare","left":{"factor":"MA","params":{"timeperiod":5}},"comparator":"cross_down","right":{"factor":"MA","params":{"timeperiod":20}}}]}'></textarea>
+                                </fieldset>
+                            </div>
+
+                            <!-- ============ Tab 5 仓位管理 ============ -->
+                            <div class="tab-pane fade" id="tab-position" role="tabpanel">
+                                <fieldset class="mb-3">
+                                    <legend class="fs-6 fw-semibold mb-2">仓位管理 Position Sizing</legend>
+                                    <div class="row g-3">
+                                        <div class="col-md-5">
+                                            <label class="form-label">method</label>
+                                            <select class="form-select" id="f-ps-method"></select>
+                                        </div>
+                                        <div class="col-md-4" id="f-ps-target-wrap">
+                                            <label class="form-label" id="f-ps-target-label">target</label>
+                                            <input type="text" class="form-control" id="f-ps-target" placeholder="如 0.95">
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="form-label">sell_method</label>
+                                            <select class="form-select" id="f-ps-sell-method"></select>
+                                        </div>
+                                    </div>
+                                    <div class="mt-3" id="f-ps-weights-wrap" style="display:none;">
+                                        <div class="d-flex justify-content-between align-items-center mb-1">
+                                            <label class="form-label mb-0">order_target_weights 权重（symbol → 比例）</label>
+                                            <button type="button" class="btn btn-sm btn-outline-primary" data-add="ps-weight">+ 增行</button>
+                                        </div>
+                                        <div id="f-ps-weights" class="d-flex flex-column gap-1"></div>
+                                    </div>
+
+                                    <div class="str-position-preview mt-3" id="f-position-preview">
+                                        <div class="str-pp-cell">
+                                            <div class="str-pp-val" id="f-pp-cash">¥100,000</div>
+                                            <div class="str-pp-lbl">初始资金</div>
+                                        </div>
+                                        <div class="str-pp-cell">
+                                            <div class="str-pp-val cyan" id="f-pp-target">95%</div>
+                                            <div class="str-pp-lbl">目标仓位</div>
+                                        </div>
+                                        <div class="str-pp-cell">
+                                            <div class="str-pp-val" id="f-pp-market">¥95,000</div>
+                                            <div class="str-pp-lbl">预计市值</div>
+                                        </div>
+                                        <div class="str-pp-cell">
+                                            <div class="str-pp-val" id="f-pp-lot">100股</div>
+                                            <div class="str-pp-lbl">每手</div>
+                                        </div>
+                                    </div>
+                                </fieldset>
+                            </div>
+
+                            <!-- ============ Tab 6 止损止盈 ============ -->
+                            <div class="tab-pane fade" id="tab-exit" role="tabpanel">
+                                <fieldset class="mb-3">
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input" type="checkbox" id="f-use-bracket">
+                                        <label class="form-check-label" for="f-use-bracket">启用括号单（bracket 静态阈值）</label>
+                                    </div>
+                                    <div id="f-bracket-wrap" style="display:none;">
+                                        <div class="row g-3">
+                                            <div class="col-md-3"><label class="form-label">止损 %</label><input type="number" class="form-control" id="f-stop-loss" step="0.01" min="0" max="1" placeholder="如 0.08"></div>
+                                            <div class="col-md-3"><label class="form-label">止盈 %</label><input type="number" class="form-control" id="f-take-profit" step="0.01" min="0" max="1" placeholder="如 0.20"></div>
+                                            <div class="col-md-6"><div class="form-check mt-4"><input class="form-check-input" type="checkbox" id="f-use-atr-stop"><label class="form-check-label" for="f-use-atr-stop">使用 ATR 动态止损</label></div></div>
+                                            <div class="col-md-3" id="f-atr-period-wrap" style="display:none;"><label class="form-label">ATR 周期</label><input type="number" class="form-control" id="f-atr-period" step="1" placeholder="如 14"></div>
+                                            <div class="col-md-3" id="f-atr-multiplier-wrap" style="display:none;"><label class="form-label">ATR 倍数</label><input type="number" class="form-control" id="f-atr-multiplier" step="0.1" placeholder="如 2.5"></div>
+                                        </div>
+                                    </div>
+                                </fieldset>
+
+                                <fieldset class="mb-3">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <legend class="fs-6 fw-semibold mb-0">动态出场规则 Exit.rules</legend>
+                                        <button type="button" class="btn btn-sm btn-outline-primary" data-add="exit-rule">+ 增行</button>
+                                    </div>
+                                    <div id="f-exit-rules" class="d-flex flex-column gap-2"></div>
+                                    <div class="form-text">每行：规则名 + 触发条件（条件树 JSON）+ 动作。命中即触发 action。</div>
+                                </fieldset>
+                            </div>
+
+                            <!-- ============ Tab 7 调仓 ============ -->
+                            <div class="tab-pane fade" id="tab-rebalance" role="tabpanel">
+                                <div class="alert alert-info py-2 small" id="f-rebalance-disabled-tip" style="display:none;">
+                                    <i class="bi bi-info-circle"></i> 当前 scope=single，调仓配置不适用；请先在「基本信息」切换为 portfolio/mixed。
+                                </div>
+                                <fieldset class="mb-3" id="f-rebalance-body">
+                                    <legend class="fs-6 fw-semibold mb-2">调仓规则 Rebalance</legend>
+                                    <div class="row g-3">
+                                        <div class="col-md-3"><label class="form-label">frequency</label>
+                                            <select class="form-select" id="f-reb-frequency">
+                                                <option value="daily">daily</option>
+                                                <option value="weekly">weekly</option>
+                                                <option value="monthly">monthly</option>
+                                                <option value="quarterly">quarterly</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-3"><label class="form-label">day_of_period</label>
+                                            <input type="number" class="form-control" id="f-reb-day" min="1" max="28" step="1" placeholder="1-28">
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="form-label">换仓方式 replace_method</label>
+                                            <div class="d-flex gap-2">
+                                                <div class="form-check"><input class="form-check-input" type="radio" name="f-reb-replace" id="f-reb-replace-full" value="full"><label class="form-check-label" for="f-reb-replace-full">full</label></div>
+                                                <div class="form-check"><input class="form-check-input" type="radio" name="f-reb-replace" id="f-reb-replace-inc" value="incremental"><label class="form-check-label" for="f-reb-replace-inc">incremental</label></div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="form-label">权重模式 weight_mode</label>
+                                            <div class="d-flex gap-2">
+                                                <div class="form-check"><input class="form-check-input" type="radio" name="f-reb-weight" id="f-reb-weight-equal" value="equal"><label class="form-check-label" for="f-reb-weight-equal">equal</label></div>
+                                                <div class="form-check"><input class="form-check-input" type="radio" name="f-reb-weight" id="f-reb-weight-score" value="score"><label class="form-check-label" for="f-reb-weight-score">score</label></div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">单标的最大仓位 max_single_position：<span id="f-reb-max-single-val" class="badge bg-secondary">100%</span></label>
+                                            <input type="range" class="form-range" id="f-reb-max-single" min="0" max="1" step="0.05" value="1">
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="form-check mt-4"><input class="form-check-input" type="checkbox" id="f-reb-long-only" checked><label class="form-check-label" for="f-reb-long-only">仅做多 long_only</label></div>
+                                        </div>
+                                    </div>
+                                </fieldset>
+                            </div>
+
+                            <!-- ============ Tab 8 回测参数 ============ -->
+                            <div class="tab-pane fade" id="tab-backtest" role="tabpanel">
+                                <fieldset class="mb-3">
+                                    <legend class="fs-6 fw-semibold mb-2">回测设置</legend>
+                                    <div class="row g-3">
+                                        <div class="col-md-3"><label class="form-label">初始资金</label><input type="number" class="form-control" id="f-bt-cash" step="1000" min="0"></div>
+                                        <div class="col-md-3"><label class="form-label">起始日期</label><input type="date" class="form-control" id="f-bt-start"></div>
+                                        <div class="col-md-3"><label class="form-label">结束日期</label><input type="date" class="form-control" id="f-bt-end"></div>
+                                        <div class="col-md-3"><label class="form-label">券商模板 broker_profile</label><select class="form-select" id="f-bt-broker"></select></div>
+                                        <div class="col-md-3"><label class="form-label">手数 lot_size</label><input type="number" class="form-control" id="f-bt-lot-size" step="1" min="1" value="100"></div>
+                                        <div class="col-md-3"><label class="form-label">预热期 warmup_period</label><input type="number" class="form-control" id="f-bt-warmup" step="1" min="0"></div>
+                                        <div class="col-md-3"><label class="form-label">历史深度 history_depth</label><input type="number" class="form-control" id="f-bt-history" step="1" min="0"></div>
+                                        <div class="col-md-3"><label class="form-label">基准 benchmark（可选）</label><input type="text" class="form-control" id="f-bt-benchmark" placeholder="如 000300.SH"></div>
+                                        <div class="col-md-3"><div class="form-check mt-4"><input class="form-check-input" type="checkbox" id="f-bt-t1" checked><label class="form-check-label" for="f-bt-t1">T+1</label></div></div>
+                                    </div>
+                                </fieldset>
+
+                                <fieldset class="mb-3">
+                                    <div class="form-check mb-2"><input class="form-check-input" type="checkbox" id="f-bt-use-custom-fee"><label class="form-check-label" for="f-bt-use-custom-fee">自定义费率（覆盖 broker_profile）</label></div>
+                                    <div id="f-bt-fee-wrap" style="display:none;">
+                                        <div class="row g-3">
+                                            <div class="col-md-3"><label class="form-label">佣金率 commission_rate</label><input type="number" class="form-control" id="f-bt-commission" step="0.0001" placeholder="如 0.0003"></div>
+                                            <div class="col-md-3"><label class="form-label">印花税 stamp_tax_rate</label><input type="number" class="form-control" id="f-bt-stamp" step="0.0001" placeholder="如 0.001"></div>
+                                            <div class="col-md-3"><label class="form-label">过户费 transfer_fee_rate</label><input type="number" class="form-control" id="f-bt-transfer" step="0.000001" placeholder="如 0.00001"></div>
+                                            <div class="col-md-3"><label class="form-label">最低佣金 min_commission</label><input type="number" class="form-control" id="f-bt-min-commission" step="0.5" placeholder="如 5"></div>
+                                        </div>
+                                    </div>
+                                </fieldset>
+
+                                <fieldset class="mb-3">
+                                    <div class="form-check mb-2"><input class="form-check-input" type="checkbox" id="f-bt-use-slippage"><label class="form-check-label" for="f-bt-use-slippage">启用滑点 slippage</label></div>
+                                    <div id="f-bt-slippage-wrap" style="display:none;">
+                                        <div class="row g-3 align-items-end">
+                                            <div class="col-md-4">
+                                                <label class="form-label">类型</label>
+                                                <select class="form-select" id="f-bt-slippage-type">
+                                                    <option value="percent">percent（相对价格比例）</option>
+                                                    <option value="fixed">fixed（绝对价格）</option>
+                                                </select>
+                                            </div>
+                                            <div class="col-md-4"><label class="form-label">值</label><input type="number" class="form-control" id="f-bt-slippage-value" step="0.0001" placeholder="如 0.0002"></div>
+                                        </div>
+                                    </div>
+                                </fieldset>
+                            </div>
+
+                        </div>
+                        </div>
+
+                        <!-- 底部保存条 -->
+                        <div class="str-save-bar">
+                            <span class="str-save-hint" id="saveHint">
+                                <i class="bi bi-check-circle"></i>
+                                <span id="saveHintText">所有字段通过校验</span>
+                                <span style="opacity:.6;margin-left:6px;" id="saveHintSize"></span>
+                            </span>
+                            <div class="d-flex gap-2">
+                                <a th:href="@{/quant/strategies}" class="btn btn-secondary btn-sm">取消</a>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" id="saveDraftBtn">保存草稿</button>
+                                <button type="button" class="btn btn-primary btn-sm" id="saveBtn"><i class="bi bi-save"></i> 保存新版本</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ============ 右侧：sticky 预览面板 ============ -->
+                    <div class="str-editor-side">
+                        <div style="position: sticky; top: 80px; display: flex; flex-direction: column; gap: 14px;">
+                            <!-- 策略摘要 -->
+                            <div class="str-summary-card">
+                                <div class="str-summary-title"><i class="bi bi-stars"></i> 策略摘要</div>
+                                <div class="str-summary-text" id="strategySummary">—</div>
+                            </div>
+                            <!-- 校验错误卡(默认隐藏) -->
+                            <div class="str-err-card" id="validationErrCard" style="display:none;">
+                                <div class="str-err-card-title">
+                                    <i class="bi bi-exclamation-triangle"></i>
+                                    <span id="validationErrTitle">校验错误</span>
+                                </div>
+                                <div class="str-err-list" id="validationErrList"></div>
+                            </div>
+                            <!-- JSON 预览 -->
+                            <div class="str-json-card">
+                                <div class="str-json-head">
+                                    <span class="str-json-head-title"><i class="bi bi-braces-asterisk"></i> JSON 预览</span>
+                                    <button type="button" class="str-icon-btn" id="copyJsonBtn" title="复制 JSON"><i class="bi bi-clipboard"></i></button>
+                                </div>
+                                <div class="str-json-body">
+                                    <pre id="jsonPreview"><code></code></pre>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+</div>
+
+<!-- 当前 strategyId 与模板列表内联，供编辑器 JS 初始化读取 -->
+<script th:inline="javascript" type="application/json" id="editorBootstrap">
+{
+    "strategyId":     [[${strategyId}]],
+    "templates":      [[${templates}]],
+    "categoryOptions":[[${categoryOptions}]],
+    "scopeOptions":   [[${scopeOptions}]]
+}
+</script>
+
+<div th:replace="~{fragments/common :: toastContainer}"></div>
+<div th:replace="~{fragments/common :: scripts}"></div>
+<script th:src="@{/js/condition-tree-builder.js}"></script>
+<script th:src="@{/js/strategy-editor.js}"></script>
+</body>
+</html>

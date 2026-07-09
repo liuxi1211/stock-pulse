@@ -1,0 +1,442 @@
+"""策略配置业务规则校验器（统一策略配置 Schema §7）。
+
+结构校验（字段存在性 / 类型 / 枚举值）已由 :mod:`services.strategy.models` 的
+Pydantic 模型在解析阶段完成；本层只做**业务规则**校验：
+
+- §7.1 结构约束：signals/rebalance 至少一个、manual 池必须 stocks、ranking
+  composite/single 必填字段、position_sizing 白名单 + target 必填、ATR 倍数等。
+- §7.2 条件模型约束：递归遍历 ConditionTree / ExpressionNode，按上下文
+  （screen vs trading）校验 comparator / ref / cross_* 的合法性。
+- §7.3 因子节点约束：factorKey 白名单、基本面因子不允许出现在 trading_config、
+  多输出因子必须带 output_index 且在范围内。
+- 安全约束：对自由文本字段（name / description / ranking weight key /
+  exit.rules[].name）做危险字符串黑名单检查（注入防护）。
+
+设计要点：
+- **非短路**：所有错误一次性收集后返回，调用方聚合为 422 响应。
+- **path 格式**：点号路径，数组索引用 ``[n]``，如
+  ``trading_config.signals.buy.conditions[0].left.factor``。
+- ErrorCode 是 ``(code, message)`` 元组，取 ``[0]`` / ``[1]`` 构造错误对象。
+"""
+from typing import List, Optional
+
+from services.strategy.errors import ErrorCode, StrategyValidationError
+from services.strategy import constants
+from services.strategy.models import (
+    StrategyConfigModel,
+    TradingConfigModel,
+    ScreenConfigModel,
+    ConditionTree,
+    CompareLeaf,
+    FactorNode,
+    OpNode,
+    RefNode,
+    ValueNode,
+    PositionSizingModel,
+    RankingModel,
+)
+
+
+# position_sizing.method 需要 target 的方法集合（与 buy_all/close_position 区分）
+# 对齐 constants.POSITION_SIZING_METHODS 中带目标值的下单方法
+_METHODS_REQUIRING_TARGET = {
+    "order_target_percent",
+    "order_target_value",
+    "order_target",
+    "buy",
+    "sell",
+    "order_target_weights",
+}
+
+
+class _Ctx:
+    """条件树遍历上下文，标记当前在 screen 还是 trading 路径。
+
+    不同路径允许的比较器集合不同（screen 禁 cross_*）。
+    """
+
+    __slots__ = ("is_screen",)
+
+    def __init__(self, is_screen: bool):
+        self.is_screen = is_screen
+
+    @property
+    def allowed_comparators(self) -> set:
+        return constants.SCREEN_COMPARATORS if self.is_screen else constants.TRADING_COMPARATORS
+
+
+class StrategyValidator:
+    """策略配置业务规则校验器。
+
+    用法::
+
+        validator = StrategyValidator()
+        errors = validator.validate(config)
+        if errors:
+            # 聚合成 422 响应
+            ...
+
+    所有 ``_validate_*`` 方法均**原地追加**到 ``errors`` 列表，遇到错误不短路，
+    以保证一次性返回所有问题。
+    """
+
+    # ========================================================
+    # 入口
+    # ========================================================
+    def validate(self, config: StrategyConfigModel) -> List[StrategyValidationError]:
+        """对一份策略配置执行全部业务规则校验，返回错误列表（空=通过）。"""
+        errors: List[StrategyValidationError] = []
+
+        # 1. 注入防护（自由文本字段，独立于结构/条件树）
+        self._validate_injection(config, errors)
+
+        # 2. trading_config 结构 + 条件树
+        if config.trading_config is not None:
+            self._validate_structure_trading(config.trading_config, errors)
+            self._validate_trading_conditions_and_factors(config.trading_config, errors)
+
+        # 3. screen_config 结构 + 条件树
+        if config.screen_config is not None:
+            self._validate_structure_screen(config.screen_config, errors)
+            self._validate_screen_conditions(config.screen_config, errors)
+
+        return errors
+
+    # ========================================================
+    # §7.1 结构约束：trading_config
+    # ========================================================
+    def _validate_structure_trading(
+        self, tc: TradingConfigModel, errors: List[StrategyValidationError]
+    ) -> None:
+        # (1) signals 或 rebalance 至少一个在场
+        #     signals 对象存在（即便内部 buy/sell 都 None）也算"在场"
+        if tc.signals is None and tc.rebalance is None:
+            code, msg = ErrorCode.MISSING_SIGNALS_OR_REBALANCE
+            errors.append(
+                StrategyValidationError(path="trading_config", code=code, message=msg)
+            )
+
+        # (5) position_sizing.method 白名单
+        ps: Optional[PositionSizingModel] = tc.position_sizing
+        if ps is not None:
+            if ps.method not in constants.POSITION_SIZING_METHODS:
+                code, msg = ErrorCode.INVALID_POSITION_METHOD
+                errors.append(
+                    StrategyValidationError(
+                        path="trading_config.position_sizing.method",
+                        code=code,
+                        message=msg,
+                    )
+                )
+            else:
+                # (6) 需要 target 的 method 必须带 target
+                if ps.method in _METHODS_REQUIRING_TARGET and ps.target is None:
+                    code, msg = ErrorCode.POSITION_TARGET_REQUIRED
+                    errors.append(
+                        StrategyValidationError(
+                            path="trading_config.position_sizing.target",
+                            code=code,
+                            message=msg,
+                        )
+                    )
+
+        # (7) exit.bracket.use_atr_stop=True 时 atr_multiplier 必填
+        ex = tc.exit
+        if ex is not None and ex.bracket is not None:
+            br = ex.bracket
+            if br.use_atr_stop is True and br.atr_multiplier is None:
+                code, msg = ErrorCode.ATR_MULTIPLIER_REQUIRED
+                errors.append(
+                    StrategyValidationError(
+                        path="trading_config.exit.bracket",
+                        code=code,
+                        message=msg,
+                    )
+                )
+
+    # ========================================================
+    # §7.1 结构约束：screen_config
+    # ========================================================
+    def _validate_structure_screen(
+        self, sc: ScreenConfigModel, errors: List[StrategyValidationError]
+    ) -> None:
+        # (2) universe=manual 时 stocks 必须非空
+        if sc.universe == "manual":
+            if not sc.stocks:  # None 或空列表都算缺失
+                code, msg = ErrorCode.MANUAL_SYMBOL_REQUIRED
+                errors.append(
+                    StrategyValidationError(
+                        path="screen_config.stocks", code=code, message=msg
+                    )
+                )
+
+        # (3)(4) ranking 规则
+        ranking: Optional[RankingModel] = sc.ranking
+        if ranking is not None:
+            if ranking.method == "composite":
+                if not ranking.weights:  # None 或空 dict 都算缺失
+                    code, msg = ErrorCode.RANKING_WEIGHTS_REQUIRED
+                    errors.append(
+                        StrategyValidationError(
+                            path="screen_config.ranking.weights",
+                            code=code,
+                            message=msg,
+                        )
+                    )
+            elif ranking.method == "single":
+                if ranking.factor is None or ranking.order is None:
+                    code, msg = ErrorCode.RANKING_SINGLE_FIELD_REQUIRED
+                    errors.append(
+                        StrategyValidationError(
+                            path="screen_config.ranking", code=code, message=msg
+                        )
+                    )
+
+    # ========================================================
+    # §7.2 条件树遍历：trading_config 入口
+    # ========================================================
+    def _validate_trading_conditions_and_factors(
+        self, tc: TradingConfigModel, errors: List[StrategyValidationError]
+    ) -> None:
+        ctx = _Ctx(is_screen=False)
+
+        # signals.buy.conditions / signals.sell.conditions
+        if tc.signals is not None:
+            if tc.signals.buy is not None:
+                self._walk_condition_tree(
+                    tc.signals.buy, "trading_config.signals.buy", ctx, errors
+                )
+            if tc.signals.sell is not None:
+                self._walk_condition_tree(
+                    tc.signals.sell, "trading_config.signals.sell", ctx, errors
+                )
+
+        # exit.rules[i].condition
+        if tc.exit is not None and tc.exit.rules:
+            for i, rule in enumerate(tc.exit.rules):
+                base = f"trading_config.exit.rules[{i}].condition"
+                # ExitRuleModel.condition 是必填 ConditionTree，不会为 None
+                self._walk_condition_tree(rule.condition, base, ctx, errors)
+
+    # ========================================================
+    # §7.2 条件树遍历：screen_config 入口
+    # ========================================================
+    def _validate_screen_conditions(
+        self, sc: ScreenConfigModel, errors: List[StrategyValidationError]
+    ) -> None:
+        if sc.conditions is None:
+            return
+        ctx = _Ctx(is_screen=True)
+        self._walk_condition_tree(sc.conditions, "screen_config.conditions", ctx, errors)
+
+    # ========================================================
+    # §7.2 条件树递归
+    # ========================================================
+    def _walk_condition_tree(
+        self,
+        node,
+        path: str,
+        ctx: _Ctx,
+        errors: List[StrategyValidationError],
+    ) -> None:
+        """递归遍历条件树节点（ConditionTree 或 CompareLeaf）。
+
+        - ConditionTree：遍历 conditions 列表，子节点 path 用 ``parent.conditions[i]``
+        - CompareLeaf：校验 comparator + 递归 left/right 表达式
+        """
+        # 空列表/None 不报错（空条件树合法），由调用方控制是否进入
+        if node is None:
+            return
+
+        if isinstance(node, CompareLeaf):
+            # 比较器合法性（screen 禁 cross_*）
+            cmp_path = f"{path}.comparator"
+            comparator = node.comparator
+            if comparator not in ctx.allowed_comparators:
+                # screen 上下文下出现 cross_up/cross_down → 专用错误码
+                if ctx.is_screen and comparator in ("cross_up", "cross_down"):
+                    code, msg = ErrorCode.SCREEN_TIME_SERIES_FORBIDDEN
+                else:
+                    code, msg = ErrorCode.INVALID_COMPARATOR
+                errors.append(
+                    StrategyValidationError(path=cmp_path, code=code, message=msg)
+                )
+            else:
+                # trading 上下文下 cross_up/cross_down 要求左右均为 FactorNode
+                if not ctx.is_screen and comparator in ("cross_up", "cross_down"):
+                    if not isinstance(node.left, FactorNode) or not isinstance(
+                        node.right, FactorNode
+                    ):
+                        code, msg = ErrorCode.CROSS_REQUIRES_FACTOR_NODES
+                        errors.append(
+                            StrategyValidationError(path=path, code=code, message=msg)
+                        )
+
+            # 递归 left / right 表达式
+            self._walk_expression(node.left, f"{path}.left", ctx, errors)
+            self._walk_expression(node.right, f"{path}.right", ctx, errors)
+            return
+
+        if isinstance(node, ConditionTree):
+            # 空列表合法，不报错；有元素则递归
+            for i, child in enumerate(node.conditions):
+                self._walk_condition_tree(
+                    child, f"{path}.conditions[{i}]", ctx, errors
+                )
+            return
+
+        # 理论上不可达（Pydantic Union 已限定类型）；防御性记录
+        code, msg = ErrorCode.INVALID_COMPARATOR
+        errors.append(
+            StrategyValidationError(path=path, code=code, message=f"未知条件节点类型: {msg}")
+        )
+
+    # ========================================================
+    # §7.2 表达式节点遍历
+    # ========================================================
+    def _walk_expression(
+        self,
+        node,
+        path: str,
+        ctx: _Ctx,
+        errors: List[StrategyValidationError],
+    ) -> None:
+        """递归遍历表达式节点（FactorNode / OpNode / RefNode / ValueNode）。"""
+        if isinstance(node, FactorNode):
+            self._validate_factor_node(node, path, ctx, errors)
+            return
+
+        if isinstance(node, OpNode):
+            # op 已被 Pydantic Literal 校验（仅 +-*/），无需再校验
+            self._walk_expression(node.left, f"{path}.left", ctx, errors)
+            self._walk_expression(node.right, f"{path}.right", ctx, errors)
+            return
+
+        if isinstance(node, RefNode):
+            # screen 上下文禁止任何 ref
+            if ctx.is_screen:
+                code, msg = ErrorCode.SCREEN_REF_FORBIDDEN
+                errors.append(
+                    StrategyValidationError(path=path, code=code, message=msg)
+                )
+                return
+            # trading 上下文：ref 必须在白名单
+            if node.ref not in constants.ALLOWED_REFS:
+                code, msg = ErrorCode.UNKNOWN_REF_KEY
+                errors.append(
+                    StrategyValidationError(
+                        path=f"{path}.ref", code=code, message=msg
+                    )
+                )
+            return
+
+        if isinstance(node, ValueNode):
+            # 静态值节点无需校验
+            return
+
+        # 理论上不可达
+        code, msg = ErrorCode.INVALID_OP
+        errors.append(
+            StrategyValidationError(path=path, code=code, message=f"未知表达式节点类型: {msg}")
+        )
+
+    # ========================================================
+    # §7.3 因子节点约束
+    # ========================================================
+    def _validate_factor_node(
+        self,
+        node: FactorNode,
+        path: str,
+        ctx: _Ctx,
+        errors: List[StrategyValidationError],
+    ) -> None:
+        factor = node.factor
+
+        # (1) factorKey 白名单（技术面 + 基本面并集）
+        if factor not in constants.ALL_FACTOR_KEYS:
+            code, msg = ErrorCode.UNKNOWN_FACTOR
+            errors.append(
+                StrategyValidationError(
+                    path=f"{path}.factor", code=code, message=msg
+                )
+            )
+            # 未知因子无需再做多输出/基本面检查，直接返回
+            return
+
+        # (2) 基本面因子不允许出现在 trading_config（实时路径不支持）
+        if factor in constants.FUNDAMENTAL_FACTOR_KEYS and not ctx.is_screen:
+            code, msg = ErrorCode.FUNDAMENTAL_FACTOR_IN_TRADING
+            errors.append(
+                StrategyValidationError(
+                    path=f"{path}.factor", code=code, message=msg
+                )
+            )
+
+        # (3) 多输出因子必须带 output_index 且在范围内
+        if factor in constants.MULTI_OUTPUT_FACTORS:
+            outputs = constants.MULTI_OUTPUT_FACTORS[factor]
+            if node.output_index is None:
+                code, msg = ErrorCode.MULTI_OUTPUT_REQUIRES_INDEX
+                errors.append(
+                    StrategyValidationError(
+                        path=f"{path}.output_index", code=code, message=msg
+                    )
+                )
+            else:
+                # output_index 必须在 [0, len(outputs)-1]
+                max_idx = len(outputs) - 1
+                if node.output_index < 0 or node.output_index > max_idx:
+                    code, msg = ErrorCode.MULTI_OUTPUT_INDEX_OUT_OF_RANGE
+                    errors.append(
+                        StrategyValidationError(
+                            path=f"{path}.output_index", code=code, message=msg
+                        )
+                    )
+
+    # ========================================================
+    # 注入防护（自由文本字段）
+    # ========================================================
+    def _validate_injection(
+        self, config: StrategyConfigModel, errors: List[StrategyValidationError]
+    ) -> None:
+        """对自由文本字段做危险字符串黑名单检查。
+
+        枚举字段（method / comparator / op / ref）由 Pydantic Literal 或本层
+        白名单天然防护，无需黑名单。
+        """
+        # 顶层 name / description
+        self._check_dangerous_text(config.name, "name", errors)
+        if config.description is not None:
+            self._check_dangerous_text(config.description, "description", errors)
+
+        # screen_config.ranking.weights 的 key（自定义 factorKey 字符串）
+        sc = config.screen_config
+        if sc is not None and sc.ranking is not None and sc.ranking.weights:
+            for key in sc.ranking.weights.keys():
+                self._check_dangerous_text(
+                    str(key), "screen_config.ranking.weights", errors
+                )
+
+        # trading_config.exit.rules[].name（规则展示名）
+        tc = config.trading_config
+        if tc is not None and tc.exit is not None and tc.exit.rules:
+            for i, rule in enumerate(tc.exit.rules):
+                if rule.name is not None:
+                    self._check_dangerous_text(
+                        rule.name, f"trading_config.exit.rules[{i}].name", errors
+                    )
+
+    def _check_dangerous_text(
+        self, text: str, path: str, errors: List[StrategyValidationError]
+    ) -> None:
+        """命中任一危险模式即报 INJECTION_FORBIDDEN（非短路，扫全部模式）。"""
+        if not isinstance(text, str):
+            return
+        for pattern in constants.DANGEROUS_PATTERNS:
+            if pattern in text:
+                code, msg = ErrorCode.INJECTION_FORBIDDEN
+                errors.append(
+                    StrategyValidationError(path=path, code=code, message=msg)
+                )
+                # 单字段命中一次即可，避免重复追加
+                return

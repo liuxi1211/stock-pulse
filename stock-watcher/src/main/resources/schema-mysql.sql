@@ -200,6 +200,35 @@ CREATE TABLE IF NOT EXISTS factor_snapshot (
     INDEX idx_factor_snapshot_date (trade_date)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='因子预计算快照表';
 
+-- 14. 策略主表（quant_strategy）
+CREATE TABLE IF NOT EXISTS quant_strategy (
+    id              BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
+    strategy_id     VARCHAR(64)  NOT NULL UNIQUE COMMENT '策略业务标识（UUID/业务编码）',
+    name            VARCHAR(128) NOT NULL COMMENT '策略名称',
+    description     VARCHAR(512) COMMENT '策略描述',
+    category        VARCHAR(32)  COMMENT '策略分类（TECHNICAL/FUNDAMENTAL/MIXED/CUSTOM）',
+    scope           VARCHAR(16)  COMMENT '适用范围（single/portfolio/mixed）',
+    status          VARCHAR(16)  DEFAULT 'DRAFT' COMMENT '状态（DRAFT/VERIFIED/ACTIVE/ARCHIVED）',
+    tags            VARCHAR(512) COMMENT '标签（逗号分隔）',
+    current_version INT          DEFAULT 1 COMMENT '当前生效版本号',
+    created_at      VARCHAR(32)  COMMENT '创建时间（UTC ISO8601）',
+    updated_at      VARCHAR(32)  COMMENT '更新时间（UTC ISO8601）',
+    INDEX idx_quant_strategy_status (status),
+    INDEX idx_quant_strategy_category (category)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='策略主表';
+
+-- 15. 策略版本快照表（quant_strategy_version，strategy_id 为外键 → quant_strategy.id）
+CREATE TABLE IF NOT EXISTS quant_strategy_version (
+    id           BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
+    strategy_id  BIGINT       NOT NULL COMMENT '策略主表ID（quant_strategy.id）',
+    version_no   INT          NOT NULL COMMENT '版本号',
+    config_json  MEDIUMTEXT   NOT NULL COMMENT '版本配置（统一策略 Schema JSON）',
+    changelog    VARCHAR(512) COMMENT '版本变更说明',
+    created_at   VARCHAR(32)  COMMENT '创建时间（UTC ISO8601）',
+    UNIQUE KEY uk_strategy_version (strategy_id, version_no),
+    INDEX idx_strategy_version_lookup (strategy_id, version_no)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='策略版本快照表';
+
 -- 初始管理员账号（仅当表为空时插入，默认密码: admin123）
 INSERT INTO sys_user (username, password, enabled, role)
 SELECT 'admin', '$2a$10$pfuIlLGBbNZqO5xXa9oRKeEFABc4FIxs2SVY46UUG1xpA7o9tGn9u', 1, 'ADMIN'

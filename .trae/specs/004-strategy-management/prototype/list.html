@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>策略管理 · StockPulse</title>
+<link rel="stylesheet" href="prototype.css">
+</head>
+<body>
+<div class="app-shell">
+    <!-- 侧边栏 -->
+    <aside class="sidebar">
+        <div class="sidebar-brand">
+            <div class="brand-logo">SP</div>
+            <div>
+                <div class="brand-name">StockPulse</div>
+                <div class="brand-sub">量化平台</div>
+            </div>
+        </div>
+        <div class="nav-section">
+            <div class="nav-section-title">市场</div>
+            <a class="nav-item" href="#"><i>📊</i>行情看板</a>
+            <a class="nav-item" href="#"><i>⭐</i>我的自选<span class="badge">27</span></a>
+        </div>
+        <div class="nav-section">
+            <div class="nav-section-title">量化</div>
+            <a class="nav-item" href="#"><i>🧬</i>标准因子库</a>
+            <a class="nav-item" href="#"><i>🎯</i>多因子选股</a>
+            <a class="nav-item active" href="list.html"><i>📐</i>策略管理<span class="badge">12</span></a>
+            <a class="nav-item" href="#" style="opacity:.45"><i>📈</i>回测中心<span class="badge" style="opacity:.6">WIP</span></a>
+            <a class="nav-item" href="#" style="opacity:.45"><i>📡</i>信号中心<span class="badge" style="opacity:.6">WIP</span></a>
+        </div>
+        <div class="nav-section">
+            <div class="nav-section-title">账户</div>
+            <a class="nav-item" href="#"><i>⚙️</i>系统设置</a>
+        </div>
+    </aside>
+
+    <!-- 主区 -->
+    <main class="main">
+        <div class="topbar">
+            <div class="crumb">
+                <a href="#">量化</a><span class="sep">/</span><span class="cur">策略管理</span>
+            </div>
+            <div class="topbar-right">
+                <button class="top-icon-btn" title="通知">🔔</button>
+                <button class="top-icon-btn" title="主题">🌓</button>
+                <div class="avatar">Q</div>
+            </div>
+        </div>
+
+        <div class="content">
+            <!-- 页头 -->
+            <div class="page-header">
+                <div>
+                    <h1 class="page-title">策略管理 <span class="count">12</span></h1>
+                    <p class="page-subtitle">统一策略配置 Schema · CRUD + 版本快照 · 回测/信号共用 config_json</p>
+                </div>
+                <div class="page-actions">
+                    <button class="btn btn-secondary btn-sm">🔄 刷新</button>
+                    <div style="position:relative">
+                        <button class="btn btn-secondary btn-sm">📂 从模板 ▾</button>
+                    </div>
+                    <a href="editor.html" class="btn btn-primary btn-sm">＋ 新建策略</a>
+                </div>
+            </div>
+
+            <!-- 统计条 -->
+            <div class="stat-strip">
+                <div class="stat-card" style="--stat-accent: var(--accent-blue);">
+                    <div class="stat-head">
+                        <div class="stat-label">📚 策略总数</div>
+                        <span class="stat-tag">v1.0</span>
+                    </div>
+                    <div class="stat-value">12</div>
+                    <div class="stat-foot">
+                        <span class="dot" style="--c: var(--accent-blue);">Schema v1.0</span>
+                        <span class="dot" style="--c: var(--accent-cyan);">engine 校验</span>
+                    </div>
+                </div>
+                <div class="stat-card" style="--stat-accent: var(--accent-green);">
+                    <div class="stat-head">
+                        <div class="stat-label">✅ 已验证</div>
+                        <span class="stat-tag">VERIFIED</span>
+                    </div>
+                    <div class="stat-value" style="color: var(--fall-light);">7</div>
+                    <div class="stat-foot"><span>通过 Schema §7 全量校验</span></div>
+                </div>
+                <div class="stat-card" style="--stat-accent: var(--accent-purple);">
+                    <div class="stat-head">
+                        <div class="stat-label">🚀 激活中</div>
+                        <span class="stat-tag">ACTIVE</span>
+                    </div>
+                    <div class="stat-value" style="color: #a78bfa;">3</div>
+                    <div class="stat-foot"><span>供信号中心订阅</span></div>
+                </div>
+                <div class="stat-card" style="--stat-accent: var(--accent-yellow);">
+                    <div class="stat-head">
+                        <div class="stat-label">📝 草稿</div>
+                        <span class="stat-tag">DRAFT</span>
+                    </div>
+                    <div class="stat-value" style="color: var(--accent-yellow);">2</div>
+                    <div class="stat-foot"><span>尚未通过校验</span></div>
+                </div>
+            </div>
+
+            <!-- 筛选栏 -->
+            <div class="filter-bar">
+                <div class="search-box">
+                    <i>🔍</i>
+                    <input type="text" placeholder="搜索策略名 / 描述 / 标签...">
+                </div>
+                <select class="filter-select">
+                    <option>全部分类</option>
+                    <option>技术面</option>
+                    <option>基本面</option>
+                    <option>混合</option>
+                    <option>自定义</option>
+                </select>
+                <select class="filter-select">
+                    <option>全部状态</option>
+                    <option>草稿</option>
+                    <option>已验证</option>
+                    <option>激活中</option>
+                    <option>已归档</option>
+                </select>
+                <select class="filter-select">
+                    <option>全部范围</option>
+                    <option>单标的</option>
+                    <option>组合</option>
+                    <option>混合</option>
+                </select>
+                <button class="btn btn-secondary btn-sm">🏷️ 标签</button>
+                <div class="filter-spacer"></div>
+                <button class="btn btn-ghost btn-sm" title="卡片视图">▦</button>
+                <button class="btn btn-ghost btn-sm" title="列表视图">☰</button>
+            </div>
+
+            <!-- 卡片网格 -->
+            <div class="strategy-grid">
+                <!-- Card 1: 双均线 -->
+                <div class="strategy-card" style="--card-accent: linear-gradient(135deg, #3b82f6, #06b6d4);" onclick="location.href='editor.html?id=1'">
+                    <div class="card-head">
+                        <div>
+                            <div class="card-title">沪深300双均线趋势</div>
+                            <div class="card-sub">STR-20260301-A1F3 · v5</div>
+                        </div>
+                        <span class="status-badge status-active">ACTIVE</span>
+                    </div>
+                    <div class="card-desc">单标的趋势跟随策略：MA5 金叉 MA20 买入，死叉卖出，95% 仓位 + 括号单止损 8%/止盈 20%。对标沪深300 ETF。</div>
+                    <div class="card-meta">
+                        <span class="cat-badge cat-tech">技术面</span>
+                        <span class="scope-badge">SINGLE</span>
+                        <span class="card-tag">#趋势</span>
+                        <span class="card-tag">#均线</span>
+                    </div>
+                    <div class="card-stats">
+                        <div class="cstat">
+                            <div class="cstat-val up">+34.7%</div>
+                            <div class="cstat-lbl">累计收益</div>
+                        </div>
+                        <div class="cstat">
+                            <div class="cstat-val up">1.84</div>
+                            <div class="cstat-lbl">夏普</div>
+                        </div>
+                        <div class="cstat">
+                            <div class="cstat-val down">-11.2%</div>
+                            <div class="cstat-lbl">最大回撤</div>
+                        </div>
+                    </div>
+                    <div class="card-foot">
+                        <div class="card-time">2026-07-02 14:32</div>
+                        <div class="card-actions" onclick="event.stopPropagation()">
+                            <button class="icon-btn" title="编辑" onclick="location.href='editor.html?id=1'">✏️</button>
+                            <button class="icon-btn" title="版本" onclick="location.href='versions.html?id=1'">🗂</button>
+                            <button class="icon-btn" title="回测">▶</button>
+                            <button class="icon-btn danger" title="归档">🗑</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Card 2: 低PE价值 -->
+                <div class="strategy-card" style="--card-accent: linear-gradient(135deg, #8b5cf6, #3b82f6);" onclick="location.href='editor.html?id=2'">
+                    <div class="card-head">
+                        <div>
+                            <div class="card-title">低PE价值多因子</div>
+                            <div class="card-sub">STR-20260218-B7E2 · v3</div>
+                        </div>
+                        <span class="status-badge status-active">ACTIVE</span>
+                    </div>
+                    <div class="card-desc">全 A 股选股调仓：PE_TTM < 20 且 ROE_TTM > 15% 且总市值 < 200 亿，月度等权 Top30，括号单 10%/30%。</div>
+                    <div class="card-meta">
+                        <span class="cat-badge cat-fund">基本面</span>
+                        <span class="scope-badge">PORTFOLIO</span>
+                        <span class="card-tag">#价值</span>
+                        <span class="card-tag">#月度调仓</span>
+                    </div>
+                    <div class="card-stats">
+                        <div class="cstat">
+                            <div class="cstat-val up">+52.3%</div>
+                            <div class="cstat-lbl">累计收益</div>
+                        </div>
+                        <div class="cstat">
+                            <div class="cstat-val up">2.12</div>
+                            <div class="cstat-lbl">夏普</div>
+                        </div>
+                        <div class="cstat">
+                            <div class="cstat-val down">-15.8%</div>
+                            <div class="cstat-lbl">最大回撤</div>
+                        </div>
+                    </div>
+                    <div class="card-foot">
+                        <div class="card-time">2026-06-28 09:14</div>
+                        <div class="card-actions" onclick="event.stopPropagation()">
+                            <button class="icon-btn" title="编辑">✏️</button>
+                            <button class="icon-btn" title="版本" onclick="location.href='versions.html?id=2'">🗂</button>
+                            <button class="icon-btn" title="回测">▶</button>
+                            <button class="icon-btn danger" title="归档">🗑</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Card 3: MACD短线 -->
+                <div class="strategy-card" style="--card-accent: linear-gradient(135deg, #f97316, #ef4444);" onclick="location.href='editor.html?id=3'">
+                    <div class="card-head">
+                        <div>
+                            <div class="card-title">MACD 短线动量</div>
+                            <div class="card-sub">STR-20260410-C9D1 · v8</div>
+                        </div>
+                        <span class="status-badge status-verified">VERIFIED</span>
+                    </div>
+                    <div class="card-desc">单标的短线策略：MACD 柱转正 + RSI < 70 买，MACD 柱转负或 RSI > 80 卖；ATR 追踪止损 mult=2。</div>
+                    <div class="card-meta">
+                        <span class="cat-badge cat-tech">技术面</span>
+                        <span class="scope-badge">SINGLE</span>
+                        <span class="card-tag">#MACD</span>
+                        <span class="card-tag">#RSI</span>
+                        <span class="card-tag">#ATR</span>
+                    </div>
+                    <div class="card-stats">
+                        <div class="cstat">
+                            <div class="cstat-val up">+18.9%</div>
+                            <div class="cstat-lbl">累计收益</div>
+                        </div>
+                        <div class="cstat">
+                            <div class="cstat-val">1.27</div>
+                            <div class="cstat-lbl">夏普</div>
+                        </div>
+                        <div class="cstat">
+                            <div class="cstat-val down">-18.4%</div>
+                            <div class="cstat-lbl">最大回撤</div>
+                        </div>
+                    </div>
+                    <div class="card-foot">
+                        <div class="card-time">2026-07-01 16:05</div>
+                        <div class="card-actions" onclick="event.stopPropagation()">
+                            <button class="icon-btn" title="编辑">✏️</button>
+                            <button class="icon-btn" title="版本">🗂</button>
+                            <button class="icon-btn" title="回测">▶</button>
+                            <button class="icon-btn danger" title="归档">🗑</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Card 4: 小市值 -->
+                <div class="strategy-card" style="--card-accent: linear-gradient(135deg, #22c55e, #06b6d4);" onclick="location.href='editor.html?id=4'">
+                    <div class="card-head">
+                        <div>
+                            <div class="card-title">小市值轮动</div>
+                            <div class="card-sub">STR-20260122-D4A8 · v2</div>
+                        </div>
+                        <span class="status-badge status-active">ACTIVE</span>
+                    </div>
+                    <div class="card-desc">全 A 选股：总市值 < 50 亿，按市值升序 Top20，月度等权；剔除 ST/停牌/涨停。</div>
+                    <div class="card-meta">
+                        <span class="cat-badge cat-mixed">混合</span>
+                        <span class="scope-badge">PORTFOLIO</span>
+                        <span class="card-tag">#小盘</span>
+                        <span class="card-tag">#轮动</span>
+                    </div>
+                    <div class="card-stats">
+                        <div class="cstat">
+                            <div class="cstat-val up">+78.4%</div>
+                            <div class="cstat-lbl">累计收益</div>
+                        </div>
+                        <div class="cstat">
+                            <div class="cstat-val up">1.96</div>
+                            <div class="cstat-lbl">夏普</div>
+                        </div>
+                        <div class="cstat">
+                            <div class="cstat-val down">-22.1%</div>
+                            <div class="cstat-lbl">最大回撤</div>
+                        </div>
+                    </div>
+                    <div class="card-foot">
+                        <div class="card-time">2026-06-15 10:22</div>
+                        <div class="card-actions" onclick="event.stopPropagation()">
+                            <button class="icon-btn" title="编辑">✏️</button>
+                            <button class="icon-btn" title="版本">🗂</button>
+                            <button class="icon-btn" title="回测">▶</button>
+                            <button class="icon-btn danger" title="归档">🗑</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Card 5: 量价跟随 -->
+                <div class="strategy-card" style="--card-accent: linear-gradient(135deg, #fbbf24, #f97316);" onclick="location.href='editor.html?id=5'">
+                    <div class="card-head">
+                        <div>
+                            <div class="card-title">量价齐升跟随</div>
+                            <div class="card-sub">STR-20260520-E2F6 · v4</div>
+                        </div>
+                        <span class="status-badge status-verified">VERIFIED</span>
+                    </div>
+                    <div class="card-desc">VOL_MA5 > VOL_MA20 × 1.5 且 MA5>MA20>MA60 多头排列买入，MA5 下穿 MA20 卖出，90% 仓位。</div>
+                    <div class="card-meta">
+                        <span class="cat-badge cat-tech">技术面</span>
+                        <span class="scope-badge">SINGLE</span>
+                        <span class="card-tag">#量能</span>
+                        <span class="card-tag">#多头排列</span>
+                    </div>
+                    <div class="card-stats">
+                        <div class="cstat">
+                            <div class="cstat-val up">+26.1%</div>
+                            <div class="cstat-lbl">累计收益</div>
+                        </div>
+                        <div class="cstat">
+                            <div class="cstat-val up">1.53</div>
+                            <div class="cstat-lbl">夏普</div>
+                        </div>
+                        <div class="cstat">
+                            <div class="cstat-val down">-13.6%</div>
+                            <div class="cstat-lbl">最大回撤</div>
+                        </div>
+                    </div>
+                    <div class="card-foot">
+                        <div class="card-time">2026-06-30 15:48</div>
+                        <div class="card-actions" onclick="event.stopPropagation()">
+                            <button class="icon-btn" title="编辑">✏️</button>
+                            <button class="icon-btn" title="版本">🗂</button>
+                            <button class="icon-btn" title="回测">▶</button>
+                            <button class="icon-btn danger" title="归档">🗑</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Card 6: 草稿示例 -->
+                <div class="strategy-card" style="--card-accent: linear-gradient(135deg, #64748b, #475569); opacity:.85;" onclick="location.href='editor.html?id=6'">
+                    <div class="card-head">
+                        <div>
+                            <div class="card-title">KDJ 超跌反弹（试验）</div>
+                            <div class="card-sub">STR-20260705-F8B4 · v1</div>
+                        </div>
+                        <span class="status-badge status-draft">DRAFT</span>
+                    </div>
+                    <div class="card-desc">KDJ J 值 < 0 超卖区金叉买入，J > 100 超买死叉卖出。待验证因子引用是否正确。</div>
+                    <div class="card-meta">
+                        <span class="cat-badge cat-tech">技术面</span>
+                        <span class="scope-badge">SINGLE</span>
+                        <span class="card-tag">#KDJ</span>
+                        <span class="card-tag" style="color: var(--rise-light);">3 个校验错误</span>
+                    </div>
+                    <div class="card-stats">
+                        <div class="cstat">
+                            <div class="cstat-val text-muted">—</div>
+                            <div class="cstat-lbl">累计收益</div>
+                        </div>
+                        <div class="cstat">
+                            <div class="cstat-val text-muted">—</div>
+                            <div class="cstat-lbl">夏普</div>
+                        </div>
+                        <div class="cstat">
+                            <div class="cstat-val text-muted">—</div>
+                            <div class="cstat-lbl">最大回撤</div>
+                        </div>
+                    </div>
+                    <div class="card-foot">
+                        <div class="card-time">2026-07-05 11:20</div>
+                        <div class="card-actions" onclick="event.stopPropagation()">
+                            <button class="icon-btn" title="编辑">✏️</button>
+                            <button class="icon-btn" title="版本">🗂</button>
+                            <button class="icon-btn" title="回测" style="opacity:.4;cursor:not-allowed">▶</button>
+                            <button class="icon-btn danger" title="归档">🗑</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 分页 -->
+            <div class="pagination">
+                <button class="page-btn">‹</button>
+                <button class="page-btn active">1</button>
+                <button class="page-btn">2</button>
+                <button class="page-btn">›</button>
+            </div>
+        </div>
+    </main>
+</div>
+</body>
+</html>

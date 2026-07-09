@@ -512,8 +512,36 @@ function onThemeChange() {
     updateChartsTheme();
 }
 
+// ========== Refresh and Export ==========
+function refreshDashboard() {
+    refreshWatchlist();
+    refreshRanking();
+    StockApp.toast('数据已刷新', 'success');
+}
+
+function exportDashboard() {
+    const data = {
+        watchlist: watchlistData,
+        exportTime: new Date().toISOString()
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'dashboard_export_' + new Date().toISOString().slice(0,10) + '.json';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    StockApp.toast('数据已导出', 'success');
+}
+
 // ========== Init ==========
 document.addEventListener('DOMContentLoaded', function() {
+    // Add click handlers for refresh and export
+    document.getElementById('refreshBtn').addEventListener('click', refreshDashboard);
+    document.getElementById('exportBtn').addEventListener('click', exportDashboard);
+
     // K-line search suggest
     new SearchSuggest(document.getElementById('klineSearchInput'), {
         onSelect: function(item) {

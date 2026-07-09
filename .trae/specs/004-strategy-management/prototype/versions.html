@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>版本历史 · 沪深300双均线趋势</title>
+<link rel="stylesheet" href="prototype.css">
+<style>
+.ver-header {
+    display: flex; align-items: center; gap: 14px; padding: 18px 20px;
+    background: var(--bg-card); border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg); margin-bottom: 20px;
+}
+.ver-header-icon {
+    width: 52px; height: 52px; border-radius: 14px;
+    background: linear-gradient(135deg, #3b82f6, #06b6d4);
+    display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0;
+}
+.ver-header-title { font-size: 16px; font-weight: 600; color: var(--text-primary); }
+.ver-header-meta { font-size: 11.5px; color: var(--text-muted); margin-top: 4px; font-family: var(--font-mono); }
+.ver-header-actions { margin-left: auto; display: flex; gap: 8px; }
+
+.vdiff-layout { display: grid; grid-template-columns: 320px 1fr; gap: 16px; }
+.vdiff-list { display: flex; flex-direction: column; gap: 1px; }
+.vdiff-item {
+    padding: 12px 14px; background: var(--bg-card); cursor: pointer;
+    border-left: 3px solid transparent; transition: all .15s;
+    font-size: 12px; position: relative;
+}
+.vdiff-item:first-child { border-radius: var(--radius-lg) var(--radius-lg) 0 0; }
+.vdiff-item:last-child { border-radius: 0 0 var(--radius-lg) var(--radius-lg); }
+.vdiff-item:only-child { border-radius: var(--radius-lg); }
+.vdiff-item.active {
+    background: rgba(59, 130, 246, 0.12); border-left-color: var(--accent-blue);
+}
+.vdiff-item:hover:not(.active) { background: var(--bg-tertiary); }
+.vdiff-ver {
+    display: flex; align-items: center; gap: 8px; font-weight: 600;
+    font-size: 13px; margin-bottom: 4px;
+}
+.vdiff-ver .vnum { font-family: var(--font-mono); color: var(--text-primary); }
+.vdiff-ver .vtag {
+    font-size: 9px; padding: 1px 6px; border-radius: 4px; font-weight: 700;
+}
+.vdiff-ver .vtag-cur { background: var(--fall-bg); color: var(--fall-light); }
+.vdiff-ver .vtag-active { background: rgba(139, 92, 246, 0.15); color: #a78bfa; }
+.vdiff-msg { color: var(--text-secondary); font-size: 11px; margin-bottom: 5px; line-height: 1.4; }
+.vdiff-meta {
+    display: flex; align-items: center; gap: 10px; color: var(--text-muted);
+    font-size: 10.5px; font-family: var(--font-mono);
+}
+.vdiff-meta .author { color: var(--accent-cyan); font-weight: 500; }
+.vdiff-meta .changes { color: var(--accent-yellow); }
+.vdiff-meta .changes-add { color: var(--fall-light); }   /* 代码diff: 新增=绿 */
+.vdiff-meta .changes-del { color: var(--rise-light); }   /* 代码diff: 删除=红 */
+
+.vdiff-detail {
+    background: var(--bg-card); border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg); overflow: hidden;
+    display: flex; flex-direction: column;
+}
+.vdiff-detail-head {
+    padding: 14px 18px; border-bottom: 1px solid var(--border-color);
+    display: flex; align-items: center; justify-content: space-between;
+}
+.vdiff-detail-title { font-size: 13px; font-weight: 600; }
+.vdiff-detail-ver { font-family: var(--font-mono); font-size: 11px; color: var(--accent-cyan); }
+.vdiff-detail-meta { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+.vdiff-detail-actions { display: flex; gap: 6px; }
+.vdiff-tabs { display: flex; gap: 2px; padding: 0 18px; border-bottom: 1px solid var(--border-light); background: var(--bg-tertiary); }
+.vdiff-tab {
+    padding: 10px 14px; font-size: 11.5px; color: var(--text-muted); cursor: pointer;
+    border-bottom: 2px solid transparent; background: transparent; border-top: none; border-left: none; border-right: none;
+    font-family: inherit;
+}
+.vdiff-tab.active { color: var(--accent-cyan); border-bottom-color: var(--accent-cyan); }
+.vdiff-body { padding: 16px 18px; min-height: 400px; }
+.vdiff-summary-grid {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 18px;
+}
+.vsum-card {
+    padding: 12px; background: var(--bg-input); border-radius: var(--radius-sm);
+    text-align: center;
+}
+.vsum-val { font-size: 18px; font-weight: 700; font-family: var(--font-mono); }
+.vsum-lbl { font-size: 10px; color: var(--text-muted); margin-top: 3px; text-transform: uppercase; letter-spacing: .5px; }
+.diff-line {
+    font-family: var(--font-mono); font-size: 11px; padding: 2px 10px;
+    white-space: pre; line-height: 1.6; border-radius: 3px;
+}
+.diff-add { background: rgba(34, 197, 94, 0.1); color: #86efac; }
+.diff-del { background: rgba(239, 68, 68, 0.1); color: #fca5a5; }
+.diff-ctx { color: var(--text-secondary); }
+.diff-hunk { color: var(--accent-cyan); font-weight: 600; background: rgba(6, 182, 212, 0.08); padding: 4px 10px; margin-top: 8px; border-radius: 3px; font-size: 10.5px; }
+.diff-path { color: var(--accent-purple); font-weight: 600; padding: 6px 0; font-size: 11.5px; }
+.change-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.chip {
+    font-size: 10.5px; padding: 3px 9px; border-radius: 5px;
+    font-family: var(--font-mono); display: inline-flex; align-items: center; gap: 4px;
+}
+.chip-added { background: var(--fall-bg); color: var(--fall-light); }
+.chip-modified { background: rgba(245, 158, 11, 0.12); color: var(--accent-yellow); }
+.chip-removed { background: var(--rise-bg); color: var(--rise-light); }
+.rollback-note {
+    margin-top: 16px; padding: 10px 14px; background: rgba(245, 158, 11, 0.08);
+    border-left: 3px solid var(--accent-yellow); border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+    font-size: 11.5px; color: var(--text-secondary); line-height: 1.6;
+}
+.rollback-note strong { color: var(--accent-yellow); }
+</style>
+</head>
+<body>
+<div class="app-shell">
+    <aside class="sidebar">
+        <div class="sidebar-brand">
+            <div class="brand-logo">SP</div>
+            <div>
+                <div class="brand-name">StockPulse</div>
+                <div class="brand-sub">量化平台</div>
+            </div>
+        </div>
+        <div class="nav-section">
+            <div class="nav-section-title">量化</div>
+            <a class="nav-item" href="#">🧬 标准因子库</a>
+            <a class="nav-item active" href="list.html">📐 策略管理</a>
+        </div>
+    </aside>
+
+    <main class="main">
+        <div class="topbar">
+            <div class="crumb">
+                <a href="list.html">策略管理</a><span class="sep">/</span>
+                <a href="editor.html?id=1">沪深300双均线趋势</a><span class="sep">/</span>
+                <span class="cur">版本历史</span>
+            </div>
+            <div class="topbar-right">
+                <a href="editor.html?id=1" class="btn btn-secondary btn-sm">✏️ 返回编辑</a>
+                <div class="avatar">Q</div>
+            </div>
+        </div>
+
+        <div class="content">
+            <div class="ver-header">
+                <div class="ver-header-icon">📐</div>
+                <div>
+                    <div class="ver-header-title">沪深300双均线趋势 · 版本历史</div>
+                    <div class="ver-header-meta">STR-20260301-A1F3 · 共 5 个版本 · 最近更新 2026-07-02 14:32</div>
+                </div>
+                <div class="ver-header-actions">
+                    <button class="btn btn-secondary btn-sm">📤 导出 v5</button>
+                    <button class="btn btn-primary btn-sm" onclick="location.href='editor.html?id=1'">✏️ 继续编辑</button>
+                </div>
+            </div>
+
+            <div class="vdiff-layout">
+                <!-- 左侧版本列表 -->
+                <div class="vdiff-list">
+                    <div class="vdiff-item active" data-v="5">
+                        <div class="vdiff-ver">
+                            <span class="vnum">v5</span>
+                            <span class="vtag vtag-cur">CURRENT</span>
+                            <span class="vtag vtag-active">ACTIVE</span>
+                        </div>
+                        <div class="vdiff-msg">调整止盈比例至 20%，增加 MA60 多头确认条件，降低假信号</div>
+                        <div class="vdiff-meta">
+                            <span class="author">you</span>
+                            <span>2026-07-02 14:32</span>
+                            <span class="changes-add">+12</span>
+                            <span class="changes-del">-3</span>
+                        </div>
+                    </div>
+                    <div class="vdiff-item" data-v="4">
+                        <div class="vdiff-ver">
+                            <span class="vnum">v4</span>
+                        </div>
+                        <div class="vdiff-msg">启用括号单，止损 8%/止盈 15%</div>
+                        <div class="vdiff-meta">
+                            <span class="author">you</span>
+                            <span>2026-06-20 10:15</span>
+                            <span class="changes-add">+18</span>
+                            <span class="changes-del">-2</span>
+                        </div>
+                    </div>
+                    <div class="vdiff-item" data-v="3">
+                        <div class="vdiff-ver">
+                            <span class="vnum">v3</span>
+                        </div>
+                        <div class="vdiff-msg">仓位 100% → 95%，预留手续费/滑点缓冲；回测区间延长至 2026-06</div>
+                        <div class="vdiff-meta">
+                            <span class="author">you</span>
+                            <span>2026-05-08 16:42</span>
+                            <span class="changes">±6</span>
+                        </div>
+                    </div>
+                    <div class="vdiff-item" data-v="2">
+                        <div class="vdiff-ver">
+                            <span class="vnum">v2</span>
+                        </div>
+                        <div class="vdiff-msg">修复死叉条件方向错误（原写成 cross_up）</div>
+                        <div class="vdiff-meta">
+                            <span class="author">you</span>
+                            <span>2026-03-15 09:30</span>
+                            <span class="changes-add">+2</span>
+                            <span class="changes-del">-2</span>
+                        </div>
+                    </div>
+                    <div class="vdiff-item" data-v="1">
+                        <div class="vdiff-ver">
+                            <span class="vnum">v1</span>
+                            <span class="vtag" style="background: var(--bg-input); color: var(--text-muted);">初始</span>
+                        </div>
+                        <div class="vdiff-msg">策略创建：MA5/MA20 金叉买入、死叉卖出</div>
+                        <div class="vdiff-meta">
+                            <span class="author">you</span>
+                            <span>2026-03-01 11:20</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 右侧详情 -->
+                <div class="vdiff-detail">
+                    <div class="vdiff-detail-head">
+                        <div>
+                            <div class="vdiff-detail-title">
+                                v4 → v5 <span style="color:var(--text-muted); font-weight:400; margin-left:8px; font-size:11.5px;">差异对比</span>
+                            </div>
+                            <div class="vdiff-detail-meta">2026-07-02 14:32 · you · 基于 v4 编辑并保存为新版本</div>
+                        </div>
+                        <div class="vdiff-detail-actions">
+                            <button class="btn btn-ghost btn-sm" title="对比 v3">↔ 对比 v3</button>
+                            <button class="btn btn-secondary btn-sm" onclick="alert('⚠️ 回滚操作：\n\n将策略配置恢复到 v4 状态并生成新版本 v6\n（不会删除任何历史版本）')">⏪ 回滚至此版本</button>
+                        </div>
+                    </div>
+
+                    <div class="vdiff-tabs">
+                        <button class="vdiff-tab active">📋 变更摘要</button>
+                        <button class="vdiff-tab" onclick="showDiffView()">📝 JSON Diff</button>
+                        <button class="vdiff-tab">📊 回测对比</button>
+                        <button class="vdiff-tab">📄 完整配置</button>
+                    </div>
+
+                    <div class="vdiff-body" id="summaryView">
+                        <div class="vsum-grid">
+                            <div class="vsum-card">
+                                <div class="vsum-val" style="color:var(--fall-light);">+12</div>
+                                <div class="vsum-lbl">新增行</div>
+                            </div>
+                            <div class="vsum-card">
+                                <div class="vsum-val" style="color:var(--rise-light);">-3</div>
+                                <div class="vsum-lbl">删除行</div>
+                            </div>
+                            <div class="vsum-card">
+                                <div class="vsum-val" style="color:var(--accent-cyan);">3</div>
+                                <div class="vsum-lbl">变更字段</div>
+                            </div>
+                            <div class="vsum-card">
+                                <div class="vsum-val" style="color:var(--accent-yellow);">3.4KB</div>
+                                <div class="vsum-lbl">v5 配置大小</div>
+                            </div>
+                        </div>
+
+                        <div style="margin-bottom: 10px; font-size: 12px; font-weight: 600; color: var(--text-primary);">🎯 本次变更内容</div>
+                        <div style="padding: 12px 14px; background: var(--bg-input); border-radius: var(--radius-sm); font-size: 11.5px; line-height: 1.8;">
+                            <div style="display:flex; gap:8px; align-items:flex-start; margin-bottom:6px;">
+                                <span class="chip chip-modified">modified</span>
+                                <div><span class="mono" style="color:var(--accent-yellow);">trading_config.exit.bracket.take_profit_pct</span>：<span class="mono" style="color:var(--rise-light);">0.15</span> → <span class="mono" style="color:var(--fall-light);">0.20</span></div>
+                            </div>
+                            <div style="display:flex; gap:8px; align-items:flex-start; margin-bottom:6px;">
+                                <span class="chip chip-added">added</span>
+                                <div><span class="mono" style="color:var(--accent-cyan);">trading_config.signals.buy.conditions.children[1]</span>：新增多头确认条件 <span class="mono">MA(20) > MA(60)</span></div>
+                            </div>
+                            <div style="display:flex; gap:8px; align-items:flex-start;">
+                                <span class="chip chip-modified">modified</span>
+                                <div><span class="mono" style="color:var(--accent-yellow);">backtest_config.warmup_period</span>：<span class="mono" style="color:var(--text-secondary);">30</span> → <span class="mono">60</span>（适配 MA60 预热需求）</div>
+                            </div>
+                        </div>
+
+                        <div class="change-chips">
+                            <span class="chip" style="background:var(--bg-tertiary); color:var(--text-secondary);">#止盈调整</span>
+                            <span class="chip" style="background:var(--bg-tertiary); color:var(--text-secondary);">#过滤假信号</span>
+                            <span class="chip" style="background:var(--bg-tertiary); color:var(--text-secondary);">#多头确认</span>
+                        </div>
+
+                        <div style="margin: 20px 0 10px; font-size: 12px; font-weight: 600;">💬 版本备注</div>
+                        <div style="padding:12px 14px; background: var(--bg-tertiary); border-radius: var(--radius-sm); font-size: 11.5px; color: var(--text-secondary); line-height: 1.7; font-style: italic;">
+                            "回测发现 v4 在 2024-09 震荡市频繁假突破（MA5 上穿 MA20 但中期仍下行）。加入 MA60 多头过滤后，交易次数从 47 次降到 28 次，胜率从 42% 提升到 57%，夏普从 1.42 提升到 1.84，回撤从 -15% 收敛到 -11.2%。止盈从 15% 放宽到 20% 让利润奔跑。"
+                        </div>
+
+                        <div style="margin: 20px 0 10px; font-size: 12px; font-weight: 600;">📊 回测指标对比（2022-01 ~ 2026-06）</div>
+                        <div style="overflow:hidden; border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
+                            <table class="data-table" style="margin:0; border:none;">
+                                <thead><tr><th>指标</th><th>v4</th><th>v5 (当前)</th><th>变化</th></tr></thead>
+                                <tbody>
+                                    <tr><td class="mono">total_return_pct</td><td class="mono">+27.4%</td><td class="mono up">+34.7%</td><td class="mono up">+7.3%</td></tr>
+                                    <tr><td class="mono">sharpe_ratio</td><td class="mono">1.42</td><td class="mono up">1.84</td><td class="mono up">+0.42</td></tr>
+                                    <tr><td class="mono">max_drawdown_pct</td><td class="mono down">-15.1%</td><td class="mono down">-11.2%</td><td class="mono up">+3.9pp</td></tr>
+                                    <tr><td class="mono">win_rate</td><td class="mono">42.6%</td><td class="mono up">57.1%</td><td class="mono up">+14.5pp</td></tr>
+                                    <tr><td class="mono">trade_count</td><td class="mono">47</td><td class="mono">28</td><td class="mono" style="color:var(--text-muted);">-19</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div class="rollback-note">
+                            <strong>⏪ 回滚说明：</strong>点击上方"回滚至此版本"按钮，会将策略配置恢复到 v4 状态，并自动创建新版本 <strong>v6</strong> 保存该操作。所有历史版本均不会被删除，可随时再次回滚。
+                        </div>
+                    </div>
+
+                    <div class="vdiff-body" id="diffView" style="display:none;">
+                        <div class="diff-path">📄 config.json · v4 → v5</div>
+                        <div class="diff-hunk">@@ trading_config.signals.buy.conditions @@</div>
+                        <div class="diff-line diff-ctx">  "children": [</div>
+                        <div class="diff-line diff-ctx">    {</div>
+                        <div class="diff-line diff-ctx">      "type": "compare",</div>
+                        <div class="diff-line diff-ctx">      "comparator": "cross_up",</div>
+                        <div class="diff-line diff-ctx">      "left":  { "type": "factor", "factor": "MA", "params": {"timeperiod": 5} },</div>
+                        <div class="diff-line diff-ctx">      "right": { "type": "factor", "factor": "MA", "params": {"timeperiod": 20} }</div>
+                        <div class="diff-line diff-ctx">    },</div>
+                        <div class="diff-line diff-add">+   {</div>
+                        <div class="diff-line diff-add">+     "type": "compare",</div>
+                        <div class="diff-line diff-add">+     "comparator": ">",</div>
+                        <div class="diff-line diff-add">+     "left":  { "type": "factor", "factor": "MA", "params": {"timeperiod": 20} },</div>
+                        <div class="diff-line diff-add">+     "right": { "type": "factor", "factor": "MA", "params": {"timeperiod": 60} }</div>
+                        <div class="diff-line diff-add">+   }</div>
+                        <div class="diff-line diff-ctx">  ]</div>
+
+                        <div class="diff-hunk">@@ trading_config.exit.bracket @@</div>
+                        <div class="diff-line diff-ctx">  "bracket": {</div>
+                        <div class="diff-line diff-ctx">    "enabled": true,</div>
+                        <div class="diff-line diff-ctx">    "stop_loss_pct": 0.08,</div>
+                        <div class="diff-line diff-del">-   "take_profit_pct": 0.15</div>
+                        <div class="diff-line diff-add">+   "take_profit_pct": 0.20</div>
+                        <div class="diff-line diff-ctx">  }</div>
+
+                        <div class="diff-hunk">@@ backtest_config @@</div>
+                        <div class="diff-line diff-del">- "warmup_period": 30,</div>
+                        <div class="diff-line diff-add">+ "warmup_period": 60,</div>
+                        <div class="diff-line diff-ctx">  "history_depth": 120,</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<script>
+document.querySelectorAll('.vdiff-item').forEach(item => {
+    item.addEventListener('click', () => {
+        document.querySelectorAll('.vdiff-item').forEach(i => i.classList.remove('active'));
+        item.classList.add('active');
+    });
+});
+document.querySelectorAll('.vdiff-tab').forEach((tab, idx) => {
+    tab.addEventListener('click', () => {
+        document.querySelectorAll('.vdiff-tab').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+    });
+});
+function showDiffView(){
+    document.getElementById('summaryView').style.display = 'none';
+    document.getElementById('diffView').style.display = 'block';
+    document.querySelectorAll('.vdiff-tab').forEach((t,i)=>{t.classList.toggle('active', i===1);});
+}
+</script>
+</body>
+</html>

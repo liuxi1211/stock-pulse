@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>策略编辑器 · 沪深300双均线趋势</title>
+<link rel="stylesheet" href="prototype.css">
+<style>
+/* 编辑器专属微调 */
+.factor-insert-bar {
+    display: flex; gap: 6px; align-items: center;
+    padding: 8px 10px; margin-bottom: 8px;
+    background: var(--bg-tertiary); border-radius: var(--radius-sm);
+    font-size: 11px;
+}
+.factor-insert-bar .lbl { color: var(--text-muted); flex-shrink: 0; }
+.factor-insert-bar .chip-mini {
+    font-family: var(--font-mono); font-size: 10.5px; padding: 2px 7px;
+    background: var(--bg-input); border: 1px solid var(--border-color);
+    border-radius: 5px; color: var(--accent-cyan); cursor: pointer;
+    transition: all .12s;
+}
+.factor-insert-bar .chip-mini:hover { border-color: var(--accent-blue); background: rgba(59,130,246,.1); }
+.json-textarea {
+    font-family: var(--font-mono); font-size: 11px; line-height: 1.6;
+    min-height: 160px; background: #0a0e17; border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm); color: var(--text-secondary);
+    padding: 12px; resize: vertical;
+}
+.tab-hint {
+    font-size: 11px; color: var(--text-muted); padding: 8px 12px;
+    background: var(--bg-tertiary); border-radius: var(--radius-sm);
+    margin-bottom: 16px; border-left: 2px solid var(--accent-cyan);
+    display: flex; align-items: flex-start; gap: 8px;
+}
+.tab-hint.warn { border-left-color: var(--accent-yellow); }
+.tab-hint i { flex-shrink: 0; margin-top: 1px; }
+.input-suffix {
+    position: relative;
+}
+.input-suffix .suf {
+    position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
+    font-size: 11px; color: var(--text-muted); font-family: var(--font-mono);
+    pointer-events: none;
+}
+.weight-row {
+    display: grid; grid-template-columns: 1fr 90px 30px; gap: 8px; align-items: center;
+    margin-bottom: 6px;
+}
+.mini-del {
+    width: 28px; height: 28px; border-radius: var(--radius-sm);
+    background: transparent; border: 1px solid var(--border-color);
+    color: var(--text-muted); cursor: pointer; font-size: 12px;
+}
+.mini-del:hover { color: var(--rise-light); border-color: rgba(239,68,68,.4); }
+.add-weight-btn {
+    padding: 7px; background: transparent; border: 1px dashed var(--border-color);
+    border-radius: var(--radius-sm); color: var(--text-muted); font-size: 11px;
+    cursor: pointer; width: 100%; margin-top: 4px; font-family: inherit;
+}
+.add-weight-btn:hover { border-color: var(--accent-cyan); color: var(--accent-cyan); }
+.tab-badge-err {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 16px; height: 16px; padding: 0 4px;
+    background: var(--rise-color); color: #fff;
+    font-size: 9px; font-family: var(--font-mono); font-weight: 700;
+    border-radius: 9999px; margin-left: 2px;
+}
+.op-row {
+    display: grid; grid-template-columns: 1fr 100px 1fr; gap: 8px; align-items: center;
+    margin-bottom: 8px;
+}
+.op-row .op {
+    text-align: center; font-family: var(--font-mono); font-size: 11px;
+    color: var(--accent-cyan);
+}
+.date-range { display: grid; grid-template-columns: 1fr auto 1fr; gap: 8px; align-items: center; }
+.fee-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.collapse-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 14px; background: var(--bg-tertiary); border-radius: var(--radius-sm);
+    cursor: pointer; font-size: 12px; color: var(--text-secondary);
+    margin-bottom: 10px; border: 1px solid var(--border-light);
+}
+.collapse-head:hover { color: var(--text-primary); border-color: var(--border-color); }
+.collapse-head .chev { transition: transform .2s; font-size: 10px; }
+.collapse-body { padding: 0 4px; display: none; margin-bottom: 14px; }
+.collapse.open .collapse-body { display: block; }
+.collapse.open .chev { transform: rotate(180deg); }
+</style>
+</head>
+<body>
+<div class="app-shell">
+    <aside class="sidebar">
+        <div class="sidebar-brand">
+            <div class="brand-logo">SP</div>
+            <div>
+                <div class="brand-name">StockPulse</div>
+                <div class="brand-sub">量化平台</div>
+            </div>
+        </div>
+        <div class="nav-section">
+            <div class="nav-section-title">市场</div>
+            <a class="nav-item" href="#">📊 行情看板</a>
+            <a class="nav-item" href="#">⭐ 我的自选</a>
+        </div>
+        <div class="nav-section">
+            <div class="nav-section-title">量化</div>
+            <a class="nav-item" href="#">🧬 标准因子库</a>
+            <a class="nav-item" href="#">🎯 多因子选股</a>
+            <a class="nav-item active" href="list.html">📐 策略管理</a>
+            <a class="nav-item" href="#" style="opacity:.45">📈 回测中心 <span class="badge">WIP</span></a>
+        </div>
+    </aside>
+
+    <main class="main">
+        <div class="topbar">
+            <div class="crumb">
+                <a href="list.html">策略管理</a><span class="sep">/</span><span class="cur">沪深300双均线趋势</span>
+            </div>
+            <div class="topbar-right">
+                <button class="top-icon-btn" onclick="saveStrategy()" title="保存 (Ctrl+S)">💾</button>
+                <button class="top-icon-btn" title="版本历史" onclick="location.href='versions.html?id=1'">🗂</button>
+                <button class="top-icon-btn" title="运行回测">▶</button>
+                <div class="avatar">Q</div>
+            </div>
+        </div>
+
+        <div class="content">
+            <!-- 页头 -->
+            <div class="page-header" style="margin-bottom: 16px;">
+                <div>
+                    <h1 class="page-title" style="font-size:20px;">
+                        📐 沪深300双均线趋势
+                        <span class="status-badge status-active" style="margin-left: 8px; font-size: 10px;">ACTIVE</span>
+                    </h1>
+                    <p class="page-subtitle mono" style="font-family: var(--font-mono); font-size: 11px;">STR-20260301-A1F3 · v5 · 最近保存 2026-07-02 14:32</p>
+                </div>
+                <div class="page-actions">
+                    <a href="list.html" class="btn btn-ghost btn-sm">← 返回列表</a>
+                </div>
+            </div>
+
+            <div class="editor-layout">
+                <!-- 左侧主编辑区 -->
+                <div class="editor-main">
+                    <div class="editor-tabs">
+                        <button class="tab-btn active" data-tab="basic">ℹ️ 基本信息</button>
+                        <button class="tab-btn" data-tab="screen">🎯 选股范围</button>
+                        <button class="tab-btn" data-tab="buy">🟢 买入信号</button>
+                        <button class="tab-btn" data-tab="sell">🔴 卖出信号</button>
+                        <button class="tab-btn" data-tab="position">💰 仓位管理</button>
+                        <button class="tab-btn" data-tab="exit">🛡 止损止盈</button>
+                        <button class="tab-btn" data-tab="rebalance" style="opacity:.5">🔄 调仓</button>
+                        <button class="tab-btn" data-tab="backtest">📊 回测参数</button>
+                    </div>
+
+                    <div class="tab-body">
+                        <!-- Tab 1: 基本信息 -->
+                        <div class="tab-pane active" data-pane="basic">
+                            <div class="form-row">
+                                <label class="form-label">策略名称 <span class="req">*</span></label>
+                                <input class="form-input" value="沪深300双均线趋势" placeholder="输入策略名称">
+                            </div>
+                            <div class="form-row">
+                                <label class="form-label">策略描述</label>
+                                <textarea class="form-textarea" rows="3" placeholder="一句话说明策略逻辑和适用场景">单标的趋势跟随策略：MA5 金叉 MA20 买入，死叉卖出，95% 仓位 + 括号单止损 8%/止盈 20%。对标沪深300 ETF（510300.SH）。</textarea>
+                            </div>
+                            <div class="form-row-2">
+                                <div class="form-row" style="margin-bottom:0;">
+                                    <label class="form-label">分类</label>
+                                    <select class="form-select">
+                                        <option selected>技术面</option>
+                                        <option>基本面</option>
+                                        <option>混合</option>
+                                        <option>自定义</option>
+                                    </select>
+                                </div>
+                                <div class="form-row" style="margin-bottom:0;">
+                                    <label class="form-label">适用范围</label>
+                                    <div class="radio-cards">
+                                        <label class="radio-card"><input type="radio" name="scope" checked><span class="rico">🎯</span>单标的</label>
+                                        <label class="radio-card"><input type="radio" name="scope"><span class="rico">📊</span>组合</label>
+                                        <label class="radio-card"><input type="radio" name="scope"><span class="rico">🔀</span>混合</label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="form-row" style="margin-top:18px;">
+                                <label class="form-label">标签 <span class="hint">逗号分隔</span></label>
+                                <input class="form-input" value="趋势, 均线, 沪深300, ETF" placeholder="例如：趋势, 动量, 小盘">
+                            </div>
+                            <div class="form-section" style="margin-top: 24px;">
+                                <div class="form-section-title">📋 元数据</div>
+                                <div style="display:grid; grid-template-columns: repeat(3,1fr); gap: 10px; font-size: 11.5px;">
+                                    <div><div style="color:var(--text-muted); margin-bottom:3px;">策略 ID</div><div class="mono" style="color:var(--accent-cyan);">STR-20260301-A1F3</div></div>
+                                    <div><div style="color:var(--text-muted); margin-bottom:3px;">当前版本</div><div class="mono">v5</div></div>
+                                    <div><div style="color:var(--text-muted); margin-bottom:3px;">创建时间</div><div class="mono">2026-03-01</div></div>
+                                    <div><div style="color:var(--text-muted); margin-bottom:3px;">Schema 版本</div><div class="mono">v1.0</div></div>
+                                    <div><div style="color:var(--text-muted); margin-bottom:3px;">最近回测</div><div class="mono" style="color:var(--fall-light);">+34.7% / 夏普 1.84</div></div>
+                                    <div><div style="color:var(--text-muted); margin-bottom:3px;">最后修改者</div><div class="mono">you</div></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Tab 2: 选股范围 -->
+                        <div class="tab-pane" data-pane="screen">
+                            <div class="tab-hint warn">
+                                <span>⚠️</span>
+                                <div>当前策略为<strong>单标的信号驱动</strong>（scope=single），选股范围 screen_config 不参与交易决策，仅在「选股→回测」链路中作为初筛。下方配置为模板默认值。</div>
+                            </div>
+                            <div class="form-row">
+                                <label class="form-label">股票池 <span class="req">*</span></label>
+                                <select class="form-select">
+                                    <option>沪深两市全A股 (all_a_shares)</option>
+                                    <option selected>手动指定 (manual)</option>
+                                    <option>沪深300成分 (csi300)</option>
+                                    <option>中证500成分 (csi500)</option>
+                                    <option>ETF池 (etf_pool)</option>
+                                </select>
+                            </div>
+                            <div class="form-row">
+                                <label class="form-label">标的代码 <span class="hint">仅 manual 生效 · 逗号/换行分隔</span></label>
+                                <textarea class="form-textarea mono" rows="2">510300.SH</textarea>
+                            </div>
+
+                            <div class="form-section">
+                                <div class="form-section-title">🔍 选股条件（截面）</div>
+                                <div class="factor-insert-bar">
+                                    <span class="lbl">插入因子：</span>
+                                    <span class="chip-mini">MA</span>
+                                    <span class="chip-mini">EMA</span>
+                                    <span class="chip-mini">MACD</span>
+                                    <span class="chip-mini">RSI</span>
+                                    <span class="chip-mini">BOLL</span>
+                                    <span class="chip-mini">+基本面</span>
+                                </div>
+                                <textarea class="form-textarea mono json-textarea" rows="8" disabled style="opacity:.6;">{
+  "type": "and",
+  "children": [
+    { "type": "compare", "comparator": ">",
+      "left":  { "type": "factor", "factor": "MA", "params": {"timeperiod": 20} },
+      "right": { "type": "value", "value": 0 }
+    }
+  ]
+}
+<span style="color:var(--text-muted); font-style:italic;">/* 单标的策略默认无需选股条件 */</span></textarea>
+                                <div style="font-size:10.5px; color:var(--text-muted); margin-top:6px;">
+                                    ℹ️ 截面条件禁止使用 <span class="mono" style="color:var(--accent-yellow)">cross_up/cross_down/ref</span>（时序语义）。可视化条件编辑器由多因子选股模块提供，第一版支持 JSON 文本输入。
+                                </div>
+                            </div>
+
+                            <div class="form-row-2">
+                                <div class="form-row" style="margin-bottom:0;">
+                                    <label class="form-label">排序规则</label>
+                                    <select class="form-select"><option>不排序 (disabled)</option><option>单因子排序</option><option>复合打分</option></select>
+                                </div>
+                                <div class="form-row" style="margin-bottom:0;">
+                                    <label class="form-label">Top N</label>
+                                    <input class="form-input" type="number" value="1" disabled style="opacity:.6;">
+                                </div>
+                            </div>
+
+                            <div class="form-section" style="margin-top:14px;">
+                                <div class="form-section-title">🚫 静态过滤</div>
+                                <div class="switch-row">
+                                    <div class="switch-info"><div class="switch-name">剔除 ST / *ST</div><div class="switch-desc">风险警示股票不进入选股池</div></div>
+                                    <label class="switch"><input type="checkbox" checked><span class="switch-slider"></span></label>
+                                </div>
+                                <div class="switch-row">
+                                    <div class="switch-info"><div class="switch-name">剔除停牌</div><div class="switch-desc">当日无交易的股票</div></div>
+                                    <label class="switch"><input type="checkbox" checked><span class="switch-slider"></span></label>
+                                </div>
+                                <div class="switch-row">
+                                    <div class="switch-info"><div class="switch-name">剔除涨停/跌停</div><div class="switch-desc">无法成交的标的</div></div>
+                                    <label class="switch"><input type="checkbox"><span class="switch-slider"></span></label>
+                                </div>
+                                <div class="switch-row">
+                                    <div class="switch-info"><div class="switch-name">最低上市天数</div><div class="switch-desc">过滤次新股</div></div>
+                                    <label class="switch"><input type="checkbox"><span class="switch-slider"></span></label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Tab 3: 买入信号 -->
+                        <div class="tab-pane" data-pane="buy">
+                            <div class="tab-hint">
+                                <span>💡</span>
+                                <div>买入信号为<strong>时序条件</strong>，支持 <span class="mono" style="color:var(--accent-cyan)">cross_up / cross_down</span> 交叉比较和 <span class="mono" style="color:var(--accent-purple)">ref</span> 持仓引用。条件满足当日按仓位规则在下一 bar 开盘成交。</div>
+                            </div>
+                            <div class="form-row">
+                                <label class="form-label">标的代码 <span class="hint">单标的模式必填</span></label>
+                                <input class="form-input mono" value="510300.SH" placeholder="如 510300.SH">
+                            </div>
+                            <div class="form-section">
+                                <div class="form-section-title">🟢 买入条件树</div>
+                                <div class="factor-insert-bar">
+                                    <span class="lbl">插入：</span>
+                                    <span class="chip-mini">MA</span><span class="chip-mini">EMA</span><span class="chip-mini">MACD</span><span class="chip-mini">RSI</span>
+                                    <span class="chip-mini">+交叉 ↑↓</span><span class="chip-mini">+ref</span>
+                                </div>
+                                <textarea class="form-textarea mono json-textarea" rows="10">{
+  <span class="jkey">"type"</span>: <span class="jstr">"and"</span>,
+  <span class="jkey">"children"</span>: [
+    {
+      <span class="jkey">"type"</span>: <span class="jstr">"compare"</span>,
+      <span class="jkey">"comparator"</span>: <span class="jstr">"cross_up"</span>,
+      <span class="jkey">"left"</span>:  { <span class="jkey">"type"</span>: <span class="jstr">"factor"</span>, <span class="jkey">"factor"</span>: <span class="jstr">"MA"</span>, <span class="jkey">"params"</span>: {<span class="jkey">"timeperiod"</span>: <span class="jnum">5</span>} },
+      <span class="jkey">"right"</span>: { <span class="jkey">"type"</span>: <span class="jstr">"factor"</span>, <span class="jkey">"factor"</span>: <span class="jstr">"MA"</span>, <span class="jkey">"params"</span>: {<span class="jkey">"timeperiod"</span>: <span class="jnum">20</span>} }
+    },
+    {
+      <span class="jkey">"type"</span>: <span class="jstr">"compare"</span>,
+      <span class="jkey">"comparator"</span>: <span class="jstr">">"</span>,
+      <span class="jkey">"left"</span>:  { <span class="jkey">"type"</span>: <span class="jstr">"factor"</span>, <span class="jkey">"factor"</span>: <span class="jstr">"MA"</span>, <span class="jkey">"params"</span>: {<span class="jkey">"timeperiod"</span>: <span class="jnum">20</span>} },
+      <span class="jkey">"right"</span>: { <span class="jkey">"type"</span>: <span class="jstr">"factor"</span>, <span class="jkey">"factor"</span>: <span class="jstr">"MA"</span>, <span class="jkey">"params"</span>: {<span class="jkey">"timeperiod"</span>: <span class="jnum">60</span>} }
+    }
+  ]
+}</textarea>
+                                <div style="font-size:11px; color:var(--text-secondary); margin-top:8px; padding:8px 10px; background:var(--bg-input); border-radius:var(--radius-sm); line-height:1.6;">
+                                    <strong style="color:var(--fall-light);">语义解析：</strong>
+                                    MA<span class="mono" style="color:var(--accent-cyan)">5</span> 上穿 MA<span class="mono" style="color:var(--accent-cyan)">20</span>（金叉）
+                                    <span style="color:var(--text-muted);">且</span>
+                                    MA20 > MA60（多头趋势确认）→ 触发买入信号
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Tab 4: 卖出信号 -->
+                        <div class="tab-pane" data-pane="sell">
+                            <div class="tab-hint">
+                                <span>💡</span>
+                                <div>卖出信号触发时<strong>按卖出规则平仓</strong>。若设置了止损止盈/动态出场规则，将与卖出信号并行评估，任一触发即平仓。</div>
+                            </div>
+                            <div class="form-section">
+                                <div class="form-section-title">🔴 卖出条件树</div>
+                                <textarea class="form-textarea mono json-textarea" rows="10">{
+  <span class="jkey">"type"</span>: <span class="jstr">"compare"</span>,
+  <span class="jkey">"comparator"</span>: <span class="jstr">"cross_down"</span>,
+  <span class="jkey">"left"</span>:  { <span class="jkey">"type"</span>: <span class="jstr">"factor"</span>, <span class="jkey">"factor"</span>: <span class="jstr">"MA"</span>, <span class="jkey">"params"</span>: {<span class="jkey">"timeperiod"</span>: <span class="jnum">5</span>} },
+  <span class="jkey">"right"</span>: { <span class="jkey">"type"</span>: <span class="jstr">"factor"</span>, <span class="jkey">"factor"</span>: <span class="jstr">"MA"</span>, <span class="jkey">"params"</span>: {<span class="jkey">"timeperiod"</span>: <span class="jnum">20</span>} }
+}</textarea>
+                                <div style="font-size:11px; color:var(--rise-light); margin-top:8px; padding:8px 10px; background:var(--rise-bg); border-radius:var(--radius-sm);">
+                                    <strong>语义解析：</strong> MA5 <strong>下穿</strong> MA20（死叉）→ 触发卖出信号，全部平仓
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Tab 5: 仓位管理 -->
+                        <div class="tab-pane" data-pane="position">
+                            <div class="form-row">
+                                <label class="form-label">仓位方法 <span class="req">*</span></label>
+                                <select class="form-select" id="posMethod">
+                                    <option selected value="percent">按百分比 (order_target_percent)</option>
+                                    <option value="value">按市值 (order_target_value)</option>
+                                    <option value="shares">按股数 (order_target)</option>
+                                    <option value="fixed">固定股数 (fixed_shares)</option>
+                                    <option value="allin">全仓 (buy_all)</option>
+                                </select>
+                            </div>
+                            <div class="form-row" id="posTargetWrap">
+                                <label class="form-label">目标仓位 <span class="req">*</span></label>
+                                <div class="input-suffix">
+                                    <input class="form-input" type="number" value="95" min="0" max="100" step="1">
+                                    <span class="suf">%</span>
+                                </div>
+                                <div style="font-size:10.5px; color:var(--text-muted); margin-top:5px;">
+                                    A 股按 100 股一手向下取整；扣除滑点/手续费后实际仓位约 94-95%
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <label class="form-label">卖出规则</label>
+                                <select class="form-select">
+                                    <option selected>信号驱动平仓 (signal_based)</option>
+                                    <option>百分比止损 (percent_stop)</option>
+                                    <option>追踪止损 (trailing_stop)</option>
+                                </select>
+                            </div>
+                            <div class="form-section" style="margin-top:18px;">
+                                <div class="form-section-title">📐 仓位预览</div>
+                                <div style="display:grid; grid-template-columns: repeat(4,1fr); gap:10px; font-size:11.5px;">
+                                    <div style="text-align:center; padding:12px 8px; background:var(--bg-input); border-radius:var(--radius-sm);">
+                                        <div style="color:var(--text-muted); font-size:10px; margin-bottom:5px;">初始资金</div>
+                                        <div class="mono" style="font-size:14px; font-weight:600;">¥100,000</div>
+                                    </div>
+                                    <div style="text-align:center; padding:12px 8px; background:var(--bg-input); border-radius:var(--radius-sm);">
+                                        <div style="color:var(--text-muted); font-size:10px; margin-bottom:5px;">目标仓位</div>
+                                        <div class="mono" style="font-size:14px; font-weight:600; color:var(--accent-cyan);">95%</div>
+                                    </div>
+                                    <div style="text-align:center; padding:12px 8px; background:var(--bg-input); border-radius:var(--radius-sm);">
+                                        <div style="color:var(--text-muted); font-size:10px; margin-bottom:5px;">预计市值</div>
+                                        <div class="mono" style="font-size:14px; font-weight:600;">¥95,000</div>
+                                    </div>
+                                    <div style="text-align:center; padding:12px 8px; background:var(--bg-input); border-radius:var(--radius-sm);">
+                                        <div style="color:var(--text-muted); font-size:10px; margin-bottom:5px;">每手</div>
+                                        <div class="mono" style="font-size:14px; font-weight:600;">100股</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Tab 6: 止损止盈 -->
+                        <div class="tab-pane" data-pane="exit">
+                            <div class="switch-row">
+                                <div class="switch-info">
+                                    <div class="switch-name">括号单（Bracket Order）</div>
+                                    <div class="switch-desc">开仓同时挂止损 + 止盈 OCO 单，一端成交另一端自动撤销</div>
+                                </div>
+                                <label class="switch"><input type="checkbox" id="bracketSw" checked onchange="document.getElementById('bracketBody').style.display=this.checked?'block':'none'"><span class="switch-slider"></span></label>
+                            </div>
+                            <div id="bracketBody" style="padding:12px 0 6px 18px;">
+                                <div class="form-row-2">
+                                    <div class="form-row" style="margin-bottom:0;">
+                                        <label class="form-label">止损百分比</label>
+                                        <div class="input-suffix"><input class="form-input" type="number" value="8" step="0.5" min="0"><span class="suf">%</span></div>
+                                    </div>
+                                    <div class="form-row" style="margin-bottom:0;">
+                                        <label class="form-label">止盈百分比</label>
+                                        <div class="input-suffix"><input class="form-input" type="number" value="20" step="0.5" min="0"><span class="suf">%</span></div>
+                                    </div>
+                                </div>
+                                <div style="font-size:10.5px; color:var(--text-muted); margin-top:4px;">
+                                    基于 <span class="mono" style="color:var(--accent-cyan)">entry_price</span> 计算：跌破入场价 × (1-8%) 止损，涨超 × (1+20%) 止盈
+                                </div>
+                            </div>
+
+                            <div style="height:1px; background:var(--border-light); margin:14px 0;"></div>
+
+                            <div class="switch-row">
+                                <div class="switch-info">
+                                    <div class="switch-name">ATR 追踪止损</div>
+                                    <div class="switch-desc">基于真实波幅 ATR 动态止损价，适合趋势行情锁定利润</div>
+                                </div>
+                                <label class="switch"><input type="checkbox" id="atrSw" onchange="document.getElementById('atrBody').style.display=this.checked?'block':'none'"><span class="switch-slider"></span></label>
+                            </div>
+                            <div id="atrBody" style="padding:12px 0 6px 18px; display:none;">
+                                <div class="form-row-2">
+                                    <div class="form-row" style="margin-bottom:0;">
+                                        <label class="form-label">ATR 周期</label>
+                                        <div class="input-suffix"><input class="form-input" type="number" value="14" min="1"><span class="suf">bar</span></div>
+                                    </div>
+                                    <div class="form-row" style="margin-bottom:0;">
+                                        <label class="form-label">ATR 倍数</label>
+                                        <input class="form-input" type="number" value="2" step="0.5" min="0.5">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div style="height:1px; background:var(--border-light); margin:14px 0;"></div>
+
+                            <div class="form-section-title" style="margin-bottom:8px;">⚡ 动态出场规则</div>
+                            <div class="rule-list">
+                                <div class="rule-item">
+                                    <div class="rulename">盈利回撤止盈</div>
+                                    <div class="rulecond">ref.position_pnl_pct > 15 AND close < highest_since_entry × 0.95</div>
+                                    <div class="ruleact">CLOSE</div>
+                                    <button class="mini-del">✕</button>
+                                </div>
+                                <div class="rule-item" style="opacity:.5;">
+                                    <div class="rulename" style="color:var(--text-muted)">（示例）时间止损</div>
+                                    <div class="rulecond">ref.bars_held > 30 AND ref.position_pnl_pct < 0</div>
+                                    <div class="ruleact">CLOSE</div>
+                                    <button class="mini-del">✕</button>
+                                </div>
+                            </div>
+                            <button class="add-rule-btn">+ 添加出场规则</button>
+                        </div>
+
+                        <!-- Tab 7: 调仓 (禁用态) -->
+                        <div class="tab-pane" data-pane="rebalance">
+                            <div class="tab-hint warn">
+                                <span>🔒</span>
+                                <div>当前 scope = <strong>单标的</strong>，调仓配置未启用。若切换为「组合」或「混合」范围，此处可配置周期性调仓规则（日/周/月/季频率、Top N 选股、等权/按分加权、单票上限等）。</div>
+                            </div>
+                            <div style="opacity:.5; pointer-events:none;">
+                                <div class="form-row-2">
+                                    <div class="form-row" style="margin-bottom:0;">
+                                        <label class="form-label">调仓频率</label>
+                                        <select class="form-select"><option selected>月度</option><option>周度</option><option>日度</option><option>季度</option></select>
+                                    </div>
+                                    <div class="form-row" style="margin-bottom:0;">
+                                        <label class="form-label">调仓日</label>
+                                        <input class="form-input" type="number" value="1" min="1" max="28">
+                                    </div>
+                                </div>
+                                <div class="form-row-2" style="margin-top:14px;">
+                                    <div class="form-row" style="margin-bottom:0;">
+                                        <label class="form-label">换仓方式</label>
+                                        <div class="radio-cards">
+                                            <label class="radio-card"><input type="radio" name="rb" checked>全换</label>
+                                            <label class="radio-card"><input type="radio" name="rb">增量</label>
+                                        </div>
+                                    </div>
+                                    <div class="form-row" style="margin-bottom:0;">
+                                        <label class="form-label">权重模式</label>
+                                        <div class="radio-cards">
+                                            <label class="radio-card"><input type="radio" name="wm" checked>等权</label>
+                                            <label class="radio-card"><input type="radio" name="wm">按分</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Tab 8: 回测参数 -->
+                        <div class="tab-pane" data-pane="backtest">
+                            <div class="form-row-2">
+                                <div class="form-row" style="margin-bottom:0;">
+                                    <label class="form-label">初始资金</label>
+                                    <div class="input-suffix"><input class="form-input mono" type="number" value="100000" step="10000"><span class="suf">CNY</span></div>
+                                </div>
+                                <div class="form-row" style="margin-bottom:0;">
+                                    <label class="form-label">券商模板</label>
+                                    <select class="form-select">
+                                        <option selected>cn_stock_miniqmt（万三佣金+T+1+lot100）</option>
+                                        <option>cn_stock_t1_low_fee（万二低费）</option>
+                                        <option>cn_stock_sim_high_slippage（高滑点仿真）</option>
+                                        <option>自定义</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="form-row" style="margin-top:14px;">
+                                <label class="form-label">回测区间</label>
+                                <div class="date-range">
+                                    <input class="form-input mono" type="date" value="2022-01-01">
+                                    <span style="color:var(--text-muted); font-size:12px;">→</span>
+                                    <input class="form-input mono" type="date" value="2026-06-30">
+                                </div>
+                            </div>
+
+                            <div class="form-row-2" style="margin-top:14px;">
+                                <div class="form-row" style="margin-bottom:0;">
+                                    <label class="form-label">基准</label>
+                                    <input class="form-input mono" value="000300.SH" placeholder="如 000300.SH">
+                                </div>
+                                <div class="form-row" style="margin-bottom:0;">
+                                    <label class="form-label">滑点</label>
+                                    <div style="display:grid; grid-template-columns: 90px 1fr; gap:8px;">
+                                        <select class="form-select"><option selected>percent</option><option>fixed</option><option>zero</option></select>
+                                        <div class="input-suffix"><input class="form-input mono" type="number" value="0.02" step="0.01"><span class="suf">%</span></div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="collapse open" style="margin-top:18px;" onclick="this.classList.toggle('open')">
+                                <div class="collapse-head">
+                                    <span style="display:flex; align-items:center; gap:8px;">
+                                        <span>⚙️ 自定义费率</span>
+                                        <span class="mono" style="color:var(--text-muted); font-size:10px; font-weight:400;">（覆盖 broker_profile 默认值）</span>
+                                    </span>
+                                    <span class="chev">▼</span>
+                                </div>
+                                <div class="collapse-body">
+                                    <div class="fee-grid">
+                                        <div class="form-row" style="margin-bottom:10px;">
+                                            <label class="form-label">佣金率</label>
+                                            <div class="input-suffix"><input class="form-input mono" type="number" value="0.03" step="0.005"><span class="suf">%</span></div>
+                                        </div>
+                                        <div class="form-row" style="margin-bottom:10px;">
+                                            <label class="form-label">印花税率（卖出）</label>
+                                            <div class="input-suffix"><input class="form-input mono" type="number" value="0.1" step="0.01"><span class="suf">%</span></div>
+                                        </div>
+                                        <div class="form-row" style="margin-bottom:10px;">
+                                            <label class="form-label">过户费率</label>
+                                            <div class="input-suffix"><input class="form-input mono" type="number" value="0.001" step="0.001"><span class="suf">%</span></div>
+                                        </div>
+                                        <div class="form-row" style="margin-bottom:10px;">
+                                            <label class="form-label">单笔最低佣金</label>
+                                            <div class="input-suffix"><input class="form-input mono" type="number" value="5" step="0.5"><span class="suf">元</span></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="form-section" style="margin-top:8px;">
+                                <div class="form-section-title">🎚️ 回测引擎参数</div>
+                                <div class="switch-row">
+                                    <div class="switch-info"><div class="switch-name">T+1 规则</div><div class="switch-desc">当日买入次日才能卖出（A 股必开）</div></div>
+                                    <label class="switch"><input type="checkbox" checked><span class="switch-slider"></span></label>
+                                </div>
+                                <div class="form-row-2" style="margin-top:10px;">
+                                    <div class="form-row" style="margin-bottom:0;">
+                                        <label class="form-label">每手股数 (lot_size)</label>
+                                        <input class="form-input mono" type="number" value="100">
+                                    </div>
+                                    <div class="form-row" style="margin-bottom:0;">
+                                        <label class="form-label">单 bar 成交量上限</label>
+                                        <div class="input-suffix"><input class="form-input mono" type="number" value="25" step="1"><span class="suf">%</span></div>
+                                    </div>
+                                </div>
+                                <div class="form-row-2" style="margin-top:10px;">
+                                    <div class="form-row" style="margin-bottom:0;">
+                                        <label class="form-label">预热期 bar 数</label>
+                                        <input class="form-input mono" type="number" value="60">
+                                    </div>
+                                    <div class="form-row" style="margin-bottom:0;">
+                                        <label class="form-label">历史缓冲深度</label>
+                                        <input class="form-input mono" type="number" value="120">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 底部保存条 -->
+                    <div class="editor-actionbar">
+                        <div class="save-hint">
+                            <span>✓</span> 所有字段通过校验 · <span class="mono">config.json</span> 3.2KB · Schema v1.0
+                        </div>
+                        <div style="display:flex; gap:8px;">
+                            <a href="list.html" class="btn btn-ghost btn-sm">取消</a>
+                            <button class="btn btn-secondary btn-sm" onclick="alert('保存为新版本 v6 并继续编辑')">保存草稿</button>
+                            <button class="btn btn-primary btn-sm" onclick="saveStrategy()">💾 保存新版本</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 右侧面板 -->
+                <aside class="editor-side">
+                    <!-- 策略摘要 -->
+                    <div class="summary-card">
+                        <div class="summary-title">✨ 策略摘要</div>
+                        <div class="summary-text">
+                            <strong>单标的</strong>趋势策略，交易 <span class="mono">510300.SH</span>。
+                            当 <strong>MA5 金叉 MA20</strong> 且 MA20 > MA60（多头确认）时
+                            <strong>买入 95%</strong> 仓位；
+                            触发条件：<br>
+                            &nbsp;&nbsp;• <strong>MA5 死叉 MA20</strong> 卖出<br>
+                            &nbsp;&nbsp;• 止损 <span style="color:var(--rise-light)">-8%</span> / 止盈 <span style="color:var(--fall-light)">+20%</span> 括号单<br>
+                            回测：<span class="mono">2022-01 至 2026-06</span>，初始 <span class="mono">¥100,000</span>，cn_stock_miniqmt 费率。
+                        </div>
+                    </div>
+
+                    <!-- 错误提示（保存时出现，默认隐藏） -->
+                    <div class="err-card" id="errCard" style="display:none;">
+                        <div class="err-card-title">⚠️ 3 个校验错误</div>
+                        <div class="err-list">
+                            <div class="err-item"><span class="epath">trading_config.position_sizing.target_percent:</span> 必须在 0-100 之间</div>
+                            <div class="err-item"><span class="epath">trading_config.signals.buy.conditions[0]:</span> cross_up 左右需均为因子节点</div>
+                            <div class="err-item"><span class="epath">trading_config.exit.bracket.stop_loss_pct:</span> 缺失（bracket 启用时必填）</div>
+                        </div>
+                    </div>
+
+                    <!-- JSON 预览 -->
+                    <div class="json-card">
+                        <div class="json-head">
+                            <div class="json-head-title">{ } JSON 预览</div>
+                            <div class="json-actions">
+                                <button class="icon-btn" title="复制" onclick="navigator.clipboard && navigator.clipboard.writeText('{}')" style="width:26px;height:26px;font-size:11px;">📋</button>
+                            </div>
+                        </div>
+                        <div class="json-body">
+<pre>{
+  <span class="jkey">"name"</span>: <span class="jstr">"沪深300双均线趋势"</span>,
+  <span class="jkey">"category"</span>: <span class="jstr">"tech"</span>,
+  <span class="jkey">"scope"</span>: <span class="jstr">"single"</span>,
+  <span class="jkey">"trading_config"</span>: {
+    <span class="jkey">"symbols"</span>: [<span class="jstr">"510300.SH"</span>],
+    <span class="jkey">"signals"</span>: {
+      <span class="jkey">"buy"</span>: { <span class="jkey">"conditions"</span>: {<span class="jkey">"type"</span>:<span class="jstr">"and"</span>,<span class="jkey">"children"</span>:[
+        {<span class="jkey">"comparator"</span>:<span class="jstr">"cross_up"</span>,<span class="jkey">"left"</span>:{<span class="jkey">"factor"</span>:<span class="jstr">"MA"</span>,<span class="jkey">"params"</span>:{<span class="jkey">"timeperiod"</span>:<span class="jnum">5</span>}},<span class="jkey">"right"</span>:{<span class="jkey">"factor"</span>:<span class="jstr">"MA"</span>,<span class="jkey">"params"</span>:{<span class="jkey">"timeperiod"</span>:<span class="jnum">20</span>}}},
+        {<span class="jkey">"comparator"</span>:<span class="jstr">">"</span>,<span class="jkey">"left"</span>:{<span class="jkey">"factor"</span>:<span class="jstr">"MA"</span>,<span class="jkey">"params"</span>:{<span class="jkey">"timeperiod"</span>:<span class="jnum">20</span>}},<span class="jkey">"right"</span>:{<span class="jkey">"factor"</span>:<span class="jstr">"MA"</span>,<span class="jkey">"params"</span>:{<span class="jkey">"timeperiod"</span>:<span class="jnum">60</span>}}}
+      ]}},
+      <span class="jkey">"sell"</span>: { <span class="jkey">"conditions"</span>: {<span class="jkey">"comparator"</span>:<span class="jstr">"cross_down"</span>,<span class="jkey">"left"</span>:{<span class="jkey">"factor"</span>:<span class="jstr">"MA"</span>,<span class="jkey">"params"</span>:{<span class="jkey">"timeperiod"</span>:<span class="jnum">5</span>}},<span class="jkey">"right"</span>:{<span class="jkey">"factor"</span>:<span class="jstr">"MA"</span>,<span class="jkey">"params"</span>:{<span class="jkey">"timeperiod"</span>:<span class="jnum">20</span>}}} }
+    },
+    <span class="jkey">"position_sizing"</span>: {
+      <span class="jkey">"method"</span>: <span class="jstr">"order_target_percent"</span>,
+      <span class="jkey">"target_percent"</span>: <span class="jnum">0.95</span>
+    },
+    <span class="jkey">"exit"</span>: {
+      <span class="jkey">"bracket"</span>: {<span class="jkey">"enabled"</span>:<span class="jbool">true</span>,<span class="jkey">"stop_loss_pct"</span>:<span class="jnum">0.08</span>,<span class="jkey">"take_profit_pct"</span>:<span class="jnum">0.20</span>}
+    }
+  },
+  <span class="jkey">"backtest_config"</span>: {
+    <span class="jkey">"initial_cash"</span>: <span class="jnum">100000</span>,
+    <span class="jkey">"broker_profile"</span>: <span class="jstr">"cn_stock_miniqmt"</span>,
+    <span class="jkey">"t_plus_one"</span>: <span class="jbool">true</span>,
+    <span class="jkey">"lot_size"</span>: <span class="jnum">100</span>,
+    <span class="jkey">"start_date"</span>: <span class="jstr">"2022-01-01"</span>,
+    <span class="jkey">"end_date"</span>: <span class="jstr">"2026-06-30"</span>,
+    <span class="jkey">"benchmark"</span>: <span class="jstr">"000300.SH"</span>
+  }
+}</pre>
+                        </div>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </main>
+</div>
+
+<script>
+// Tab 切换
+document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        const tab = btn.dataset.tab;
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+        btn.classList.add('active');
+        document.querySelector(`.tab-pane[data-pane="${tab}"]`).classList.add('active');
+    });
+});
+function saveStrategy(){
+    alert('✓ 策略配置已保存为新版本 v6\n→ 即将跳转版本历史页');
+}
+</script>
+</body>
+</html>

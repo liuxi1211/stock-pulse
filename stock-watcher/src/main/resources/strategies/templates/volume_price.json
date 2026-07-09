@@ -1,0 +1,63 @@
+{
+  "strategy_id": null,
+  "name": "量价跟随策略",
+  "description": "放量上涨多头排列买入",
+  "scope": "single",
+  "category": "TECHNICAL",
+  "tags": ["量价", "趋势"],
+  "trading_config": {
+    "symbols": ["510300.SH"],
+    "signals": {
+      "buy": {
+        "operator": "AND",
+        "conditions": [
+          {
+            "type": "compare",
+            "left": { "factor": "VOL_MA", "params": { "timeperiod": 5 } },
+            "comparator": ">",
+            "right": {
+              "op": "*",
+              "left": { "factor": "VOL_MA", "params": { "timeperiod": 20 } },
+              "right": { "value": 1.5 }
+            }
+          },
+          {
+            "type": "compare",
+            "left": { "factor": "MA", "params": { "timeperiod": 5 } },
+            "comparator": ">",
+            "right": { "factor": "MA", "params": { "timeperiod": 20 } }
+          },
+          {
+            "type": "compare",
+            "left": { "factor": "MA", "params": { "timeperiod": 20 } },
+            "comparator": ">",
+            "right": { "factor": "MA", "params": { "timeperiod": 60 } }
+          }
+        ]
+      },
+      "sell": {
+        "operator": "AND",
+        "conditions": [
+          {
+            "type": "compare",
+            "left": { "factor": "MA", "params": { "timeperiod": 5 } },
+            "comparator": "cross_down",
+            "right": { "factor": "MA", "params": { "timeperiod": 20 } }
+          }
+        ]
+      }
+    },
+    "position_sizing": {
+      "method": "order_target_percent",
+      "target": 0.9
+    }
+  },
+  "backtest_config": {
+    "initial_cash": 100000,
+    "broker_profile": "cn_stock_miniqmt",
+    "t_plus_one": true,
+    "lot_size": 100,
+    "warmup_period": 65,
+    "history_depth": 80
+  }
+}

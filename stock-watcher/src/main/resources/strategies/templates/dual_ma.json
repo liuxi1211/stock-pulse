@@ -1,0 +1,53 @@
+{
+  "strategy_id": null,
+  "name": "双均线策略",
+  "description": "MA5/MA20 金叉买入、死叉卖出",
+  "scope": "single",
+  "category": "TECHNICAL",
+  "tags": ["均线", "趋势"],
+  "trading_config": {
+    "symbols": ["510300.SH"],
+    "signals": {
+      "buy": {
+        "operator": "AND",
+        "conditions": [
+          {
+            "type": "compare",
+            "left": { "factor": "MA", "params": { "timeperiod": 5 } },
+            "comparator": "cross_up",
+            "right": { "factor": "MA", "params": { "timeperiod": 20 } }
+          }
+        ]
+      },
+      "sell": {
+        "operator": "AND",
+        "conditions": [
+          {
+            "type": "compare",
+            "left": { "factor": "MA", "params": { "timeperiod": 5 } },
+            "comparator": "cross_down",
+            "right": { "factor": "MA", "params": { "timeperiod": 20 } }
+          }
+        ]
+      }
+    },
+    "position_sizing": {
+      "method": "order_target_percent",
+      "target": 0.95
+    },
+    "exit": {
+      "bracket": {
+        "stop_loss_pct": 0.08,
+        "take_profit_pct": 0.20
+      }
+    }
+  },
+  "backtest_config": {
+    "initial_cash": 100000,
+    "broker_profile": "cn_stock_miniqmt",
+    "t_plus_one": true,
+    "lot_size": 100,
+    "warmup_period": 30,
+    "history_depth": 60
+  }
+}

@@ -846,6 +846,10 @@ const Screener = (function () {
     // 本函数仅维护「保存」按钮的可用/高亮态 + 左侧卡片脏态联动。
     function updateStatusUI() {
         const saveBtn = document.getElementById('saveBtn');
+        const toStrategyBtn = document.getElementById('toStrategyBtn');
+        if (toStrategyBtn) toStrategyBtn.disabled = !state.currentPlanId;
+        // note: toStrategy disabled-state kept in sync with currentPlanId above
+
         if (!saveBtn) { updatePlanCardDirty(); return; }
 
         if (!state.currentPlanId) {
@@ -917,6 +921,18 @@ const Screener = (function () {
                 }
             });
         });
+    }
+
+    // ===================== jump to strategy editor =====================
+    // Carry the currently selected plan id as ?screenSource so the strategy
+    // editor can fetch this screener plan and import its screenConfig into
+    // screen_config (with camelCase -> snake_case field conversion).
+    function toStrategy() {
+        if (!state.currentPlanId) {
+            StockApp.toast('请先选中一个选股方案', 'warning');
+            return;
+        }
+        location.href = '/quant/strategies/new?screenSource=' + encodeURIComponent(state.currentPlanId);
     }
 
     // ===================== 运行选股 =====================
@@ -1291,6 +1307,7 @@ const Screener = (function () {
         addLeaf, addGroup, removeNode, toggleOperator,
         addCondition: function () { addLeaf([]); },   // 向后兼容
         addWeight, runScreen, savePlan, lockResult,
+        toStrategy,   // jump to strategy editor with current planId as screenSource
         expandResultPanel, collapseResultPanel,
         // manual 候选股管理
         onUniverseChange, addManualStock, removeManualStock,

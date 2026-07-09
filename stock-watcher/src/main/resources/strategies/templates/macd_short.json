@@ -1,0 +1,66 @@
+{
+  "strategy_id": null,
+  "name": "MACD短线策略",
+  "description": "MACD柱+RSI双确认短线信号",
+  "scope": "single",
+  "category": "TECHNICAL",
+  "tags": ["MACD", "短线"],
+  "trading_config": {
+    "symbols": ["510300.SH"],
+    "signals": {
+      "buy": {
+        "operator": "AND",
+        "conditions": [
+          {
+            "type": "compare",
+            "left": { "factor": "MACD", "output_index": 2 },
+            "comparator": ">",
+            "right": { "value": 0 }
+          },
+          {
+            "type": "compare",
+            "left": { "factor": "RSI", "params": { "timeperiod": 14 } },
+            "comparator": "<",
+            "right": { "value": 70 }
+          }
+        ]
+      },
+      "sell": {
+        "operator": "OR",
+        "conditions": [
+          {
+            "type": "compare",
+            "left": { "factor": "MACD", "output_index": 2 },
+            "comparator": "<",
+            "right": { "value": 0 }
+          },
+          {
+            "type": "compare",
+            "left": { "factor": "RSI", "params": { "timeperiod": 14 } },
+            "comparator": ">",
+            "right": { "value": 80 }
+          }
+        ]
+      }
+    },
+    "position_sizing": {
+      "method": "order_target_percent",
+      "target": 0.8
+    },
+    "exit": {
+      "bracket": {
+        "use_atr_stop": true,
+        "atr_period": 14,
+        "atr_multiplier": 2.0
+      }
+    }
+  },
+  "backtest_config": {
+    "initial_cash": 100000,
+    "broker_profile": "cn_stock_miniqmt",
+    "t_plus_one": true,
+    "lot_size": 100,
+    "warmup_period": 35,
+    "history_depth": 60
+  }
+}

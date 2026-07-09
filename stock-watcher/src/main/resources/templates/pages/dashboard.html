@@ -24,10 +24,10 @@
                     <p class="text-muted mb-0" style="font-size: 13px; margin-top: 4px;">实时监控市场动态，掌握投资先机</p>
                 </div>
                 <div class="page-actions">
-                    <button class="btn btn-secondary btn-sm">
+                    <button class="btn btn-secondary btn-sm" id="refreshBtn">
                         <i class="bi bi-arrow-clockwise"></i> 刷新
                     </button>
-                    <button class="btn btn-primary btn-sm">
+                    <button class="btn btn-primary btn-sm" id="exportBtn">
                         <i class="bi bi-download"></i> 导出
                     </button>
                 </div>
@@ -43,7 +43,7 @@
                              th:text="${idx.currentPoint}">3368.07</div>
                         <div class="stat-change">
                             <span th:class="${idx.changePercent >= 0} ? 'rise' : 'fall'">
-                                <i class="bi" th:class="${idx.changePercent >= 0} ? 'bi-triangle-fill' : 'bi-triangle-fill'" style="font-size: 9px;"></i>
+                                <i class="bi" th:class="${idx.changePercent >= 0} ? 'bi-triangle-fill' : 'bi-triangle-fill'" style="font-size: 9px;" th:style="${idx.changePercent >= 0} ? 'font-size: 9px;' : 'font-size: 9px; transform: rotate(180deg);'"></i>
                                 <span th:text="${idx.changePercent >= 0 ? '+' : ''} + ${#numbers.formatDecimal(idx.changePercent, 1, 2)} + '%'">+0.37%</span>
                             </span>
                             <span class="text-muted" style="font-size: 11px; margin-left: 8px;">
@@ -144,10 +144,16 @@
                             </h6>
                         </div>
                         <div class="card-body p-0">
-                            <div id="topGainersList">
-                                <div class="text-center text-muted py-4">
-                                    <div class="spinner-border spinner-border-sm me-1"></div>加载中...
-                                </div>
+                            <div class="table-responsive">
+                                <table class="table table-hover mb-0 align-middle">
+                                    <tbody id="topGainersBody">
+                                        <tr>
+                                            <td colspan="4" class="text-center text-muted py-4">
+                                                <div class="spinner-border spinner-border-sm me-1"></div>加载中...
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
                     </div>
@@ -163,10 +169,16 @@
                             </h6>
                         </div>
                         <div class="card-body p-0">
-                            <div id="topLosersList">
-                                <div class="text-center text-muted py-4">
-                                    <div class="spinner-border spinner-border-sm me-1"></div>加载中...
-                                </div>
+                            <div class="table-responsive">
+                                <table class="table table-hover mb-0 align-middle">
+                                    <tbody id="topLosersBody">
+                                        <tr>
+                                            <td colspan="4" class="text-center text-muted py-4">
+                                                <div class="spinner-border spinner-border-sm me-1"></div>加载中...
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
                     </div>
@@ -182,10 +194,16 @@
                             </h6>
                         </div>
                         <div class="card-body p-0">
-                            <div id="topAmountList">
-                                <div class="text-center text-muted py-4">
-                                    <div class="spinner-border spinner-border-sm me-1"></div>加载中...
-                                </div>
+                            <div class="table-responsive">
+                                <table class="table table-hover mb-0 align-middle">
+                                    <tbody id="topAmountBody">
+                                        <tr>
+                                            <td colspan="4" class="text-center text-muted py-4">
+                                                <div class="spinner-border spinner-border-sm me-1"></div>加载中...
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
                     </div>

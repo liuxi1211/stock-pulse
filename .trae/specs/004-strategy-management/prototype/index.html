@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>004-策略管理模块 · 原型预览</title>
+<link rel="stylesheet" href="prototype.css">
+<style>
+.index-hero {
+    text-align: center; padding: 60px 20px 40px; position: relative;
+}
+.index-hero::before {
+    content:''; position: absolute; top: -100px; left: 50%; transform: translateX(-50%);
+    width: 600px; height: 300px;
+    background: radial-gradient(ellipse, rgba(59,130,246,.15), transparent 70%);
+    pointer-events: none;
+}
+.hero-badge {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 6px 14px; border-radius: 9999px;
+    background: rgba(59,130,246,.12); border: 1px solid rgba(59,130,246,.25);
+    font-family: var(--font-mono); font-size: 11px; color: var(--accent-blue-light);
+    margin-bottom: 20px;
+}
+.hero-title {
+    font-size: 36px; font-weight: 700; letter-spacing: -0.5px;
+    background: var(--gradient-primary); -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent; background-clip: text;
+    margin-bottom: 14px;
+}
+.hero-sub {
+    font-size: 14px; color: var(--text-secondary); max-width: 600px;
+    margin: 0 auto 32px; line-height: 1.7;
+}
+.hero-specs {
+    display: flex; justify-content: center; gap: 24px;
+    font-family: var(--font-mono); font-size: 11px; color: var(--text-muted);
+    flex-wrap: wrap;
+}
+.hero-specs span::before {
+    content:''; display: inline-block; width: 6px; height: 6px;
+    border-radius: 50%; background: var(--accent-cyan);
+    margin-right: 6px; vertical-align: middle;
+}
+
+.page-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 18px; max-width: 1100px; margin: 0 auto; padding: 20px 28px 60px;
+}
+.page-card {
+    background: var(--bg-card); border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg); padding: 22px; cursor: pointer;
+    position: relative; overflow: hidden; text-decoration: none;
+    transition: all .25s cubic-bezier(.4,0,.2,1); backdrop-filter: blur(10px);
+    display: block;
+}
+.page-card::before {
+    content:''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: var(--pg-accent, var(--gradient-primary)); opacity: .7;
+}
+.page-card:hover {
+    transform: translateY(-4px);
+    border-color: color-mix(in srgb, var(--accent-cyan) 40%, transparent);
+    box-shadow: 0 12px 36px rgba(0,0,0,.35);
+}
+.pg-icon {
+    width: 48px; height: 48px; border-radius: 12px;
+    background: var(--pg-accent, var(--gradient-primary));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px; margin-bottom: 16px;
+    box-shadow: 0 4px 14px var(--pg-shadow, rgba(59,130,246,.25));
+}
+.pg-name { font-size: 15px; font-weight: 600; color: var(--text-primary); margin-bottom: 6px; }
+.pg-desc { font-size: 12px; color: var(--text-secondary); line-height: 1.6; margin-bottom: 14px; }
+.pg-meta { display: flex; gap: 10px; flex-wrap: wrap; }
+.pg-tag {
+    font-size: 10px; padding: 2px 8px; border-radius: 5px;
+    background: var(--bg-tertiary); color: var(--text-muted);
+    font-family: var(--font-mono);
+}
+.pg-arrow {
+    position: absolute; bottom: 20px; right: 22px;
+    font-size: 16px; color: var(--text-muted);
+    transition: all .2s;
+}
+.page-card:hover .pg-arrow { color: var(--accent-cyan); transform: translateX(4px); }
+
+.note-box {
+    max-width: 1100px; margin: 0 auto; padding: 0 28px;
+}
+.note-inner {
+    padding: 14px 18px; background: var(--bg-tertiary);
+    border: 1px solid var(--border-light); border-left: 3px solid var(--accent-yellow);
+    border-radius: 0 var(--radius-md) var(--radius-md) 0;
+    font-size: 12px; color: var(--text-secondary); line-height: 1.7;
+}
+.note-inner strong { color: var(--accent-yellow); }
+.note-inner code {
+    font-family: var(--font-mono); font-size: 11px;
+    padding: 1px 6px; background: var(--bg-input); border-radius: 4px;
+    color: var(--accent-cyan);
+}
+</style>
+</head>
+<body>
+<div class="app-shell" style="display:block;">
+    <main style="margin-left:0;">
+        <div style="min-height:100vh;">
+            <div class="index-hero">
+                <div class="hero-badge">SDLC · 004 · STRATEGY MANAGEMENT</div>
+                <h1 class="hero-title">策略管理模块 · 交互原型</h1>
+                <p class="hero-sub">
+                    统一策略配置 Schema 的管理界面：列表、编辑器（8 个 Tab）、版本历史。
+                    完全复用 StockPulse 深色主题系统与因子库页面视觉语言。
+                </p>
+                <div class="hero-specs">
+                    <span>Schema v1.0</span>
+                    <span>CRUD + 版本快照</span>
+                    <span>engine 端 Pydantic 校验</span>
+                    <span>回测/信号共用 config_json</span>
+                </div>
+            </div>
+
+            <div class="note-box">
+                <div class="note-inner">
+                    <strong>ℹ️ 使用说明：</strong>
+                    以下三个页面可独立打开，页面间通过导航链接互联。
+                    视觉风格对齐因子库页面（<code>factor-library.html</code>）：深色背景 + 蓝青渐变强调 + 16px 卡片圆角 + JetBrains Mono 数据字体 + A 股涨红跌绿配色。
+                    原型为静态 HTML，所有按钮点击均为演示效果。
+                </div>
+            </div>
+
+            <div class="page-grid">
+                <a class="page-card" href="list.html" style="--pg-accent: linear-gradient(135deg, #3b82f6, #06b6d4); --pg-shadow: rgba(59,130,246,.3);">
+                    <div class="pg-icon">📚</div>
+                    <div class="pg-name">策略列表页</div>
+                    <div class="pg-desc">统计条 + 筛选栏 + 卡片网格布局。支持分类/状态/范围筛选，卡片显示关键回测指标与快捷操作（编辑/版本/回测/归档）。</div>
+                    <div class="pg-meta">
+                        <span class="pg-tag">卡片网格</span>
+                        <span class="pg-tag">6 张示例卡</span>
+                        <span class="pg-tag">4 种状态</span>
+                    </div>
+                    <div class="pg-arrow">→</div>
+                </a>
+
+                <a class="page-card" href="editor.html" style="--pg-accent: linear-gradient(135deg, #8b5cf6, #3b82f6); --pg-shadow: rgba(139,92,246,.3);">
+                    <div class="pg-icon">✏️</div>
+                    <div class="pg-name">策略编辑器</div>
+                    <div class="pg-desc">8 个 Tab 对应 config_json 的不同分区：基本信息 / 选股范围 / 买入信号 / 卖出信号 / 仓位管理 / 止损止盈 / 调仓 / 回测参数。右侧实时摘要 + JSON 预览。</div>
+                    <div class="pg-meta">
+                        <span class="pg-tag">8 Tabs</span>
+                        <span class="pg-tag">条件树 JSON</span>
+                        <span class="pg-tag">实时预览</span>
+                    </div>
+                    <div class="pg-arrow">→</div>
+                </a>
+
+                <a class="page-card" href="versions.html" style="--pg-accent: linear-gradient(135deg, #fbbf24, #f97316); --pg-shadow: rgba(251,191,36,.25);">
+                    <div class="pg-icon">🗂</div>
+                    <div class="pg-name">版本历史</div>
+                    <div class="pg-desc">左侧版本列表（v1~v5）+ 右侧详情区，支持变更摘要、JSON Diff、回测指标对比、一键回滚（生成新版本不删历史）。</div>
+                    <div class="pg-meta">
+                        <span class="pg-tag">快照式版本</span>
+                        <span class="pg-tag">Diff 对比</span>
+                        <span class="pg-tag">安全回滚</span>
+                    </div>
+                    <div class="pg-arrow">→</div>
+                </a>
+            </div>
+
+            <div class="note-box" style="margin-top: 0; padding-bottom: 40px;">
+                <div class="note-inner" style="border-left-color: var(--accent-cyan);">
+                    <strong>📐 设计原则：</strong>
+                    ① <strong>Schema 驱动 UI</strong>：表单结构与 config_json 字段一一对应，所见即所得；
+                    ② <strong>校验即时反馈</strong>：错误字段红框 + 右上角错误面板 + Tab 角标；
+                    ③ <strong>回测/信号复用</strong>：同一份 config_json，回测中心（005）和信号中心（006）直接读取，不做二次转换；
+                    ④ <strong>版本不可变</strong>：所有保存操作都生成新版本快照，旧版本永远可追溯、可回滚。
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+</body>
+</html>

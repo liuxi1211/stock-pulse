@@ -200,6 +200,33 @@ CREATE TABLE IF NOT EXISTS factor_snapshot (
 CREATE INDEX IF NOT EXISTS idx_factor_snapshot_lookup ON factor_snapshot (trade_date, ts_code, factor_key);
 CREATE INDEX IF NOT EXISTS idx_factor_snapshot_date ON factor_snapshot (trade_date);
 
+-- 14. 策略主表（quant_strategy）
+CREATE TABLE IF NOT EXISTS quant_strategy (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    strategy_id     TEXT         NOT NULL UNIQUE,
+    name            VARCHAR(128) NOT NULL,
+    description     VARCHAR(512),
+    category        VARCHAR(32),
+    scope           VARCHAR(16),
+    status          VARCHAR(16)  DEFAULT 'DRAFT',
+    tags            VARCHAR(512),
+    current_version INTEGER      DEFAULT 1,
+    created_at      VARCHAR(32),
+    updated_at      VARCHAR(32)
+);
+
+-- 15. 策略版本快照表（quant_strategy_version，strategy_id 为外键 → quant_strategy.id）
+CREATE TABLE IF NOT EXISTS quant_strategy_version (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    strategy_id  INTEGER NOT NULL,
+    version_no   INTEGER NOT NULL,
+    config_json  TEXT    NOT NULL,
+    changelog    VARCHAR(512),
+    created_at   VARCHAR(32),
+    UNIQUE(strategy_id, version_no)
+);
+CREATE INDEX IF NOT EXISTS idx_strategy_version_lookup ON quant_strategy_version (strategy_id, version_no);
+
 -- 初始管理员账号（仅当表为空时插入，默认密码: admin123）
 INSERT INTO sys_user (username, password, enabled, role)
 SELECT 'admin', '$2a$10$pfuIlLGBbNZqO5xXa9oRKeEFABc4FIxs2SVY46UUG1xpA7o9tGn9u', 1, 'ADMIN'

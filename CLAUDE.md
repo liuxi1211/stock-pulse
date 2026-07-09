@@ -68,14 +68,14 @@
 
 ### 4.2 前端规范（`frontend/`）
 
-| 场景 | 文档 | 内容要点 |
-|-----|------|---------|
-| HTML/CSS 风格 | `01-html-css-style.md` | HTML/CSS 风格 |
-| JavaScript 风格 | `02-javascript-style.md` | JavaScript 风格 |
-| Thymeleaf 最佳实践 | `03-thymeleaf-best-practices.md` | Thymeleaf 最佳实践 |
-| ECharts 最佳实践 | `04-echarts-best-practices.md` | ECharts 最佳实践 |
-| 前端性能优化 | `05-frontend-performance.md` | 前端性能优化 |
-| 前端安全 | `06-frontend-security.md` | 前端安全 |
+| 场景 | 文档                               | 内容要点              |
+|-----|----------------------------------|-------------------|
+| HTML/CSS 风格 | `01-frontend.md`                 | 前端页面风格，前端页面编写必须参考 |
+| JavaScript 风格 | `02-javascript-style.md`         | JavaScript 风格     |
+| Thymeleaf 最佳实践 | `03-thymeleaf-best-practices.md` | Thymeleaf 最佳实践    |
+| ECharts 最佳实践 | `04-echarts-best-practices.md`   | ECharts 最佳实践      |
+| 前端性能优化 | `05-frontend-performance.md`     | 前端性能优化            |
+| 前端安全 | `06-frontend-security.md`        | 前端安全              |
 
 ### 4.3 业务指南（`business/`）
 
@@ -146,7 +146,7 @@
 │   │   ├── 07-java-code-quality.md
 │   │   └── 08-constants-usage.md
 │   ├── frontend/                     # 前端规范
-│   │   ├── 01-html-css-style.md
+│   │   ├── 01-frontend.md
 │   │   ├── 02-javascript-style.md
 │   │   ├── 03-thymeleaf-best-practices.md
 │   │   ├── 04-echarts-best-practices.md

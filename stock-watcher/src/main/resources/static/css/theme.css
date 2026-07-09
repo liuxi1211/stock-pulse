@@ -36,6 +36,7 @@
     --accent-purple-light: #a78bfa;
     --accent-yellow: #fbbf24;
     --accent-orange: #f97316;
+    --accent-green: #22c55e;
 
     /* Rise / Fall (China A-share convention: red up, green down) */
     --rise-color: #ef4444;
@@ -127,6 +128,7 @@
     --accent-purple-light: #8b5cf6;
     --accent-yellow: #d97706;
     --accent-orange: #ea580c;
+    --accent-green: #16a34a;
 
     /* Rise / Fall */
     --rise-color: #dc2626;

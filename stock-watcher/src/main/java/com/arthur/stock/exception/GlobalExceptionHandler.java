@@ -9,6 +9,9 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
+
 /**
  * 全局异常处理器，统一处理各类异常并转换为ApiResponse格式返回给前端
  */
@@ -24,6 +27,33 @@ public class GlobalExceptionHandler {
     public ApiResponse<Void> handleBusiness(BusinessException e) {
         log.warn("Business error [{}]: {}", e.getCode(), e.getMessage());
         return ApiResponse.error(e.getCode(), e.getMessage());
+    }
+
+    /**
+     * 处理策略配置校验失败异常（spec 004 Task 6）。
+     * <p>
+     * 返回 400 + errors 数组，便于前端精确定位每个字段错误。
+     */
+    @ExceptionHandler(StrategyValidationException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ApiResponse<Void> handleStrategyValidation(StrategyValidationException e) {
+        log.warn("Strategy validation failed [{}]: {} ({} errors)", e.getCode(), e.getMessage(),
+                e.getErrors() == null ? 0 : e.getErrors().size());
+        return ApiResponse.errorWithErrors(e.getCode(), e.getMessage(), e.getErrors());
+    }
+
+    /**
+     * 处理策略版本乐观锁冲突异常（spec 004 Task 6）。
+     * <p>
+     * 返回 409 + data.currentVersion，前端可据此刷新后重试。
+     */
+    @ExceptionHandler(StrategyVersionConflictException.class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    public ApiResponse<Object> handleStrategyVersionConflict(StrategyVersionConflictException e) {
+        log.warn("Strategy version conflict [{}]: {}", e.getCode(), e.getMessage());
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("currentVersion", e.getCurrentVersion());
+        return ApiResponse.errorWithData(e.getCode(), e.getMessage(), data, null);
     }
 
     /**
