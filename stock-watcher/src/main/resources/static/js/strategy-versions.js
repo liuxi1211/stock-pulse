@@ -607,7 +607,7 @@ const StrategyVersions = (function () {
         const json = await loadVersionJson(vn);
         const pretty = prettyJson(json);
         pane.innerHTML =
-            '<pre class="str-mono" style="background:#0d1117;color:#c9d1d9;padding:14px;border-radius:6px;overflow:auto;max-height:520px;font-size:12.5px;line-height:1.5;">' +
+            '<pre class="str-mono str-config-pre">' +
                 '<code>' + highlightJson(pretty || '(空配置)') + '</code>' +
             '</pre>';
     }

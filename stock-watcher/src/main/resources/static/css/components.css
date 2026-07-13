@@ -540,7 +540,7 @@
 .card-title-icon.fall {
     background: linear-gradient(135deg,
         color-mix(in srgb, var(--fall-color) 20%, transparent) 0%,
-        color-mix(in srgb, #10b981 10%, transparent) 100%);
+        color-mix(in srgb, var(--accent-green) 10%, transparent) 100%);
     color: var(--fall-light);
 }
 
@@ -985,7 +985,7 @@
     transition: opacity var(--transition-fast) !important;
 }
 
-[data-theme="dark"] .btn-close {
+.btn-close {
     filter: invert(1) grayscale(100%) brightness(200%) !important;
 }
 

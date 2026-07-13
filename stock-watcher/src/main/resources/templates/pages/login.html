@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org" data-theme="dark">
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -12,7 +12,6 @@
     <link th:href="@{/css/theme.css}" rel="stylesheet">
     <link th:href="@{/css/components.css}" rel="stylesheet">
     <link th:href="@{/css/custom.css}" rel="stylesheet">
-    <script th:src="@{/js/theme.js}"></script>
     <style>
         .login-wrapper {
             min-height: 100vh;
@@ -267,34 +266,6 @@
             margin-bottom: 0;
         }
 
-        .theme-toggle-btn {
-            position: fixed;
-            top: 24px;
-            right: 24px;
-            width: 44px;
-            height: 44px;
-            border-radius: 12px;
-            background: var(--bg-card);
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
-            border: 1px solid var(--border-color);
-            color: var(--text-secondary);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            z-index: 100;
-            transition: all var(--transition-fast);
-            font-size: 18px;
-        }
-
-        .theme-toggle-btn:hover {
-            background: var(--bg-card-hover);
-            color: var(--text-primary);
-            border-color: var(--accent-blue);
-            transform: translateY(-2px);
-        }
-
         @media (max-width: 991.98px) {
             .login-brand {
                 display: none;
@@ -320,11 +291,6 @@
 <body>
     <div class="login-wrapper">
         <div class="login-bg"></div>
-
-        <!-- Theme Toggle -->
-        <button class="theme-toggle-btn" onclick="toggleTheme(); updateLoginThemeIcon();" title="切换主题">
-            <i class="bi bi-moon-stars" id="loginThemeIcon"></i>
-        </button>
 
         <!-- Left: Brand Section -->
         <div class="login-brand">
@@ -444,18 +410,6 @@
                 icon.className = 'bi bi-eye';
             }
         }
-
-        function updateLoginThemeIcon() {
-            const icon = document.getElementById('loginThemeIcon');
-            if (icon) {
-                const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-                icon.className = isDark ? 'bi bi-moon-stars' : 'bi bi-sun';
-            }
-        }
-
-        document.addEventListener('DOMContentLoaded', function() {
-            updateLoginThemeIcon();
-        });
     </script>
 </body>
 </html>

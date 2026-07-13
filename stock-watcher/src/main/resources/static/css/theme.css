@@ -1,75 +1,13 @@
 /* ============================================================
    StockPulse Theme System
-   主题变量系统 - 深色/浅色双主题
+   三主题可切换:azure(云隙蔚蓝,默认) / mist(晨雾青瓷) / cyber(深空赛博)
+   - :root 放主题无关 token(radius/layout/transition/font/图表坐标)
+   - [data-theme="xxx"] 放主题相关 token(颜色/阴影/渐变/模糊/氛围光)
+   - 图表颜色通过 --chart-* token 暴露给 charts-theme.js 读取
    ============================================================ */
 
-:root,
-[data-theme="dark"] {
-    /* Backgrounds */
-    --bg-primary: #0a0e17;
-    --bg-secondary: #0f1520;
-    --bg-tertiary: #151d2b;
-    --bg-card: rgba(21, 29, 43, 0.6);
-    --bg-card-hover: rgba(30, 41, 59, 0.8);
-    --bg-elevated: #1e293b;
-    --bg-input: #151d2b;
-    --bg-input-hover: #1e293b;
-
-    /* Text */
-    --text-primary: #f1f5f9;
-    --text-secondary: #94a3b8;
-    --text-muted: #64748b;
-    --text-inverse: #0f172a;
-
-    /* Borders */
-    --border-color: rgba(71, 85, 105, 0.3);
-    --border-light: rgba(148, 163, 184, 0.1);
-    --border-strong: rgba(100, 116, 139, 0.5);
-
-    /* Accent Colors */
-    --accent-blue: #3b82f6;
-    --accent-blue-light: #60a5fa;
-    --accent-blue-dark: #2563eb;
-    --accent-cyan: #06b6d4;
-    --accent-cyan-light: #22d3ee;
-    --accent-purple: #8b5cf6;
-    --accent-purple-light: #a78bfa;
-    --accent-yellow: #fbbf24;
-    --accent-orange: #f97316;
-    --accent-green: #22c55e;
-
-    /* Rise / Fall (China A-share convention: red up, green down) */
-    --rise-color: #ef4444;
-    --rise-light: #f87171;
-    --rise-bg: rgba(239, 68, 68, 0.15);
-    --rise-glow: rgba(239, 68, 68, 0.3);
-    --fall-color: #22c55e;
-    --fall-light: #4ade80;
-    --fall-bg: rgba(34, 197, 94, 0.15);
-    --fall-glow: rgba(34, 197, 94, 0.3);
-
-    /* Shadows */
-    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.3);
-    --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.4);
-    --shadow-xl: 0 20px 40px rgba(0, 0, 0, 0.5);
-    --shadow-glow-blue: 0 0 20px rgba(59, 130, 246, 0.3);
-    --shadow-glow-rise: 0 0 20px rgba(239, 68, 68, 0.3);
-    --shadow-glow-fall: 0 0 20px rgba(34, 197, 94, 0.3);
-
-    /* Gradients */
-    --gradient-primary: linear-gradient(135deg, #3b82f6 0%, #06b6d4 100%);
-    --gradient-secondary: linear-gradient(135deg, #8b5cf6 0%, #3b82f6 100%);
-    --gradient-rise: linear-gradient(135deg, #ef4444 0%, #f97316 100%);
-    --gradient-fall: linear-gradient(135deg, #22c55e 0%, #10b981 100%);
-    --gradient-gold: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
-    --gradient-silver: linear-gradient(135deg, #94a3b8 0%, #64748b 100%);
-    --gradient-bronze: linear-gradient(135deg, #d97706 0%, #b45309 100%);
-
-    /* Effects */
-    --blur-card: blur(10px);
-    --blur-navbar: blur(20px);
-
+/* ---------- 主题无关 token(所有主题共享) ---------- */
+:root {
     /* Layout */
     --sidebar-width: 260px;
     --navbar-height: 68px;
@@ -91,76 +29,280 @@
     --font-display: 'Space Grotesk', 'Noto Sans SC', -apple-system, BlinkMacSystemFont, sans-serif;
     --font-body: 'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     --font-mono: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+
+    /* 默认主题(未设置 data-theme 时的兜底,等于 azure) */
+    color-scheme: light;
 }
 
 /* ============================================================
-   Light Theme
+   主题 1:azure 云隙蔚蓝(默认 · 浅色 · 护眼)
+   浅蓝灰底 + 靛蓝主色 + 青光氛围
+   注::root 同时应用 azure,确保未设 data-theme 的页面(如登录页)也有正确主题
    ============================================================ */
-[data-theme="light"] {
+:root, [data-theme="azure"] {
+    color-scheme: light;
+
     /* Backgrounds */
-    --bg-primary: #f8fafc;
-    --bg-secondary: #ffffff;
-    --bg-tertiary: #f1f5f9;
-    --bg-card: rgba(255, 255, 255, 0.9);
-    --bg-card-hover: #f8fafc;
-    --bg-elevated: #ffffff;
-    --bg-input: #ffffff;
-    --bg-input-hover: #f8fafc;
+    --bg-primary: #EEF2F7;
+    --bg-secondary: #E6EBF2;
+    --bg-tertiary: rgba(241, 245, 250, 0.88);
+    --bg-card: rgba(255, 255, 255, 0.68);
+    --bg-card-hover: rgba(255, 255, 255, 0.86);
+    --bg-elevated: rgba(255, 255, 255, 0.95);
+    --bg-input: rgba(255, 255, 255, 0.78);
+    --bg-input-hover: rgba(255, 255, 255, 0.92);
 
     /* Text */
-    --text-primary: #0f172a;
+    --text-primary: #1E293B;
     --text-secondary: #475569;
-    --text-muted: #94a3b8;
-    --text-inverse: #f8fafc;
+    --text-muted: #94A3B8;
+    --text-inverse: #FFFFFF;
 
     /* Borders */
-    --border-color: rgba(226, 232, 240, 0.9);
-    --border-light: rgba(241, 245, 249, 0.8);
-    --border-strong: rgba(203, 213, 225, 0.9);
+    --border-color: rgba(55, 48, 163, 0.16);
+    --border-light: rgba(55, 48, 163, 0.08);
+    --border-strong: rgba(55, 48, 163, 0.30);
 
-    /* Accent Colors - same as dark */
-    --accent-blue: #2563eb;
-    --accent-blue-light: #3b82f6;
-    --accent-blue-dark: #1d4ed8;
-    --accent-cyan: #0891b2;
-    --accent-cyan-light: #06b6d4;
-    --accent-purple: #7c3aed;
-    --accent-purple-light: #8b5cf6;
-    --accent-yellow: #d97706;
-    --accent-orange: #ea580c;
-    --accent-green: #16a34a;
+    /* Accent Colors */
+    --accent-blue: #3730A3;
+    --accent-blue-light: #4F46E5;
+    --accent-blue-dark: #312E81;
+    --accent-cyan: #0EA5E9;
+    --accent-cyan-light: #38BDF8;
+    --accent-purple: #6366F1;
+    --accent-purple-light: #818CF8;
+    --accent-yellow: #D97706;
+    --accent-orange: #EA580C;
+    --accent-green: #059669;
 
-    /* Rise / Fall */
-    --rise-color: #dc2626;
-    --rise-light: #ef4444;
-    --rise-bg: rgba(239, 68, 68, 0.1);
-    --rise-glow: rgba(239, 68, 68, 0.2);
-    --fall-color: #16a34a;
-    --fall-light: #22c55e;
-    --fall-bg: rgba(34, 197, 94, 0.1);
-    --fall-glow: rgba(34, 197, 94, 0.2);
+    /* Rise / Fall (China A-share: red up, green down) */
+    --rise-color: #DC2626;
+    --rise-light: #EF4444;
+    --rise-bg: rgba(220, 38, 38, 0.10);
+    --rise-glow: rgba(220, 38, 38, 0.22);
+    --fall-color: #059669;
+    --fall-light: #10B981;
+    --fall-bg: rgba(5, 150, 105, 0.10);
+    --fall-glow: rgba(5, 150, 105, 0.22);
 
-    /* Shadows */
-    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
-    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
-    --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.1);
-    --shadow-xl: 0 20px 40px rgba(0, 0, 0, 0.12);
-    --shadow-glow-blue: 0 0 20px rgba(37, 99, 235, 0.2);
-    --shadow-glow-rise: 0 0 20px rgba(220, 38, 38, 0.2);
-    --shadow-glow-fall: 0 0 20px rgba(22, 163, 74, 0.2);
+    /* Shadows(浅色用柔和投影) */
+    --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
+    --shadow-md: 0 4px 12px rgba(15, 23, 42, 0.08);
+    --shadow-lg: 0 8px 28px rgba(15, 23, 42, 0.10);
+    --shadow-xl: 0 16px 40px rgba(15, 23, 42, 0.14);
+    --shadow-glow-blue: 0 6px 20px rgba(55, 48, 163, 0.18);
+    --shadow-glow-rise: 0 6px 20px rgba(220, 38, 38, 0.18);
+    --shadow-glow-fall: 0 6px 20px rgba(5, 150, 105, 0.18);
 
-    /* Gradients - same as dark */
-    --gradient-primary: linear-gradient(135deg, #2563eb 0%, #0891b2 100%);
-    --gradient-secondary: linear-gradient(135deg, #7c3aed 0%, #2563eb 100%);
-    --gradient-rise: linear-gradient(135deg, #dc2626 0%, #ea580c 100%);
-    --gradient-fall: linear-gradient(135deg, #16a34a 0%, #059669 100%);
-    --gradient-gold: linear-gradient(135deg, #d97706 0%, #b45309 100%);
-    --gradient-silver: linear-gradient(135deg, #64748b 0%, #475569 100%);
-    --gradient-bronze: linear-gradient(135deg, #b45309 0%, #92400e 100%);
+    /* Gradients */
+    --gradient-primary: linear-gradient(135deg, #3730A3 0%, #4F46E5 100%);
+    --gradient-secondary: linear-gradient(135deg, #6366F1 0%, #0EA5E9 100%);
+    --gradient-rise: linear-gradient(135deg, #DC2626 0%, #EA580C 100%);
+    --gradient-fall: linear-gradient(135deg, #059669 0%, #10B981 100%);
+    --gradient-gold: linear-gradient(135deg, #D97706 0%, #F59E0B 100%);
+    --gradient-silver: linear-gradient(135deg, #94A3B8 0%, #64748B 100%);
+    --gradient-bronze: linear-gradient(135deg, #B45309 0%, #92400E 100%);
 
     /* Effects */
-    --blur-card: blur(10px);
-    --blur-navbar: blur(20px);
+    --blur-card: blur(14px) saturate(140%);
+    --blur-navbar: blur(22px) saturate(140%);
+
+    /* Ambient(三处氛围光颜色,供 body::before 用) */
+    --ambient-1: rgba(55, 48, 163, 0.15);
+    --ambient-2: rgba(14, 165, 233, 0.14);
+    --ambient-3: rgba(99, 102, 241, 0.12);
+    --ambient-opacity: 1;
+
+    /* Chart tokens(供 charts-theme.js 读取) */
+    --chart-text: #475569;
+    --chart-axis: #94A3B8;
+    --chart-grid: rgba(55, 48, 163, 0.08);
+    --chart-split-line: rgba(55, 48, 163, 0.06);
+    --chart-tooltip-bg: rgba(255, 255, 255, 0.95);
+    --chart-tooltip-border: rgba(55, 48, 163, 0.20);
+    --chart-tooltip-text: #1E293B;
+    --chart-crosshair: rgba(79, 70, 229, 0.50);
+    --chart-crosshair-label: rgba(79, 70, 229, 0.90);
+}
+
+/* ============================================================
+   主题 2:mist 晨雾青瓷(浅色 · 低饱和 · 长时盯盘护眼)
+   雾白底 + 青瓷绿主色 + 墨蓝字
+   ============================================================ */
+[data-theme="mist"] {
+    color-scheme: light;
+
+    /* Backgrounds */
+    --bg-primary: #F2F5F7;
+    --bg-secondary: #E9EEF1;
+    --bg-tertiary: rgba(244, 247, 249, 0.88);
+    --bg-card: rgba(255, 255, 255, 0.62);
+    --bg-card-hover: rgba(255, 255, 255, 0.82);
+    --bg-elevated: rgba(255, 255, 255, 0.94);
+    --bg-input: rgba(255, 255, 255, 0.72);
+    --bg-input-hover: rgba(255, 255, 255, 0.90);
+
+    /* Text */
+    --text-primary: #16302E;
+    --text-secondary: #4B6B68;
+    --text-muted: #8AA3A0;
+    --text-inverse: #FFFFFF;
+
+    /* Borders */
+    --border-color: rgba(14, 124, 123, 0.16);
+    --border-light: rgba(14, 124, 123, 0.08);
+    --border-strong: rgba(14, 124, 123, 0.32);
+
+    /* Accent Colors */
+    --accent-blue: #0E7C7B;
+    --accent-blue-light: #0EA5A4;
+    --accent-blue-dark: #0A5F5E;
+    --accent-cyan: #0EA5A4;
+    --accent-cyan-light: #2DD4BF;
+    --accent-purple: #5B7C8B;
+    --accent-purple-light: #7B9BA8;
+    --accent-yellow: #B45309;
+    --accent-orange: #C2682E;
+    --accent-green: #2E8B57;
+
+    /* Rise / Fall */
+    --rise-color: #D0413B;
+    --rise-light: #E05A52;
+    --rise-bg: rgba(208, 65, 59, 0.12);
+    --rise-glow: rgba(208, 65, 59, 0.24);
+    --fall-color: #2E8B57;
+    --fall-light: #3CA86E;
+    --fall-bg: rgba(46, 139, 87, 0.12);
+    --fall-glow: rgba(46, 139, 87, 0.24);
+
+    /* Shadows */
+    --shadow-sm: 0 1px 2px rgba(22, 48, 46, 0.06);
+    --shadow-md: 0 4px 12px rgba(22, 48, 46, 0.08);
+    --shadow-lg: 0 8px 28px rgba(22, 48, 46, 0.10);
+    --shadow-xl: 0 16px 40px rgba(22, 48, 46, 0.14);
+    --shadow-glow-blue: 0 6px 20px rgba(14, 124, 123, 0.18);
+    --shadow-glow-rise: 0 6px 20px rgba(208, 65, 59, 0.18);
+    --shadow-glow-fall: 0 6px 20px rgba(46, 139, 87, 0.18);
+
+    /* Gradients */
+    --gradient-primary: linear-gradient(135deg, #0E7C7B 0%, #0EA5A4 100%);
+    --gradient-secondary: linear-gradient(135deg, #5B7C8B 0%, #0E7C7B 100%);
+    --gradient-rise: linear-gradient(135deg, #D0413B 0%, #C2682E 100%);
+    --gradient-fall: linear-gradient(135deg, #2E8B57 0%, #3CA86E 100%);
+    --gradient-gold: linear-gradient(135deg, #B45309 0%, #D97706 100%);
+    --gradient-silver: linear-gradient(135deg, #8AA3A0 0%, #4B6B68 100%);
+    --gradient-bronze: linear-gradient(135deg, #92400E 0%, #B45309 100%);
+
+    /* Effects */
+    --blur-card: blur(14px) saturate(135%);
+    --blur-navbar: blur(22px) saturate(135%);
+
+    /* Ambient */
+    --ambient-1: rgba(14, 124, 123, 0.16);
+    --ambient-2: rgba(59, 130, 246, 0.10);
+    --ambient-3: rgba(125, 109, 222, 0.10);
+    --ambient-opacity: 1;
+
+    /* Chart tokens */
+    --chart-text: #4B6B68;
+    --chart-axis: #8AA3A0;
+    --chart-grid: rgba(14, 124, 123, 0.08);
+    --chart-split-line: rgba(14, 124, 123, 0.06);
+    --chart-tooltip-bg: rgba(255, 255, 255, 0.95);
+    --chart-tooltip-border: rgba(14, 124, 123, 0.22);
+    --chart-tooltip-text: #16302E;
+    --chart-crosshair: rgba(14, 165, 164, 0.50);
+    --chart-crosshair-label: rgba(14, 165, 164, 0.90);
+}
+
+/* ============================================================
+   主题 3:cyber 深空赛博(深色 · 最强科技感)
+   近黑深蓝底 + 霓虹青/品红高光 + 扫描线氛围
+   ============================================================ */
+[data-theme="cyber"] {
+    color-scheme: dark;
+
+    /* Backgrounds */
+    --bg-primary: #070B1A;
+    --bg-secondary: #0C1226;
+    --bg-tertiary: rgba(18, 26, 51, 0.85);
+    --bg-card: rgba(14, 20, 42, 0.62);
+    --bg-card-hover: rgba(20, 28, 58, 0.82);
+    --bg-elevated: #141C3A;
+    --bg-input: rgba(18, 26, 51, 0.90);
+    --bg-input-hover: rgba(24, 34, 66, 0.95);
+
+    /* Text */
+    --text-primary: #E6F1FF;
+    --text-secondary: #8BA3C7;
+    --text-muted: #5A7299;
+    --text-inverse: #070B1A;
+
+    /* Borders */
+    --border-color: rgba(0, 229, 255, 0.18);
+    --border-light: rgba(0, 229, 255, 0.08);
+    --border-strong: rgba(0, 229, 255, 0.42);
+
+    /* Accent Colors(霓虹青 + 品红双色高光) */
+    --accent-blue: #00E5FF;
+    --accent-blue-light: #5FF0FF;
+    --accent-blue-dark: #00B8D4;
+    --accent-cyan: #00E5FF;
+    --accent-cyan-light: #5FF0FF;
+    --accent-purple: #FF2D92;
+    --accent-purple-light: #FF6BB0;
+    --accent-yellow: #FFD600;
+    --accent-orange: #FF8A00;
+    --accent-green: #00FF9C;
+
+    /* Rise / Fall(霓虹化,保留红涨绿跌语义) */
+    --rise-color: #FF2D55;
+    --rise-light: #FF5C7A;
+    --rise-bg: rgba(255, 45, 85, 0.16);
+    --rise-glow: rgba(255, 45, 85, 0.40);
+    --fall-color: #00FF9C;
+    --fall-light: #5FFFBF;
+    --fall-bg: rgba(0, 255, 156, 0.14);
+    --fall-glow: rgba(0, 255, 156, 0.36);
+
+    /* Shadows(深色 + 霓虹 glow) */
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.40);
+    --shadow-md: 0 4px 14px rgba(0, 0, 0, 0.45);
+    --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.55);
+    --shadow-xl: 0 20px 48px rgba(0, 0, 0, 0.65);
+    --shadow-glow-blue: 0 0 22px rgba(0, 229, 255, 0.38);
+    --shadow-glow-rise: 0 0 22px rgba(255, 45, 85, 0.40);
+    --shadow-glow-fall: 0 0 22px rgba(0, 255, 156, 0.38);
+
+    /* Gradients */
+    --gradient-primary: linear-gradient(135deg, #00E5FF 0%, #00B8D4 100%);
+    --gradient-secondary: linear-gradient(135deg, #FF2D92 0%, #00E5FF 100%);
+    --gradient-rise: linear-gradient(135deg, #FF2D55 0%, #FF8A00 100%);
+    --gradient-fall: linear-gradient(135deg, #00FF9C 0%, #00E5FF 100%);
+    --gradient-gold: linear-gradient(135deg, #FFD600 0%, #FF8A00 100%);
+    --gradient-silver: linear-gradient(135deg, #8BA3C7 0%, #5A7299 100%);
+    --gradient-bronze: linear-gradient(135deg, #FF8A00 0%, #FFD600 100%);
+
+    /* Effects */
+    --blur-card: blur(12px) saturate(160%);
+    --blur-navbar: blur(20px) saturate(160%);
+
+    /* Ambient(深色用更高饱和发光) */
+    --ambient-1: rgba(0, 229, 255, 0.10);
+    --ambient-2: rgba(255, 45, 146, 0.08);
+    --ambient-3: rgba(0, 255, 156, 0.06);
+    --ambient-opacity: 1;
+
+    /* Chart tokens */
+    --chart-text: #8BA3C7;
+    --chart-axis: #5A7299;
+    --chart-grid: rgba(0, 229, 255, 0.10);
+    --chart-split-line: rgba(0, 229, 255, 0.08);
+    --chart-tooltip-bg: rgba(14, 20, 42, 0.95);
+    --chart-tooltip-border: rgba(0, 229, 255, 0.32);
+    --chart-tooltip-text: #E6F1FF;
+    --chart-crosshair: rgba(0, 229, 255, 0.55);
+    --chart-crosshair-label: rgba(0, 229, 255, 0.85);
 }
 
 /* ============================================================
@@ -183,13 +325,13 @@ body {
     color: var(--text-primary);
     line-height: 1.6;
     min-height: 100vh;
-    transition: background-color var(--transition-base), color var(--transition-base);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    transition: background var(--transition-base), color var(--transition-base);
 }
 
-/* Background glow effects for dark theme */
-[data-theme="dark"] body::before {
+/* Background ambient glow(氛围光,颜色随主题) */
+body::before {
     content: '';
     position: fixed;
     top: 0;
@@ -197,25 +339,42 @@ body {
     right: 0;
     bottom: 0;
     background:
-        radial-gradient(ellipse 800px 600px at 10% -10%, rgba(59, 130, 246, 0.08) 0%, transparent 50%),
-        radial-gradient(ellipse 600px 500px at 90% 10%, rgba(139, 92, 246, 0.06) 0%, transparent 50%),
-        radial-gradient(ellipse 700px 500px at 50% 100%, rgba(6, 182, 212, 0.05) 0%, transparent 50%);
+        radial-gradient(ellipse 800px 600px at 10% -10%, var(--ambient-1) 0%, transparent 50%),
+        radial-gradient(ellipse 600px 500px at 90% 10%, var(--ambient-2) 0%, transparent 50%),
+        radial-gradient(ellipse 700px 500px at 50% 100%, var(--ambient-3) 0%, transparent 50%);
     pointer-events: none;
     z-index: 0;
+    opacity: var(--ambient-opacity);
+    transition: opacity var(--transition-base);
 }
 
-[data-theme="light"] body::before {
+/* 深空赛博专属:扫描线动效(标志性元素) */
+[data-theme="cyber"] body::after {
     content: '';
     position: fixed;
     top: 0;
     left: 0;
     right: 0;
     bottom: 0;
-    background:
-        radial-gradient(ellipse 800px 600px at 10% -10%, rgba(59, 130, 246, 0.04) 0%, transparent 50%),
-        radial-gradient(ellipse 600px 500px at 90% 10%, rgba(139, 92, 246, 0.03) 0%, transparent 50%);
     pointer-events: none;
     z-index: 0;
+    background: linear-gradient(
+        180deg,
+        transparent 0%,
+        rgba(0, 229, 255, 0.025) 50%,
+        transparent 100%
+    );
+    background-size: 100% 8px;
+    animation: cyber-scanline 8s linear infinite;
+}
+
+@keyframes cyber-scanline {
+    0%   { background-position: 0 0; }
+    100% { background-position: 0 100vh; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    [data-theme="cyber"] body::after { animation: none; }
 }
 
 /* ============================================================
@@ -264,7 +423,7 @@ h1, h2, h3, h4, h5, h6 {
    Selection
    ============================================================ */
 ::selection {
-    background: rgba(59, 130, 246, 0.3);
+    background: color-mix(in srgb, var(--accent-blue) 30%, transparent);
     color: var(--text-primary);
 }
 
@@ -289,25 +448,4 @@ h1, h2, h3, h4, h5, h6 {
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
-}
-
-/* ============================================================
-   Theme Transition - 主题切换平滑过渡
-   ============================================================ */
-html.theme-transition,
-html.theme-transition *,
-html.theme-transition *::before,
-html.theme-transition *::after {
-    transition: background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
-                border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
-                color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
-                box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1),
-                fill 0.3s cubic-bezier(0.4, 0, 0.2, 1),
-                stroke 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
-    transition-delay: 0 !important;
-}
-
-html.theme-transition canvas,
-html.theme-transition svg {
-    transition: none !important;
 }

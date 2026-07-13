@@ -107,8 +107,8 @@
     color: var(--accent-blue);
 }
 .ctb-tree-act-btn.danger:hover {
-    border-color: var(--accent-red, #e05260);
-    color: var(--accent-red, #e05260);
+    border-color: var(--rise-color);
+    color: var(--rise-color);
 }
 
 /* 叶子节点 */
@@ -136,8 +136,8 @@
     justify-content: center;
 }
 .ctb-node-remove:hover {
-    background: color-mix(in srgb, var(--accent-red, #e05260) 14%, transparent);
-    color: var(--accent-red, #e05260);
+    background: color-mix(in srgb, var(--rise-color) 14%, transparent);
+    color: var(--rise-color);
 }
 .ctb-comparator-badge {
     padding: 4px 8px;
@@ -301,5 +301,5 @@
     font-size: 13px;
     border: 1px dashed var(--border-color, rgba(255, 255, 255, 0.1));
     border-radius: 6px;
-    background: rgba(255, 255, 255, 0.02);
+    background: var(--bg-tertiary);
 }

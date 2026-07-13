@@ -943,6 +943,13 @@ const Screener = (function () {
         const runBtn = document.getElementById('runBtn');
         if (runBtn && runBtn.classList.contains('loading')) return; // 防重复点击
 
+        // 印章钤印动画：触发 .seal-btn.stamping（scale 1→0.92→1.04→1，0.28s）
+        if (runBtn) {
+            runBtn.classList.remove('stamping');
+            void runBtn.offsetWidth;   // 强制 reflow 以重启动画
+            runBtn.classList.add('stamping');
+        }
+
         if (!state.currentPlanId) {
             StockApp.toast('请先在左侧新建或选中一个方案', 'warning');
             return;

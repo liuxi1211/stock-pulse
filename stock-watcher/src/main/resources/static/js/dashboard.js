@@ -128,6 +128,7 @@ function renderKline(data, stockCode) {
                 },
             },
         });
+        ChartsTheme.register(klineChart, 'lightweight');
 
         klineLegendEl = document.createElement('div');
         klineLegendEl.style.cssText = 'position:absolute;top:8px;left:12px;z-index:1;font-size:12px;line-height:1.6;pointer-events:none;';
@@ -203,22 +204,6 @@ function renderKline(data, stockCode) {
             to: candleData[candleData.length - 1].time,
         });
     }
-}
-
-function updateKlineTheme() {
-    if (!klineChart) return;
-    const theme = ChartsTheme.getKlineTheme();
-    klineChart.applyOptions({
-        layout: theme.layout,
-        grid: theme.grid,
-        crosshair: theme.crosshair,
-        rightPriceScale: theme.rightPriceScale,
-        timeScale: theme.timeScale,
-    });
-    candleSeries.applyOptions(theme.candlestick);
-    ma5Series.applyOptions({ color: theme.maColors.ma5 });
-    ma10Series.applyOptions({ color: theme.maColors.ma10 });
-    ma20Series.applyOptions({ color: theme.maColors.ma20 });
 }
 
 // ========== Watchlist (AJAX) ==========
@@ -376,6 +361,7 @@ function renderTrendChart(list) {
 
     if (!trendChartInstance) {
         trendChartInstance = echarts.init(container);
+        ChartsTheme.register(trendChartInstance, 'echarts');
         window.addEventListener('resize', function() { trendChartInstance.resize(); });
     }
 
@@ -438,6 +424,7 @@ function renderPieChart(list) {
 
     if (!pieChartInstance) {
         pieChartInstance = echarts.init(container);
+        ChartsTheme.register(pieChartInstance, 'echarts');
         window.addEventListener('resize', function() { pieChartInstance.resize(); });
     }
 
@@ -458,8 +445,7 @@ function renderPieChart(list) {
     });
     const pieData = Object.entries(industryMap).map(([name, value]) => ({ name, value }));
 
-    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-    const borderColor = isDark ? '#0f1520' : '#ffffff';
+    const borderColor = '#0f1520';
 
     pieChartInstance.setOption({
         title: null,
@@ -491,25 +477,6 @@ function renderPieChart(list) {
             data: pieData
         }]
     }, true);
-}
-
-function updateChartsTheme() {
-    if (trendChartInstance) {
-        trendChartInstance.dispose();
-        trendChartInstance = null;
-    }
-    if (pieChartInstance) {
-        pieChartInstance.dispose();
-        pieChartInstance = null;
-    }
-    renderTrendChart(watchlistData);
-    renderPieChart(watchlistData);
-}
-
-// ========== Theme Change Handler ==========
-function onThemeChange() {
-    updateKlineTheme();
-    updateChartsTheme();
 }
 
 // ========== Refresh and Export ==========
@@ -554,9 +521,6 @@ document.addEventListener('DOMContentLoaded', function() {
         onSelect: function(item) {
         }
     });
-
-    // Listen for theme changes
-    document.addEventListener('themechange', onThemeChange);
 
     refreshWatchlist();
     refreshRanking();

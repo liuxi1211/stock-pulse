@@ -1963,7 +1963,7 @@ const StrategyEditor = {
     },
 
     clearErrorTabs() {
-        document.querySelectorAll('#strategyTab .nav-link').forEach((n) => n.classList.remove('text-danger'));
+        document.querySelectorAll('#strategyTab .str-tab-btn').forEach((n) => n.classList.remove('text-danger'));
     },
 
     /**

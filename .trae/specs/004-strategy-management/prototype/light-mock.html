@@ -1,0 +1,944 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>策略管理 · 浅色科技风原型 · StockPulse</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+<style>
+/* ============================================================
+   三套浅色科技风主题 —— 用 [data-theme] 切换演示（仅原型用）
+   注意：01-frontend.md 规定生产环境是单一深色主题、无切换。
+   这里的 data-theme 仅为原型对比，不代表最终实现方式。
+   ============================================================ */
+
+/* ---------- 主题 A：晨雾青瓷（冷静 · 低饱和） ---------- */
+[data-theme="mist"] {
+    --bg-page:        #F2F5F7;
+    --bg-ambient-1:   rgba(14,124,123,0.16);   /* 青瓷 左上 */
+    --bg-ambient-2:   rgba(59,130,246,0.13);   /* 雾蓝 右上 */
+    --bg-ambient-3:   rgba(125,109,222,0.10);  /* 远紫 底部 */
+    --bg-card:        rgba(255,255,255,0.62);
+    --bg-card-hover:  rgba(255,255,255,0.80);
+    --bg-elevated:    rgba(255,255,255,0.92);
+    --bg-input:       rgba(255,255,255,0.70);
+    --bg-tertiary:    rgba(244,247,249,0.85);
+
+    --text-primary:   #16302E;
+    --text-secondary: #4B6B68;
+    --text-muted:     #8AA3A0;
+
+    --border-color:   rgba(14,124,123,0.16);
+    --border-strong:  rgba(14,124,123,0.32);
+
+    --accent-primary: #0E7C7B;   /* 青瓷绿 */
+    --accent-2:       #0EA5A4;
+    --accent-warm:    #C2682E;   /* 陶土，用于涨 */
+    --rise-color:     #D0413B;
+    --rise-bg:        rgba(208,65,59,0.12);
+    --fall-color:     #2E8B57;
+    --fall-bg:        rgba(46,139,87,0.12);
+
+    --gradient-primary: linear-gradient(135deg, #0E7C7B, #0EA5A4);
+    --beam-color:      #0EA5A4;
+}
+
+/* ---------- 主题 B：暖砂琥珀（温润 · 长时阅读） ---------- */
+[data-theme="sand"] {
+    --bg-page:        #F6F3ED;
+    --bg-ambient-1:   rgba(180,83,9,0.13);     /* 琥珀 左上 */
+    --bg-ambient-2:   rgba(180,83,9,0.08);     /* 浅琥珀 右上 */
+    --bg-ambient-3:   rgba(120,85,40,0.10);    /* 深木 底部 */
+    --bg-card:        rgba(255,252,245,0.66);
+    --bg-card-hover:  rgba(255,252,245,0.84);
+    --bg-elevated:    rgba(255,253,248,0.94);
+    --bg-input:       rgba(255,253,248,0.72);
+    --bg-tertiary:    rgba(245,240,230,0.88);
+
+    --text-primary:   #2B2420;
+    --text-secondary: #5C4F45;
+    --text-muted:     #9A8B7C;
+
+    --border-color:   rgba(180,83,9,0.18);
+    --border-strong:  rgba(180,83,9,0.34);
+
+    --accent-primary: #B45309;   /* 琥珀棕 */
+    --accent-2:       #D97706;
+    --accent-warm:    #B45309;
+    --rise-color:     #B91C1C;
+    --rise-bg:        rgba(185,28,28,0.10);
+    --fall-color:     #15803D;
+    --fall-bg:        rgba(21,128,61,0.10);
+
+    --gradient-primary: linear-gradient(135deg, #B45309, #D97706);
+    --beam-color:      #D97706;
+}
+
+/* ---------- 主题 C：云隙蔚蓝（明亮 · 轻盈） ---------- */
+[data-theme="azure"] {
+    --bg-page:        #EEF2F7;
+    --bg-ambient-1:   rgba(55,48,163,0.15);    /* 靛蓝 左上 */
+    --bg-ambient-2:   rgba(6,182,212,0.14);    /* 青 右上 */
+    --bg-ambient-3:   rgba(99,102,241,0.12);   /* 紫蓝 底部 */
+    --bg-card:        rgba(255,255,255,0.68);
+    --bg-card-hover:  rgba(255,255,255,0.86);
+    --bg-elevated:    rgba(255,255,255,0.95);
+    --bg-input:       rgba(255,255,255,0.78);
+    --bg-tertiary:    rgba(241,245,250,0.88);
+
+    --text-primary:   #1E293B;
+    --text-secondary: #475569;
+    --text-muted:     #94A3B8;
+
+    --border-color:   rgba(55,48,163,0.16);
+    --border-strong:  rgba(55,48,163,0.30);
+
+    --accent-primary: #3730A3;   /* 靛蓝 */
+    --accent-2:       #4F46E5;
+    --accent-warm:    #0EA5E9;
+    --rise-color:     #DC2626;
+    --rise-bg:        rgba(220,38,38,0.10);
+    --fall-color:     #059669;
+    --fall-bg:        rgba(5,150,105,0.10);
+
+    --gradient-primary: linear-gradient(135deg, #3730A3, #4F46E5);
+    --beam-color:      #4F46E5;
+}
+
+/* ---------- 通用 tokens（共享） ---------- */
+:root {
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 16px;
+    --radius-xl: 20px;
+    --radius-full: 9999px;
+    --blur-card:  blur(14px) saturate(140%);
+    --blur-navbar: blur(22px) saturate(140%);
+    --transition-fast: 0.15s cubic-bezier(.4,0,.2,1);
+    --transition-base: 0.25s cubic-bezier(.4,0,.2,1);
+    --font-display: 'Space Grotesk', 'Noto Sans SC', sans-serif;
+    --font-body:    'Noto Sans SC', -apple-system, 'Segoe UI', sans-serif;
+    --font-mono:    'JetBrains Mono', 'SF Mono', Consolas, monospace;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { font-size: 14px; }
+
+body {
+    font-family: var(--font-body);
+    color: var(--text-primary);
+    background: var(--bg-page);
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+    position: relative;
+    overflow-x: hidden;
+}
+
+/* 氛围光：浅色版的科技感来源 —— 三处径向渐变在背景"晕染" */
+body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background:
+        radial-gradient(60% 50% at 12% 0%,  var(--bg-ambient-1) 0%, transparent 60%),
+        radial-gradient(55% 45% at 88% 5%,  var(--bg-ambient-2) 0%, transparent 55%),
+        radial-gradient(70% 40% at 50% 105%, var(--bg-ambient-3) 0%, transparent 60%);
+    z-index: 0;
+    transition: background 0.6s ease;
+}
+
+/* ========== 主题切换器（仅原型演示） ========== */
+.theme-switcher {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    z-index: 1000;
+    display: flex;
+    gap: 8px;
+    padding: 8px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-full);
+    backdrop-filter: var(--blur-navbar);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.10);
+}
+.theme-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    border: none;
+    border-radius: var(--radius-full);
+    background: transparent;
+    color: var(--text-secondary);
+    font-family: var(--font-body);
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+.theme-btn .swatch {
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    border: 1px solid rgba(0,0,0,0.1);
+}
+.theme-btn.active {
+    color: var(--text-primary);
+    background: var(--bg-card-hover);
+    box-shadow: inset 0 0 0 1px var(--border-strong);
+}
+.theme-btn:hover:not(.active) { color: var(--text-primary); background: var(--bg-card); }
+
+/* ========== 应用骨架 ========== */
+.app-shell {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: 240px 1fr;
+    min-height: 100vh;
+}
+
+/* ---- 侧边栏 ---- */
+.sidebar {
+    position: sticky;
+    top: 0;
+    align-self: start;
+    height: 100vh;
+    padding: 22px 16px;
+    background: var(--bg-card);
+    backdrop-filter: var(--blur-navbar);
+    border-right: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+    overflow-y: auto;
+}
+.sidebar-brand { display: flex; align-items: center; gap: 10px; padding: 0 6px; }
+.brand-logo {
+    width: 38px; height: 38px;
+    border-radius: 10px;
+    background: var(--gradient-primary);
+    color: #fff;
+    display: grid; place-items: center;
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 15px;
+    letter-spacing: -0.5px;
+    box-shadow: 0 6px 18px -4px var(--accent-primary);
+}
+.brand-name { font-family: var(--font-display); font-weight: 700; font-size: 15px; letter-spacing: -0.3px; }
+.brand-sub { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
+
+.nav-section { display: flex; flex-direction: column; gap: 2px; }
+.nav-section-title {
+    font-size: 10.5px;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    padding: 0 10px 6px;
+}
+.nav-item {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 10px;
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 500;
+    transition: all var(--transition-fast);
+}
+.nav-item i { font-size: 15px; opacity: 0.85; width: 18px; text-align: center; }
+.nav-item:hover { background: var(--bg-tertiary); color: var(--text-primary); }
+.nav-item.active {
+    color: var(--text-primary);
+    background: var(--bg-card-hover);
+    box-shadow: inset 0 0 0 1px var(--border-color);
+}
+.nav-item.active::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 50%;
+    transform: translateY(-50%);
+    width: 3px; height: 18px;
+    border-radius: 0 3px 3px 0;
+    background: var(--gradient-primary);
+}
+.nav-item .badge {
+    margin-left: auto;
+    min-width: 20px;
+    height: 18px;
+    padding: 0 6px;
+    border-radius: var(--radius-full);
+    background: var(--bg-tertiary);
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    font-weight: 600;
+    display: grid; place-items: center;
+}
+.nav-item.active .badge { background: var(--accent-primary); color: #fff; }
+
+/* ---- 主区 ---- */
+.main { display: flex; flex-direction: column; min-width: 0; }
+
+.topbar {
+    position: sticky; top: 0; z-index: 10;
+    height: 62px;
+    padding: 0 28px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--bg-card);
+    backdrop-filter: var(--blur-navbar);
+    border-bottom: 1px solid var(--border-color);
+}
+.crumb { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-secondary); }
+.crumb a { color: var(--text-muted); text-decoration: none; transition: color var(--transition-fast); }
+.crumb a:hover { color: var(--accent-primary); }
+.crumb .sep { opacity: 0.5; }
+.crumb .cur { color: var(--text-primary); font-weight: 500; }
+.topbar-right { display: flex; align-items: center; gap: 10px; }
+.top-icon-btn {
+    width: 36px; height: 36px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-input);
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    font-size: 15px;
+}
+.top-icon-btn:hover { color: var(--accent-primary); border-color: var(--border-strong); }
+.avatar {
+    width: 34px; height: 34px;
+    border-radius: 50%;
+    background: var(--gradient-primary);
+    color: #fff;
+    display: grid; place-items: center;
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 13px;
+    box-shadow: 0 4px 12px -2px var(--accent-primary);
+}
+
+.content { padding: 28px; display: flex; flex-direction: column; gap: 22px; }
+
+/* ---- 页头 ---- */
+.page-header { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.page-title {
+    font-family: var(--font-display);
+    font-size: 26px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.page-title .count {
+    font-family: var(--font-mono);
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--accent-primary);
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    padding: 2px 10px;
+    border-radius: var(--radius-full);
+}
+.page-subtitle { font-size: 12.5px; color: var(--text-muted); margin-top: 6px; line-height: 1.6; }
+
+.page-actions { display: flex; gap: 10px; align-items: center; }
+
+/* ---- 按钮 ---- */
+.btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 9px 16px;
+    border: 1px solid transparent;
+    border-radius: var(--radius-md);
+    font-family: var(--font-body);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    text-decoration: none;
+    white-space: nowrap;
+}
+.btn-sm { padding: 6px 12px; font-size: 12px; border-radius: var(--radius-sm); }
+.btn-primary {
+    background: var(--gradient-primary);
+    color: #fff;
+    box-shadow: 0 6px 16px -6px var(--accent-primary);
+}
+.btn-primary:hover { transform: translateY(-1px); box-shadow: 0 10px 22px -6px var(--accent-primary); }
+.btn-secondary {
+    background: var(--bg-input);
+    color: var(--text-secondary);
+    border-color: var(--border-color);
+}
+.btn-secondary:hover { color: var(--text-primary); border-color: var(--border-strong); background: var(--bg-card-hover); }
+.btn-ghost { background: transparent; color: var(--text-secondary); border-color: var(--border-color); }
+.btn-ghost:hover { color: var(--accent-primary); border-color: var(--accent-primary); }
+
+/* ---- 统计条 ---- */
+.stat-strip {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+}
+@media (max-width: 1100px) { .stat-strip { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 640px)  { .stat-strip { grid-template-columns: 1fr; } }
+
+.stat-card {
+    position: relative;
+    padding: 18px 20px;
+    background: var(--bg-card);
+    backdrop-filter: var(--blur-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    transition: all var(--transition-base);
+}
+.stat-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--stat-accent, var(--accent-2)), transparent);
+    opacity: 0.85;
+}
+.stat-card:hover { transform: translateY(-3px); background: var(--bg-card-hover); box-shadow: 0 12px 30px -10px rgba(0,0,0,0.12); }
+.stat-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.stat-label { font-size: 12px; color: var(--text-muted); display: flex; align-items: center; gap: 7px; }
+.stat-label i { color: var(--stat-accent, var(--accent-2)); font-size: 14px; }
+.stat-tag {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--stat-accent, var(--accent-2));
+    background: color-mix(in srgb, var(--stat-accent, var(--accent-2)) 12%, transparent);
+    padding: 2px 8px;
+    border-radius: var(--radius-full);
+}
+.stat-value {
+    font-family: var(--font-mono);
+    font-size: 30px;
+    font-weight: 700;
+    color: var(--text-primary);
+    letter-spacing: -0.5px;
+    line-height: 1;
+}
+.stat-value .unit { font-size: 13px; font-weight: 500; color: var(--text-muted); margin-left: 4px; }
+.stat-foot { margin-top: 10px; font-size: 11.5px; color: var(--text-muted); display: flex; align-items: center; gap: 6px; }
+.stat-foot .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--c, var(--accent-2)); }
+
+/* ---- 筛选栏 ---- */
+.filter-bar {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: center;
+    padding: 14px 18px;
+    background: var(--bg-card);
+    backdrop-filter: var(--blur-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+}
+.search-box {
+    position: relative;
+    flex: 1;
+    min-width: 200px;
+}
+.search-box i {
+    position: absolute;
+    left: 12px; top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-muted);
+    font-size: 14px;
+}
+.search-box input {
+    width: 100%;
+    padding: 9px 14px 9px 34px;
+    background: var(--bg-input);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    font-family: var(--font-body);
+    font-size: 13px;
+    color: var(--text-primary);
+    transition: all var(--transition-fast);
+}
+.search-box input::placeholder { color: var(--text-muted); }
+.search-box input:focus {
+    outline: none;
+    border-color: var(--accent-primary);
+    background: var(--bg-elevated);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-primary) 14%, transparent);
+}
+.filter-select {
+    padding: 9px 14px;
+    background: var(--bg-input);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    font-family: var(--font-body);
+    font-size: 13px;
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+.spacer { flex: 1; }
+.view-toggle { display: flex; gap: 2px; padding: 3px; background: var(--bg-input); border: 1px solid var(--border-color); border-radius: var(--radius-sm); }
+.view-toggle button {
+    padding: 5px 9px;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 13px;
+    transition: all var(--transition-fast);
+}
+.view-toggle button.active { background: var(--bg-elevated); color: var(--accent-primary); box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+
+/* ---- 策略卡片网格 ---- */
+.strategy-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 16px;
+}
+.strategy-card {
+    position: relative;
+    padding: 20px;
+    background: var(--bg-card);
+    backdrop-filter: var(--blur-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    transition: all var(--transition-base);
+    cursor: pointer;
+}
+.strategy-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--card-accent, var(--accent-2)), transparent);
+    opacity: 0.8;
+}
+.strategy-card::after {
+    /* 悬浮光晕：玻璃态在浅色下的科技感细节 */
+    content: '';
+    position: absolute;
+    top: -40px; right: -40px;
+    width: 120px; height: 120px;
+    border-radius: 50%;
+    background: radial-gradient(circle, var(--card-accent, var(--accent-2)), transparent 70%);
+    opacity: 0;
+    transition: opacity var(--transition-base);
+    pointer-events: none;
+}
+.strategy-card:hover {
+    transform: translateY(-4px);
+    background: var(--bg-card-hover);
+    border-color: var(--border-strong);
+    box-shadow: 0 16px 40px -14px rgba(0,0,0,0.14);
+}
+.strategy-card:hover::after { opacity: 0.10; }
+
+.card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+.card-title-row { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.card-icon {
+    flex-shrink: 0;
+    width: 38px; height: 38px;
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--card-accent, var(--accent-2)) 14%, transparent);
+    color: var(--card-accent, var(--accent-2));
+    display: grid; place-items: center;
+    font-size: 17px;
+}
+.card-title {
+    font-family: var(--font-display);
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-primary);
+    letter-spacing: -0.2px;
+}
+.card-id {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 9px;
+    border-radius: var(--radius-full);
+    font-size: 11px;
+    font-weight: 600;
+    font-family: var(--font-mono);
+}
+.status-badge .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.status-running { color: var(--rise-color); background: var(--rise-bg); }
+.status-paused  { color: var(--text-muted); background: var(--bg-tertiary); }
+.status-draft  { color: var(--accent-primary); background: color-mix(in srgb, var(--accent-primary) 12%, transparent); }
+
+.card-desc {
+    font-size: 12.5px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+    margin-bottom: 14px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.card-metrics {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 4px;
+    padding: 12px 0;
+    border-top: 1px solid var(--border-color);
+    border-bottom: 1px solid var(--border-color);
+    margin-bottom: 14px;
+}
+.metric { text-align: center; }
+.metric-label { font-size: 10.5px; color: var(--text-muted); margin-bottom: 4px; }
+.metric-value {
+    font-family: var(--font-mono);
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+.metric-value.rise { color: var(--rise-color); }
+.metric-value.fall { color: var(--fall-color); }
+
+.card-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+.tag {
+    font-size: 11px;
+    padding: 3px 9px;
+    border-radius: var(--radius-sm);
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-color);
+}
+.tag-mono { font-family: var(--font-mono); }
+
+.card-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+.card-time { font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); }
+.card-actions { display: flex; gap: 4px; }
+.icon-btn {
+    width: 30px; height: 30px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-input);
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    display: grid; place-items: center;
+    font-size: 13px;
+}
+.icon-btn:hover { color: var(--accent-primary); border-color: var(--accent-primary); background: var(--bg-elevated); }
+
+/* ---- 加载动画（克制使用） ---- */
+@keyframes fadeUp {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+.stat-card, .strategy-card { animation: fadeUp 0.4s cubic-bezier(.4,0,.2,1) backwards; }
+.stat-card:nth-child(2) { animation-delay: 0.05s; }
+.stat-card:nth-child(3) { animation-delay: 0.10s; }
+.stat-card:nth-child(4) { animation-delay: 0.15s; }
+
+@media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+}
+
+/* 响应式 */
+@media (max-width: 1024px) {
+    .app-shell { grid-template-columns: 1fr; }
+    .sidebar { position: fixed; transform: translateX(-100%); transition: transform var(--transition-base); z-index: 100; }
+}
+</style>
+</head>
+<body data-theme="mist">
+
+<!-- ============ 主题切换器（原型演示用） ============ -->
+<div class="theme-switcher" role="group" aria-label="切换主题原型">
+    <button class="theme-btn active" data-set="mist">
+        <span class="swatch" style="background:#0E7C7B"></span>晨雾青瓷
+    </button>
+    <button class="theme-btn" data-set="sand">
+        <span class="swatch" style="background:#B45309"></span>暖砂琥珀
+    </button>
+    <button class="theme-btn" data-set="azure">
+        <span class="swatch" style="background:#3730A3"></span>云隙蔚蓝
+    </button>
+</div>
+
+<div class="app-shell">
+    <!-- ============ 侧边栏 ============ -->
+    <aside class="sidebar">
+        <div class="sidebar-brand">
+            <div class="brand-logo">SP</div>
+            <div>
+                <div class="brand-name">StockPulse</div>
+                <div class="brand-sub">量化平台</div>
+            </div>
+        </div>
+
+        <nav class="nav-section">
+            <div class="nav-section-title">市场</div>
+            <a class="nav-item" href="#"><i class="bi bi-graph-up-arrow"></i>行情看板</a>
+            <a class="nav-item" href="#"><i class="bi bi-star"></i>我的自选<span class="badge">27</span></a>
+        </nav>
+        <nav class="nav-section">
+            <div class="nav-section-title">量化</div>
+            <a class="nav-item" href="#"><i class="bi bi-collection"></i>标准因子库</a>
+            <a class="nav-item" href="#"><i class="bi bi-bullseye"></i>多因子选股</a>
+            <a class="nav-item active" href="#"><i class="bi bi-sliders2-vertical"></i>策略管理<span class="badge">12</span></a>
+            <a class="nav-item" href="#" style="opacity:.5"><i class="bi bi-arrow-repeat"></i>回测中心<span class="badge">WIP</span></a>
+            <a class="nav-item" href="#" style="opacity:.5"><i class="bi bi-broadcast"></i>信号中心<span class="badge">WIP</span></a>
+        </nav>
+        <nav class="nav-section">
+            <div class="nav-section-title">账户</div>
+            <a class="nav-item" href="#"><i class="bi bi-gear"></i>系统设置</a>
+        </nav>
+    </aside>
+
+    <!-- ============ 主区 ============ -->
+    <main class="main">
+        <header class="topbar">
+            <div class="crumb">
+                <a href="#">量化</a><span class="sep">/</span><span class="cur">策略管理</span>
+            </div>
+            <div class="topbar-right">
+                <button class="top-icon-btn" title="通知"><i class="bi bi-bell"></i></button>
+                <button class="top-icon-btn" title="帮助"><i class="bi bi-question-circle"></i></button>
+                <div class="avatar">Q</div>
+            </div>
+        </header>
+
+        <div class="content">
+            <!-- 页头 -->
+            <div class="page-header">
+                <div>
+                    <h1 class="page-title">策略管理 <span class="count">12</span></h1>
+                    <p class="page-subtitle">统一策略配置 Schema · CRUD + 版本快照 · 回测与信号共用 config_json</p>
+                </div>
+                <div class="page-actions">
+                    <button class="btn btn-secondary btn-sm"><i class="bi bi-arrow-clockwise"></i>刷新</button>
+                    <button class="btn btn-primary btn-sm"><i class="bi bi-plus-lg"></i>新建策略</button>
+                </div>
+            </div>
+
+            <!-- 统计条 -->
+            <section class="stat-strip">
+                <div class="stat-card" style="--stat-accent: var(--accent-primary);">
+                    <div class="stat-head">
+                        <span class="stat-label"><i class="bi bi-collection"></i>策略总数</span>
+                        <span class="stat-tag">v1.0</span>
+                    </div>
+                    <div class="stat-value">12<span class="unit">个</span></div>
+                    <div class="stat-foot"><span class="dot" style="--c: var(--accent-primary);"></span>较上周 +2</div>
+                </div>
+                <div class="stat-card" style="--stat-accent: var(--rise-color);">
+                    <div class="stat-head">
+                        <span class="stat-label"><i class="bi bi-play-circle"></i>运行中</span>
+                        <span class="stat-tag">活跃</span>
+                    </div>
+                    <div class="stat-value">7<span class="unit">个</span></div>
+                    <div class="stat-foot"><span class="dot" style="--c: var(--rise-color);"></span>实盘 / 模拟各计</div>
+                </div>
+                <div class="stat-card" style="--stat-accent: var(--accent-warm);">
+                    <div class="stat-head">
+                        <span class="stat-label"><i class="bi bi-pause-circle"></i>已暂停</span>
+                        <span class="stat-tag">待启用</span>
+                    </div>
+                    <div class="stat-value">3<span class="unit">个</span></div>
+                    <div class="stat-foot"><span class="dot" style="--c: var(--accent-warm);"></span>手动暂停</div>
+                </div>
+                <div class="stat-card" style="--stat-accent: #7C6CE0;">
+                    <div class="stat-head">
+                        <span class="stat-label"><i class="bi bi-clock-history"></i>今日信号</span>
+                        <span class="stat-tag">实时</span>
+                    </div>
+                    <div class="stat-value">24<span class="unit">条</span></div>
+                    <div class="stat-foot"><span class="dot" style="--c: #7C6CE0;"></span>买入 9 · 卖出 15</div>
+                </div>
+            </section>
+
+            <!-- 筛选栏 -->
+            <section class="filter-bar">
+                <div class="search-box">
+                    <i class="bi bi-search"></i>
+                    <input type="text" placeholder="搜索策略名称、编号或标的代码">
+                </div>
+                <select class="filter-select"><option>全部状态</option><option>运行中</option><option>已暂停</option><option>草稿</option></select>
+                <select class="filter-select"><option>全部类型</option><option>双均线</option><option>动量轮动</option><option>网格</option></select>
+                <div class="spacer"></div>
+                <div class="view-toggle">
+                    <button class="active" title="网格视图"><i class="bi bi-grid-3x3-gap"></i></button>
+                    <button title="列表视图"><i class="bi bi-list-ul"></i></button>
+                </div>
+            </section>
+
+            <!-- 策略卡片网格 -->
+            <section class="strategy-grid">
+                <!-- 卡片 1 -->
+                <article class="strategy-card" style="--card-accent: var(--accent-primary);">
+                    <div class="card-top">
+                        <div class="card-title-row">
+                            <div class="card-icon"><i class="bi bi-graph-up"></i></div>
+                            <div>
+                                <div class="card-title">双均线趋势</div>
+                                <div class="card-id">STR-2024-0001 · MA(5,20)</div>
+                            </div>
+                        </div>
+                        <span class="status-badge status-running"><span class="dot"></span>运行中</span>
+                    </div>
+                    <p class="card-desc">5 日均线上穿 20 日均线买入，下穿卖出。单一标的趋势跟踪，适合波动放大的行情。</p>
+                    <div class="card-metrics">
+                        <div class="metric"><div class="metric-label">累计收益</div><div class="metric-value rise">+18.4%</div></div>
+                        <div class="metric"><div class="metric-label">夏普</div><div class="metric-value">1.42</div></div>
+                        <div class="metric"><div class="metric-label">最大回撤</div><div class="metric-value fall">-7.3%</div></div>
+                    </div>
+                    <div class="card-tags">
+                        <span class="tag tag-mono">000001.SZ</span>
+                        <span class="tag">趋势</span>
+                        <span class="tag">日线</span>
+                    </div>
+                    <div class="card-foot">
+                        <span class="card-time">更新于 14:32</span>
+                        <div class="card-actions">
+                            <button class="icon-btn" title="回测"><i class="bi bi-arrow-repeat"></i></button>
+                            <button class="icon-btn" title="编辑"><i class="bi bi-pencil"></i></button>
+                            <button class="icon-btn" title="更多"><i class="bi bi-three-dots"></i></button>
+                        </div>
+                    </div>
+                </article>
+
+                <!-- 卡片 2 -->
+                <article class="strategy-card" style="--card-accent: var(--accent-warm);">
+                    <div class="card-top">
+                        <div class="card-title-row">
+                            <div class="card-icon"><i class="bi bi-stars"></i></div>
+                            <div>
+                                <div class="card-title">动量轮动 TopN</div>
+                                <div class="card-id">STR-2024-0002 · 5 标的池</div>
+                            </div>
+                        </div>
+                        <span class="status-badge status-running"><span class="dot"></span>运行中</span>
+                    </div>
+                    <p class="card-desc">按 20 日动量排名取前 2 名等权持仓，每周一调仓。回避低动量标的，集中持有强势股。</p>
+                    <div class="card-metrics">
+                        <div class="metric"><div class="metric-label">累计收益</div><div class="metric-value rise">+24.1%</div></div>
+                        <div class="metric"><div class="metric-label">夏普</div><div class="metric-value">1.68</div></div>
+                        <div class="metric"><div class="metric-label">最大回撤</div><div class="metric-value fall">-9.8%</div></div>
+                    </div>
+                    <div class="card-tags">
+                        <span class="tag tag-mono">沪深300</span>
+                        <span class="tag">动量</span>
+                        <span class="tag">周线</span>
+                    </div>
+                    <div class="card-foot">
+                        <span class="card-time">更新于 13:55</span>
+                        <div class="card-actions">
+                            <button class="icon-btn" title="回测"><i class="bi bi-arrow-repeat"></i></button>
+                            <button class="icon-btn" title="编辑"><i class="bi bi-pencil"></i></button>
+                            <button class="icon-btn" title="更多"><i class="bi bi-three-dots"></i></button>
+                        </div>
+                    </div>
+                </article>
+
+                <!-- 卡片 3 -->
+                <article class="strategy-card" style="--card-accent: #7C6CE0;">
+                    <div class="card-top">
+                        <div class="card-title-row">
+                            <div class="card-icon"><i class="bi bi-distribute-vertical"></i></div>
+                            <div>
+                                <div class="card-title">布林带网格</div>
+                                <div class="card-id">STR-2024-0003 · BBANDS(20,2)</div>
+                            </div>
+                        </div>
+                        <span class="status-badge status-paused"><span class="dot"></span>已暂停</span>
+                    </div>
+                    <p class="card-desc">触及布林下轨加仓、上轨减仓的网格策略。震荡市收益稳定，单边趋势下需配合止损。</p>
+                    <div class="card-metrics">
+                        <div class="metric"><div class="metric-label">累计收益</div><div class="metric-value rise">+9.6%</div></div>
+                        <div class="metric"><div class="metric-label">夏普</div><div class="metric-value">0.94</div></div>
+                        <div class="metric"><div class="metric-label">最大回撤</div><div class="metric-value fall">-5.1%</div></div>
+                    </div>
+                    <div class="card-tags">
+                        <span class="tag tag-mono">600519.SH</span>
+                        <span class="tag">震荡</span>
+                        <span class="tag">网格</span>
+                    </div>
+                    <div class="card-foot">
+                        <span class="card-time">更新于 昨天</span>
+                        <div class="card-actions">
+                            <button class="icon-btn" title="回测"><i class="bi bi-arrow-repeat"></i></button>
+                            <button class="icon-btn" title="编辑"><i class="bi bi-pencil"></i></button>
+                            <button class="icon-btn" title="更多"><i class="bi bi-three-dots"></i></button>
+                        </div>
+                    </div>
+                </article>
+
+                <!-- 卡片 4 -->
+                <article class="strategy-card" style="--card-accent: var(--accent-2);">
+                    <div class="card-top">
+                        <div class="card-title-row">
+                            <div class="card-icon"><i class="bi bi-water"></i></div>
+                            <div>
+                                <div class="card-title">RSI 超卖反弹</div>
+                                <div class="card-id">STR-2024-0004 · RSI(14)</div>
+                            </div>
+                        </div>
+                        <span class="status-badge status-draft"><span class="dot"></span>草稿</span>
+                    </div>
+                    <p class="card-desc">RSI 跌破 30 买入、回升至 50 卖出。捕捉短期超卖反弹机会，待回测验证后启用。</p>
+                    <div class="card-metrics">
+                        <div class="metric"><div class="metric-label">累计收益</div><div class="metric-value fall">-2.1%</div></div>
+                        <div class="metric"><div class="metric-label">夏普</div><div class="metric-value">0.31</div></div>
+                        <div class="metric"><div class="metric-label">最大回撤</div><div class="metric-value fall">-4.2%</div></div>
+                    </div>
+                    <div class="card-tags">
+                        <span class="tag tag-mono">000858.SZ</span>
+                        <span class="tag">均值回归</span>
+                        <span class="tag">待验证</span>
+                    </div>
+                    <div class="card-foot">
+                        <span class="card-time">未启用</span>
+                        <div class="card-actions">
+                            <button class="icon-btn" title="回测"><i class="bi bi-arrow-repeat"></i></button>
+                            <button class="icon-btn" title="编辑"><i class="bi bi-pencil"></i></button>
+                            <button class="icon-btn" title="更多"><i class="bi bi-three-dots"></i></button>
+                        </div>
+                    </div>
+                </article>
+            </section>
+        </div>
+    </main>
+</div>
+
+<script>
+    const btns = document.querySelectorAll('.theme-btn');
+    btns.forEach(b => b.addEventListener('click', () => {
+        document.body.setAttribute('data-theme', b.dataset.set);
+        btns.forEach(x => x.classList.toggle('active', x === b));
+    }));
+</script>
+</body>
+</html>
