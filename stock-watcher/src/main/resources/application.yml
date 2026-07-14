@@ -56,6 +56,8 @@ tushare:
       permits-per-minute: 500
     dividend:
       permits-per-minute: 180
+    index_weight:
+      permits-per-minute: 200
 
 # ========== Auth Configuration ==========
 auth:

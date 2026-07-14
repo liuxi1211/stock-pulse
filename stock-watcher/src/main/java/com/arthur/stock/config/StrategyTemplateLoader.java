@@ -63,7 +63,7 @@ public class StrategyTemplateLoader {
      * 序列化时按此顺序输出，保持与统一策略 Schema 字段顺序一致。
      */
     private static final List<String> CONFIG_KEYS = Arrays.asList(
-            "strategy_id", "name", "description", "scope",
+            "strategy_id", "name", "description",
             "screen_config", "trading_config", "backtest_config"
     );
 
@@ -173,14 +173,36 @@ public class StrategyTemplateLoader {
                 root.getJSONObject("config") == null ? null
                         : root.getJSONObject("config").getString("description")));
         dto.setCategory(root.getString("category"));
-        dto.setScope(firstNonBlank(root.getString("scope"),
-                root.getJSONObject("config") == null ? null
-                        : root.getJSONObject("config").getString("scope")));
 
         // 构造 config 子树（按 CONFIG_KEYS 顺序，剔除 category/tags）
         JSONObject configSubTree = buildConfigSubTree(root);
         dto.setConfigJson(JSON.toJSONString(configSubTree));
+
+        // scope 从 config 子树的 trading_config 结构派生（不再从模板字段读取）
+        dto.setScope(deriveScopeFromConfig(configSubTree));
         return dto;
+    }
+
+    /**
+     * 从 config 子树派生 scope：有 rebalance → portfolio；有 signals → single；都有 → mixed。
+     */
+    private String deriveScopeFromConfig(JSONObject config) {
+        if (config == null) {
+            return "single";
+        }
+        JSONObject trading = config.getJSONObject("trading_config");
+        if (trading == null) {
+            return "single";
+        }
+        boolean hasSignals = trading.containsKey("signals");
+        boolean hasRebalance = trading.containsKey("rebalance");
+        if (hasSignals && hasRebalance) {
+            return "mixed";
+        }
+        if (hasRebalance) {
+            return "portfolio";
+        }
+        return "single";
     }
 
     /**

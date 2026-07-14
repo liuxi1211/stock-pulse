@@ -37,6 +37,7 @@ import com.arthur.stock.model.ScreenPlanDO;
 import com.arthur.stock.model.ScreenResultDO;
 import com.arthur.stock.model.StockBasicDO;
 import com.arthur.stock.service.DailyQuoteService;
+import com.arthur.stock.service.IndexWeightService;
 import com.arthur.stock.service.ScreenerService;
 import com.arthur.stock.service.TradeCalendarService;
 import com.arthur.stock.util.ScreenConfigValidator;
@@ -102,6 +103,7 @@ public class ScreenerServiceImpl implements ScreenerService {
     private final ScreenerClient screenerClient;
     private final DailyQuoteService dailyQuoteService;
     private final TradeCalendarService tradeCalendarService;
+    private final IndexWeightService indexWeightService;
     private final ScreenerResultCache resultCache;
 
     /** 选股 candidates 并行拼装线程池（Bean 名 = screenerExecutor）。 */
@@ -556,10 +558,9 @@ public class ScreenerServiceImpl implements ScreenerService {
     /**
      * 解析候选池（spec FR-10）。
      * <p>
-     * 简化：
      * <ul>
      *   <li>all_a_shares：stock_basic 中 list_status='L' 全部；</li>
-     *   <li>csi300/csi500：成分股表未建立，<b>降级为全市场并 warn</b>；</li>
+     *   <li>csi300/csi500：从 index_weight 表取最新交易日成分股快照；</li>
      *   <li>manual：从 screenConfig.stocks 取 tsCode 列表。</li>
      * </ul>
      * 候选数超过 {@link ScreenerConstants#SCREEN_MAX_CANDIDATES} 时截断并 warn。
@@ -585,10 +586,21 @@ public class ScreenerServiceImpl implements ScreenerService {
             effectiveMax = ScreenerConstants.SCREEN_MANUAL_MAX_CANDIDATES;
             stocks = stockBasicMapper.selectList(new LambdaQueryWrapper<StockBasicDO>()
                     .in(StockBasicDO::getTsCode, codes));
-        } else {
-            if (!UniverseEnum.ALL_A_SHARES.getCode().equalsIgnoreCase(universe)) {
-                log.warn("成分股指池[{}]未配置成分股表，降级为全市场(all_a_shares)", universe);
+        } else if (UniverseEnum.CSI300.getCode().equalsIgnoreCase(universe)
+                || UniverseEnum.CSI500.getCode().equalsIgnoreCase(universe)) {
+            // 从 index_weight 表取最新交易日成分股快照（实时选股场景）
+            String indexCode = universeToIndexCode(universe);
+            List<String> constituents = indexWeightService.getLatestConstituents(indexCode);
+            if (constituents.isEmpty()) {
+                throw new BusinessException(ErrorCode.BAD_REQUEST,
+                        universe + " 成分股数据为空，请先初始化 index_weight 数据");
             }
+            stocks = stockBasicMapper.selectList(new LambdaQueryWrapper<StockBasicDO>()
+                    .in(StockBasicDO::getTsCode, constituents)
+                    .eq(StockBasicDO::getListStatus, ListStatusEnum.LISTED)
+                    .orderByAsc(StockBasicDO::getTsCode));
+        } else {
+            // all_a_shares 或其他：全市场上市股票
             stocks = stockBasicMapper.selectList(new LambdaQueryWrapper<StockBasicDO>()
                     .eq(StockBasicDO::getListStatus, ListStatusEnum.LISTED)
                     .orderByAsc(StockBasicDO::getTsCode));
@@ -600,6 +612,17 @@ public class ScreenerServiceImpl implements ScreenerService {
             stocks = stocks.subList(0, effectiveMax);
         }
         return stocks;
+    }
+
+    /** universe 业务名 → tushare 指数代码（index_weight 表的 ts_code） */
+    private static String universeToIndexCode(String universe) {
+        if (UniverseEnum.CSI300.getCode().equalsIgnoreCase(universe)) {
+            return "000300.SH";
+        }
+        if (UniverseEnum.CSI500.getCode().equalsIgnoreCase(universe)) {
+            return "000905.SH";
+        }
+        return universe;
     }
 
     // ==================== 内部：candidates 拼装 ====================

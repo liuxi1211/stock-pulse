@@ -13,6 +13,8 @@ import com.arthur.stock.dto.tushare.DailyQuoteDTO;
 import com.arthur.stock.dto.tushare.DividendDTO;
 import com.arthur.stock.dto.tushare.DividendQueryDTO;
 import com.arthur.stock.dto.tushare.FinaIndicatorDTO;
+import com.arthur.stock.dto.tushare.IndexWeightDTO;
+import com.arthur.stock.dto.tushare.IndexWeightQueryDTO;
 import com.arthur.stock.dto.tushare.StockBasicQueryDTO;
 import com.arthur.stock.dto.tushare.StockBasicDTO;
 import com.arthur.stock.dto.tushare.TradeCalQueryDTO;
@@ -134,6 +136,17 @@ public class TushareClient {
             params.put("end_date", endDate);
         }
         return query(TushareApiEnum.FINA_INDICATOR, params, FinaIndicatorDTO.class);
+    }
+
+    /**
+     * 指数成分和权重接口
+     *
+     * @param param 查询参数，indexCode / tradeDate / startDate / endDate 至少传一个
+     * @return 指数成分权重数据列表
+     */
+    public List<IndexWeightDTO> indexWeight(IndexWeightQueryDTO param) {
+        JSONObject params = buildIndexWeightParams(param);
+        return query(TushareApiEnum.INDEX_WEIGHT, params, IndexWeightDTO.class);
     }
 
     // ==================== 通用请求方法 ====================
@@ -303,6 +316,26 @@ public class TushareClient {
         }
         if (param.getImpAnnDate() != null) {
             params.put("imp_ann_date", param.getImpAnnDate());
+        }
+        return params;
+    }
+
+    /**
+     * 构建 index_weight 接口参数，非空字段才传入
+     */
+    private JSONObject buildIndexWeightParams(IndexWeightQueryDTO param) {
+        JSONObject params = new JSONObject();
+        if (param.getIndexCode() != null) {
+            params.put("ts_code", param.getIndexCode());
+        }
+        if (param.getTradeDate() != null) {
+            params.put("trade_date", param.getTradeDate());
+        }
+        if (param.getStartDate() != null) {
+            params.put("start_date", param.getStartDate());
+        }
+        if (param.getEndDate() != null) {
+            params.put("end_date", param.getEndDate());
         }
         return params;
     }

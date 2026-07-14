@@ -25,6 +25,7 @@ import com.arthur.stock.model.QuantBacktestReportDO;
 import com.arthur.stock.model.QuantStrategyDO;
 import com.arthur.stock.model.QuantStrategyVersionDO;
 import com.arthur.stock.service.BacktestService;
+import com.arthur.stock.service.IndexWeightService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import lombok.extern.slf4j.Slf4j;
@@ -91,6 +92,7 @@ public class BacktestServiceImpl implements BacktestService {
     private final DailyQuoteMapper dailyQuoteMapper;
     private final BacktestClient backtestClient;
     private final Executor backtestExecutor;
+    private final IndexWeightService indexWeightService;
 
     public BacktestServiceImpl(QuantBacktestMapper backtestMapper,
                                QuantBacktestReportMapper reportMapper,
@@ -98,7 +100,8 @@ public class BacktestServiceImpl implements BacktestService {
                                QuantStrategyVersionMapper versionMapper,
                                DailyQuoteMapper dailyQuoteMapper,
                                BacktestClient backtestClient,
-                               @Qualifier("backtestExecutor") Executor backtestExecutor) {
+                               @Qualifier("backtestExecutor") Executor backtestExecutor,
+                               IndexWeightService indexWeightService) {
         this.backtestMapper = backtestMapper;
         this.reportMapper = reportMapper;
         this.strategyMapper = strategyMapper;
@@ -106,6 +109,7 @@ public class BacktestServiceImpl implements BacktestService {
         this.dailyQuoteMapper = dailyQuoteMapper;
         this.backtestClient = backtestClient;
         this.backtestExecutor = backtestExecutor;
+        this.indexWeightService = indexWeightService;
     }
 
     // ==================== run ====================
@@ -140,6 +144,12 @@ public class BacktestServiceImpl implements BacktestService {
 
         // 5. 范式校验：config_json 含 trading_config.rebalance 或 exit.rules
         JSONObject configJson = parseJsonSafely(version.getConfigJson());
+        // 清洗存量配置的废弃字段（scope / trading_config.symbols），避免 engine extra=forbid 报错
+        configJson.remove("scope");
+        JSONObject tradingCfg = configJson.getJSONObject("trading_config");
+        if (tradingCfg != null) {
+            tradingCfg.remove("symbols");
+        }
         checkParadigmSupported(configJson);
 
         // 6. benchmark 解析
@@ -515,15 +525,21 @@ public class BacktestServiceImpl implements BacktestService {
     // ==================== 内部：数据拼装 ====================
 
     /**
-     * 从 config_json 的 trading_config.symbols（或 universe.stocks）取标的列表，
-     * 查 daily_quote 组装 {symbol: [{date, open, high, low, close, volume}]}。
+     * 从 config_json 解析回测标的集合，查 daily_quote 组装 {symbol: [{date, open, high, low, close, volume}]}。
+     * <p>
+     * 标的决定规则：
+     * <ul>
+     *   <li>screen_config.universe=manual：用 screen_config.stocks；</li>
+     *   <li>screen_config.universe=csi300/csi500：取回测区间内所有曾入选该指数的成分股并集（防幸存者偏差）；</li>
+     *   <li>其他（all_a_shares 等）：全市场（暂不回测，返回 null 由调用方报错）。</li>
+     * </ul>
      * 全空返回 null（调用方据此抛 DATA_INSUFFICIENT）。
      */
     private JSONObject buildKlineData(JSONObject configJson) {
         if (configJson == null) {
             return null;
         }
-        List<String> symbols = extractSymbols(configJson);
+        List<String> symbols = resolveBacktestSymbols(configJson);
         if (symbols.isEmpty()) {
             return null;
         }
@@ -553,20 +569,51 @@ public class BacktestServiceImpl implements BacktestService {
     }
 
     /**
-     * 从 config_json 提取标的代码列表。优先 trading_config.symbols，其次 universe.stocks。
+     * 根据配置解析回测标的代码列表。
+     * 指数成分股池（csi300/csi500）取回测区间内成分股并集，防幸存者偏差。
+     */
+    private List<String> resolveBacktestSymbols(JSONObject configJson) {
+        JSONObject screen = configJson.getJSONObject("screen_config");
+        if (screen == null) {
+            return extractSymbols(configJson);
+        }
+        String universe = screen.getString("universe");
+        if (universe == null) {
+            return extractSymbols(configJson);
+        }
+        if ("csi300".equalsIgnoreCase(universe) || "csi500".equalsIgnoreCase(universe)) {
+            String indexCode = "csi300".equalsIgnoreCase(universe) ? "000300.SH" : "000905.SH";
+            // 回测区间从 backtest_config.start_date/end_date（yyyyMMdd）取，留空表示全部历史
+            JSONObject bt = configJson.getJSONObject("backtest_config");
+            String startDate = bt == null ? null : normalizeDate(bt.getString("start_date"));
+            String endDate = bt == null ? null : normalizeDate(bt.getString("end_date"));
+            List<String> constituents = indexWeightService.getConstituentsInRange(indexCode, startDate, endDate);
+            if (constituents.isEmpty()) {
+                log.warn("回测成分股池[{}]在区间 {}~{} 内为空，请先初始化 index_weight", universe, startDate, endDate);
+            }
+            return constituents;
+        }
+        // manual 或其他：用 extractSymbols（从 screen_config.stocks 提取）
+        return extractSymbols(configJson);
+    }
+
+    /** 把 yyyy-MM-dd 或 yyyyMMdd 统一成 yyyyMMdd（tushare/index_weight 表格式） */
+    private static String normalizeDate(String date) {
+        if (date == null || date.isBlank()) {
+            return null;
+        }
+        return date.replace("-", "");
+    }
+
+    /**
+     * 从 config_json 的 screen_config.stocks（universe=manual 时指定的标的池）提取标的代码列表。
+     * 回测标的由 watcher 根据 screen_config 构造 kline_data 决定，不再从 trading_config.symbols 读取。
      */
     private List<String> extractSymbols(JSONObject configJson) {
         List<String> out = new ArrayList<>();
-        JSONObject trading = configJson.getJSONObject("trading_config");
-        if (trading != null) {
-            Object symbols = trading.get("symbols");
-            addAllStrings(symbols, out);
-        }
-        if (out.isEmpty()) {
-            JSONObject universe = configJson.getJSONObject("universe");
-            if (universe != null) {
-                addAllStrings(universe.get("stocks"), out);
-            }
+        JSONObject screen = configJson.getJSONObject("screen_config");
+        if (screen != null) {
+            addAllStrings(screen.get("stocks"), out);
         }
         // 去重保序
         return out.stream().distinct().collect(Collectors.toList());

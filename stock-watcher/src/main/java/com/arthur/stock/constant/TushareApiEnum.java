@@ -34,7 +34,11 @@ public enum TushareApiEnum {
 
     /** 财务指标接口（ROE/ROA/毛利率/同比/资产负债率等） */
     FINA_INDICATOR("fina_indicator",
-            "ts_code,ann_date,end_date,roe,roa,grossprofit_margin,netprofit_margin,dt_netprofit_yoy,revenue_yoy,debt_to_assets,eps_yoy");
+            "ts_code,ann_date,end_date,roe,roa,grossprofit_margin,netprofit_margin,dt_netprofit_yoy,revenue_yoy,debt_to_assets,eps_yoy"),
+
+    /** 指数成分和权重接口 */
+    INDEX_WEIGHT("index_weight",
+            "ts_code,trade_date,con_code,weight");
 
     private final String apiName;
     private final String fields;

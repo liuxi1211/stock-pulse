@@ -54,7 +54,6 @@ Schema 字段**深度对齐 akquant 原生 API**，而非自造语义：
 | `strategy_id` | string | 是 | — | 策略唯一 ID（业务层） |
 | `name` | string | 是 | — | 展示名 |
 | `description` | string | 否 | `""` | 描述 |
-| `scope` | enum | 否 | `"single"` | `"single"` / `"portfolio"` / `"mixed"`；**仅提示**，不驱动分支（真分支看 trading_config 字段在场） |
 | `screen_config` | object | 否 | — | 选股配置（见 §3.2）；单标的场景可省略 |
 | `trading_config` | object | 是 | — | 交易配置（见 §3.3）；至少含 `signals` 或 `rebalance` 之一 |
 | `backtest_config` | object | 否 | — | 回测配置（见 §3.4）；实盘/纯选股可省略 |
@@ -95,7 +94,6 @@ Schema 字段**深度对齐 akquant 原生 API**，而非自造语义：
 
 | 字段 | 类型 | 必填 | 默认 | 映射 / 说明 |
 |---|---|---|---|---|
-| `symbols` | string\|string[] | 否 | 继承 screen | 信号驱动的交易标的；单标的=str，固定池=list → `run_backtest(symbols=)` |
 | `signals` | Signals | 条件必填 | — | 买卖信号条件树（§3.3.1）；**在场=信号驱动范式** |
 | `position_sizing` | PositionSizing | 否 | 见 §3.3.2 | 仓位管理（统一为 akquant 下单方法名） |
 | `exit` | Exit | 否 | `null` | 出场规则（§3.3.3） |
@@ -315,10 +313,8 @@ Schema 字段**深度对齐 akquant 原生 API**，而非自造语义：
 {
   "strategy_id": "dual_ma_vol_boost_001",
   "name": "双均线+成交量放大策略",
-  "scope": "single",
 
   "trading_config": {
-    "symbols": "510300.SH",
     "signals": {
       "buy": {
         "operator": "AND",
@@ -388,7 +384,6 @@ Schema 字段**深度对齐 akquant 原生 API**，而非自造语义：
   "strategy_id": "multi_factor_value_001",
   "name": "多因子价值策略",
   "description": "低PE + 高ROE + 小市值",
-  "scope": "portfolio",
 
   "screen_config": {
     "universe": "all_a_shares",
@@ -464,8 +459,8 @@ Schema 字段**深度对齐 akquant 原生 API**，而非自造语义：
 
 | 场景 | 统一 Schema 表达 |
 |---|---|
-| **A：单标的回测** | `screen_config` 省略或 `universe:"manual"+stocks:[x]`；`trading_config.signals` 在场；symbols=单标的 |
-| **B：固定池 + 技术指标** | `screen_config.universe:"csi300"`（或 manual+stocks）；`signals` 在场；symbols=继承池或显式 list；position_sizing 可用 `order_target_weights` |
+| **A：单标的回测** | `screen_config` 省略或 `universe:"manual"+stocks:[x]`；`trading_config.signals` 在场；回测标的由 watcher 的 `kline_data` key 决定 |
+| **B：固定池 + 技术指标** | `screen_config.universe:"csi300"`（或 manual+stocks）；`signals` 在场；回测标的由 watcher 按 `screen_config` 构造的 `kline_data` 决定；position_sizing 可用 `order_target_weights` |
 | **C：多因子选股 + 调仓** | `screen_config` 全量；`trading_config.rebalance` 在场；`weight_mode:"equal"\|"score"` |
 
 ### 6.3 akquant 动量轮动（`rebalance_to_topn`）

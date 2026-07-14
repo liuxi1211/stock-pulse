@@ -263,6 +263,16 @@ CREATE TABLE IF NOT EXISTS quant_backtest_report (
     UNIQUE(backtest_id)
 );
 
+-- 18. 指数成分股权重表（tushare index_weight）
+CREATE TABLE IF NOT EXISTS index_weight (
+    ts_code    TEXT NOT NULL,
+    trade_date TEXT NOT NULL,
+    con_code   TEXT NOT NULL,
+    weight     REAL,
+    PRIMARY KEY (ts_code, trade_date, con_code)
+);
+CREATE INDEX IF NOT EXISTS idx_index_weight_date ON index_weight (ts_code, trade_date);
+
 -- 初始管理员账号（仅当表为空时插入，默认密码: admin123）
 INSERT INTO sys_user (username, password, enabled, role)
 SELECT 'admin', '$2a$10$pfuIlLGBbNZqO5xXa9oRKeEFABc4FIxs2SVY46UUG1xpA7o9tGn9u', 1, 'ADMIN'

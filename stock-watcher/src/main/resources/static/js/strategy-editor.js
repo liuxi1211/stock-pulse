@@ -57,9 +57,7 @@ const StrategyEditor = {
         strategy_id: null,
         name: '',
         description: '',
-        scope: 'single',
         trading_config: {
-            symbols: [],
             signals: {
                 buy: { operator: 'AND', conditions: [] },
                 sell: { operator: 'AND', conditions: [] },
@@ -69,7 +67,6 @@ const StrategyEditor = {
         backtest_config: {
             initial_cash: 100000,
             broker_profile: 'cn_stock_miniqmt',
-            t_plus_one: true,
             lot_size: 100,
             warmup_period: 20,
             history_depth: 60,
@@ -81,9 +78,7 @@ const StrategyEditor = {
     ERROR_TAB_MAP: [
         { prefix: 'name',                         tab: 'tab-basic' },
         { prefix: 'description',                  tab: 'tab-basic' },
-        { prefix: 'scope',                        tab: 'tab-basic' },
         { prefix: 'screen_config',                tab: 'tab-screen' },
-        { prefix: 'trading_config.symbols',       tab: 'tab-buy' },
         { prefix: 'trading_config.signals.buy',   tab: 'tab-buy' },
         { prefix: 'trading_config.signals.sell',  tab: 'tab-sell' },
         { prefix: 'trading_config.position_sizing', tab: 'tab-position' },
@@ -267,6 +262,9 @@ const StrategyEditor = {
             if (this.constants['strategies.brokerProfiles']) {
                 this.rebuildSelectFromList('f-bt-broker', this.constants['strategies.brokerProfiles']);
             }
+            if (this.constants['strategies.universe']) {
+                this.rebuildSelectFromList('f-universe', this.constants['strategies.universe']);
+            }
         });
     },
 
@@ -328,9 +326,19 @@ const StrategyEditor = {
         const sel = document.getElementById(id);
         if (!sel || !Array.isArray(list)) return;
         const cur = sel.value;
-        sel.innerHTML = list.map((v) =>
-            '<option value="' + StockApp.escapeHtml(v) + '">' + StockApp.escapeHtml(v) + '</option>'
-        ).join('');
+        const toOpt = (v) => {
+            if (v == null) return { code: '', label: '' };
+            if (typeof v === 'string') return { code: v, label: v };
+            if (Array.isArray(v)) return { code: String(v[0]), label: String(v[1] ?? v[0]) };
+            // {code, label} 对象（EnumOptionDTO）
+            if (typeof v === 'object') return { code: String(v.code ?? ''), label: String(v.label ?? v.code ?? '') };
+            return { code: String(v), label: String(v) };
+        };
+        sel.innerHTML = list.map((v) => {
+            const opt = toOpt(v);
+            return '<option value="' + StockApp.escapeHtml(opt.code) + '">' +
+                StockApp.escapeHtml(opt.label) + '</option>';
+        }).join('');
         if (cur) sel.value = cur;
     },
 
@@ -712,12 +720,6 @@ const StrategyEditor = {
         this.setVal('f-tags', (this.meta.tags || []).join(','));
         this.setVal('f-category', this.meta.category || '');
 
-        // scope radio + 联动
-        const scope = s.scope || 'single';
-        this.checkRadio('f-scope', scope);
-        this.applyScope(scope);
-        this.syncRadioCards();
-
         // ---- Tab 2 选股 ----
         const sc = s.screen_config || null;
         if (sc) {
@@ -762,7 +764,6 @@ const StrategyEditor = {
 
         // ---- Tab 3/4 买卖信号 ----
         const tc = s.trading_config || {};
-        this.setVal('f-symbols', (tc.symbols || []).join(','));
         const signals = tc.signals || {};
         this.setJson('f-buy-conditions', signals.buy || null);
         this.setJson('f-sell-conditions', signals.sell || null);
@@ -816,7 +817,6 @@ const StrategyEditor = {
         this.setVal('f-bt-lot-size', bt.lot_size != null ? bt.lot_size : 100);
         this.setVal('f-bt-warmup', bt.warmup_period != null ? bt.warmup_period : '');
         this.setVal('f-bt-history', bt.history_depth != null ? bt.history_depth : '');
-        this.setChecked('f-bt-t1', bt.t_plus_one !== false);
         const hasCustomFee = bt.commission_rate != null || bt.stamp_tax_rate != null ||
             bt.transfer_fee_rate != null || bt.min_commission != null;
         this.setChecked('f-bt-use-custom-fee', hasCustomFee);
@@ -879,8 +879,6 @@ const StrategyEditor = {
         // ---- Tab 1 基本 ----
         s.name = this.getVal('f-name');
         s.description = this.getVal('f-description') || '';
-        const scope = this.getRadio('f-scope') || 'single';
-        s.scope = scope;
 
         // watcher 元数据
         this.meta.category = this.getVal('f-category') || '';
@@ -914,9 +912,6 @@ const StrategyEditor = {
 
         // ---- Tab 3/4 买卖信号 ----
         s.trading_config = s.trading_config || {};
-        const symbolsStr = this.getVal('f-symbols') || '';
-        const symbols = symbolsStr.split(/[,，\s]+/).map((x) => x.trim()).filter(Boolean);
-        s.trading_config.symbols = symbols;
         s.trading_config.signals = {
             buy: this.parseJsonField('f-buy-conditions', 'tab-buy', 'trading_config.signals.buy') ||
                 { operator: 'AND', conditions: [] },
@@ -953,13 +948,7 @@ const StrategyEditor = {
                 const tp = this.getNum('f-take-profit');
                 if (sl != null) bracket.stop_loss_pct = sl;
                 if (tp != null) bracket.take_profit_pct = tp;
-                if (this.getChecked('f-use-atr-stop')) {
-                    bracket.use_atr_stop = true;
-                    const ap = this.getNum('f-atr-period');
-                    const am = this.getNum('f-atr-multiplier');
-                    if (ap != null) bracket.atr_period = ap;
-                    if (am != null) bracket.atr_multiplier = am;
-                }
+                // ATR 动态止损（use_atr_stop / atr_period / atr_multiplier）Phase 2 支持，Phase 1 不采集
                 s.trading_config.exit.bracket = bracket;
             }
             if (exitRules.length) s.trading_config.exit.rules = exitRules;
@@ -967,24 +956,8 @@ const StrategyEditor = {
             delete s.trading_config.exit;
         }
 
-        // ---- Tab 7 调仓（scope=single 时跳过）----
-        if (scope !== 'single') {
-            const rb = {
-                frequency: this.getVal('f-reb-frequency') || 'monthly',
-            };
-            const day = this.getNum('f-reb-day');
-            if (day != null) rb.day_of_period = day;
-            const replace = this.getRadio('f-reb-replace');
-            if (replace) rb.replace_method = replace;
-            const weight = this.getRadio('f-reb-weight');
-            if (weight) rb.weight_mode = weight;
-            const maxSingle = this.getNum('f-reb-max-single');
-            if (maxSingle != null) rb.max_single_position = maxSingle;
-            rb.long_only = this.getChecked('f-reb-long-only');
-            s.trading_config.rebalance = rb;
-        } else {
-            delete s.trading_config.rebalance;
-        }
+        // ---- Tab 7 调仓（Phase 2 即将支持，Phase 1 不写入，避免回测范式校验拒绝）----
+        delete s.trading_config.rebalance;
 
         // ---- Tab 8 回测 ----
         const bt = {};
@@ -993,7 +966,6 @@ const StrategyEditor = {
         if (this.getVal('f-bt-start')) bt.start_date = this.getVal('f-bt-start');
         if (this.getVal('f-bt-end')) bt.end_date = this.getVal('f-bt-end');
         bt.broker_profile = this.getVal('f-bt-broker') || 'cn_stock_miniqmt';
-        bt.t_plus_one = this.getChecked('f-bt-t1');
         const lot = this.getNum('f-bt-lot-size');
         if (lot != null) bt.lot_size = lot;
         const warm = this.getNum('f-bt-warmup');
@@ -1166,11 +1138,18 @@ const StrategyEditor = {
         const action = (rule && rule.action) || 'close_position';
         const targetId = 'f-exit-rule-condition-' + uid;
         return '<div class="border rounded p-2" data-row="exit-rule" data-uid="' + StockApp.escapeHtml(uid) + '" data-target="' + StockApp.escapeHtml(targetId) + '">' +
-            '<div class="d-flex gap-2 mb-1">' +
-            '<input type="text" class="form-control form-control-sm" style="max-width:180px;" placeholder="规则名" value="' + StockApp.escapeHtml(name) + '" data-k="name">' +
-            '<select class="form-select form-select-sm" style="max-width:160px;" data-k="action">' +
-            ['close_position', 'sell'].map((a) => '<option value="' + a + '"' + (a === action ? ' selected' : '') + '>' + a + '</option>').join('') +
-            '</select>' +
+            '<div class="d-flex align-items-center gap-2 mb-2 flex-wrap">' +
+            '<div class="d-flex align-items-center gap-1">' +
+            '<label class="form-label mb-0 text-nowrap small text-muted">规则名 name</label>' +
+            '<input type="text" class="form-control form-control-sm" style="max-width:180px;" placeholder="如：跌破均线清仓" value="' + StockApp.escapeHtml(name) + '" data-k="name">' +
+            '</div>' +
+            '<div class="d-flex align-items-center gap-1">' +
+            '<label class="form-label mb-0 text-nowrap small text-muted">触发动作 action</label>' +
+            '<div class="d-flex gap-2">' +
+            '<div class="form-check"><input class="form-check-input" type="radio" name="f-exit-action-' + StockApp.escapeHtml(uid) + '" data-k="action" value="close_position"' + (action === 'close_position' ? ' checked' : '') + '><label class="form-check-label">平仓 close_position</label></div>' +
+            '<div class="form-check"><input class="form-check-input" type="radio" name="f-exit-action-' + StockApp.escapeHtml(uid) + '" data-k="action" value="sell"' + (action === 'sell' ? ' checked' : '') + '><label class="form-check-label">卖出 sell</label></div>' +
+            '</div>' +
+            '</div>' +
             '<button type="button" class="btn btn-sm btn-outline-danger ms-auto" data-del="exit-rule">×</button>' +
             '</div>' +
             '<div class="cond-mode-switch" data-cond-target="' + StockApp.escapeHtml(targetId) + '">' +
@@ -1254,7 +1233,8 @@ const StrategyEditor = {
             const uid = row.getAttribute('data-uid');
             const targetId = row.getAttribute('data-target');
             const name = (row.querySelector('[data-k="name"]') || {}).value || '';
-            const action = (row.querySelector('[data-k="action"]') || {}).value || 'close_position';
+            const actionRadio = row.querySelector('[data-k="action"]:checked');
+            const action = (actionRadio && actionRadio.value) || 'close_position';
             const mode = (targetId && this._condMode[targetId]) || 'visual';
 
             let cond = null;
@@ -1430,27 +1410,6 @@ const StrategyEditor = {
         }
     },
 
-    applyScope(scope) {
-        const isSingle = scope === 'single';
-        const tip = document.getElementById('f-rebalance-disabled-tip');
-        const body = document.getElementById('f-rebalance-body');
-        if (tip) tip.style.display = isSingle ? '' : 'none';
-        if (body) {
-            body.style.opacity = isSingle ? '0.5' : '';
-            body.style.pointerEvents = isSingle ? 'none' : '';
-        }
-    },
-
-    /**
-     * 同步所有 .str-radio-card 的 .checked class（JS 控制，比 :has() 兼容性好）。
-     */
-    syncRadioCards() {
-        document.querySelectorAll('.str-radio-card').forEach((card) => {
-            const input = card.querySelector('input[type=radio]');
-            if (input) card.classList.toggle('checked', input.checked);
-        });
-    },
-
     applyFeeToggle(on) { this.toggleWrap('f-bt-fee-wrap', on); },
     applySlippageToggle(on) { this.toggleWrap('f-bt-slippage-wrap', on); },
 
@@ -1520,11 +1479,10 @@ const StrategyEditor = {
     },
 
     /**
-     * 摘要字符串：按 scope 分支拼接自然语言（简化版）。
+     * 摘要字符串：根据 trading_config 结构（signals / rebalance 是否存在）拼接自然语言。
      */
     buildSummary() {
         const s = this.state || {};
-        const scope = s.scope || 'single';
         const tc = s.trading_config || {};
         const ps = tc.position_sizing || {};
         const exit = tc.exit || {};
@@ -1533,28 +1491,35 @@ const StrategyEditor = {
         const buyDesc = this.summarizeSignal(tc.signals && tc.signals.buy);
         const exitDesc = this.summarizeExit(exit);
         const psDesc = ps.method ? (ps.target != null ? (ps.method + '=' + ps.target) : ps.method) : '无仓位';
+        const hasSignals = !!tc.signals;
+        const hasRebalance = !!tc.rebalance;
 
-        if (scope === 'single') {
-            const symbols = (tc.symbols || []).join(',');
-            const symDesc = symbols ? ('标的 ' + symbols) : '未指定标的';
-            return ['单标的 · ' + symDesc, buyDesc || '无信号', psDesc, exitDesc,
-                bt.initial_cash != null ? ('¥' + bt.initial_cash) : ''].filter(Boolean).join(' · ');
+        if (hasSignals && hasRebalance) {
+            const rb = tc.rebalance || {};
+            return ['混合策略 · 信号(' + (buyDesc || '无') + ')',
+                rb.frequency ? (this.rebFreqLabel(rb.frequency) + '调仓') : '',
+                psDesc].filter(Boolean).join(' · ');
         }
-        if (scope === 'portfolio') {
+        if (hasRebalance) {
             const sc = s.screen_config || {};
             const rb = tc.rebalance || {};
             const rankDesc = sc.ranking ? (sc.ranking.method === 'composite' ? 'composite 排序' : ('按 ' + (sc.ranking.factor || '?') + ' ' + (sc.ranking.order || '') + ' 排序')) : '无排序';
             return ['组合策略 · ' + (sc.universe || '未指定池'),
                 sc.top_n != null ? ('top_n=' + sc.top_n) : '',
                 rankDesc,
-                rb.frequency ? (rb.frequency + '调仓') : '',
-                rb.weight_mode || ''].filter(Boolean).join(' · ');
+                rb.frequency ? (this.rebFreqLabel(rb.frequency) + '调仓') : '',
+                rb.weight_mode ? this.weightModeLabel(rb.weight_mode) : ''].filter(Boolean).join(' · ');
         }
-        // mixed
-        const rb = tc.rebalance || {};
-        return ['混合策略 · 信号(' + (buyDesc || '无') + ')',
-            rb.frequency ? (rb.frequency + '调仓') : '',
-            psDesc].filter(Boolean).join(' · ');
+        return ['单标的策略', buyDesc || '无信号', psDesc, exitDesc,
+            bt.initial_cash != null ? ('¥' + bt.initial_cash) : ''].filter(Boolean).join(' · ');
+    },
+
+    rebFreqLabel(code) {
+        return ({ daily: '每日', weekly: '每周', monthly: '每月', quarterly: '每季' })[code] || code;
+    },
+
+    weightModeLabel(code) {
+        return ({ equal: '等权', score: '按分加权' })[code] || code;
     },
 
     /**
@@ -1655,7 +1620,6 @@ const StrategyEditor = {
         const onAtr = (e) => { this.applyAtrToggle(e.target.checked); refresh(); };
         const onFee = (e) => { this.applyFeeToggle(e.target.checked); refresh(); };
         const onSlip = (e) => { this.applySlippageToggle(e.target.checked); refresh(); };
-        const onScope = (e) => { this.applyScope(e.target.value); this.syncRadioCards(); refresh(); };
         const onFilterToggle = () => { this.applyFilterToggles(); refresh(); };
         const onMaxSingle = (e) => {
             const label = document.getElementById('f-reb-max-single-val');
@@ -1671,7 +1635,6 @@ const StrategyEditor = {
         this.bindEl('f-bt-use-custom-fee', 'change', onFee);
         this.bindEl('f-bt-use-slippage', 'change', onSlip);
         this.bindEl('f-reb-max-single', 'input', onMaxSingle);
-        document.querySelectorAll('input[name="f-scope"]').forEach((r) => r.addEventListener('change', onScope));
         ['f-filter-use-industries', 'f-filter-use-exclude-industries', 'f-filter-use-min-list-days']
             .forEach((id) => this.bindEl(id, 'change', onFilterToggle));
 

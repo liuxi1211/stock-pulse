@@ -130,7 +130,7 @@ public class StrategyServiceImpl implements StrategyService {
             s.setName(req.getName());
             s.setDescription(req.getDescription());
             s.setCategory(req.getCategory());
-            s.setScope(req.getScope());
+            s.setScope(deriveScope(configJson));
             s.setStatus(initialStatus);
             s.setTags(tags);
             s.setCurrentVersion(1);
@@ -266,6 +266,7 @@ public class StrategyServiceImpl implements StrategyService {
 
             strategy.setCurrentVersion(finalNewVersionNo);
             strategy.setStatus(nextStatus);
+            strategy.setScope(deriveScope(finalConfigJson));
             strategy.setUpdatedAt(now);
             strategyMapper.updateById(strategy);
         });
@@ -497,7 +498,7 @@ public class StrategyServiceImpl implements StrategyService {
             throw new BusinessException(StrategyErrorCodes.STRATEGY_VERSION_NOT_FOUND,
                     "版本不存在: " + versionNo);
         }
-        return v.getConfigJson();
+        return sanitizeConfigJson(v.getConfigJson());
     }
 
     private void checkConfigSize(String configJson) {
@@ -527,6 +528,27 @@ public class StrategyServiceImpl implements StrategyService {
     }
 
     /**
+     * 清洗存量配置 JSON：移除已废弃的顶层 scope 与 trading_config.symbols 字段，
+     * 避免旧数据在 engine 侧（Pydantic extra="forbid"）校验失败或前端回显多余字段。
+     */
+    private String sanitizeConfigJson(String configJson) {
+        if (configJson == null || configJson.isBlank()) {
+            return configJson;
+        }
+        try {
+            JSONObject root = JSON.parseObject(configJson);
+            root.remove("scope");
+            JSONObject trading = root.getJSONObject("trading_config");
+            if (trading != null) {
+                trading.remove("symbols");
+            }
+            return JSON.toJSONString(root);
+        } catch (Exception e) {
+            return configJson;
+        }
+    }
+
+    /**
      * 标签归一化：trim 每项、剔除含逗号或空 tag、join(",")。
      */
     private String normalizeTags(List<String> tags) {
@@ -544,16 +566,42 @@ public class StrategyServiceImpl implements StrategyService {
     // ==================== 内部：默认配置 ====================
 
     /**
+     * 根据配置 JSON 的 trading_config 结构派生 scope（不再由用户编辑）。
+     * 有 rebalance → portfolio；有 signals → single；都有 → mixed；都没有 → single。
+     */
+    private String deriveScope(String configJson) {
+        if (configJson == null || configJson.isBlank()) {
+            return "single";
+        }
+        try {
+            JSONObject root = JSON.parseObject(configJson);
+            JSONObject trading = root.getJSONObject("trading_config");
+            if (trading == null) {
+                return "single";
+            }
+            boolean hasSignals = trading.containsKey("signals");
+            boolean hasRebalance = trading.containsKey("rebalance");
+            if (hasSignals && hasRebalance) {
+                return "mixed";
+            }
+            if (hasRebalance) {
+                return "portfolio";
+            }
+            return "single";
+        } catch (Exception e) {
+            return "single";
+        }
+    }
+
+    /**
      * 构建最小默认配置（spec Task 6 Notes 示例）。
      */
     private String buildDefaultConfig(String name) {
         Map<String, Object> root = new LinkedHashMap<>();
         root.put("name", name == null ? "" : name);
         root.put("description", "");
-        root.put("scope", "single");
 
         Map<String, Object> trading = new LinkedHashMap<>();
-        trading.put("symbols", Collections.emptyList());
 
         Map<String, Object> signals = new LinkedHashMap<>();
         signals.put("buy", signalBlock("AND"));
@@ -589,7 +637,7 @@ public class StrategyServiceImpl implements StrategyService {
 
     private StrategyDTO toDetailDTO(QuantStrategyDO strategy, String config) {
         StrategyDTO dto = toListDTO(strategy);
-        dto.setConfig(config);
+        dto.setConfig(sanitizeConfigJson(config));
         return dto;
     }
 
@@ -626,7 +674,7 @@ public class StrategyServiceImpl implements StrategyService {
 
     private StrategyVersionDTO toDetailVersionDTO(QuantStrategyVersionDO v) {
         StrategyVersionDTO dto = toListVersionDTO(v);
-        dto.setConfigJson(v.getConfigJson());
+        dto.setConfigJson(sanitizeConfigJson(v.getConfigJson()));
         return dto;
     }
 }

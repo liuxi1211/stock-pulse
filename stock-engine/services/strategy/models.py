@@ -318,9 +318,6 @@ class TradingConfigModel(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    symbols: Optional[List[str]] = Field(
-        None, description="信号驱动交易标的（单标的也用 list 承载，省略则继承 screen 池）"
-    )
     signals: Optional[SignalsModel] = Field(None, description="买卖信号条件树")
     position_sizing: Optional[PositionSizingModel] = Field(None, description="仓位管理")
     exit: Optional[ExitModel] = Field(None, description="出场规则")
@@ -422,10 +419,6 @@ class StrategyConfigModel(BaseModel):
     strategy_id: Optional[str] = Field(None, description="策略唯一 ID（业务层）")
     name: str = Field(..., description="展示名（注入防护在 validator 层）")
     description: Optional[str] = Field(None, description="描述")
-    scope: Optional[str] = Field(
-        None,
-        description="范围提示：single / portfolio / mixed（仅提示，不驱动分支）",
-    )
     screen_config: Optional[ScreenConfigModel] = Field(None, description="选股配置（§3.2）")
     trading_config: Optional[TradingConfigModel] = Field(
         None, description="交易配置（§3.3）；至少含 signals 或 rebalance 之一"

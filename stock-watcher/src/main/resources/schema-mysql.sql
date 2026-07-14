@@ -266,6 +266,16 @@ CREATE TABLE IF NOT EXISTS quant_backtest_report (
     UNIQUE KEY uk_backtest_report (backtest_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='回测报告全量JSON表';
 
+-- 18. 指数成分股权重表（tushare index_weight）
+CREATE TABLE IF NOT EXISTS index_weight (
+    ts_code    VARCHAR(16)  NOT NULL COMMENT '指数代码（如 000300.SH）',
+    trade_date VARCHAR(8)   NOT NULL COMMENT '交易日期（YYYYMMDD）',
+    con_code   VARCHAR(16)  NOT NULL COMMENT '成分股代码（如 000001.SZ）',
+    weight     DECIMAL(10,6) COMMENT '成分股权重（%）',
+    PRIMARY KEY (ts_code, trade_date, con_code),
+    INDEX idx_index_weight_date (ts_code, trade_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='指数成分股权重表';
+
 -- 初始管理员账号（仅当表为空时插入，默认密码: admin123）
 INSERT INTO sys_user (username, password, enabled, role)
 SELECT 'admin', '$2a$10$pfuIlLGBbNZqO5xXa9oRKeEFABc4FIxs2SVY46UUG1xpA7o9tGn9u', 1, 'ADMIN'

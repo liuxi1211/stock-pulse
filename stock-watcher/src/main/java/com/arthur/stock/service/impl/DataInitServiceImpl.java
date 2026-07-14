@@ -42,11 +42,13 @@ public class DataInitServiceImpl implements DataInitService {
 
     /** 固定执行顺序，确保依赖关系正确（stock_basic 先于 per-stock 步骤） */
     private static final List<InitStep> EXECUTION_ORDER = List.of(
-            InitStep.STOCK_BASIC, InitStep.TRADE_CAL, InitStep.DAILY, InitStep.ADJ_FACTOR, InitStep.DIVIDEND);
+            InitStep.STOCK_BASIC, InitStep.TRADE_CAL, InitStep.INDEX_WEIGHT,
+            InitStep.DAILY, InitStep.ADJ_FACTOR, InitStep.DIVIDEND);
 
     private final JdbcTemplate jdbcTemplate;
     private final StockBasicService stockBasicService;
     private final TradeCalService tradeCalService;
+    private final IndexWeightService indexWeightService;
     private final DailyQuoteService dailyQuoteService;
     private final AdjFactorService adjFactorService;
     private final DividendService dividendService;
@@ -112,6 +114,7 @@ public class DataInitServiceImpl implements DataInitService {
             switch (step) {
                 case STOCK_BASIC -> executeStockBasic(stocks);
                 case TRADE_CAL -> executeTradeCal();
+                case INDEX_WEIGHT -> executeIndexWeight();
                 case DAILY -> executeDaily(stocks);
                 case ADJ_FACTOR -> executeAdjFactor(stocks);
                 case DIVIDEND -> executeDividend(stocks);
@@ -143,6 +146,24 @@ public class DataInitServiceImpl implements DataInitService {
         String endDate = LocalDate.now().format(DATE_FMT);
         tradeCalService.fetchAndSaveTradeCal(null, startDate, endDate);
         log.info("Trade calendar synced");
+    }
+
+    /** 指数成分股权重：拉取沪深300/中证500/上证50/中证1000 最近 5 年历史快照（回测防幸存者偏差） */
+    private static final List<String> INDEX_CODES = List.of(
+            "000300.SH", "000905.SH", "000016.SH", "000852.SH");
+
+    private void executeIndexWeight() {
+        updateStep("拉取指数成分权重");
+        String startDate = LocalDate.now().minusYears(5).format(DATE_FMT);
+        String endDate = LocalDate.now().format(DATE_FMT);
+        for (String indexCode : INDEX_CODES) {
+            try {
+                int n = indexWeightService.fetchAndSaveRange(indexCode, startDate, endDate);
+                log.info("Index weight synced: {} ({} records)", indexCode, n);
+            } catch (Exception e) {
+                log.error("Index weight sync failed for {}: {}", indexCode, e.getMessage(), e);
+            }
+        }
     }
 
     private void executeDaily(List<StockBasicDTO> stocks) {
@@ -228,6 +249,10 @@ public class DataInitServiceImpl implements DataInitService {
                     + "record_date VARCHAR(8),ex_date VARCHAR(8),pay_date VARCHAR(8),div_listdate VARCHAR(8),imp_ann_date VARCHAR(8),"
                     + "base_date VARCHAR(8),base_share DECIMAL(20,4),"
                     + "UNIQUE(ts_code, end_date, ann_date)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"),
+            Map.entry("index_weight", "CREATE TABLE IF NOT EXISTS index_weight ("
+                    + "ts_code VARCHAR(16) NOT NULL,trade_date VARCHAR(8) NOT NULL,"
+                    + "con_code VARCHAR(16) NOT NULL,weight DECIMAL(10,6),"
+                    + "PRIMARY KEY (ts_code, trade_date, con_code)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"),
             Map.entry("screen_plan", "CREATE TABLE IF NOT EXISTS screen_plan ("
                     + "id BIGINT AUTO_INCREMENT PRIMARY KEY,"
                     + "name VARCHAR(128) NOT NULL,description VARCHAR(512),screen_config TEXT NOT NULL,"
@@ -270,6 +295,10 @@ public class DataInitServiceImpl implements DataInitService {
                     + "record_date TEXT,ex_date TEXT,pay_date TEXT,div_listdate TEXT,imp_ann_date TEXT,"
                     + "base_date TEXT,base_share REAL,"
                     + "UNIQUE(ts_code, end_date, ann_date))"),
+            Map.entry("index_weight", "CREATE TABLE IF NOT EXISTS index_weight ("
+                    + "ts_code TEXT NOT NULL,trade_date TEXT NOT NULL,"
+                    + "con_code TEXT NOT NULL,weight REAL,"
+                    + "PRIMARY KEY (ts_code, trade_date, con_code))"),
             Map.entry("screen_plan", "CREATE TABLE IF NOT EXISTS screen_plan ("
                     + "id INTEGER PRIMARY KEY AUTOINCREMENT,"
                     + "name VARCHAR(128) NOT NULL,description VARCHAR(512),screen_config TEXT NOT NULL,"

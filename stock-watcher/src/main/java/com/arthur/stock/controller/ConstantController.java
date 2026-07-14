@@ -1,10 +1,14 @@
 package com.arthur.stock.controller;
 
 import com.arthur.stock.constant.DisplayableEnum;
+import com.arthur.stock.constant.RebalanceFrequencyEnum;
+import com.arthur.stock.constant.RebalanceReplaceMethodEnum;
+import com.arthur.stock.constant.RebalanceWeightModeEnum;
 import com.arthur.stock.constant.StrategyCategoryEnum;
 import com.arthur.stock.constant.StrategySchemaConstants;
 import com.arthur.stock.constant.StrategyScopeEnum;
 import com.arthur.stock.constant.StrategyStatusEnum;
+import com.arthur.stock.constant.UniverseEnum;
 import com.arthur.stock.dto.ApiResponse;
 import com.arthur.stock.dto.EnumOptionDTO;
 import io.swagger.v3.oas.annotations.Operation;
@@ -97,6 +101,10 @@ public class ConstantController {
         cache.put("strategies.positionMethods", StrategySchemaConstants.POSITION_SIZING_METHODS);
         cache.put("strategies.sellMethods", StrategySchemaConstants.SELL_METHODS);
         cache.put("strategies.brokerProfiles", StrategySchemaConstants.BROKER_PROFILES);
+        cache.put("strategies.universe", toOptions(UniverseEnum.values()));
+        cache.put("strategies.rebalanceFrequency", toOptions(RebalanceFrequencyEnum.values()));
+        cache.put("strategies.rebalanceReplaceMethod", toOptions(RebalanceReplaceMethodEnum.values()));
+        cache.put("strategies.rebalanceWeightMode", toOptions(RebalanceWeightModeEnum.values()));
         cache.put("strategies.screenComparators", StrategySchemaConstants.SCREEN_COMPARATORS);
         cache.put("strategies.tradingComparators", StrategySchemaConstants.TRADING_COMPARATORS);
         cache.put("strategies.allowedRefs", StrategySchemaConstants.ALLOWED_REFS);

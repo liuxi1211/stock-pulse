@@ -31,9 +31,6 @@ public class StrategyCreateRequest {
     @Schema(description = "策略分类（TECHNICAL/FUNDAMENTAL/MIXED/CUSTOM）")
     private String category;
 
-    @Schema(description = "适用范围（single/portfolio/mixed）")
-    private String scope;
-
     @Schema(description = "标签列表")
     private List<String> tags;
 
