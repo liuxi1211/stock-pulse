@@ -273,8 +273,11 @@
         const profile = document.getElementById('selBrokerProfile').value;
         const t1 = document.getElementById('swT1').classList.contains('on');
 
+        const strat = state.strategies.find(function (s) { return String(s.id) === String(state.selectedStrategyId); });
+        const mode = (strat && strat.scope === 'portfolio') ? 'rebalance' : 'signals';
+
         const body = {
-            mode: 'signals',
+            mode: mode,
             strategyId: Number(state.selectedStrategyId),
             versionNo: Number(state.selectedVersionNo),
             benchmark: benchmark,

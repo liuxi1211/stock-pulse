@@ -100,6 +100,12 @@ class StrategyValidator:
             self._validate_structure_screen(config.screen_config, errors)
             self._validate_screen_conditions(config.screen_config, errors)
 
+        # 4. signals 范式 universe 规模约束（跨 trading_config + screen_config 联动）
+        self._validate_signals_universe(config, errors)
+
+        # 5. signals 范式下 screen_config 仅允许 universe+stocks，禁止 conditions/ranking/top_n/filters
+        self._validate_signals_screen_fields(config, errors)
+
         return errors
 
     # ========================================================
@@ -110,11 +116,25 @@ class StrategyValidator:
     ) -> None:
         # (1) signals 或 rebalance 至少一个在场
         #     signals 对象存在（即便内部 buy/sell 都 None）也算"在场"
-        if tc.signals is None and tc.rebalance is None:
+        has_signals = tc.signals is not None
+        has_rebalance = tc.rebalance is not None
+
+        if not has_signals and not has_rebalance:
             code, msg = ErrorCode.MISSING_SIGNALS_OR_REBALANCE
             errors.append(
                 StrategyValidationError(path="trading_config", code=code, message=msg)
             )
+            # 不 return：保持非短路语义，继续收集 position_sizing/exit 等错误
+            # （与改造前行为一致，test_multiple_errors_non_short_circuit 依赖此）
+
+        # (1b) signals 与 rebalance 互斥（择时范式 vs 轮动范式，二选一）
+        # 互斥时后续 position_sizing/exit 校验无意义（配置已非法），return。
+        if has_signals and has_rebalance:
+            code, msg = ErrorCode.SIGNALS_REBALANCE_EXCLUSIVE
+            errors.append(
+                StrategyValidationError(path="trading_config", code=code, message=msg)
+            )
+            return
 
         # (5) position_sizing.method 白名单
         ps: Optional[PositionSizingModel] = tc.position_sizing
@@ -191,6 +211,89 @@ class StrategyValidator:
                             path="screen_config.ranking", code=code, message=msg
                         )
                     )
+
+    # ========================================================
+    # §7.1 联动校验：signals 范式 universe 规模约束
+    # ========================================================
+    def _validate_signals_universe(
+        self, config: StrategyConfigModel, errors: List[StrategyValidationError]
+    ) -> None:
+        """signals（择时）范式的 universe 规模约束。
+
+        - 仅当 trading_config.signals 在场时触发；
+        - screen_config.universe 必须为 "manual"（否则 SIGNALS_UNIVERSE_NOT_MANUAL）；
+        - screen_config.stocks 数量 <= SIGNALS_MAX_UNIVERSE_SIZE（否则 SIGNALS_UNIVERSE_TOO_LARGE）。
+
+        设计依据：signals 范式对每个命中 symbol 独立 order_target_percent，
+        多标的会资金争抢导致大面积拒单且不可复现；故限定为 manual 小池子。
+        """
+        tc = config.trading_config
+        if tc is None or tc.signals is None:
+            return
+
+        sc = config.screen_config
+        if sc is None:
+            # signals 范式必须有 screen_config 圈定 manual 池；缺失直接按 not_manual 报错
+            code, msg = ErrorCode.SIGNALS_UNIVERSE_NOT_MANUAL
+            errors.append(
+                StrategyValidationError(
+                    path="screen_config.universe", code=code, message=msg
+                )
+            )
+            return
+
+        if sc.universe != "manual":
+            code, msg = ErrorCode.SIGNALS_UNIVERSE_NOT_MANUAL
+            errors.append(
+                StrategyValidationError(
+                    path="screen_config.universe", code=code, message=msg
+                )
+            )
+            return
+
+        stocks_count = len(sc.stocks) if sc.stocks else 0
+        max_size = constants.SIGNALS_MAX_UNIVERSE_SIZE
+        if stocks_count > max_size:
+            code, msg = ErrorCode.SIGNALS_UNIVERSE_TOO_LARGE
+            msg = msg.format(max=max_size, actual=stocks_count)
+            errors.append(
+                StrategyValidationError(
+                    path="screen_config.stocks", code=code, message=msg
+                )
+            )
+
+    def _validate_signals_screen_fields(
+        self, config: StrategyConfigModel, errors: List[StrategyValidationError]
+    ) -> None:
+        """signals（择时）范式下 screen_config 的字段禁用约束。
+
+        signals 范式只消费 screen_config.universe + stocks（圈定回测 symbols）；
+        conditions / ranking / top_n / filters 即使填写也不会被 compiler 执行，
+        属于"静默忽略"。为防止用户误填产生困惑，升级为错误。
+        """
+        tc = config.trading_config
+        if tc is None or tc.signals is None:
+            return
+        sc = config.screen_config
+        if sc is None:
+            return  # screen_config 缺失已由 _validate_signals_universe 处理
+
+        forbidden_paths = []
+        if sc.conditions is not None:
+            forbidden_paths.append("screen_config.conditions")
+        if sc.ranking is not None:
+            forbidden_paths.append("screen_config.ranking")
+        if sc.top_n is not None:
+            forbidden_paths.append("screen_config.top_n")
+        if sc.filters is not None:
+            forbidden_paths.append("screen_config.filters")
+
+        if forbidden_paths:
+            code, msg = ErrorCode.SIGNALS_SCREEN_CONFIG_FORBIDDEN
+            for path in forbidden_paths:
+                errors.append(
+                    StrategyValidationError(path=path, code=code, message=msg)
+                )
 
     # ========================================================
     # §7.2 条件树遍历：trading_config 入口

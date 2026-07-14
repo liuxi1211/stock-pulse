@@ -69,7 +69,7 @@ public class QuantStrategyController {
             @RequestParam(value = "category", required = false) String category,
             @Parameter(description = "状态（DRAFT/VERIFIED/ACTIVE/ARCHIVED）")
             @RequestParam(value = "status", required = false) String status,
-            @Parameter(description = "适用范围（single/portfolio/mixed）")
+            @Parameter(description = "适用范围（single/portfolio）")
             @RequestParam(value = "scope", required = false) String scope,
             @Parameter(description = "标签（逗号分隔 tags 中精确包含）")
             @RequestParam(value = "tag", required = false) String tag,

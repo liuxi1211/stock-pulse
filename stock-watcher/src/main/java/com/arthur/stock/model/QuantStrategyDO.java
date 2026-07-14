@@ -31,7 +31,7 @@ public class QuantStrategyDO {
     /** 策略分类（TECHNICAL/FUNDAMENTAL/MIXED/CUSTOM） */
     private String category;
 
-    /** 适用范围（single/portfolio/mixed） */
+    /** 适用范围（single/portfolio） */
     private String scope;
 
     /** 状态（DRAFT/VERIFIED/ACTIVE/ARCHIVED） */

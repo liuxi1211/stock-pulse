@@ -5,8 +5,11 @@
   "scope": "single",
   "category": "TECHNICAL",
   "tags": ["MACD", "短线"],
+  "screen_config": {
+    "universe": "manual",
+    "stocks": ["510300.SH"]
+  },
   "trading_config": {
-    "symbols": ["510300.SH"],
     "signals": {
       "buy": {
         "operator": "AND",

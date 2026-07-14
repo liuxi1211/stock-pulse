@@ -76,4 +76,7 @@ public final class StrategySchemaConstants {
             "NET_PROFIT_GROWTH", "GROSS_MARGIN", "CURRENT_RATIO",
             "TURNOVER_RATE", "NORTHBOUND_NET_INFLOW"
     );
+
+    /** signals（择时）范式 universe 规模上限，与 engine constants.py 对齐（spec 009-strategy-paradigm-exclusive）。 */
+    public static final int SIGNALS_MAX_UNIVERSE_SIZE = 10;
 }

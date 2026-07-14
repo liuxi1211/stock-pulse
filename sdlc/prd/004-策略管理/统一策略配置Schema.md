@@ -25,14 +25,16 @@ strategy_config
 
 保留 `screen_config` 独立分区的理由：**选股模块的职责边界**。选股服务无需感知交易/回测语义，只消费 `screen_config`。
 
-### 2.2 两范式共存：用可选字段区分
+### 2.2 两范式互斥：用可选字段区分（spec 009-strategy-paradigm-exclusive）
 
 | 字段在场 | 推断范式 | 含义 |
 |---|---|---|
-| `trading_config.signals` 在场 | **信号驱动**（单标的/固定池） | 每根 bar 评估买卖条件树，触发即下单 |
-| `trading_config.rebalance` 在场 | **选股调仓驱动**（多因子） | 调仓日评估 screen + ranking，组合层换仓 |
-| 二者均在场 | **混合范式** | 调仓日外用信号管理出入场（合法） |
-| 二者均不在场 | **非法** | 校验报错（见 §7） |
+| `trading_config.signals` 在场 | **择时范式**（单标的/固定小池） | 每根 bar 评估买卖条件树，触发即下单 |
+| `trading_config.rebalance` 在场 | **轮动范式**（多标的横截面） | 调仓日评估 screen + ranking，组合层换仓 |
+| 二者均在场 | **非法** | 校验报错 `SIGNALS_REBALANCE_EXCLUSIVE` |
+| 二者均不在场 | **非法** | 校验报错 `MISSING_SIGNALS_OR_REBALANCE` |
+
+> **互斥原因**（详见 [akquant 规则 03 §12](.trae/rules/akquant/03-strategy-api.md)）：akquant 同一 bar 内 `on_daily_rebalance` 先于 `on_bar` 执行，二者订单进入同一撮合队列**合计**（非覆盖语义）。若两回调对同一标的下目标仓位类订单，订单会叠加，目标仓位可能被推到 100% 以上甚至触发杠杆。
 
 ### 2.3 能力对齐立场
 
@@ -94,12 +96,16 @@ Schema 字段**深度对齐 akquant 原生 API**，而非自造语义：
 
 | 字段 | 类型 | 必填 | 默认 | 映射 / 说明 |
 |---|---|---|---|---|
-| `signals` | Signals | 条件必填 | — | 买卖信号条件树（§3.3.1）；**在场=信号驱动范式** |
+| `signals` | Signals | 条件必填 | — | 买卖信号条件树（§3.3.1）；**在场=择时范式**，触发 akquant `on_bar` |
 | `position_sizing` | PositionSizing | 否 | 见 §3.3.2 | 仓位管理（统一为 akquant 下单方法名） |
 | `exit` | Exit | 否 | `null` | 出场规则（§3.3.3） |
-| `rebalance` | Rebalance | 条件必填 | — | 调仓规则（§3.3.4）；**在场=选股调仓范式** → `on_daily_rebalance` + `rebalance_to_topn` |
+| `rebalance` | Rebalance | 条件必填 | — | 调仓规则（§3.3.4）；**在场=轮动范式** → `on_daily_rebalance` + `rebalance_to_topn` |
 
-> **校验**：`signals` 与 `rebalance` 至少一个在场；都不在 → 422。
+> **校验（spec 009 互斥）**：`signals` 与 `rebalance` **二选一**。
+> - 二者均在场 → `SIGNALS_REBALANCE_EXCLUSIVE`（422）
+> - 二者均不在场 → `MISSING_SIGNALS_OR_REBALANCE`（422）
+
+> **signals（择时）范式的 universe 约束**：择时范式要求 `screen_config.universe = "manual"`，且 `screen_config.stocks` 数量 ≤ `SIGNALS_MAX_UNIVERSE_SIZE`（常量，= 10）。理由：signals 对每个命中 symbol 独立 `order_target_percent`，多标的 universe 下首只吃光资金、其余整单 Reject，且回测结果不可复现（详见 [akquant 规则 03 §12.3](.trae/rules/akquant/03-strategy-api.md)）。**多标的横截面场景请使用 `rebalance`（轮动）范式**（配合 `rebalance_to_topn` / `order_target_weights`）。
 
 #### 3.3.1 `Signals`
 

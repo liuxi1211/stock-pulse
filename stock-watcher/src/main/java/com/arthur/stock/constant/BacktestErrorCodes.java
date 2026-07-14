@@ -51,4 +51,13 @@ public final class BacktestErrorCodes {
      * （第二波 spec 明确 GRID/WF 仍需返回该码），故此处改用下一空闲序号 40016。
      */
     public static final int BACKTEST_UNIVERSE_TOO_LARGE = 40016;
+
+    /** signals（择时）范式 universe 仅支持 manual（spec 009-strategy-paradigm-exclusive） */
+    public static final int SIGNALS_UNIVERSE_NOT_MANUAL = 40017;
+
+    /** signals（择时）范式 universe 超 10 只上限（spec 009-strategy-paradigm-exclusive） */
+    public static final int SIGNALS_UNIVERSE_TOO_LARGE = 40018;
+
+    /** signals 与 rebalance 范式互斥，watcher 侧兜底校验（spec 009-strategy-paradigm-exclusive） */
+    public static final int SIGNALS_REBALANCE_EXCLUSIVE = 40019;
 }

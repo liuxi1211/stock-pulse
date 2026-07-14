@@ -213,7 +213,7 @@ class QuantStrategyControllerTest {
      * {@link GlobalExceptionHandler#handleStrategyValidation} 映射为 400 + errors。
      */
     @Test
-    void updateStrategyConfig_engine校验失败_应返���400和errors数组() throws Exception {
+    void updateStrategyConfig_engine校验失败_应返回400和errors数组() throws Exception {
         StrategyConfigUpdateRequest req = new StrategyConfigUpdateRequest();
         req.setConfigJson("{\"invalid\":true}");
         req.setExpectedVersion(1);

@@ -567,7 +567,10 @@ public class StrategyServiceImpl implements StrategyService {
 
     /**
      * 根据配置 JSON 的 trading_config 结构派生 scope（不再由用户编辑）。
-     * 有 rebalance → portfolio；有 signals → single；都有 → mixed；都没有 → single。
+     * <p>
+     * signals 与 rebalance 范式互斥（spec 009-strategy-paradigm-exclusive），
+     * 互斥约束由 engine validator 保证；此处防御性判断，signals 优先：
+     * 有 signals → single；有 rebalance → portfolio；都没有 → single。
      */
     private String deriveScope(String configJson) {
         if (configJson == null || configJson.isBlank()) {
@@ -581,8 +584,8 @@ public class StrategyServiceImpl implements StrategyService {
             }
             boolean hasSignals = trading.containsKey("signals");
             boolean hasRebalance = trading.containsKey("rebalance");
-            if (hasSignals && hasRebalance) {
-                return "mixed";
+            if (hasSignals) {
+                return "single";
             }
             if (hasRebalance) {
                 return "portfolio";

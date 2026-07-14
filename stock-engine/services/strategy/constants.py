@@ -24,6 +24,10 @@ POSITION_SIZING_METHODS = {
     "order_target_weights",
 }
 
+# signals（择时）范式 universe 规模上限：universe 必须 manual 且 stocks 数量 <= 此值
+# 依据：akquant 官方 on_bar 多标的示例 universe 均 <= 2；留 10 的余量覆盖小池子场景
+SIGNALS_MAX_UNIVERSE_SIZE = 10
+
 # sell_method 允许的取值（close_position=默认平仓 / sell=指定数量 / signal_based=按信号）
 SELL_METHODS = {"close_position", "sell", "signal_based"}
 

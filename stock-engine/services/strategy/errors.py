@@ -39,6 +39,29 @@ class ErrorCode:
         "MISSING_SIGNALS_OR_REBALANCE",
         "trading_config 必须包含 signals 或 rebalance 至少一个",
     )
+    # signals 与 rebalance 互斥（择时范式 vs 轮动范式，二选一）
+    SIGNALS_REBALANCE_EXCLUSIVE = (
+        "SIGNALS_REBALANCE_EXCLUSIVE",
+        "signals 与 rebalance 不能同时在场，必须二选一（择时范式用 signals，轮动范式用 rebalance）",
+    )
+    # signals（择时）范式的 universe 规模约束
+    SIGNALS_UNIVERSE_NOT_MANUAL = (
+        "SIGNALS_UNIVERSE_NOT_MANUAL",
+        "signals（择时）范式的选股范围仅支持 manual（手动指定少量标的），"
+        "不支持 csi300/csi500/all_a_shares；多标的请改用 rebalance（轮动）范式",
+    )
+    SIGNALS_UNIVERSE_TOO_LARGE = (
+        "SIGNALS_UNIVERSE_TOO_LARGE",
+        "signals（择时）范式的选股范围不得超过 {max} 只，当前 {actual} 只；"
+        "多标的请改用 rebalance（轮动）范式",
+    )
+    # signals（择时）范式下 screen_config 字段禁用约束
+    SIGNALS_SCREEN_CONFIG_FORBIDDEN = (
+        "SIGNALS_SCREEN_CONFIG_FORBIDDEN",
+        "signals（择时）范式下，screen_config 仅允许 universe=manual + stocks 标的列表；"
+        "不允许填写选股条件(conditions)、排序(ranking)、Top N(top_n)、静态过滤(filters)。"
+        "如需截面选股/排序，请改用 rebalance（轮动）范式。",
+    )
     MANUAL_SYMBOL_REQUIRED = (
         "MANUAL_SYMBOL_REQUIRED",
         "universe=manual 时必须提供 stocks",

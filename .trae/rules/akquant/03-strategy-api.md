@@ -219,3 +219,30 @@ result = aq.run_backtest(
 - 指标函数签名 → [07-talib-indicators.md](./07-talib-indicators.md)
 - 跑回测的参数 → [04-backtest-run.md](./04-backtest-run.md)
 - 可落地策略配方 → [08-recipes-stock-engine.md](./08-recipes-stock-engine.md)
+
+## 12. 范式选型约束（spec 009-strategy-paradigm-exclusive）
+
+> **面向 AI**：stock-engine 封装层对 akquant 的两类回调有明确边界，写策略/配置时必须遵守。
+
+### 12.1 两类范式互斥
+
+| 范式 | 触发字段 | akquant 回调 | 决策范围 | universe 规模 |
+|---|---|---|---|---|
+| 择时（timing） | `trading_config.signals` | `on_bar` | 当前 bar 的单个 symbol | ≤ 10 只（manual 池） |
+| 轮动（rotation） | `trading_config.rebalance` | `on_daily_rebalance` | 全 universe 截面 | 不限 |
+
+`signals` 与 `rebalance` **不能同时在场**，否则校验报错 `SIGNALS_REBALANCE_EXCLUSIVE`。
+
+### 12.2 为什么互斥
+
+akquant 同一 bar 内 `on_daily_rebalance` 先于 `on_bar` 执行，两者订单进入同一撮合队列合计（非覆盖语义）。若两个回调对同一标的下目标仓位类订单，订单会叠加，目标仓位可能被推到 100% 以上甚至触发杠杆。
+
+### 12.3 为什么 signals 限定 manual ≤ 10
+
+signals 范式对每个命中 symbol 独立 `order_target_percent`，多标的 universe 下首只吃光资金、其余整单 Reject，且回测结果不可复现。多标的横截面场景必须走 rebalance + `rebalance_to_topn` / `order_target_weights`。
+
+### 12.4 选型建议
+
+- 单标的/少量标的（行业龙头组合、ETF 轮动小池）择时 → signals
+- csi300/csi500 等宽基横截面选股轮动 → rebalance
+- 不要尝试"横截面选股 + 选中标的择时"联动，akquant 当前封装不支持

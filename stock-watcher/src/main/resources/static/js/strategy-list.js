@@ -36,7 +36,6 @@ const StrategyList = (function () {
     const SCOPE_LABEL = {
         single:    'SINGLE',
         portfolio: 'PORTFOLIO',
-        mixed:     'MIXED',
     };
 
     const state = {

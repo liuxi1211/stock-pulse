@@ -7,6 +7,7 @@ import com.arthur.stock.client.BacktestClient;
 import com.arthur.stock.constant.BacktestErrorCodes;
 import com.arthur.stock.constant.BacktestModeEnum;
 import com.arthur.stock.constant.BacktestStatusEnum;
+import com.arthur.stock.constant.StrategySchemaConstants;
 import com.arthur.stock.constant.StrategyStatusEnum;
 import com.arthur.stock.dto.PageResult;
 import com.arthur.stock.dto.backtest.BacktestCompareVO;
@@ -574,6 +575,9 @@ public class BacktestServiceImpl implements BacktestService {
      * <p>
      * Phase 2（008-backtest-center-phase2）：universe=all_a_shares 全市场在 watcher 侧直接拒绝，
      * 避免 5000+ 标的 K 线撑爆 HTTP 载荷与 engine 回测超时；引导改用 csi300/csi500/manual 池。
+     * <p>
+     * spec 009-strategy-paradigm-exclusive：signals（择时）范式仅支持 manual 池且不超过
+     * {@link StrategySchemaConstants#SIGNALS_MAX_UNIVERSE_SIZE} 只标的，watcher 侧二次校验。
      */
     private List<String> resolveBacktestSymbols(JSONObject configJson) {
         JSONObject screen = configJson.getJSONObject("screen_config");
@@ -588,6 +592,11 @@ public class BacktestServiceImpl implements BacktestService {
             throw new BusinessException(BacktestErrorCodes.BACKTEST_UNIVERSE_TOO_LARGE,
                     "全市场回测暂不支持，请用 csi300/csi500 或 manual 池");
         }
+        // signals 范式 universe 二次校验：仅支持 manual（spec 009-strategy-paradigm-exclusive）
+        if (hasSignals(configJson) && !"manual".equalsIgnoreCase(universe)) {
+            throw new BusinessException(BacktestErrorCodes.SIGNALS_UNIVERSE_NOT_MANUAL,
+                    "signals（择时）范式的选股范围仅支持 manual，当前为 " + universe);
+        }
         if ("csi300".equalsIgnoreCase(universe) || "csi500".equalsIgnoreCase(universe)) {
             String indexCode = "csi300".equalsIgnoreCase(universe) ? "000300.SH" : "000905.SH";
             // 回测区间从 backtest_config.start_date/end_date（yyyyMMdd）取，留空表示全部历史
@@ -601,7 +610,25 @@ public class BacktestServiceImpl implements BacktestService {
             return constituents;
         }
         // manual 或其他：用 extractSymbols（从 screen_config.stocks 提取）
-        return extractSymbols(configJson);
+        List<String> symbols = extractSymbols(configJson);
+        // signals 范式 universe 规模上限校验（spec 009-strategy-paradigm-exclusive）
+        if (hasSignals(configJson) && symbols.size() > StrategySchemaConstants.SIGNALS_MAX_UNIVERSE_SIZE) {
+            throw new BusinessException(BacktestErrorCodes.SIGNALS_UNIVERSE_TOO_LARGE,
+                    "signals（择时）范式的选股范围不得超过 " + StrategySchemaConstants.SIGNALS_MAX_UNIVERSE_SIZE
+                            + " 只，当前 " + symbols.size() + " 只");
+        }
+        return symbols;
+    }
+
+    /**
+     * 判断 trading_config 是否存在 signals 范式（与 {@code StrategyServiceImpl#deriveScope} 逻辑对齐）。
+     */
+    private boolean hasSignals(JSONObject configJson) {
+        if (configJson == null) {
+            return false;
+        }
+        JSONObject trading = configJson.getJSONObject("trading_config");
+        return trading != null && trading.containsKey("signals");
     }
 
     /** 把 yyyy-MM-dd 或 yyyyMMdd 统一成 yyyyMMdd（tushare/index_weight 表格式） */

@@ -28,6 +28,13 @@ const StrategyEditor = {
     // 全局状态（StrategyConfigModel 顶层结构）。加载/新建后由深拷贝 DEFAULT_CONFIG 初始化。
     state: null,
 
+    // 策略范式：'signals'（择时，默认）| 'rebalance'（轮动）。与 #f-paradigm 控件双向绑定，
+    // 决定 Tab 显隐与 collectConfig 二选一（spec 009 Task 9/10）。
+    paradigm: 'signals',
+
+    // signals 范式下手动标的的软上限（超出给红色提示，最终阻断由后端校验）
+    SIGNALS_MANUAL_MAX: 10,
+
     // watcher 元数据（不在 StrategyConfigModel 内，但保存时需随请求带上）
     meta: { category: '', tags: [] },
 
@@ -75,9 +82,16 @@ const StrategyEditor = {
     },
 
     // 错误 path 前缀 → Tab id 映射（与 #strategyTab 的 data-target 对齐）
+    // 注意：screen_config.stocks 在择时范式定位到 tab-pool，其余 screen_config 字段定位到 tab-screen（轮动）
     ERROR_TAB_MAP: [
         { prefix: 'name',                         tab: 'tab-basic' },
         { prefix: 'description',                  tab: 'tab-basic' },
+        { prefix: 'screen_config.conditions',     tab: 'tab-screen' },
+        { prefix: 'screen_config.ranking',        tab: 'tab-screen' },
+        { prefix: 'screen_config.top_n',          tab: 'tab-screen' },
+        { prefix: 'screen_config.filters',        tab: 'tab-screen' },
+        { prefix: 'screen_config.universe',       tab: 'tab-screen' },
+        { prefix: 'screen_config.stocks',         tab: 'tab-pool' },
         { prefix: 'screen_config',                tab: 'tab-screen' },
         { prefix: 'trading_config.signals.buy',   tab: 'tab-buy' },
         { prefix: 'trading_config.signals.sell',  tab: 'tab-sell' },
@@ -142,6 +156,9 @@ const StrategyEditor = {
         this.updateJsonPreview();
         this.bindEvents();
         this.initConditionEditors();
+
+        // 范式控件初始化：依据已加载的 state 推断范式，刷新 Tab 显隐与 universe 选项
+        this.initParadigm();
 
         // 异步加载 ConditionTreeBuilder 因子白名单（不阻塞渲染）
         this.loadFactorMeta();
@@ -880,86 +897,105 @@ const StrategyEditor = {
         const tagStr = this.getVal('f-tags') || '';
         this.meta.tags = tagStr.split(/[,，\s]+/).map((t) => t.trim()).filter(Boolean);
 
-        // ---- Tab 2 选股（仅当用户填了内容才置入 screen_config）----
-        const universe = this.getVal('f-universe');
+        // ---- Tab 2 选股（按范式分支：择时仅手动标的，轮动收集全部字段）----
         const stocks = (this._manualStocks || []).map(function (s) { return s.tsCode; }).filter(Boolean);
-        const topN = this.getNum('f-top-n');
-        const screenConditions = this.parseJsonField('f-screen-conditions', 'tab-screen', 'screen_config.conditions');
-        const ranking = this.collectRanking();
-        const filters = this.collectFilters();
 
-        const hasScreenContent = universe || stocks.length || topN != null ||
-            (screenConditions && !this.isEmptyTree(screenConditions)) ||
-            ranking || filters;
-        if (hasScreenContent) {
-            s.screen_config = s.screen_config || {};
-            s.screen_config.universe = universe || 'all_a_shares';
-            if (universe === 'manual' && stocks.length) s.screen_config.stocks = stocks;
-            else delete s.screen_config.stocks;
-            if (topN != null) s.screen_config.top_n = topN; else delete s.screen_config.top_n;
-            if (screenConditions && !this.isEmptyTree(screenConditions)) s.screen_config.conditions = screenConditions;
-            else delete s.screen_config.conditions;
-            if (ranking) s.screen_config.ranking = ranking; else delete s.screen_config.ranking;
-            if (filters) s.screen_config.filters = filters; else delete s.screen_config.filters;
+        if (this.paradigm === 'signals') {
+            // 择时范式：screen_config 仅 universe=manual + stocks，禁止 conditions/ranking/top_n/filters
+            // （与后端 SIGNALS_SCREEN_CONFIG_FORBIDDEN 校验对齐，主动清空防止历史脏数据）
+            s.screen_config = {
+                universe: 'manual',
+                stocks: stocks,
+            };
         } else {
-            s.screen_config = null;
+            // 轮动范式：收集全部 screen_config 字段
+            const universe = this.getVal('f-universe');
+            const topN = this.getNum('f-top-n');
+            const screenConditions = this.parseJsonField('f-screen-conditions', 'tab-screen', 'screen_config.conditions');
+            const ranking = this.collectRanking();
+            const filters = this.collectFilters();
+
+            const hasScreenContent = universe || stocks.length || topN != null ||
+                (screenConditions && !this.isEmptyTree(screenConditions)) ||
+                ranking || filters;
+            if (hasScreenContent) {
+                s.screen_config = s.screen_config || {};
+                s.screen_config.universe = universe || 'all_a_shares';
+                if (universe === 'manual' && stocks.length) s.screen_config.stocks = stocks;
+                else delete s.screen_config.stocks;
+                if (topN != null) s.screen_config.top_n = topN; else delete s.screen_config.top_n;
+                if (screenConditions && !this.isEmptyTree(screenConditions)) s.screen_config.conditions = screenConditions;
+                else delete s.screen_config.conditions;
+                if (ranking) s.screen_config.ranking = ranking; else delete s.screen_config.ranking;
+                if (filters) s.screen_config.filters = filters; else delete s.screen_config.filters;
+            } else {
+                s.screen_config = null;
+            }
         }
 
-        // ---- Tab 3/4 买卖信号 ----
+        // ---- Tab 3/4/5/6/7 交易配置（按范式二选一，spec 009 Task 10）----
         s.trading_config = s.trading_config || {};
-        s.trading_config.signals = {
-            buy: this.parseJsonField('f-buy-conditions', 'tab-buy', 'trading_config.signals.buy') ||
-                { operator: 'AND', conditions: [] },
-            sell: this.parseJsonField('f-sell-conditions', 'tab-sell', 'trading_config.signals.sell') ||
-                { operator: 'AND', conditions: [] },
-        };
-
-        // ---- Tab 5 仓位 ----
-        const psMethod = this.getVal('f-ps-method') || 'order_target_percent';
-        const ps = { method: psMethod };
-        if (!['buy_all', 'close_position'].includes(psMethod)) {
-            const t = this.getRaw('f-ps-target');
-            if (t !== '') {
-                const n = Number(t);
-                ps.target = isNaN(n) ? t : n;
-            }
-        }
-        const psWeights = this.collectPositionWeights();
-        if (psMethod === 'order_target_weights' && Object.keys(psWeights).length) {
-            ps.params = { weights: psWeights };
-        }
-        const sellMethod = this.getVal('f-ps-sell-method');
-        if (sellMethod && sellMethod !== 'close_position') ps.sell_method = sellMethod;
-        s.trading_config.position_sizing = ps;
-
-        // ---- Tab 6 止损止盈 ----
-        const useBracket = this.getChecked('f-use-bracket');
-        const exitRules = this.collectExitRules();
-        if (useBracket || exitRules.length) {
-            s.trading_config.exit = {};
-            if (useBracket) {
-                const bracket = {};
-                const sl = this.getNum('f-stop-loss');
-                const tp = this.getNum('f-take-profit');
-                if (sl != null) bracket.stop_loss_pct = sl;
-                if (tp != null) bracket.take_profit_pct = tp;
-                // ATR 动态止损（use_atr_stop / atr_period / atr_multiplier）
-                if (this.getChecked('f-use-atr-stop')) {
-                    bracket.use_atr_stop = true;
-                    const atrPeriod = this.getNum('f-atr-period');
-                    if (atrPeriod != null) bracket.atr_period = atrPeriod;
-                    const atrMult = this.getNum('f-atr-multiplier');
-                    if (atrMult != null) bracket.atr_multiplier = atrMult;
-                }
-                s.trading_config.exit.bracket = bracket;
-            }
-            if (exitRules.length) s.trading_config.exit.rules = exitRules;
-        } else {
+        if (this.paradigm === 'rebalance') {
+            // 轮动范式：仅 rebalance，不产出 signals/position_sizing/exit
+            const rb = this.collectRebalance();
+            if (rb) s.trading_config.rebalance = rb; else delete s.trading_config.rebalance;
+            delete s.trading_config.signals;
+            delete s.trading_config.position_sizing;
             delete s.trading_config.exit;
-        }
+        } else {
+            // 择时范式：signals + position_sizing + exit，不产出 rebalance
+            s.trading_config.signals = {
+                buy: this.parseJsonField('f-buy-conditions', 'tab-buy', 'trading_config.signals.buy') ||
+                    { operator: 'AND', conditions: [] },
+                sell: this.parseJsonField('f-sell-conditions', 'tab-sell', 'trading_config.signals.sell') ||
+                    { operator: 'AND', conditions: [] },
+            };
 
-        // ---- Tab 7 调仓（rebalance）----
-        s.trading_config.rebalance = this.collectRebalance();
+            // ---- Tab 5 仓位 ----
+            const psMethod = this.getVal('f-ps-method') || 'order_target_percent';
+            const ps = { method: psMethod };
+            if (!['buy_all', 'close_position'].includes(psMethod)) {
+                const t = this.getRaw('f-ps-target');
+                if (t !== '') {
+                    const n = Number(t);
+                    ps.target = isNaN(n) ? t : n;
+                }
+            }
+            const psWeights = this.collectPositionWeights();
+            if (psMethod === 'order_target_weights' && Object.keys(psWeights).length) {
+                ps.params = { weights: psWeights };
+            }
+            const sellMethod = this.getVal('f-ps-sell-method');
+            if (sellMethod && sellMethod !== 'close_position') ps.sell_method = sellMethod;
+            s.trading_config.position_sizing = ps;
+
+            // ---- Tab 6 止损止盈 ----
+            const useBracket = this.getChecked('f-use-bracket');
+            const exitRules = this.collectExitRules();
+            if (useBracket || exitRules.length) {
+                s.trading_config.exit = {};
+                if (useBracket) {
+                    const bracket = {};
+                    const sl = this.getNum('f-stop-loss');
+                    const tp = this.getNum('f-take-profit');
+                    if (sl != null) bracket.stop_loss_pct = sl;
+                    if (tp != null) bracket.take_profit_pct = tp;
+                    // ATR 动态止损（use_atr_stop / atr_period / atr_multiplier）
+                    if (this.getChecked('f-use-atr-stop')) {
+                        bracket.use_atr_stop = true;
+                        const atrPeriod = this.getNum('f-atr-period');
+                        if (atrPeriod != null) bracket.atr_period = atrPeriod;
+                        const atrMult = this.getNum('f-atr-multiplier');
+                        if (atrMult != null) bracket.atr_multiplier = atrMult;
+                    }
+                    s.trading_config.exit.bracket = bracket;
+                }
+                if (exitRules.length) s.trading_config.exit.rules = exitRules;
+            } else {
+                delete s.trading_config.exit;
+            }
+            delete s.trading_config.rebalance;
+        }
 
         // ---- Tab 8 回测 ----
         const bt = {};
@@ -1016,9 +1052,11 @@ const StrategyEditor = {
     },
 
     /**
-     * 收集 Tab 7 调仓（rebalance）。frequency 必填，无值默认 monthly。
+     * 收集 Tab 7 调仓（rebalance）。仅在 rebalance 范式下返回对象，否则返回 null。
+     * frequency 必填，无值默认 monthly。
      */
     collectRebalance() {
+        if (this.paradigm !== 'rebalance') return null;
         const rb = {
             frequency: this.getVal('f-reb-frequency') || 'monthly',
             replace_method: this.getRadio('f-reb-replace') || 'full',
@@ -1281,7 +1319,128 @@ const StrategyEditor = {
         return out;
     },
 
-    // ===================== 联动 =====================
+    // ===================== 策略范式（spec 009 Task 9/10） =====================
+    /**
+     * 初始化范式控件：从 state 推断当前范式，绑定按钮点击，刷新 UI。
+     * 推断规则：trading_config.rebalance 存在 → rebalance；否则 → signals。
+     */
+    initParadigm() {
+        const tc = (this.state && this.state.trading_config) || {};
+        this.paradigm = tc.rebalance ? 'rebalance' : 'signals';
+
+        const wrap = document.getElementById('f-paradigm');
+        if (wrap) {
+            wrap.querySelectorAll('.str-paradigm-btn').forEach((btn) => {
+                btn.classList.toggle('active', btn.getAttribute('data-paradigm-val') === this.paradigm);
+                btn.addEventListener('click', () => {
+                    const val = btn.getAttribute('data-paradigm-val');
+                    if (val && val !== this.paradigm) this.setParadigm(val);
+                });
+            });
+        }
+        this.applyParadigm(this.paradigm);
+    },
+
+    /**
+     * 设置范式并联动刷新（控件 → state）。
+     */
+    setParadigm(paradigm) {
+        if (paradigm !== 'signals' && paradigm !== 'rebalance') return;
+        this.paradigm = paradigm;
+        const wrap = document.getElementById('f-paradigm');
+        if (wrap) {
+            wrap.querySelectorAll('.str-paradigm-btn').forEach((btn) => {
+                btn.classList.toggle('active', btn.getAttribute('data-paradigm-val') === paradigm);
+            });
+        }
+        this.applyParadigm(paradigm);
+        this.collectStateFromForm();
+        this.updateJsonPreview();
+    },
+
+    /**
+     * 按范式刷新 Tab 显隐 + universe 选项可用性 + 计数文案。
+     * signals：显示 Tab3/4/5/6，隐藏 Tab7；universe 仅 manual；手动计数 ≤10。
+     * rebalance：隐藏 Tab3/4/5/6，显示 Tab7；universe 可 csi300/csi500/manual；manual 不限数量。
+     */
+    applyParadigm(paradigm) {
+        const tabs = document.querySelectorAll('#strategyTab .str-tab-btn');
+        tabs.forEach((btn) => {
+            const p = btn.getAttribute('data-paradigm');
+            if (!p) return;
+            const show = (p === 'both' || p === paradigm);
+            btn.style.display = show ? '' : 'none';
+            // 若当前激活的 Tab 被隐藏，切回基本信息 Tab
+            if (!show && btn.classList.contains('active')) {
+                btn.classList.remove('active');
+                const basicBtn = document.querySelector('#strategyTab .str-tab-btn[data-bs-target="#tab-basic"]');
+                const basicPane = document.getElementById('tab-basic');
+                if (basicBtn) basicBtn.classList.add('active');
+                if (basicPane) { basicPane.classList.add('show', 'active'); }
+                const targetSel = btn.getAttribute('data-bs-target');
+                if (targetSel) {
+                    const pane = document.querySelector(targetSel);
+                    if (pane) pane.classList.remove('show', 'active');
+                }
+            }
+        });
+
+        // panel 显隐（display:none 保留 DOM）
+        document.querySelectorAll('#strategyTabContent .tab-pane[data-paradigm]').forEach((pane) => {
+            const p = pane.getAttribute('data-paradigm');
+            pane.style.display = (p === 'both' || p === paradigm) ? '' : 'none';
+        });
+
+        // 提示文案
+        const hint = document.getElementById('f-paradigm-hint');
+        if (hint) {
+            hint.textContent = paradigm === 'signals'
+                ? '择时范式：买卖信号 + 仓位 + 出场；仅支持手动指定股票池（≤10 只）。'
+                : '轮动范式：调仓规则；股票池可选 沪深300/中证500/手动（不限数量）。';
+        }
+
+        this.applyUniverseForParadigm(paradigm);
+        this.refreshManualCountForParadigm(paradigm);
+        // 确保两套股票池搜索框都绑定（择时用 f-pool-stocks-search，轮动用 f-stocks-search）
+        this._ensureManualStockSuggest();
+    },
+
+    /**
+     * 按范式调整 universe 下拉的选项可用性，并在不合法时纠正当前值。
+     */
+    applyUniverseForParadigm(paradigm) {
+        const sel = document.getElementById('f-universe');
+        if (!sel) return;
+        const poolOnly = paradigm === 'signals'; // signals 仅 manual
+        ['all_a_shares', 'csi300', 'csi500'].forEach((val) => {
+            const opt = sel.querySelector('option[value="' + val + '"]');
+            if (opt) opt.disabled = poolOnly;
+        });
+        // signals 下若当前值不是 manual，强制切到 manual
+        if (poolOnly && sel.value !== 'manual') {
+            this.setVal('f-universe', 'manual');
+            this.applyUniverse('manual');
+        } else {
+            this.applyUniverse(sel.value);
+        }
+    },
+
+    /**
+     * 按范式刷新手动标的计数文案与软上限红色提示。
+     */
+    refreshManualCountForParadigm(paradigm) {
+        const n = (this._manualStocks || []).length;
+        const max = paradigm === 'signals' ? this.SIGNALS_MANUAL_MAX : this._MANUAL_STOCK_MAX;
+        const color = n > max ? '#dc3545' : '';
+        // 两套计数 DOM 都刷新
+        ['f-stocks-count', 'f-pool-stocks-count'].forEach((id) => {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.textContent = n + '/' + max;
+            el.style.color = color;
+        });
+    },
+
     applyUniverse(value) {
         const wrap = document.getElementById('f-stocks-wrap');
         if (wrap) wrap.style.display = value === 'manual' ? '' : 'none';
@@ -1289,33 +1448,52 @@ const StrategyEditor = {
     },
 
     // ===================== 手动股票池（搜索建议 + 标签云） =====================
+    // 两套 DOM 共用同一份 this._manualStocks：
+    //   - f-stocks-*      ：轮动范式（#tab-screen 内）
+    //   - f-pool-stocks-* ：择时范式（#tab-pool 内）
     _ensureManualStockSuggest() {
-        if (this._manualSuggestBound) return;
-        const input = document.getElementById('f-stocks-search');
-        if (!input || typeof SearchSuggest === 'undefined') return;
         const self = this;
-        new SearchSuggest(input, {
-            onSelect: function (item) {
-                self.addManualStock(item);
-                input.value = '';
-                input.focus();
-            },
-        });
-        this._manualSuggestBound = true;
+        const bindInput = (inputId) => {
+            const input = document.getElementById(inputId);
+            if (!input || typeof SearchSuggest === 'undefined') return false;
+            new SearchSuggest(input, {
+                onSelect: function (item) {
+                    self.addManualStock(item);
+                    input.value = '';
+                    input.focus();
+                },
+            });
+            return true;
+        };
+        // 轮动范式的搜索框
+        if (!this._manualSuggestBound) {
+            this._manualSuggestBound = bindInput('f-stocks-search');
+        }
+        // 择时范式的搜索框
+        if (!this._poolSuggestBound) {
+            this._poolSuggestBound = bindInput('f-pool-stocks-search');
+        }
     },
 
     addManualStock(item) {
         if (!item || !item.tsCode) return;
+        // 确保两套搜索框都绑定（择时范式可能未经过 applyUniverse）
+        this._ensureManualStockSuggest();
         if (this._manualStocks.some(function (s) { return s.tsCode === item.tsCode; })) {
             StockApp.toast('已存在：' + (item.name || item.tsCode), 'info');
             return;
         }
-        if (this._manualStocks.length >= this._MANUAL_STOCK_MAX) {
-            StockApp.toast('已达到上限 ' + this._MANUAL_STOCK_MAX + ' 只', 'warning');
+        // signals 范式：软上限 10（超限仅红色提示，不阻断，后端校验）；rebalance：硬上限 50
+        const hardMax = this.paradigm === 'signals' ? null : this._MANUAL_STOCK_MAX;
+        if (hardMax != null && this._manualStocks.length >= hardMax) {
+            StockApp.toast('已达到上限 ' + hardMax + ' 只', 'warning');
             return;
         }
         this._manualStocks.push({ tsCode: item.tsCode, code: item.code, name: item.name });
         this.renderManualCloud();
+        if (this.paradigm === 'signals' && this._manualStocks.length > this.SIGNALS_MANUAL_MAX) {
+            StockApp.toast('已超过 ' + this.SIGNALS_MANUAL_MAX + ' 只，保存时将由后端校验', 'warning');
+        }
     },
 
     removeManualStock(tsCode) {
@@ -1324,9 +1502,15 @@ const StrategyEditor = {
     },
 
     renderManualCloud() {
-        const cloud = document.getElementById('f-stocks-cloud');
-        const countEl = document.getElementById('f-stocks-count');
-        if (countEl) countEl.textContent = this._manualStocks.length;
+        // 计数文案随范式变化（signals: /10，rebalance: /50），两套计数都刷新
+        this.refreshManualCountForParadigm(this.paradigm);
+        // 两套 cloud DOM 都渲染（共用同一份 this._manualStocks）
+        this._renderManualCloudInto('f-stocks-cloud');
+        this._renderManualCloudInto('f-pool-stocks-cloud');
+    },
+
+    _renderManualCloudInto(cloudId) {
+        const cloud = document.getElementById(cloudId);
         if (!cloud) return;
         if (!this._manualStocks.length) {
             cloud.innerHTML = '<div class="manual-stocks-empty">尚未添加标的，请在上方搜索框输入代码或名称</div>';
@@ -1492,38 +1676,30 @@ const StrategyEditor = {
     },
 
     /**
-     * 摘要字符串：根据 trading_config 结构（signals / rebalance 是否存在）拼接自然语言。
+     * 摘要字符串：按范式（择时/轮动）拼接自然语言。
      */
     buildSummary() {
         const s = this.state || {};
         const tc = s.trading_config || {};
-        const ps = tc.position_sizing || {};
-        const exit = tc.exit || {};
         const bt = s.backtest_config || {};
 
-        const buyDesc = this.summarizeSignal(tc.signals && tc.signals.buy);
-        const exitDesc = this.summarizeExit(exit);
-        const psDesc = ps.method ? (ps.target != null ? (ps.method + '=' + ps.target) : ps.method) : '无仓位';
-        const hasSignals = !!tc.signals;
-        const hasRebalance = !!tc.rebalance;
-
-        if (hasSignals && hasRebalance) {
-            const rb = tc.rebalance || {};
-            return ['混合策略 · 信号(' + (buyDesc || '无') + ')',
-                rb.frequency ? (this.rebFreqLabel(rb.frequency) + '调仓') : '',
-                psDesc].filter(Boolean).join(' · ');
-        }
-        if (hasRebalance) {
+        if (this.paradigm === 'rebalance') {
             const sc = s.screen_config || {};
             const rb = tc.rebalance || {};
             const rankDesc = sc.ranking ? (sc.ranking.method === 'composite' ? 'composite 排序' : ('按 ' + (sc.ranking.factor || '?') + ' ' + (sc.ranking.order || '') + ' 排序')) : '无排序';
-            return ['组合策略 · ' + (sc.universe || '未指定池'),
+            return ['轮动策略 · ' + (sc.universe || '未指定池'),
                 sc.top_n != null ? ('top_n=' + sc.top_n) : '',
                 rankDesc,
                 rb.frequency ? (this.rebFreqLabel(rb.frequency) + '调仓') : '',
                 rb.weight_mode ? this.weightModeLabel(rb.weight_mode) : ''].filter(Boolean).join(' · ');
         }
-        return ['单标的策略', buyDesc || '无信号', psDesc, exitDesc,
+        // signals 范式
+        const ps = tc.position_sizing || {};
+        const exit = tc.exit || {};
+        const buyDesc = this.summarizeSignal(tc.signals && tc.signals.buy);
+        const exitDesc = this.summarizeExit(exit);
+        const psDesc = ps.method ? (ps.target != null ? (ps.method + '=' + ps.target) : ps.method) : '无仓位';
+        return ['择时策略', buyDesc || '无信号', psDesc, exitDesc,
             bt.initial_cash != null ? ('¥' + bt.initial_cash) : ''].filter(Boolean).join(' · ');
     },
 

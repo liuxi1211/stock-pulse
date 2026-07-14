@@ -29,11 +29,14 @@ from services.strategy.errors import ErrorCode
 # ============================================================
 
 def _valid_config() -> dict:
-    """合法的双均线配置（用于 TR-4.1）。"""
+    """合法的双均线配置（用于 TR-4.1）。
+
+    spec 009 后：trading_config.symbols 已移除（回测标的由 screen_config.stocks
+    解析），且 signals 范式要求 screen_config.universe=manual + stocks ≤ 10。
+    """
     return {
         "name": "双均线策略",
         "trading_config": {
-            "symbols": ["510300.SH"],
             "signals": {
                 "buy": {
                     "operator": "AND",
@@ -51,6 +54,10 @@ def _valid_config() -> dict:
                 }
             },
             "position_sizing": {"method": "order_target_percent", "target": 0.95},
+        },
+        "screen_config": {
+            "universe": "manual",
+            "stocks": ["510300.SH"],
         },
         "backtest_config": {"initial_cash": 100000},
     }
@@ -203,3 +210,26 @@ def test_docs_page_returns_200(client):
     """TR-4.6：/docs 页面可访问（200）。"""
     resp = client.get("/docs")
     assert resp.status_code == 200
+
+
+# ============================================================
+# spec 009 Task 21：signals 与 rebalance 互斥 → valid:false
+# ============================================================
+
+def test_signals_and_rebalance_both_present_returns_invalid(client):
+    """spec 009 Task 21：trading_config 同时含 signals 与 rebalance →
+    /validate 返回 valid:false，错误信息含 SIGNALS_REBALANCE_EXCLUSIVE。
+
+    注：/validate 端点对业务规则错误统一返回 200 + {valid:false, errors:[...]}
+    （与 MISSING_SIGNALS_OR_REBALANCE 同一路由契约），不是 HTTP 422。
+    """
+    cfg = _valid_config()
+    cfg["trading_config"]["rebalance"] = {"frequency": "weekly"}
+    resp = client.post(
+        "/python/v1/strategies/validate", json={"config": cfg}
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["valid"] is False
+    codes = [e["code"] for e in body["errors"]]
+    assert ErrorCode.SIGNALS_REBALANCE_EXCLUSIVE[0] in codes

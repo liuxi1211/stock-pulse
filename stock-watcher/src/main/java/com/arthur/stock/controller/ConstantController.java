@@ -110,6 +110,7 @@ public class ConstantController {
         cache.put("strategies.allowedRefs", StrategySchemaConstants.ALLOWED_REFS);
         cache.put("strategies.technicalFactors", StrategySchemaConstants.TECHNICAL_FACTOR_KEYS);
         cache.put("strategies.fundamentalFactors", StrategySchemaConstants.FUNDAMENTAL_FACTOR_KEYS);
+        cache.put("strategies.signalsMaxUniverseSize", StrategySchemaConstants.SIGNALS_MAX_UNIVERSE_SIZE);
     }
 
     private List<EnumOptionDTO> toOptions(DisplayableEnum[] enums) {

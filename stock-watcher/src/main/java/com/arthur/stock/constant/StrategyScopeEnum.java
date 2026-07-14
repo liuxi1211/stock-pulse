@@ -7,14 +7,13 @@ import lombok.Getter;
 /**
  * 策略适用范围枚举（spec FR-2）。
  * <p>
- * 标识策略面向的标的范围：单标的 / 组合 / 混合。
+ * 标识策略面向的标的范围：单标的 / 组合。
  */
 @Getter
 public enum StrategyScopeEnum implements DisplayableEnum {
 
     SINGLE("single", "单标的"),
-    PORTFOLIO("portfolio", "组合"),
-    MIXED("mixed", "混合");
+    PORTFOLIO("portfolio", "组合");
 
     @EnumValue
     @JsonValue

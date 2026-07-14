@@ -70,19 +70,23 @@ class CompilerError(ValueError):
 # ============================================================
 
 def _check_paradigm(config: StrategyConfigModel) -> None:
-    """范式校验占位（当前为 no-op）。
+    """范式校验入口：signals / rebalance 互斥。
 
-    .. deprecated::
-        第二波（spec 008-backtest-center-phase2）已放开 rebalance / exit.rules /
-        use_atr_stop 三类范式；GRID / WALK_FORWARD 模式拒绝由 watcher 侧按
-        ``mode`` 字段判定（第三波），engine compiler 侧当前无需要拒绝的范式。
+    spec 009-strategy-paradigm-exclusive：择时范式（signals）与轮动范式（rebalance）
+    互斥，二者只能存在一个。validator 已在校验期拦截，此处为编译期第二道防线，
+    防止直接调用 runner 绕过 validator。
 
-        本函数**保留为占位**，调用点（``compile_strategy`` 第 1 步）仍传入
-        ``config`` 以便后续按需扩展（如编译期对 GRID/WF 的参数 schema 做前置校验）。
-        暂无校验逻辑，调用为 no-op，不产生副作用。
+    其余范式（rebalance / exit.rules / use_atr_stop）已在 008-backtest-center-phase2 放开；
+    GRID / WALK_FORWARD 模式由 watcher 侧按 ``mode`` 字段判定，compiler 侧不处理。
     """
-    _ = config  # noqa: F841 - 占位，暂无校验逻辑
-    return None
+    tc = config.trading_config
+    if tc is None:
+        return
+    if tc.signals is not None and tc.rebalance is not None:
+        raise CompilerError(
+            "SIGNALS_REBALANCE_EXCLUSIVE: signals 与 rebalance 不能同时在场，"
+            "必须二选一（择时范式用 signals，轮动范式用 rebalance）"
+        )
 
 
 # ============================================================
@@ -432,13 +436,21 @@ def compile_strategy(
     # 2. 解析 signals / rebalance（至少一个在场，否则无交易逻辑）
     signals = tc.signals
     rebalance = tc.rebalance
-    has_signals = signals is not None and (signals.buy is not None or signals.sell is not None)
+    # has_signals 口径与 validator._validate_structure_trading 对齐：
+    # 只��� signals 对象存在即算"在场"（即便内部 buy/sell 都为 None）。
+    # 不再附加 "buy/sell 至少一个非 None" 条件，避免空 signals 对象同时绕过
+    # MISSING / EXCLUSIVE / position_sizing 强制校验三道约束。
+    has_signals = signals is not None
     has_rebalance = rebalance is not None
 
     if not has_signals and not has_rebalance:
         raise CompilerError(
             "BACKTEST_CONFIG_INVALID: trading_config 至少需要 signals 或 rebalance 之一"
         )
+
+    # 互斥校验由入口 _check_paradigm 完成（基于 tc.signals/tc.rebalance 对象存在性），
+    # 到此处的配置已通过互斥校验；若绕过 _check_paradigm 直接进入编译，下面的
+    # position_sizing / on_bar 生成逻辑对共存配置会产生未定义行为，故不在此重复判断。
 
     buy_tree = signals.buy if (signals is not None) else None
     sell_tree = signals.sell if (signals is not None) else None

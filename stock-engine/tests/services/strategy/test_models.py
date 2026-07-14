@@ -65,10 +65,8 @@ def _load_template_config(name: str) -> dict:
     p = _templates_dir() / f"{name}.json"
     data = json.loads(p.read_text(encoding="utf-8"))
     allowed = {
-        "strategy_id",
         "name",
         "description",
-        "scope",
         "screen_config",
         "trading_config",
         "backtest_config",
@@ -84,7 +82,6 @@ def test_dual_ma_template_parses():
     """TR-2.1：dual_ma.json 的 config 子树可被 StrategyConfigModel 成功解析。"""
     cfg = StrategyConfigModel.model_validate(_load_template_config("dual_ma"))
     assert cfg.name == "双均线策略"
-    assert cfg.scope == "single"
     # trading_config.signals 在场
     assert cfg.trading_config is not None
     assert cfg.trading_config.signals is not None
@@ -97,7 +94,6 @@ def test_low_pe_value_template_parses():
     """TR-2.2：low_pe_value.json 的 config 子树（多因子价值示例）可被成功解析。"""
     cfg = StrategyConfigModel.model_validate(_load_template_config("low_pe_value"))
     assert cfg.name == "低PE价值策略"
-    assert cfg.scope == "portfolio"
     # screen_config 在场（多因子选股）
     assert cfg.screen_config is not None
     assert cfg.screen_config.universe == "all_a_shares"
@@ -158,7 +154,6 @@ def test_expression_node_value_form():
         {
             "name": "t",
             "trading_config": {
-                "symbols": ["510300.SH"],
                 "signals": {
                     "buy": {
                         "operator": "AND",
@@ -200,7 +195,6 @@ def test_expression_node_op_form():
         {
             "name": "t",
             "trading_config": {
-                "symbols": ["510300.SH"],
                 "signals": {
                     "buy": {
                         "operator": "AND",
@@ -235,7 +229,6 @@ def test_expression_node_ref_form():
         {
             "name": "t",
             "trading_config": {
-                "symbols": ["510300.SH"],
                 "signals": {
                     "buy": {
                         "operator": "AND",
@@ -268,7 +261,6 @@ def test_condition_tree_recursive_nesting():
         {
             "name": "t",
             "trading_config": {
-                "symbols": ["510300.SH"],
                 "signals": {
                     "buy": {
                         "operator": "AND",

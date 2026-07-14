@@ -32,7 +32,7 @@ public class StrategyDTO {
     @Schema(description = "策略分类（TECHNICAL/FUNDAMENTAL/MIXED/CUSTOM）")
     private String category;
 
-    @Schema(description = "适用范围（single/portfolio/mixed）")
+    @Schema(description = "适用范围（single/portfolio）")
     private String scope;
 
     @Schema(description = "状态（DRAFT/VERIFIED/ACTIVE/ARCHIVED）")

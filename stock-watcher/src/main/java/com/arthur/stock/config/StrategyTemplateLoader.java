@@ -184,7 +184,11 @@ public class StrategyTemplateLoader {
     }
 
     /**
-     * 从 config 子树派生 scope：有 rebalance → portfolio；有 signals → single；都有 → mixed。
+     * 从 config 子树派生 scope。
+     * <p>
+     * signals 与 rebalance 范式互斥（spec 009-strategy-paradigm-exclusive），
+     * 互斥约束由 engine validator 保证；此处防御性判断，signals 优先：
+     * 有 signals → single；有 rebalance → portfolio；都没有 → single。
      */
     private String deriveScopeFromConfig(JSONObject config) {
         if (config == null) {
@@ -196,8 +200,8 @@ public class StrategyTemplateLoader {
         }
         boolean hasSignals = trading.containsKey("signals");
         boolean hasRebalance = trading.containsKey("rebalance");
-        if (hasSignals && hasRebalance) {
-            return "mixed";
+        if (hasSignals) {
+            return "single";
         }
         if (hasRebalance) {
             return "portfolio";

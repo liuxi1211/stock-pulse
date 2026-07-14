@@ -207,7 +207,7 @@ CREATE TABLE IF NOT EXISTS quant_strategy (
     name            VARCHAR(128) NOT NULL COMMENT '策略名称',
     description     VARCHAR(512) COMMENT '策略描述',
     category        VARCHAR(32)  COMMENT '策略分类（TECHNICAL/FUNDAMENTAL/MIXED/CUSTOM）',
-    scope           VARCHAR(16)  COMMENT '适用范围（single/portfolio/mixed）',
+    scope           VARCHAR(16)  COMMENT '适用范围（single/portfolio）',
     status          VARCHAR(16)  DEFAULT 'DRAFT' COMMENT '状态（DRAFT/VERIFIED/ACTIVE/ARCHIVED）',
     tags            VARCHAR(512) COMMENT '标签（逗号分隔）',
     current_version INT          DEFAULT 1 COMMENT '当前生效版本号',

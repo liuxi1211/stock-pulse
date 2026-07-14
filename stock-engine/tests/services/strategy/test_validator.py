@@ -18,11 +18,14 @@ from services.strategy.validator import StrategyValidator
 # ============================================================
 
 def _base_config(**overrides) -> dict:
-    """最小合法 single 信号驱动配置（MA5 cross_up MA20 买入）。"""
+    """最小合法 single 信号驱动配置（MA5 cross_up MA20 买入）。
+
+    spec 009 后：trading_config.symbols 已移除（回测标的由 screen_config.stocks
+    解析），且 signals 范式要求 screen_config.universe=manual + stocks ≤ 10。
+    """
     config = {
         "name": "test",
         "trading_config": {
-            "symbols": ["510300.SH"],
             "signals": {
                 "buy": {
                     "operator": "AND",
@@ -37,6 +40,10 @@ def _base_config(**overrides) -> dict:
                 }
             },
             "position_sizing": {"method": "order_target_percent", "target": 0.95},
+        },
+        "screen_config": {
+            "universe": "manual",
+            "stocks": ["510300.SH"],
         },
         "backtest_config": {"initial_cash": 100000},
     }
@@ -413,10 +420,8 @@ def test_valid_dual_ma_template_no_errors():
     )
     data = json.loads(p.read_text(encoding="utf-8"))
     allowed = {
-        "strategy_id",
         "name",
         "description",
-        "scope",
         "screen_config",
         "trading_config",
         "backtest_config",
@@ -495,3 +500,148 @@ def test_invalid_comparator():
     }
     errors = _validate(cfg)
     _assert_has_error(errors, ErrorCode.INVALID_COMPARATOR[0])
+
+
+# ============================================================
+# spec 009 Task 20：signals/rebalance 范式互斥 + universe 规模约束
+# ============================================================
+
+def _signals_buy_config(**overrides) -> dict:
+    """含 signals.buy 的配置基底（供范式互斥/universe 用例复用）。
+
+    与 ``_base_config`` 同源，仅显式补上合法的 manual 选股池以满足
+    signals 范式 universe 规模约束（避免无关错误干扰断言）。
+    """
+    cfg = _base_config()
+    cfg.setdefault("screen_config", {})
+    cfg["screen_config"].update({"universe": "manual", "stocks": ["000001.SZ"]})
+    cfg.update(overrides)
+    return cfg
+
+
+def _rebalance_config() -> dict:
+    """合法的最小 rebalance 子树（轮动范式）。"""
+    return {"frequency": "weekly"}
+
+
+def test_signals_and_rebalance_both_present_rejected():
+    """spec 009 Task 20.1：trading_config 同时含 signals 与 rebalance →
+    SIGNALS_REBALANCE_EXCLUSIVE。"""
+    cfg = _signals_buy_config()
+    cfg["trading_config"]["rebalance"] = _rebalance_config()
+    errors = _validate(cfg)
+    _assert_has_error(errors, ErrorCode.SIGNALS_REBALANCE_EXCLUSIVE[0])
+
+
+def test_signals_universe_csi300_rejected():
+    """spec 009 Task 20.2：signals 范式 + screen_config.universe='csi300' →
+    SIGNALS_UNIVERSE_NOT_MANUAL。"""
+    cfg = _base_config()
+    cfg["screen_config"] = {"universe": "csi300"}
+    errors = _validate(cfg)
+    _assert_has_error(errors, ErrorCode.SIGNALS_UNIVERSE_NOT_MANUAL[0])
+
+
+def test_signals_universe_manual_over_limit_rejected():
+    """spec 009 Task 20.3：signals 范式 + manual + 11 只标的 →
+    SIGNALS_UNIVERSE_TOO_LARGE（SIGNALS_MAX_UNIVERSE_SIZE=10）。"""
+    cfg = _base_config()
+    stocks = [f"{i:06d}.SZ" for i in range(11)]  # 11 只，超出上限
+    cfg["screen_config"] = {"universe": "manual", "stocks": stocks}
+    errors = _validate(cfg)
+    _assert_has_error(errors, ErrorCode.SIGNALS_UNIVERSE_TOO_LARGE[0])
+
+
+def test_signals_universe_manual_within_limit_ok():
+    """spec 009 Task 20.4：signals 范式 + manual + 10 只标的（恰好等于上限）→
+    不触发 SIGNALS_UNIVERSE_* / SIGNALS_REBALANCE_* 任一错误。"""
+    cfg = _base_config()
+    stocks = [f"{i:06d}.SZ" for i in range(10)]  # 10 只，恰好不超
+    cfg["screen_config"] = {"universe": "manual", "stocks": stocks}
+    errors = _validate(cfg)
+    codes = [e.code for e in errors]
+    assert ErrorCode.SIGNALS_UNIVERSE_NOT_MANUAL[0] not in codes
+    assert ErrorCode.SIGNALS_UNIVERSE_TOO_LARGE[0] not in codes
+    assert ErrorCode.SIGNALS_REBALANCE_EXCLUSIVE[0] not in codes
+
+
+# ============================================================
+# signals 范式下 screen_config 字段禁用约束
+# ============================================================
+
+def test_signals_with_screen_conditions_rejected():
+    """signals 范式 + screen_config.conditions 非空 →
+    SIGNALS_SCREEN_CONFIG_FORBIDDEN（选股条件在择时范式下不生效，禁止填写）。"""
+    cfg = _base_config()
+    cfg["screen_config"]["conditions"] = {
+        "operator": "AND",
+        "conditions": [
+            {"type": "compare", "left": {"factor": "PE_TTM"},
+             "comparator": "<", "right": {"value": 30}}
+        ],
+    }
+    errors = _validate(cfg)
+    _assert_has_error(errors, ErrorCode.SIGNALS_SCREEN_CONFIG_FORBIDDEN[0])
+
+
+def test_signals_with_screen_ranking_rejected():
+    """signals 范式 + screen_config.ranking 非空 →
+    SIGNALS_SCREEN_CONFIG_FORBIDDEN。"""
+    cfg = _base_config()
+    cfg["screen_config"]["ranking"] = {
+        "method": "single", "factor": "RSI", "order": "desc"
+    }
+    errors = _validate(cfg)
+    _assert_has_error(errors, ErrorCode.SIGNALS_SCREEN_CONFIG_FORBIDDEN[0])
+
+
+def test_signals_with_screen_top_n_rejected():
+    """signals 范式 + screen_config.top_n 非空 →
+    SIGNALS_SCREEN_CONFIG_FORBIDDEN。"""
+    cfg = _base_config()
+    cfg["screen_config"]["top_n"] = 5
+    errors = _validate(cfg)
+    _assert_has_error(errors, ErrorCode.SIGNALS_SCREEN_CONFIG_FORBIDDEN[0])
+
+
+def test_signals_with_screen_filters_rejected():
+    """signals 范式 + screen_config.filters 非空 →
+    SIGNALS_SCREEN_CONFIG_FORBIDDEN。"""
+    cfg = _base_config()
+    cfg["screen_config"]["filters"] = {"exclude_st": True}
+    errors = _validate(cfg)
+    _assert_has_error(errors, ErrorCode.SIGNALS_SCREEN_CONFIG_FORBIDDEN[0])
+
+
+def test_signals_with_only_universe_stocks_passes():
+    """signals 范式 + screen_config 仅 universe + stocks →
+    不触发 SIGNALS_SCREEN_CONFIG_FORBIDDEN（净化后的合法形态）。"""
+    cfg = _base_config()
+    cfg["screen_config"] = {"universe": "manual", "stocks": ["510300.SH"]}
+    errors = _validate(cfg)
+    codes = [e.code for e in errors]
+    assert ErrorCode.SIGNALS_SCREEN_CONFIG_FORBIDDEN[0] not in codes
+
+
+def test_rebalance_with_screen_fields_passes():
+    """rebalance 范式 + screen_config 全字段（conditions/ranking/top_n）→
+    不触发 SIGNALS_SCREEN_CONFIG_FORBIDDEN（轮动范式本就需要这些字段）。"""
+    cfg = _base_config()
+    del cfg["trading_config"]["signals"]
+    del cfg["trading_config"]["position_sizing"]
+    cfg["trading_config"]["rebalance"] = {"frequency": "weekly"}
+    cfg["screen_config"] = {
+        "universe": "csi300",
+        "top_n": 10,
+        "conditions": {
+            "operator": "AND",
+            "conditions": [
+                {"type": "compare", "left": {"factor": "PE_TTM"},
+                 "comparator": "<", "right": {"value": 30}}
+            ],
+        },
+        "ranking": {"method": "single", "factor": "RSI", "order": "desc"},
+    }
+    errors = _validate(cfg)
+    codes = [e.code for e in errors]
+    assert ErrorCode.SIGNALS_SCREEN_CONFIG_FORBIDDEN[0] not in codes

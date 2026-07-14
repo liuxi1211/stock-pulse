@@ -26,7 +26,7 @@ public class StrategyTemplateDTO {
     @Schema(description = "策略分类")
     private String category;
 
-    @Schema(description = "适用范围")
+    @Schema(description = "适用范围（single/portfolio）")
     private String scope;
 
     @Schema(description = "模板配置 JSON")

@@ -31,7 +31,7 @@ public class StrategyPageRequest {
     @Schema(description = "状态（DRAFT/VERIFIED/ACTIVE/ARCHIVED，不传默认排除 ARCHIVED）")
     private String status;
 
-    @Schema(description = "适用范围（single/portfolio/mixed）")
+    @Schema(description = "适用范围（single/portfolio）")
     private String scope;
 
     @Schema(description = "标签（逗号分隔 tags 中精确包含）")

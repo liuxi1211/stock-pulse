@@ -3,6 +3,13 @@
 <head th:replace="~{fragments/common :: head(${pageTitle})}"></head>
 <link rel="stylesheet" th:href="@{/css/strategy.css}">
 <link rel="stylesheet" th:href="@{/css/condition-tree-builder.css}">
+<style>
+    .str-paradigm-seg{display:inline-flex;gap:0;border:1px solid var(--bs-border-color,#dee2e6);border-radius:8px;overflow:hidden;}
+    .str-paradigm-btn{border:0;background:transparent;padding:.5rem 1rem;font-size:.9rem;color:var(--bs-body-color,#444);cursor:pointer;display:inline-flex;align-items:center;gap:.35rem;border-right:1px solid var(--bs-border-color,#dee2e6);transition:background .15s,color .15s;}
+    .str-paradigm-btn:last-child{border-right:0;}
+    .str-paradigm-btn:hover{background:rgba(0,0,0,.04);}
+    .str-paradigm-btn.active{background:var(--bs-primary,#0d6efd);color:#fff;}
+</style>
 <body>
 <div class="app-container">
     <nav th:replace="~{fragments/common :: sidebar}"></nav>
@@ -42,14 +49,15 @@
                     <!-- ============ 左侧：Tab 面板 ============ -->
                     <div class="str-editor-main">
                         <div class="str-editor-tabs" id="strategyTab" role="tablist">
-                            <button type="button" class="str-tab-btn active" data-bs-toggle="tab" data-bs-target="#tab-basic"><i class="bi bi-info-circle"></i> 基本信息</button>
-                            <button type="button" class="str-tab-btn" data-bs-toggle="tab" data-bs-target="#tab-screen"><i class="bi bi-funnel"></i> 选股范围</button>
-                            <button type="button" class="str-tab-btn" data-bs-toggle="tab" data-bs-target="#tab-buy"><i class="bi bi-arrow-up-circle"></i> 买入信号</button>
-                            <button type="button" class="str-tab-btn" data-bs-toggle="tab" data-bs-target="#tab-sell"><i class="bi bi-arrow-down-circle"></i> 卖出信号</button>
-                            <button type="button" class="str-tab-btn" data-bs-toggle="tab" data-bs-target="#tab-position"><i class="bi bi-wallet2"></i> 仓位管理</button>
-                            <button type="button" class="str-tab-btn" data-bs-toggle="tab" data-bs-target="#tab-exit"><i class="bi bi-shield-check"></i> 止损止盈</button>
-                            <button type="button" class="str-tab-btn" data-bs-toggle="tab" data-bs-target="#tab-rebalance" id="tab-btn-rebalance"><i class="bi bi-arrow-repeat"></i> 调仓</button>
-                            <button type="button" class="str-tab-btn" data-bs-toggle="tab" data-bs-target="#tab-backtest"><i class="bi bi-graph-up"></i> 回测参数</button>
+                            <button type="button" class="str-tab-btn active" data-bs-toggle="tab" data-bs-target="#tab-basic" data-paradigm="both"><i class="bi bi-info-circle"></i> 基本信息</button>
+                            <button type="button" class="str-tab-btn" data-bs-toggle="tab" data-bs-target="#tab-pool" data-paradigm="signals"><i class="bi bi-tags"></i> 股票池</button>
+                            <button type="button" class="str-tab-btn" data-bs-toggle="tab" data-bs-target="#tab-screen" data-paradigm="rebalance"><i class="bi bi-funnel"></i> 选股配置</button>
+                            <button type="button" class="str-tab-btn" data-bs-toggle="tab" data-bs-target="#tab-buy" data-paradigm="signals"><i class="bi bi-arrow-up-circle"></i> 买入信号</button>
+                            <button type="button" class="str-tab-btn" data-bs-toggle="tab" data-bs-target="#tab-sell" data-paradigm="signals"><i class="bi bi-arrow-down-circle"></i> 卖出信号</button>
+                            <button type="button" class="str-tab-btn" data-bs-toggle="tab" data-bs-target="#tab-position" data-paradigm="signals"><i class="bi bi-wallet2"></i> 仓位管理</button>
+                            <button type="button" class="str-tab-btn" data-bs-toggle="tab" data-bs-target="#tab-exit" data-paradigm="signals"><i class="bi bi-shield-check"></i> 止损止盈</button>
+                            <button type="button" class="str-tab-btn" data-bs-toggle="tab" data-bs-target="#tab-rebalance" id="tab-btn-rebalance" data-paradigm="rebalance"><i class="bi bi-arrow-repeat"></i> 调仓</button>
+                            <button type="button" class="str-tab-btn" data-bs-toggle="tab" data-bs-target="#tab-backtest" data-paradigm="both"><i class="bi bi-graph-up"></i> 回测参数</button>
                         </div>
 
                         <div class="str-tab-body">
@@ -67,6 +75,18 @@
                                         <div class="col-md-4">
                                             <label class="form-label">分类</label>
                                             <select class="form-select" id="f-category"></select>
+                                        </div>
+                                        <div class="col-12">
+                                            <label class="form-label">策略范式</label>
+                                            <div class="str-paradigm-seg" id="f-paradigm" role="group" aria-label="策略范式">
+                                                <button type="button" class="str-paradigm-btn active" data-paradigm-val="signals">
+                                                    <i class="bi bi-lightning-charge"></i> 择时范式（signals）
+                                                </button>
+                                                <button type="button" class="str-paradigm-btn" data-paradigm-val="rebalance">
+                                                    <i class="bi bi-arrow-repeat"></i> 轮动范式（rebalance）
+                                                </button>
+                                            </div>
+                                            <div class="form-text" id="f-paradigm-hint">择时范式：买卖信号 + 仓位 + 出场；仅支持手动指定股票池（≤10 只）。</div>
                                         </div>
                                         <div class="col-12">
                                             <label class="form-label">描述</label>
@@ -108,8 +128,38 @@
                                 </fieldset>
                             </div>
 
-                            <!-- ============ Tab 2 选股范围 ============ -->
-                            <div class="tab-pane fade" id="tab-screen" role="tabpanel">
+                            <!-- ============ Tab 2 股票池（择时范式专属） ============ -->
+                            <div class="tab-pane fade" id="tab-pool" role="tabpanel" data-paradigm="signals">
+                                <div class="alert alert-info py-2 mb-3">
+                                    <i class="bi bi-info-circle"></i>
+                                    择时范式对每只标的独立判断买卖时机，仅支持<strong>手动指定</strong>少量标的（≤10 只）。
+                                    如需在宽基股票池中截面选股，请改用<strong>轮动范式</strong>。
+                                </div>
+                                <fieldset class="mb-3">
+                                    <legend class="fs-6 fw-semibold mb-2">交易标的（择时）</legend>
+                                    <div class="manual-stocks-panel">
+                                        <div class="manual-stocks-head">
+                                            <span class="manual-stocks-title"><i class="bi bi-tags"></i> 手动指定标的</span>
+                                            <span class="manual-stocks-count">已选 <b id="f-pool-stocks-count">0/10</b></span>
+                                            <div class="manual-stocks-search">
+                                                <input type="text" id="f-pool-stocks-search" class="form-control form-control-sm"
+                                                       placeholder="输入代码/名称/拼音搜索，点选添加（最多 10 只）" autocomplete="off">
+                                            </div>
+                                        </div>
+                                        <div class="manual-stocks-cloud" id="f-pool-stocks-cloud">
+                                            <div class="manual-stocks-empty">尚未添加标的，请在上方搜索框输入代码或名称</div>
+                                        </div>
+                                    </div>
+                                </fieldset>
+                            </div>
+
+                            <!-- ============ Tab 2b 选股配置（轮动范式专属） ============ -->
+                            <div class="tab-pane fade" id="tab-screen" role="tabpanel" data-paradigm="rebalance">
+                                <div class="alert alert-info py-2 mb-3">
+                                    <i class="bi bi-info-circle"></i>
+                                    轮动范式在调仓日对<strong>全股票池</strong>做截面过滤 + 排序，选出 Top N 持有。
+                                    股票池可选宽基（沪深300/中证500）或手动指定。
+                                </div>
                                 <fieldset class="mb-3">
                                     <legend class="fs-6 fw-semibold mb-2">股票池 Universe</legend>
                                     <div class="row g-3">
@@ -131,7 +181,7 @@
                                             <div class="manual-stocks-panel">
                                                 <div class="manual-stocks-head">
                                                     <span class="manual-stocks-title"><i class="bi bi-tags"></i> 手动指定标的</span>
-                                                    <span class="manual-stocks-count">已选 <b id="f-stocks-count">0</b>/50</span>
+                                                    <span class="manual-stocks-count">已选 <b id="f-stocks-count">0/50</b></span>
                                                     <div class="manual-stocks-search">
                                                         <input type="text" id="f-stocks-search" class="form-control form-control-sm"
                                                                placeholder="输入代码/名称/拼音搜索，点选添加（最多 50 只）" autocomplete="off">
@@ -213,7 +263,7 @@
                             </div>
 
                             <!-- ============ Tab 3 买入信号 ============ -->
-                            <div class="tab-pane fade" id="tab-buy" role="tabpanel">
+                            <div class="tab-pane fade" id="tab-buy" role="tabpanel" data-paradigm="signals">
                                 <fieldset class="mb-3">
                                     <legend class="fs-6 fw-semibold mb-2 d-flex justify-content-between align-items-center">
                                         <span>买入条件树 Signals.buy</span>
@@ -234,7 +284,7 @@
                             </div>
 
                             <!-- ============ Tab 4 卖出信号 ============ -->
-                            <div class="tab-pane fade" id="tab-sell" role="tabpanel">
+                            <div class="tab-pane fade" id="tab-sell" role="tabpanel" data-paradigm="signals">
                                 <fieldset class="mb-3">
                                     <legend class="fs-6 fw-semibold mb-2 d-flex justify-content-between align-items-center">
                                         <span>卖出条件树 Signals.sell</span>
@@ -254,7 +304,7 @@
                             </div>
 
                             <!-- ============ Tab 5 仓位管理 ============ -->
-                            <div class="tab-pane fade" id="tab-position" role="tabpanel">
+                            <div class="tab-pane fade" id="tab-position" role="tabpanel" data-paradigm="signals">
                                 <fieldset class="mb-3">
                                     <legend class="fs-6 fw-semibold mb-2">仓位管理 Position Sizing</legend>
                                     <div class="row g-3">
@@ -301,7 +351,7 @@
                             </div>
 
                             <!-- ============ Tab 6 止损止盈 ============ -->
-                            <div class="tab-pane fade" id="tab-exit" role="tabpanel">
+                            <div class="tab-pane fade" id="tab-exit" role="tabpanel" data-paradigm="signals">
                                 <fieldset class="mb-3">
                                     <div class="form-check mb-2">
                                         <input class="form-check-input" type="checkbox" id="f-use-bracket">
@@ -329,7 +379,7 @@
                             </div>
 
                             <!-- ============ Tab 7 调仓 ============ -->
-                            <div class="tab-pane fade" id="tab-rebalance" role="tabpanel">
+                            <div class="tab-pane fade" id="tab-rebalance" role="tabpanel" data-paradigm="rebalance">
                                 <fieldset class="mb-3" id="f-rebalance-body">
                                     <legend class="fs-6 fw-semibold mb-2">调仓规则</legend>
                                     <div class="row g-3">
@@ -363,7 +413,7 @@
                             </div>
 
                             <!-- ============ Tab 8 回测参数 ============ -->
-                            <div class="tab-pane fade" id="tab-backtest" role="tabpanel">
+                            <div class="tab-pane fade" id="tab-backtest" role="tabpanel" data-paradigm="both">
                                 <fieldset class="mb-3">
                                     <legend class="fs-6 fw-semibold mb-2">回测设置</legend>
                                     <div class="row g-3">

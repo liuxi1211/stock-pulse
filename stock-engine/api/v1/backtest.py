@@ -165,11 +165,8 @@ async def get_constants() -> ConstantsResponse:
                 "cagr",
             ],
             "paradigms_supported": [
-                "signals+bracket",
-                "signals+atr_stop",
+                "signals",
                 "rebalance",
-                "exit.rules",
-                "mixed",
             ],
         },
     )

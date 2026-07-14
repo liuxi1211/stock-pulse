@@ -1,5 +1,6 @@
 package com.arthur.stock.service;
 
+import com.alibaba.fastjson2.JSONObject;
 import com.arthur.stock.client.StrategyEngineClient;
 import com.arthur.stock.constant.StrategyErrorCodes;
 import com.arthur.stock.constant.StrategyStatusEnum;
@@ -490,6 +491,75 @@ class StrategyServiceImplTest {
         assertThat(diffs).hasSize(2); // b modified + c added
         assertThat(diffs).anyMatch(d -> "modified".equals(d.getChangeType()) && "b".equals(d.getPath()));
         assertThat(diffs).anyMatch(d -> "added".equals(d.getChangeType()) && "c".equals(d.getPath()));
+    }
+
+    // ==================== spec 009 Task 22 deriveScope（不再返回 mixed）====================
+
+    /**
+     * deriveScope 通过反射调用 private 方法（与 setUp 中 ReflectionTestUtils 风格一致）。
+     */
+    private String invokeDeriveScope(String configJson) {
+        return ReflectionTestUtils.invokeMethod(strategyService, "deriveScope", configJson);
+    }
+
+    /**
+     * 场景1：trading_config 只含 signals → scope = "single"（signals 范式）。
+     */
+    @Test
+    void deriveScope_只有signals_应返回single() {
+        JSONObject root = new JSONObject();
+        JSONObject trading = new JSONObject();
+        trading.put("signals", new JSONObject().fluentPut("buy", "AND"));
+        root.put("trading_config", trading);
+
+        String scope = invokeDeriveScope(root.toJSONString());
+
+        assertThat(scope).isEqualTo("single");
+    }
+
+    /**
+     * 场景2：trading_config 只含 rebalance → scope = "portfolio"（组合再平衡范式）。
+     */
+    @Test
+    void deriveScope_只有rebalance_应返回portfolio() {
+        JSONObject root = new JSONObject();
+        JSONObject trading = new JSONObject();
+        trading.put("rebalance", new JSONObject().fluentPut("frequency", "weekly"));
+        root.put("trading_config", trading);
+
+        String scope = invokeDeriveScope(root.toJSONString());
+
+        assertThat(scope).isEqualTo("portfolio");
+    }
+
+    /**
+     * 场景3：trading_config 为空对象 {} → scope = "single"（默认）。
+     */
+    @Test
+    void deriveScope_两者都不在_应返回single() {
+        JSONObject root = new JSONObject();
+        root.put("trading_config", new JSONObject());
+
+        String scope = invokeDeriveScope(root.toJSONString());
+
+        assertThat(scope).isEqualTo("single");
+    }
+
+    /**
+     * 场景4（防御性）：signals 与 rebalance 共存，理论上 engine validator 互斥拦截，
+     * 此处 fallback 按 signals 优先 → scope = "single"。
+     */
+    @Test
+    void deriveScope_signals与rebalance共存_防御性返回single() {
+        JSONObject root = new JSONObject();
+        JSONObject trading = new JSONObject();
+        trading.put("signals", new JSONObject());
+        trading.put("rebalance", new JSONObject());
+        root.put("trading_config", trading);
+
+        String scope = invokeDeriveScope(root.toJSONString());
+
+        assertThat(scope).isEqualTo("single");
     }
 
     // ==================== 辅助 ====================
