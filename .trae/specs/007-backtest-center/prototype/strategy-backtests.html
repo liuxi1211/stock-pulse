@@ -1,0 +1,792 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>回测中心 · StockPulse</title>
+<link rel="stylesheet" href="prototype.css">
+</head>
+<body>
+<div class="app-shell">
+    <aside class="sidebar">
+        <div class="sidebar-brand">
+            <div class="brand-logo">SP</div>
+            <div>
+                <div class="brand-name">StockPulse</div>
+                <div class="brand-sub">量化平台</div>
+            </div>
+        </div>
+        <div class="nav-section">
+            <div class="nav-section-title">市场</div>
+            <a class="nav-item" href="#"><i>📊</i>行情看板</a>
+            <a class="nav-item" href="#"><i>⭐</i>我的自选<span class="badge">27</span></a>
+        </div>
+        <div class="nav-section">
+            <div class="nav-section-title">量化</div>
+            <a class="nav-item" href="#"><i>🧬</i>标准因子库</a>
+            <a class="nav-item" href="#"><i>🎯</i>多因子选股</a>
+            <a class="nav-item" href="#"><i>📐</i>策略管理<span class="badge">12</span></a>
+            <a class="nav-item active" href="strategy-backtests.html"><i>📈</i>回测中心<span class="badge">36</span></a>
+            <a class="nav-item" href="#" style="opacity:.45"><i>📡</i>信号中心</a>
+        </div>
+        <div class="nav-section">
+            <div class="nav-section-title">账户</div>
+            <a class="nav-item" href="#"><i>⚙️</i>系统设置</a>
+        </div>
+    </aside>
+
+    <main class="main">
+        <div class="topbar">
+            <div class="crumb">
+                <a href="#">量化</a><span class="sep">/</span><span class="cur">回测中心</span>
+            </div>
+            <div class="topbar-right">
+                <button class="top-icon-btn" title="通知">🔔</button>
+                <button class="top-icon-btn" title="主题">🌓</button>
+                <div class="avatar">Q</div>
+            </div>
+        </div>
+
+        <div class="content">
+            <!-- 页头（精简） -->
+            <div class="page-header">
+                <div>
+                    <h1 class="page-title">回测中心 <span class="count">36 次回测</span></h1>
+                </div>
+                <div class="page-actions">
+                    <a href="compare.html" class="btn btn-secondary btn-sm">📊 对比篮 <span style="margin-left:4px;padding:1px 6px;background:var(--accent-blue);color:#fff;border-radius:8px;font-family:var(--font-mono);font-size:10px;">3</span></a>
+                    <a href="strategy-card-patch.html" class="btn btn-primary btn-sm">＋ 新建回测</a>
+                </div>
+            </div>
+
+            <!-- 筛选栏 -->
+            <div class="filter-bar">
+                <div class="search-box">
+                    <i>🔍</i>
+                    <input type="text" placeholder="搜索策略名 / 任务 ID...">
+                </div>
+                <select class="filter-select">
+                    <option>全部状态</option>
+                    <option>⏳ PENDING</option>
+                    <option>🔄 RUNNING</option>
+                    <option>✅ SUCCESS</option>
+                    <option>⚠️ FAILED</option>
+                    <option>✕ CANCELLED</option>
+                </select>
+                <div class="filter-spacer"></div>
+                <span style="font-size:11px;color:var(--text-muted);font-family:var(--font-mono);">8 个策略 · 36 次回测</span>
+            </div>
+
+            <!-- ============ 策略分组网格（2K 屏多列，展开态横跨整行） ============ -->
+            <div class="bt-strat-grid">
+
+            <!-- ============ 策略行 1：双均线金叉（默认展开，因为有 RUNNING） ============ -->
+            <div class="bt-strat-group expanded">
+                <!-- 折叠头（一行扫完核心信息） -->
+                <div class="bt-strat-group-head" style="cursor:pointer;">
+                    <div class="bt-strat-group-title">
+                        <span class="arrow" style="color:var(--accent-blue);font-size:13px;">▾</span>
+                        <i style="color:var(--accent-blue);font-size:17px;">📐</i>
+                        双均线金叉策略
+                        <span class="ver">v3</span>
+                        <span class="mono" style="font-size:10.5px;color:var(--text-muted);margin-left:2px;">S-7</span>
+                    </div>
+                    <div class="bt-strat-group-meta">
+                        <span class="item"><i>🧪</i>6 次回测</span>
+                        <span class="item">最新：<span class="mono" style="color:var(--rise-light);font-weight:600;">+24.53%</span></span>
+                        <span class="item mono" style="color:var(--text-muted);">近1年</span>
+                        <a href="compare.html?strategy=strat_001" class="btn btn-ghost btn-sm" style="color:var(--accent-cyan);padding:2px 8px;">📊 多时段对比</a>
+                    </div>
+                </div>
+                <div class="bt-strat-group-body" style="padding:8px 12px 12px;">
+
+                    <!-- RUNNING 任务（优先置顶） -->
+                    <div class="bt-row" style="background:rgba(59,130,246,.04);border-color:rgba(59,130,246,.2);">
+                        <div class="bt-row-checkbox" style="opacity:.4;"></div>
+                        <div class="bt-row-main">
+                            <div class="bt-row-range">2024-01-01 → 2026-07-13 <span class="bt-range-badge full" style="margin-left:6px;"><i>📚</i>全历史</span></div>
+                            <div class="bt-row-sub">#BT-10 · 沪深300 · ¥200,000 · 2 分钟前启动</div>
+                        </div>
+                        <div class="bt-row-metrics" style="opacity:.6;">
+                            <div class="bt-row-metric"><div class="bt-row-metric-lbl">进度</div><div class="bt-row-metric-val" style="color:var(--accent-blue-light);">68%</div></div>
+                        </div>
+                        <span class="bt-status bt-running">RUNNING</span>
+                        <div class="bt-row-actions">
+                            <span style="font-size:10.5px;color:var(--text-muted);font-family:var(--font-mono);">不可取消</span>
+                        </div>
+                    </div>
+
+                    <!-- 最新一次 SUCCESS -->
+                    <div class="bt-row">
+                        <div class="bt-row-checkbox checked" onclick="this.classList.toggle('checked')"></div>
+                        <div class="bt-row-main">
+                            <div class="bt-row-range">2025-07-13 → 2026-07-13 <span class="bt-range-badge recent" style="margin-left:6px;"><i>🕒</i>近1年</span></div>
+                            <div class="bt-row-sub">#BT-6 · 沪深300 · 2026-07-12</div>
+                        </div>
+                        <div class="bt-row-metrics">
+                            <div class="bt-row-metric"><div class="bt-row-metric-lbl">收益</div><div class="bt-row-metric-val up">+24.53%</div></div>
+                            <div class="bt-row-metric"><div class="bt-row-metric-lbl">夏普</div><div class="bt-row-metric-val">1.82</div></div>
+                            <div class="bt-row-metric"><div class="bt-row-metric-lbl">回撤</div><div class="bt-row-metric-val down">8.40%</div></div>
+                            <div class="bt-row-metric"><div class="bt-row-metric-lbl">超额</div><div class="bt-row-metric-val up">+12.30%</div></div>
+                        </div>
+                        <span class="bt-status bt-success">SUCCESS</span>
+                        <div class="bt-row-actions">
+                            <a href="report.html" class="icon-btn" title="查看报告">📄</a>
+                            <a href="compare.html" class="icon-btn" title="加入对比">📊</a>
+                            <button class="icon-btn warn" title="重跑">🔄</button>
+                        </div>
+                    </div>
+
+                    <!-- 折叠其余 4 条（点击"展开"显示） -->
+                    <div class="bt-row">
+                        <div class="bt-row-checkbox" onclick="this.classList.toggle('checked')"></div>
+                        <div class="bt-row-main">
+                            <div class="bt-row-range">2025-01-01 → 2025-06-30 <span class="bt-range-badge" style="margin-left:6px;">6 个月</span></div>
+                            <div class="bt-row-sub">#BT-5 · 沪深300 · 2025-07-01</div>
+                        </div>
+                        <div class="bt-row-metrics">
+                            <div class="bt-row-metric"><div class="bt-row-metric-lbl">收益</div><div class="bt-row-metric-val up">+15.20%</div></div>
+                            <div class="bt-row-metric"><div class="bt-row-metric-lbl">夏普</div><div class="bt-row-metric-val">1.55</div></div>
+                            <div class="bt-row-metric"><div class="bt-row-metric-lbl">回撤</div><div class="bt-row-metric-val down">6.80%</div></div>
+                            <div class="bt-row-metric"><div class="bt-row-metric-lbl">超额</div><div class="bt-row-metric-val up">+5.10%</div></div>
+                        </div>
+                        <span class="bt-status bt-success">SUCCESS</span>
+                        <div class="bt-row-actions">
+                            <a href="report.html" class="icon-btn" title="查看报告">📄</a>
+                            <a href="compare.html" class="icon-btn" title="加入对比">📊</a>
+                            <button class="icon-btn warn" title="重跑">🔄</button>
+                        </div>
+                    </div>
+
+                    <div class="bt-row">
+                        <div class="bt-row-checkbox" onclick="this.classList.toggle('checked')"></div>
+                        <div class="bt-row-main">
+                            <div class="bt-row-range">2024-07-01 → 2024-12-31 <span class="bt-range-badge" style="margin-left:6px;">6 个月</span></div>
+                            <div class="bt-row-sub">#BT-4 · 沪深300 · 2024-12-30</div>
+                        </div>
+                        <div class="bt-row-metrics">
+                            <div class="bt-row-metric"><div class="bt-row-metric-lbl">收益</div><div class="bt-row-metric-val down">-8.10%</div></div>
+                            <div class="bt-row-metric"><div class="bt-row-metric-lbl">夏普</div><div class="bt-row-metric-val">-0.42</div></div>
+                            <div class="bt-row-metric"><div class="bt-row-metric-lbl">回撤</div><div class="bt-row-metric-val down">12.30%</div></div>
+                            <div class="bt-row-metric"><div class="bt-row-metric-lbl">超额</div><div class="bt-row-metric-val down">-6.50%</div></div>
+                        </div>
+                        <span class="bt-status bt-success">SUCCESS</span>
+                        <div class="bt-row-actions">
+                            <a href="report.html" class="icon-btn" title="查看报告">📄</a>
+                            <a href="compare.html" class="icon-btn" title="加入对比">📊</a>
+                            <button class="icon-btn warn" title="重跑">🔄</button>
+                        </div>
+                    </div>
+
+                    <div class="bt-row">
+                        <div class="bt-row-checkbox" onclick="this.classList.toggle('checked')"></div>
+                        <div class="bt-row-main">
+                            <div class="bt-row-range">2024-01-01 → 2024-06-30 <span class="bt-range-badge" style="margin-left:6px;">6 个月</span></div>
+                            <div class="bt-row-sub">#BT-3 · 沪深300 · 2024-07-02</div>
+                        </div>
+                        <div class="bt-row-metrics">
+                            <div class="bt-row-metric"><div class="bt-row-metric-lbl">收益</div><div class="bt-row-metric-val up">+22.00%</div></div>
+                            <div class="bt-row-metric"><div class="bt-row-metric-lbl">夏普</div><div class="bt-row-metric-val">1.92</div></div>
+                            <div class="bt-row-metric"><div class="bt-row-metric-lbl">回撤</div><div class="bt-row-metric-val down">7.20%</div></div>
+                            <div class="bt-row-metric"><div class="bt-row-metric-lbl">超额</div><div class="bt-row-metric-val up">+9.40%</div></div>
+                        </div>
+                        <span class="bt-status bt-success">SUCCESS</span>
+                        <div class="bt-row-actions">
+                            <a href="report.html" class="icon-btn" title="查看报告">📄</a>
+                            <a href="compare.html" class="icon-btn" title="加入对比">📊</a>
+                            <button class="icon-btn warn" title="重跑">🔄</button>
+                        </div>
+                    </div>
+
+                    <div class="bt-row">
+                        <div class="bt-row-checkbox" onclick="this.classList.toggle('checked')"></div>
+                        <div class="bt-row-main">
+                            <div class="bt-row-range">2023-07-01 → 2023-12-31 <span class="bt-range-badge" style="margin-left:6px;">6 个月</span></div>
+                            <div class="bt-row-sub">#BT-2 · 沪深300 · 2024-01-03</div>
+                        </div>
+                        <div class="bt-row-metrics">
+                            <div class="bt-row-metric"><div class="bt-row-metric-lbl">收益</div><div class="bt-row-metric-val down">-5.00%</div></div>
+                            <div class="bt-row-metric"><div class="bt-row-metric-lbl">夏普</div><div class="bt-row-metric-val">-0.30</div></div>
+                            <div class="bt-row-metric"><div class="bt-row-metric-lbl">回撤</div><div class="bt-row-metric-val down">9.10%</div></div>
+                            <div class="bt-row-metric"><div class="bt-row-metric-lbl">超额</div><div class="bt-row-metric-val down">-3.20%</div></div>
+                        </div>
+                        <span class="bt-status bt-success">SUCCESS</span>
+                        <div class="bt-row-actions">
+                            <a href="report.html" class="icon-btn" title="查看报告">📄</a>
+                            <a href="compare.html" class="icon-btn" title="加入对比">📊</a>
+                            <button class="icon-btn warn" title="重跑">🔄</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============ 策略行 2：MACD 动量（折叠态） ============ -->
+            <div class="bt-strat-group">
+                <div class="bt-strat-group-head" style="cursor:pointer;">
+                    <div class="bt-strat-group-title">
+                        <span class="arrow" style="color:var(--text-muted);font-size:13px;">▾</span>
+                        <i style="color:var(--accent-purple);font-size:17px;">⚡</i>
+                        MACD 动量突破
+                        <span class="ver">v1</span>
+                        <span class="mono" style="font-size:10.5px;color:var(--text-muted);margin-left:2px;">S-9</span>
+                    </div>
+                    <div class="bt-strat-group-meta">
+                        <span class="item"><i>🧪</i>3 次回测</span>
+                        <span class="item">最新：<span class="mono" style="color:var(--rise-light);font-weight:600;">+18.72%</span></span>
+                        <span class="item mono" style="color:var(--text-muted);">近1年</span>
+                    </div>
+                </div>
+
+                <div class="bt-strat-group-body">
+                    <div class="bt-row">
+                        <div class="bt-row-checkbox" onclick="this.classList.toggle('checked')"></div>
+                        <div class="bt-row-main">
+                            <div class="bt-row-range">2025-07-13 → 2026-07-13 <span class="bt-range-badge recent" style="margin-left:6px;">🕒 近1年</span></div>
+                            <div class="bt-row-sub">#BT-20 · 沪深300 · 2026-07-10</div>
+                        </div>
+                        <div class="bt-row-metrics">
+                            <div class="bt-row-metric"><div class="bt-row-metric-lbl">收益</div><div class="bt-row-metric-val up">+18.72%</div></div>
+                            <div class="bt-row-metric"><div class="bt-row-metric-lbl">夏普</div><div class="bt-row-metric-val">1.45</div></div>
+                            <div class="bt-row-metric"><div class="bt-row-metric-lbl">回撤</div><div class="bt-row-metric-val down">11.20%</div></div>
+                            <div class="bt-row-metric"><div class="bt-row-metric-lbl">超额</div><div class="bt-row-metric-val up">+6.49%</div></div>
+                        </div>
+                        <span class="bt-status bt-success">SUCCESS</span>
+                        <div class="bt-row-actions">
+                            <a href="report.html" class="icon-btn" title="查看报告">📄</a>
+                            <a href="compare.html" class="icon-btn" title="加入对比">📊</a>
+                            <button class="icon-btn warn" title="重跑">🔄</button>
+                        </div>
+                    </div>
+                    <div class="bt-row">
+                        <div class="bt-row-checkbox" onclick="this.classList.toggle('checked')"></div>
+                        <div class="bt-row-main">
+                            <div class="bt-row-range">2024-01-01 → 2025-01-01 <span class="bt-range-badge " style="margin-left:6px;">1 年</span></div>
+                            <div class="bt-row-sub">#BT-19 · 沪深300 · 2026-07-10</div>
+                        </div>
+                        <div class="bt-row-metrics">
+                            <div class="bt-row-metric"><div class="bt-row-metric-lbl">收益</div><div class="bt-row-metric-val up">+14.20%</div></div>
+                            <div class="bt-row-metric"><div class="bt-row-metric-lbl">夏普</div><div class="bt-row-metric-val">1.30</div></div>
+                            <div class="bt-row-metric"><div class="bt-row-metric-lbl">回撤</div><div class="bt-row-metric-val down">9.80%</div></div>
+                            <div class="bt-row-metric"><div class="bt-row-metric-lbl">超额</div><div class="bt-row-metric-val up">+4.10%</div></div>
+                        </div>
+                        <span class="bt-status bt-success">SUCCESS</span>
+                        <div class="bt-row-actions">
+                            <a href="report.html" class="icon-btn" title="查看报告">📄</a>
+                            <a href="compare.html" class="icon-btn" title="加入对比">📊</a>
+                            <button class="icon-btn warn" title="重跑">🔄</button>
+                        </div>
+                    </div>
+                    <div class="bt-row">
+                        <div class="bt-row-checkbox" onclick="this.classList.toggle('checked')"></div>
+                        <div class="bt-row-main">
+                            <div class="bt-row-range">2023-07-13 → 2024-07-13 <span class="bt-range-badge " style="margin-left:6px;">1 年</span></div>
+                            <div class="bt-row-sub">#BT-18 · 沪深300 · 2026-07-10</div>
+                        </div>
+                        <div class="bt-row-metrics">
+                            <div class="bt-row-metric"><div class="bt-row-metric-lbl">收益</div><div class="bt-row-metric-val up">+8.10%</div></div>
+                            <div class="bt-row-metric"><div class="bt-row-metric-lbl">夏普</div><div class="bt-row-metric-val">0.95</div></div>
+                            <div class="bt-row-metric"><div class="bt-row-metric-lbl">回撤</div><div class="bt-row-metric-val down">13.50%</div></div>
+                            <div class="bt-row-metric"><div class="bt-row-metric-lbl">超额</div><div class="bt-row-metric-val up">+1.20%</div></div>
+                        </div>
+                        <span class="bt-status bt-success">SUCCESS</span>
+                        <div class="bt-row-actions">
+                            <a href="report.html" class="icon-btn" title="查看报告">📄</a>
+                            <a href="compare.html" class="icon-btn" title="加入对比">📊</a>
+                            <button class="icon-btn warn" title="重跑">🔄</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============ 策略行 3：RSI 反转（折叠态，最新是亏损） ============ -->
+            <div class="bt-strat-group">
+                <div class="bt-strat-group-head" style="cursor:pointer;">
+                    <div class="bt-strat-group-title">
+                        <span class="arrow" style="color:var(--text-muted);font-size:13px;">▾</span>
+                        <i style="color:var(--accent-pink);font-size:17px;">🔄</i>
+                        RSI 超卖反转
+                        <span class="ver">v2</span>
+                        <span class="mono" style="font-size:10.5px;color:var(--text-muted);margin-left:2px;">S-11</span>
+                    </div>
+                    <div class="bt-strat-group-meta">
+                        <span class="item"><i>🧪</i>2 次回测</span>
+                        <span class="item">最新：<span class="mono" style="color:var(--fall-light);font-weight:600;">+5.20%</span></span>
+                        <span class="item mono" style="color:var(--text-muted);">近1年</span>
+                    </div>
+                </div>
+
+                <div class="bt-strat-group-body">
+                    <div class="bt-row">
+                        <div class="bt-row-checkbox" onclick="this.classList.toggle('checked')"></div>
+                        <div class="bt-row-main">
+                            <div class="bt-row-range">2025-07-13 → 2026-07-13 <span class="bt-range-badge recent" style="margin-left:6px;">🕒 近1年</span></div>
+                            <div class="bt-row-sub">#BT-7 · 沪深300 · 2026-07-10</div>
+                        </div>
+                        <div class="bt-row-metrics">
+                            <div class="bt-row-metric"><div class="bt-row-metric-lbl">收益</div><div class="bt-row-metric-val up">+5.20%</div></div>
+                            <div class="bt-row-metric"><div class="bt-row-metric-lbl">夏普</div><div class="bt-row-metric-val">0.62</div></div>
+                            <div class="bt-row-metric"><div class="bt-row-metric-lbl">回撤</div><div class="bt-row-metric-val down">14.80%</div></div>
+                            <div class="bt-row-metric"><div class="bt-row-metric-lbl">超额</div><div class="bt-row-metric-val up">-7.03%</div></div>
+                        </div>
+                        <span class="bt-status bt-success">SUCCESS</span>
+                        <div class="bt-row-actions">
+                            <a href="report.html" class="icon-btn" title="查看报告">📄</a>
+                            <a href="compare.html" class="icon-btn" title="加入对比">📊</a>
+                            <button class="icon-btn warn" title="重跑">🔄</button>
+                        </div>
+                    </div>
+                    <div class="bt-row">
+                        <div class="bt-row-checkbox" onclick="this.classList.toggle('checked')"></div>
+                        <div class="bt-row-main">
+                            <div class="bt-row-range">2024-07-13 → 2025-07-13 <span class="bt-range-badge " style="margin-left:6px;">1 年</span></div>
+                            <div class="bt-row-sub">#BT-7b · 沪深300 · 2026-07-10</div>
+                        </div>
+                        <div class="bt-row-metrics">
+                            <div class="bt-row-metric"><div class="bt-row-metric-lbl">收益</div><div class="bt-row-metric-val up">+9.40%</div></div>
+                            <div class="bt-row-metric"><div class="bt-row-metric-lbl">夏普</div><div class="bt-row-metric-val">0.88</div></div>
+                            <div class="bt-row-metric"><div class="bt-row-metric-lbl">回撤</div><div class="bt-row-metric-val down">12.10%</div></div>
+                            <div class="bt-row-metric"><div class="bt-row-metric-lbl">超额</div><div class="bt-row-metric-val up">+1.50%</div></div>
+                        </div>
+                        <span class="bt-status bt-success">SUCCESS</span>
+                        <div class="bt-row-actions">
+                            <a href="report.html" class="icon-btn" title="查看报告">📄</a>
+                            <a href="compare.html" class="icon-btn" title="加入对比">📊</a>
+                            <button class="icon-btn warn" title="重跑">🔄</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============ 策略行 4：动量轮动（失败，折叠态） ============ -->
+            <div class="bt-strat-group">
+                <div class="bt-strat-group-head" style="cursor:pointer;">
+                    <div class="bt-strat-group-title">
+                        <span class="arrow" style="color:var(--text-muted);font-size:13px;">▾</span>
+                        <i style="color:var(--accent-orange);font-size:17px;">🌀</i>
+                        动量轮动策略
+                        <span class="ver">v1</span>
+                        <span class="mono" style="font-size:10.5px;color:var(--text-muted);margin-left:2px;">S-15</span>
+                    </div>
+                    <div class="bt-strat-group-meta">
+                        <span class="item"><i>🧪</i>1 次回测</span>
+                        <span class="item" style="color:var(--accent-orange);">最新：FAILED</span>
+                    </div>
+                </div>
+
+                <div class="bt-strat-group-body">
+                    <div class="bt-row" style="background:rgba(249,115,22,.04);border-color:rgba(249,115,22,.15);">
+                        <div class="bt-row-checkbox" style="opacity:.4;"></div>
+                        <div class="bt-row-main">
+                            <div class="bt-row-range">2023-01-01 → 2026-07-13 <span class="bt-range-badge" style="margin-left:6px;">3 年</span></div>
+                            <div class="bt-row-sub">#BT-9 · 沪深300 · 2026-07-09 11:30 失败</div>
+                            <div style="margin-top:8px;padding:8px 10px;background:rgba(249,115,22,.08);border:1px solid rgba(249,115,22,.25);border-radius:var(--radius-sm);font-size:11px;color:var(--accent-orange);line-height:1.5;">
+                                <strong>范式不支持：</strong>config 含 <code style="font-family:var(--font-mono);">trading_config.rebalance</code>，第一波仅支持 signals 信号驱动。请等第二波。
+                            </div>
+                        </div>
+                        <span class="bt-status bt-failed">FAILED</span>
+                        <div class="bt-row-actions">
+                            <button class="btn btn-warning btn-sm">🔄 一键重跑</button>
+                            <button class="icon-btn danger" title="删除">🗑</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 折叠态策略 5-8（让 2K 屏多列网格效果更直观） -->
+            <div class="bt-strat-group">
+                <div class="bt-strat-group-head" style="cursor:pointer;">
+                    <div class="bt-strat-group-title">
+                        <span class="arrow" style="color:var(--text-muted);font-size:13px;">▾</span>
+                        <i style="color:var(--accent-green);font-size:17px;">🌊</i>
+                        OBV 量价齐升
+                        <span class="ver">v2</span>
+                        <span class="mono" style="font-size:10.5px;color:var(--text-muted);margin-left:2px;">S-18</span>
+                    </div>
+                    <div class="bt-strat-group-meta">
+                        <span class="item"><i>🧪</i>4 次回测</span>
+                        <span class="item">最新：<span class="mono" style="color:var(--rise-light);font-weight:600;">+9.8%</span></span>
+                        <span class="item mono" style="color:var(--text-muted);">近1年</span>
+                    </div>
+                </div>
+
+                <div class="bt-strat-group-body">
+                    <div class="bt-row">
+                        <div class="bt-row-checkbox" onclick="this.classList.toggle('checked')"></div>
+                        <div class="bt-row-main">
+                            <div class="bt-row-range">2025-07-13 → 2026-07-13 <span class="bt-range-badge recent" style="margin-left:6px;">🕒 近1年</span></div>
+                            <div class="bt-row-sub">#BT-25 · 沪深300 · 2026-07-10</div>
+                        </div>
+                        <div class="bt-row-metrics">
+                            <div class="bt-row-metric"><div class="bt-row-metric-lbl">收益</div><div class="bt-row-metric-val up">+9.80%</div></div>
+                            <div class="bt-row-metric"><div class="bt-row-metric-lbl">夏普</div><div class="bt-row-metric-val">1.10</div></div>
+                            <div class="bt-row-metric"><div class="bt-row-metric-lbl">回撤</div><div class="bt-row-metric-val down">8.50%</div></div>
+                            <div class="bt-row-metric"><div class="bt-row-metric-lbl">超额</div><div class="bt-row-metric-val up">+0.50%</div></div>
+                        </div>
+                        <span class="bt-status bt-success">SUCCESS</span>
+                        <div class="bt-row-actions">
+                            <a href="report.html" class="icon-btn" title="查看报告">📄</a>
+                            <a href="compare.html" class="icon-btn" title="加入对比">📊</a>
+                            <button class="icon-btn warn" title="重跑">🔄</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bt-strat-group">
+                <div class="bt-strat-group-head" style="cursor:pointer;">
+                    <div class="bt-strat-group-title">
+                        <span class="arrow" style="color:var(--text-muted);font-size:13px;">▾</span>
+                        <i style="color:var(--accent-yellow);font-size:17px;">🎯</i>
+                        BOLL 通道突破
+                        <span class="ver">v1</span>
+                        <span class="mono" style="font-size:10.5px;color:var(--text-muted);margin-left:2px;">S-20</span>
+                    </div>
+                    <div class="bt-strat-group-meta">
+                        <span class="item"><i>🧪</i>2 次回测</span>
+                        <span class="item">最新：<span class="mono" style="color:var(--fall-light);font-weight:600;">-2.3%</span></span>
+                        <span class="item mono" style="color:var(--text-muted);">近6月</span>
+                    </div>
+                </div>
+
+                <div class="bt-strat-group-body">
+                    <div class="bt-row">
+                        <div class="bt-row-checkbox" onclick="this.classList.toggle('checked')"></div>
+                        <div class="bt-row-main">
+                            <div class="bt-row-range">2025-12-13 → 2026-06-13 <span class="bt-range-badge recent" style="margin-left:6px;">🕒 近6月</span></div>
+                            <div class="bt-row-sub">#BT-30 · 沪深300 · 2026-07-10</div>
+                        </div>
+                        <div class="bt-row-metrics">
+                            <div class="bt-row-metric"><div class="bt-row-metric-lbl">收益</div><div class="bt-row-metric-val down">-2.30%</div></div>
+                            <div class="bt-row-metric"><div class="bt-row-metric-lbl">夏普</div><div class="bt-row-metric-val">-0.18</div></div>
+                            <div class="bt-row-metric"><div class="bt-row-metric-lbl">回撤</div><div class="bt-row-metric-val down">10.20%</div></div>
+                            <div class="bt-row-metric"><div class="bt-row-metric-lbl">超额</div><div class="bt-row-metric-val down">-5.10%</div></div>
+                        </div>
+                        <span class="bt-status bt-success">SUCCESS</span>
+                        <div class="bt-row-actions">
+                            <a href="report.html" class="icon-btn" title="查看报告">📄</a>
+                            <a href="compare.html" class="icon-btn" title="加入对比">📊</a>
+                            <button class="icon-btn warn" title="重跑">🔄</button>
+                        </div>
+                    </div>
+                    <div class="bt-row">
+                        <div class="bt-row-checkbox" onclick="this.classList.toggle('checked')"></div>
+                        <div class="bt-row-main">
+                            <div class="bt-row-range">2025-06-13 → 2025-12-13 <span class="bt-range-badge " style="margin-left:6px;">6 个月</span></div>
+                            <div class="bt-row-sub">#BT-29 · 沪深300 · 2026-07-10</div>
+                        </div>
+                        <div class="bt-row-metrics">
+                            <div class="bt-row-metric"><div class="bt-row-metric-lbl">收益</div><div class="bt-row-metric-val up">+4.50%</div></div>
+                            <div class="bt-row-metric"><div class="bt-row-metric-lbl">夏普</div><div class="bt-row-metric-val">0.72</div></div>
+                            <div class="bt-row-metric"><div class="bt-row-metric-lbl">回撤</div><div class="bt-row-metric-val down">8.80%</div></div>
+                            <div class="bt-row-metric"><div class="bt-row-metric-lbl">超额</div><div class="bt-row-metric-val up">+1.20%</div></div>
+                        </div>
+                        <span class="bt-status bt-success">SUCCESS</span>
+                        <div class="bt-row-actions">
+                            <a href="report.html" class="icon-btn" title="查看报告">📄</a>
+                            <a href="compare.html" class="icon-btn" title="加入对比">📊</a>
+                            <button class="icon-btn warn" title="重跑">🔄</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bt-strat-group">
+                <div class="bt-strat-group-head" style="cursor:pointer;">
+                    <div class="bt-strat-group-title">
+                        <span class="arrow" style="color:var(--text-muted);font-size:13px;">▾</span>
+                        <i style="color:var(--accent-cyan);font-size:17px;">📡</i>
+                        DMI 趋势强度
+                        <span class="ver">v1</span>
+                        <span class="mono" style="font-size:10.5px;color:var(--text-muted);margin-left:2px;">S-22</span>
+                    </div>
+                    <div class="bt-strat-group-meta">
+                        <span class="item"><i>🧪</i>3 次回测</span>
+                        <span class="item">最新：<span class="mono" style="color:var(--rise-light);font-weight:600;">+15.6%</span></span>
+                        <span class="item mono" style="color:var(--text-muted);">近3年</span>
+                    </div>
+                </div>
+
+                <div class="bt-strat-group-body">
+                    <div class="bt-row">
+                        <div class="bt-row-checkbox" onclick="this.classList.toggle('checked')"></div>
+                        <div class="bt-row-main">
+                            <div class="bt-row-range">2023-07-13 → 2026-07-13 <span class="bt-range-badge recent" style="margin-left:6px;">🕒 近3年</span></div>
+                            <div class="bt-row-sub">#BT-35 · 沪深300 · 2026-07-10</div>
+                        </div>
+                        <div class="bt-row-metrics">
+                            <div class="bt-row-metric"><div class="bt-row-metric-lbl">收益</div><div class="bt-row-metric-val up">+15.60%</div></div>
+                            <div class="bt-row-metric"><div class="bt-row-metric-lbl">夏普</div><div class="bt-row-metric-val">1.25</div></div>
+                            <div class="bt-row-metric"><div class="bt-row-metric-lbl">回撤</div><div class="bt-row-metric-val down">12.40%</div></div>
+                            <div class="bt-row-metric"><div class="bt-row-metric-lbl">超额</div><div class="bt-row-metric-val up">+5.20%</div></div>
+                        </div>
+                        <span class="bt-status bt-success">SUCCESS</span>
+                        <div class="bt-row-actions">
+                            <a href="report.html" class="icon-btn" title="查看报告">📄</a>
+                            <a href="compare.html" class="icon-btn" title="加入对比">📊</a>
+                            <button class="icon-btn warn" title="重跑">🔄</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bt-strat-group">
+                <div class="bt-strat-group-head" style="cursor:pointer;">
+                    <div class="bt-strat-group-title">
+                        <span class="arrow" style="color:var(--text-muted);font-size:13px;">▾</span>
+                        <i style="color:var(--accent-pink);font-size:17px;">⚡</i>
+                        KDJ 超买追涨
+                        <span class="ver">v3</span>
+                        <span class="mono" style="font-size:10.5px;color:var(--text-muted);margin-left:2px;">S-25</span>
+                    </div>
+                    <div class="bt-strat-group-meta">
+                        <span class="item"><i>🧪</i>8 次回测</span>
+                        <span class="item">最新：<span class="mono" style="color:var(--rise-light);font-weight:600;">+31.2%</span></span>
+                        <span class="item mono" style="color:var(--text-muted);">近1年</span>
+                    </div>
+                </div>
+
+                <div class="bt-strat-group-body">
+                    <div class="bt-row">
+                        <div class="bt-row-checkbox" onclick="this.classList.toggle('checked')"></div>
+                        <div class="bt-row-main">
+                            <div class="bt-row-range">2025-07-13 → 2026-07-13 <span class="bt-range-badge recent" style="margin-left:6px;">🕒 近1年</span></div>
+                            <div class="bt-row-sub">#BT-45 · 沪深300 · 2026-07-10</div>
+                        </div>
+                        <div class="bt-row-metrics">
+                            <div class="bt-row-metric"><div class="bt-row-metric-lbl">收益</div><div class="bt-row-metric-val up">+31.20%</div></div>
+                            <div class="bt-row-metric"><div class="bt-row-metric-lbl">夏普</div><div class="bt-row-metric-val">2.10</div></div>
+                            <div class="bt-row-metric"><div class="bt-row-metric-lbl">回撤</div><div class="bt-row-metric-val down">9.50%</div></div>
+                            <div class="bt-row-metric"><div class="bt-row-metric-lbl">超额</div><div class="bt-row-metric-val up">+18.50%</div></div>
+                        </div>
+                        <span class="bt-status bt-success">SUCCESS</span>
+                        <div class="bt-row-actions">
+                            <a href="report.html" class="icon-btn" title="查看报告">📄</a>
+                            <a href="compare.html" class="icon-btn" title="加入对比">📊</a>
+                            <button class="icon-btn warn" title="重跑">🔄</button>
+                        </div>
+                    </div>
+                    <div class="bt-row">
+                        <div class="bt-row-checkbox" onclick="this.classList.toggle('checked')"></div>
+                        <div class="bt-row-main">
+                            <div class="bt-row-range">2024-07-13 → 2025-07-13 <span class="bt-range-badge " style="margin-left:6px;">1 年</span></div>
+                            <div class="bt-row-sub">#BT-44 · 沪深300 · 2026-07-10</div>
+                        </div>
+                        <div class="bt-row-metrics">
+                            <div class="bt-row-metric"><div class="bt-row-metric-lbl">收益</div><div class="bt-row-metric-val up">+24.80%</div></div>
+                            <div class="bt-row-metric"><div class="bt-row-metric-lbl">夏普</div><div class="bt-row-metric-val">1.85</div></div>
+                            <div class="bt-row-metric"><div class="bt-row-metric-lbl">回撤</div><div class="bt-row-metric-val down">11.20%</div></div>
+                            <div class="bt-row-metric"><div class="bt-row-metric-lbl">超额</div><div class="bt-row-metric-val up">+12.30%</div></div>
+                        </div>
+                        <span class="bt-status bt-success">SUCCESS</span>
+                        <div class="bt-row-actions">
+                            <a href="report.html" class="icon-btn" title="查看报告">📄</a>
+                            <a href="compare.html" class="icon-btn" title="加入对比">📊</a>
+                            <button class="icon-btn warn" title="重跑">🔄</button>
+                        </div>
+                    </div>
+
+                    <div class="bt-row">
+                        <div class="bt-row-checkbox" onclick="this.classList.toggle('checked')"></div>
+                        <div class="bt-row-main">
+                            <div class="bt-row-range">2023-07-13 → 2024-07-13 <span class="bt-range-badge " style="margin-left:6px;">1 年</span></div>
+                            <div class="bt-row-sub">#BT-43 · 沪深300 · 2026-07-10</div>
+                        </div>
+                        <div class="bt-row-metrics">
+                            <div class="bt-row-metric"><div class="bt-row-metric-lbl">收益</div><div class="bt-row-metric-val up">+18.50%</div></div>
+                            <div class="bt-row-metric"><div class="bt-row-metric-lbl">夏普</div><div class="bt-row-metric-val">1.60</div></div>
+                            <div class="bt-row-metric"><div class="bt-row-metric-lbl">回撤</div><div class="bt-row-metric-val down">13.40%</div></div>
+                            <div class="bt-row-metric"><div class="bt-row-metric-lbl">超额</div><div class="bt-row-metric-val up">+8.20%</div></div>
+                        </div>
+                        <span class="bt-status bt-success">SUCCESS</span>
+                        <div class="bt-row-actions">
+                            <a href="report.html" class="icon-btn" title="查看报告">📄</a>
+                            <a href="compare.html" class="icon-btn" title="加入对比">📊</a>
+                            <button class="icon-btn warn" title="重跑">🔄</button>
+                        </div>
+                    </div>
+                    <div class="bt-row">
+                        <div class="bt-row-checkbox" onclick="this.classList.toggle('checked')"></div>
+                        <div class="bt-row-main">
+                            <div class="bt-row-range">2023-09-13 → 2024-09-13 <span class="bt-range-badge " style="margin-left:6px;">1 年</span></div>
+                            <div class="bt-row-sub">#BT-42 · 沪深300 · 2026-07-10</div>
+                        </div>
+                        <div class="bt-row-metrics">
+                            <div class="bt-row-metric"><div class="bt-row-metric-lbl">收益</div><div class="bt-row-metric-val up">+12.30%</div></div>
+                            <div class="bt-row-metric"><div class="bt-row-metric-lbl">夏普</div><div class="bt-row-metric-val">1.35</div></div>
+                            <div class="bt-row-metric"><div class="bt-row-metric-lbl">回撤</div><div class="bt-row-metric-val down">14.10%</div></div>
+                            <div class="bt-row-metric"><div class="bt-row-metric-lbl">超额</div><div class="bt-row-metric-val up">+2.50%</div></div>
+                        </div>
+                        <span class="bt-status bt-success">SUCCESS</span>
+                        <div class="bt-row-actions">
+                            <a href="report.html" class="icon-btn" title="查看报告">📄</a>
+                            <a href="compare.html" class="icon-btn" title="加入对比">📊</a>
+                            <button class="icon-btn warn" title="重跑">🔄</button>
+                        </div>
+                    </div>
+                    <div class="bt-row">
+                        <div class="bt-row-checkbox" onclick="this.classList.toggle('checked')"></div>
+                        <div class="bt-row-main">
+                            <div class="bt-row-range">2023-11-13 → 2024-11-13 <span class="bt-range-badge " style="margin-left:6px;">1 年</span></div>
+                            <div class="bt-row-sub">#BT-41 · 沪深300 · 2026-07-10</div>
+                        </div>
+                        <div class="bt-row-metrics">
+                            <div class="bt-row-metric"><div class="bt-row-metric-lbl">收益</div><div class="bt-row-metric-val up">+22.40%</div></div>
+                            <div class="bt-row-metric"><div class="bt-row-metric-lbl">夏普</div><div class="bt-row-metric-val">1.78</div></div>
+                            <div class="bt-row-metric"><div class="bt-row-metric-lbl">回撤</div><div class="bt-row-metric-val down">10.80%</div></div>
+                            <div class="bt-row-metric"><div class="bt-row-metric-lbl">超额</div><div class="bt-row-metric-val up">+10.40%</div></div>
+                        </div>
+                        <span class="bt-status bt-success">SUCCESS</span>
+                        <div class="bt-row-actions">
+                            <a href="report.html" class="icon-btn" title="查看报告">📄</a>
+                            <a href="compare.html" class="icon-btn" title="加入对比">📊</a>
+                            <button class="icon-btn warn" title="重跑">🔄</button>
+                        </div>
+                    </div>
+                    <div class="bt-row">
+                        <div class="bt-row-checkbox" onclick="this.classList.toggle('checked')"></div>
+                        <div class="bt-row-main">
+                            <div class="bt-row-range">2023-13-13 → 2024-13-13 <span class="bt-range-badge " style="margin-left:6px;">1 年</span></div>
+                            <div class="bt-row-sub">#BT-40 · 沪深300 · 2026-07-10</div>
+                        </div>
+                        <div class="bt-row-metrics">
+                            <div class="bt-row-metric"><div class="bt-row-metric-lbl">收益</div><div class="bt-row-metric-val down">-5.20%</div></div>
+                            <div class="bt-row-metric"><div class="bt-row-metric-lbl">夏普</div><div class="bt-row-metric-val">-0.22</div></div>
+                            <div class="bt-row-metric"><div class="bt-row-metric-lbl">回撤</div><div class="bt-row-metric-val down">16.50%</div></div>
+                            <div class="bt-row-metric"><div class="bt-row-metric-lbl">超额</div><div class="bt-row-metric-val down">-8.10%</div></div>
+                        </div>
+                        <span class="bt-status bt-success">SUCCESS</span>
+                        <div class="bt-row-actions">
+                            <a href="report.html" class="icon-btn" title="查看报告">📄</a>
+                            <a href="compare.html" class="icon-btn" title="加入对比">📊</a>
+                            <button class="icon-btn warn" title="重跑">🔄</button>
+                        </div>
+                    </div>
+                    <div class="bt-row">
+                        <div class="bt-row-checkbox" onclick="this.classList.toggle('checked')"></div>
+                        <div class="bt-row-main">
+                            <div class="bt-row-range">2023-15-13 → 2024-15-13 <span class="bt-range-badge " style="margin-left:6px;">1 年</span></div>
+                            <div class="bt-row-sub">#BT-39 · 沪深300 · 2026-07-10</div>
+                        </div>
+                        <div class="bt-row-metrics">
+                            <div class="bt-row-metric"><div class="bt-row-metric-lbl">收益</div><div class="bt-row-metric-val up">+9.80%</div></div>
+                            <div class="bt-row-metric"><div class="bt-row-metric-lbl">夏普</div><div class="bt-row-metric-val">0.95</div></div>
+                            <div class="bt-row-metric"><div class="bt-row-metric-lbl">回撤</div><div class="bt-row-metric-val down">13.20%</div></div>
+                            <div class="bt-row-metric"><div class="bt-row-metric-lbl">超额</div><div class="bt-row-metric-val up">+1.20%</div></div>
+                        </div>
+                        <span class="bt-status bt-success">SUCCESS</span>
+                        <div class="bt-row-actions">
+                            <a href="report.html" class="icon-btn" title="查看报告">📄</a>
+                            <a href="compare.html" class="icon-btn" title="加入对比">📊</a>
+                            <button class="icon-btn warn" title="重跑">🔄</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            </div><!-- /bt-strat-grid -->
+
+            <!-- 未回测策略入口 -->
+            <div style="text-align:center;padding:20px;font-size:12px;color:var(--text-muted);">
+                另有 8 个策略尚未回测 ·
+                <a href="strategy-card-patch.html" style="color:var(--accent-cyan);">去策略管理发起 →</a>
+            </div>
+
+        </div>
+    </main>
+</div>
+
+<!-- 对比篮（浮动） -->
+<div class="bt-compare-tray show">
+    <div class="bt-compare-tray-title">
+        <i>📊</i>对比篮
+    </div>
+    <div class="bt-compare-chips">
+        <span class="bt-compare-chip">双均线 v3 · BT-6 近1年 <span class="x">✕</span></span>
+        <span class="bt-compare-chip">双均线 v3 · BT-4 2024-H1 <span class="x">✕</span></span>
+        <span class="bt-compare-chip">RSI v2 · BT-7 近1年 <span class="x">✕</span></span>
+    </div>
+    <a href="compare.html" class="btn-seal" style="height:34px;font-size:12px;padding:0 16px;">开始对比 →</a>
+    <button class="btn btn-ghost btn-sm" style="color:var(--text-muted);">清空</button>
+</div>
+
+<script>
+(function() {
+    // ============ 策略分组：点击 head 切换 expanded ============
+    document.querySelectorAll('.bt-strat-group-head').forEach(function(head) {
+        head.addEventListener('click', function(e) {
+            // 点击 head 内的链接/按钮不触发展开
+            if (e.target.closest('a, button')) return;
+            var group = head.closest('.bt-strat-group');
+            group.classList.toggle('expanded');
+        });
+    });
+
+    // ============ 历史回测分页（每页 5 条） ============
+    var PAGE_SIZE = 5;
+    document.querySelectorAll('.bt-strat-group').forEach(function(group) {
+        var body = group.querySelector('.bt-strat-group-body');
+        if (!body) return;
+        var rows = Array.prototype.slice.call(body.querySelectorAll('.bt-row'));
+        if (rows.length <= PAGE_SIZE) return;  // ≤5 条无需分页
+
+        // 创建分页控件容器
+        var pager = document.createElement('div');
+        pager.className = 'bt-pager';
+        body.appendChild(pager);
+
+        var totalPages = Math.ceil(rows.length / PAGE_SIZE);
+        var currentPage = 1;
+
+        function renderPage(page) {
+            currentPage = page;
+            var start = (page - 1) * PAGE_SIZE;
+            var end = start + PAGE_SIZE;
+            rows.forEach(function(row, idx) {
+                row.style.display = (idx >= start && idx < end) ? '' : 'none';
+            });
+            // 分页 HTML
+            var html = '<div class="bt-pager-info">第 ' + start + '-' + Math.min(end, rows.length) + ' 条 / 共 ' + rows.length + ' 条</div>';
+            html += '<div class="bt-pager-controls">';
+            html += '<button class="page-btn ' + (page === 1 ? 'disabled' : '') + '" data-page="' + (page - 1) + '" ' + (page === 1 ? 'disabled' : '') + '>‹</button>';
+            for (var i = 1; i <= totalPages; i++) {
+                html += '<button class="page-btn ' + (i === page ? 'active' : '') + '" data-page="' + i + '">' + i + '</button>';
+            }
+            html += '<button class="page-btn ' + (page === totalPages ? 'disabled' : '') + '" data-page="' + (page + 1) + '" ' + (page === totalPages ? 'disabled' : '') + '>›</button>';
+            html += '</div>';
+            pager.innerHTML = html;
+            // 绑定按钮
+            pager.querySelectorAll('.page-btn:not(.disabled)').forEach(function(btn) {
+                btn.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    renderPage(parseInt(btn.dataset.page, 10));
+                });
+            });
+        }
+        renderPage(1);
+    });
+
+    // ============ 对比篮 chip 删除 ============
+    document.querySelectorAll('.bt-compare-chip .x').forEach(function(x) {
+        x.addEventListener('click', function(e) {
+            e.stopPropagation();
+            x.closest('.bt-compare-chip').remove();
+            // 若篮空，隐藏整个 tray
+            var tray = document.querySelector('.bt-compare-tray');
+            if (!tray.querySelector('.bt-compare-chip')) {
+                tray.classList.remove('show');
+            }
+        });
+    });
+
+    // 清空对比篮
+    var clearBtn = document.querySelector('.bt-compare-tray .btn-ghost');
+    if (clearBtn) {
+        clearBtn.addEventListener('click', function() {
+            document.querySelector('.bt-compare-tray').classList.remove('show');
+        });
+    }
+})();
+</script>
+
+</body>
+</html>

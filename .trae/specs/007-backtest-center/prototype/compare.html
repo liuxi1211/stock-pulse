@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>回测对比 · StockPulse</title>
+<link rel="stylesheet" href="prototype.css">
+</head>
+<body>
+<div class="app-shell">
+    <aside class="sidebar">
+        <div class="sidebar-brand">
+            <div class="brand-logo">SP</div>
+            <div>
+                <div class="brand-name">StockPulse</div>
+                <div class="brand-sub">量化平台</div>
+            </div>
+        </div>
+        <div class="nav-section">
+            <div class="nav-section-title">市场</div>
+            <a class="nav-item" href="#"><i>📊</i>行情看板</a>
+            <a class="nav-item" href="#"><i>⭐</i>我的自选<span class="badge">27</span></a>
+        </div>
+        <div class="nav-section">
+            <div class="nav-section-title">量化</div>
+            <a class="nav-item" href="#"><i>🧬</i>标准因子库</a>
+            <a class="nav-item" href="#"><i>🎯</i>多因子选股</a>
+            <a class="nav-item" href="#"><i>📐</i>策略管理<span class="badge">12</span></a>
+            <a class="nav-item active" href="strategy-backtests.html"><i>📈</i>回测中心<span class="badge">36</span></a>
+            <a class="nav-item" href="#" style="opacity:.45"><i>📡</i>信号中心</a>
+        </div>
+        <div class="nav-section">
+            <div class="nav-section-title">账户</div>
+            <a class="nav-item" href="#"><i>⚙️</i>系统设置</a>
+        </div>
+    </aside>
+
+    <main class="main">
+        <div class="topbar">
+            <div class="crumb">
+                <a href="#">量化</a><span class="sep">/</span>
+                <a href="strategy-backtests.html">回测中心</a><span class="sep">/</span>
+                <span class="cur">横向对比</span>
+            </div>
+            <div class="topbar-right">
+                <button class="top-icon-btn" title="通知">🔔</button>
+                <button class="top-icon-btn" title="主题">🌓</button>
+                <div class="avatar">Q</div>
+            </div>
+        </div>
+
+        <div class="content">
+            <!-- 页头 -->
+            <div class="page-header">
+                <div>
+                    <h1 class="page-title">回测对比</h1>
+                    <p class="page-subtitle">归一化净值叠加 · 指标对比表高亮最优/最差 · 雷达图多维评估</p>
+                </div>
+                <div class="page-actions">
+                    <a href="strategy-backtests.html" class="btn btn-secondary btn-sm">← 返回回测中心</a>
+                    <button class="btn btn-secondary btn-sm">＋ 添加回测</button>
+                    <button class="btn btn-primary btn-sm">⬇ 导出对比</button>
+                </div>
+            </div>
+
+            <!-- 对比模式切换（两种对比场景） -->
+            <div class="filter-bar" style="margin-bottom:14px;">
+                <span style="font-size:11.5px;color:var(--text-muted);margin-right:4px;">对比场景：</span>
+                <button class="bt-range-preset active" style="width:auto;padding:6px 14px;">📊 跨策略对比（3 个回测）</button>
+                <button class="bt-range-preset" style="width:auto;padding:6px 14px;">📅 同策略多时段（双均线 v3 · 6 个区间）</button>
+                <div class="filter-spacer"></div>
+                <span style="font-size:11px;color:var(--text-muted);">当前模式：跨策略 · 每个回测来自不同策略</span>
+            </div>
+
+            <!-- 参与对比的回测 chip（每个必须显示区间） -->
+            <div class="compare-controls">
+                <div class="compare-strat-chip">
+                    <span class="swatch" style="background:#3b82f6;"></span>
+                    <div>
+                        <div class="name">双均线金叉 v3 <span style="color:var(--text-muted);font-size:10px;">· BT-6 近1年</span></div>
+                        <div class="sub">2025-07 → 2026-07 · +24.53%</div>
+                    </div>
+                    <span class="x" style="color:var(--text-muted);cursor:pointer;margin-left:4px;">✕</span>
+                </div>
+                <div class="compare-strat-chip">
+                    <span class="swatch" style="background:#8b5cf6;"></span>
+                    <div>
+                        <div class="name">MACD 动量 v1 <span style="color:var(--text-muted);font-size:10px;">· BT-20 近1年</span></div>
+                        <div class="sub">2025-07 → 2026-07 · +18.72%</div>
+                    </div>
+                    <span class="x" style="color:var(--text-muted);cursor:pointer;margin-left:4px;">✕</span>
+                </div>
+                <div class="compare-strat-chip">
+                    <span class="swatch" style="background:#ec4899;"></span>
+                    <div>
+                        <div class="name">RSI 反转 v2 <span style="color:var(--text-muted);font-size:10px;">· BT-7 近1年</span></div>
+                        <div class="sub">2025-07 → 2026-07 · +5.20%</div>
+                    </div>
+                    <span class="x" style="color:var(--text-muted);cursor:pointer;margin-left:4px;">✕</span>
+                </div>
+                <div class="compare-strat-chip benchmark">
+                    <span class="swatch"></span>
+                    <div>
+                        <div class="name">基准</div>
+                        <div class="sub">沪深300 · +12.23%</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 区间一致性提示（重要：不同区间对比无意义） -->
+            <div style="padding:10px 14px;background:rgba(34,197,94,.06);border:1px solid rgba(34,197,94,.2);border-radius:var(--radius-md);margin-bottom:16px;font-size:11.5px;color:var(--text-secondary);display:flex;gap:8px;align-items:center;">
+                <i style="color:var(--fall-light);">✓</i>
+                <span>3 个回测区间一致（2025-07-13 → 2026-07-13），可比性良好。区间不一致的回测对比会产生误导。</span>
+            </div>
+
+            <!-- 归一化净值叠加图 -->
+            <div class="bt-chart-card">
+                <div class="bt-chart-head">
+                    <div class="bt-chart-title"><i>📈</i>归一化净值叠加</div>
+                    <div class="bt-chart-legend">
+                        <span class="bt-chart-legend-item"><span class="swatch" style="background:#3b82f6;"></span>双均线金叉</span>
+                        <span class="bt-chart-legend-item"><span class="swatch" style="background:#8b5cf6;"></span>MACD 动量</span>
+                        <span class="bt-chart-legend-item"><span class="swatch" style="background:#ec4899;"></span>RSI 反转</span>
+                        <span class="bt-chart-legend-item"><span class="swatch" style="background:var(--accent-yellow);"></span>沪深300</span>
+                    </div>
+                </div>
+                <div class="bt-chart-body">
+                    <div class="bt-chart-canvas" style="height:340px;">
+                        <svg class="bt-svg-chart" viewBox="0 0 800 340" preserveAspectRatio="none">
+                            <g class="grid">
+                                <line class="grid-line" x1="50" y1="40" x2="780" y2="40"/>
+                                <line class="grid-line" x1="50" y1="100" x2="780" y2="100"/>
+                                <line class="grid-line" x1="50" y1="160" x2="780" y2="160"/>
+                                <line class="grid-line" x1="50" y1="220" x2="780" y2="220"/>
+                                <line class="grid-line" x1="50" y1="280" x2="780" y2="280"/>
+                            </g>
+                            <text class="axis-text" x="46" y="44" text-anchor="end">1.30</text>
+                            <text class="axis-text" x="46" y="104" text-anchor="end">1.20</text>
+                            <text class="axis-text" x="46" y="164" text-anchor="end">1.10</text>
+                            <text class="axis-text" x="46" y="224" text-anchor="end">1.00</text>
+                            <text class="axis-text" x="46" y="284" text-anchor="end">0.90</text>
+                            <line x1="50" y1="220" x2="780" y2="220" stroke="rgba(148,163,184,.3)" stroke-width="1" stroke-dasharray="2 4"/>
+                            <text class="axis-text" x="55" y="216" style="fill:var(--text-muted);">起点 1.0</text>
+                            <line class="axis-line" x1="50" y1="290" x2="780" y2="290"/>
+                            <text class="axis-text" x="70" y="310">2025-07</text>
+                            <text class="axis-text" x="220" y="310">2025-09</text>
+                            <text class="axis-text" x="370" y="310">2025-11</text>
+                            <text class="axis-text" x="520" y="310">2026-03</text>
+                            <text class="axis-text" x="670" y="310">2026-05</text>
+                            <text class="axis-text" x="775" y="310" text-anchor="end">2026-07</text>
+                            <path d="M 50,220 L 110,225 L 170,215 L 230,210 L 290,200 L 350,205 L 410,195 L 470,180 L 530,170 L 590,150 L 650,145 L 710,140 L 770,138"
+                                  fill="none" stroke="#fbbf24" stroke-width="1.5" stroke-dasharray="4 3"/>
+                            <path d="M 50,220 L 110,218 L 170,225 L 230,215 L 290,220 L 350,210 L 410,218 L 470,205 L 530,215 L 590,200 L 650,212 L 710,198 L 770,205"
+                                  fill="none" stroke="#ec4899" stroke-width="2" stroke-linejoin="round"/>
+                            <path d="M 50,220 L 110,210 L 170,200 L 230,190 L 290,195 L 350,175 L 410,180 L 470,160 L 530,150 L 590,145 L 650,135 L 710,125 L 770,118"
+                                  fill="none" stroke="#8b5cf6" stroke-width="2" stroke-linejoin="round"/>
+                            <path d="M 50,220 L 110,215 L 170,205 L 230,185 L 290,170 L 350,155 L 410,140 L 470,125 L 530,100 L 590,85 L 650,75 L 710,60 L 770,55"
+                                  fill="none" stroke="#3b82f6" stroke-width="2.5" stroke-linejoin="round"/>
+                            <circle cx="770" cy="55" r="4" fill="#3b82f6"/>
+                            <text class="axis-text" x="765" y="48" text-anchor="end" style="fill:#60a5fa;font-weight:700;">1.245</text>
+                            <circle cx="770" cy="118" r="4" fill="#8b5cf6"/>
+                            <text class="axis-text" x="765" y="112" text-anchor="end" style="fill:#a78bfa;font-weight:700;">1.187</text>
+                            <circle cx="770" cy="138" r="3" fill="#fbbf24"/>
+                            <text class="axis-text" x="765" y="132" text-anchor="end" style="fill:#fbbf24;">1.122</text>
+                            <circle cx="770" cy="205" r="4" fill="#ec4899"/>
+                            <text class="axis-text" x="765" y="200" text-anchor="end" style="fill:#f472b6;font-weight:700;">1.052</text>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 指标对比表 + 雷达图 -->
+            <div style="display:grid; grid-template-columns: 1.6fr 1fr; gap: 16px; align-items: start; margin-bottom: 18px;">
+                <div class="data-table-wrap" style="margin-bottom:0;">
+                    <div class="data-table-head">
+                        <div class="data-table-title">
+                            <i>📊</i>指标对比表
+                            <span style="font-size:10.5px;color:var(--text-muted);margin-left:8px;font-weight:400;">最优红 · 最差灰</span>
+                        </div>
+                    </div>
+                    <div class="table-scroll">
+                        <table class="data-table compare-table">
+                            <thead>
+                                <tr>
+                                    <th class="row-label" style="text-align:left !important;">指标</th>
+                                    <th>双均线 v3<br><span style="font-size:9px;color:var(--text-muted);font-weight:400;">BT-6 近1年</span></th>
+                                    <th>MACD v1<br><span style="font-size:9px;color:var(--text-muted);font-weight:400;">BT-20 近1年</span></th>
+                                    <th>RSI v2<br><span style="font-size:9px;color:var(--text-muted);font-weight:400;">BT-7 近1年</span></th>
+                                    <th>沪深300</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td class="row-label">总收益</td>
+                                    <td class="num up best">+24.53%</td>
+                                    <td class="num up">+18.72%</td>
+                                    <td class="num up">+5.20%</td>
+                                    <td class="num up">+12.23%</td>
+                                </tr>
+                                <tr>
+                                    <td class="row-label">超额收益 vs 基准</td>
+                                    <td class="num up best">+12.30%</td>
+                                    <td class="num up">+6.49%</td>
+                                    <td class="num down worst">-7.03%</td>
+                                    <td class="num text-muted">—</td>
+                                </tr>
+                                <tr>
+                                    <td class="row-label">年化收益</td>
+                                    <td class="num up best">+24.53%</td>
+                                    <td class="num up">+18.72%</td>
+                                    <td class="num up worst">+5.20%</td>
+                                    <td class="num up">+12.23%</td>
+                                </tr>
+                                <tr>
+                                    <td class="row-label">夏普比率</td>
+                                    <td class="num best">1.82</td>
+                                    <td class="num">1.45</td>
+                                    <td class="num worst">0.62</td>
+                                    <td class="num">0.85</td>
+                                </tr>
+                                <tr>
+                                    <td class="row-label">索提诺比率</td>
+                                    <td class="num best">2.41</td>
+                                    <td class="num">1.92</td>
+                                    <td class="num worst">0.88</td>
+                                    <td class="num">1.18</td>
+                                </tr>
+                                <tr>
+                                    <td class="row-label">卡玛比率</td>
+                                    <td class="num best">2.92</td>
+                                    <td class="num">1.67</td>
+                                    <td class="num worst">0.35</td>
+                                    <td class="num">1.27</td>
+                                </tr>
+                                <tr>
+                                    <td class="row-label">最大回撤</td>
+                                    <td class="num best">8.40%</td>
+                                    <td class="num">11.20%</td>
+                                    <td class="num worst">14.80%</td>
+                                    <td class="num">9.65%</td>
+                                </tr>
+                                <tr>
+                                    <td class="row-label">胜率</td>
+                                    <td class="num best">58.3%</td>
+                                    <td class="num">52.0%</td>
+                                    <td class="num worst">45.5%</td>
+                                    <td class="num text-muted">—</td>
+                                </tr>
+                                <tr>
+                                    <td class="row-label">盈亏比</td>
+                                    <td class="num best">1.95</td>
+                                    <td class="num">1.62</td>
+                                    <td class="num worst">0.98</td>
+                                    <td class="num text-muted">—</td>
+                                </tr>
+                                <tr>
+                                    <td class="row-label">交易笔数</td>
+                                    <td class="num">12</td>
+                                    <td class="num">18</td>
+                                    <td class="num">22</td>
+                                    <td class="num text-muted">—</td>
+                                </tr>
+                                <tr>
+                                    <td class="row-label">波动率（年化）</td>
+                                    <td class="num best">15.2%</td>
+                                    <td class="num">18.5%</td>
+                                    <td class="num worst">22.8%</td>
+                                    <td class="num">16.4%</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="bt-chart-card" style="margin-bottom:0;">
+                    <div class="bt-chart-head">
+                        <div class="bt-chart-title"><i>🎯</i>雷达图对比</div>
+                        <div class="bt-chart-legend">
+                            <span class="bt-chart-legend-item"><span class="dot-sw" style="background:#3b82f6;"></span>双均线</span>
+                            <span class="bt-chart-legend-item"><span class="dot-sw" style="background:#8b5cf6;"></span>MACD</span>
+                            <span class="bt-chart-legend-item"><span class="dot-sw" style="background:#ec4899;"></span>RSI</span>
+                        </div>
+                    </div>
+                    <div class="bt-chart-body">
+                        <div class="bt-chart-canvas" style="height:340px;">
+                            <svg class="bt-svg-chart" viewBox="0 0 340 340" style="display:block;margin:0 auto;">
+                                <defs>
+                                    <polygon id="diamond" points="0,-120 102,-60 102,60 0,120 -102,60 -102,-60" 
+                                             fill="none" stroke="rgba(148,163,184,.15)" stroke-width="1"/>
+                                </defs>
+                                <g transform="translate(170,170)">
+                                    <use href="#diamond" transform="scale(0.2)"/>
+                                    <use href="#diamond" transform="scale(0.4)"/>
+                                    <use href="#diamond" transform="scale(0.6)"/>
+                                    <use href="#diamond" transform="scale(0.8)"/>
+                                    <use href="#diamond"/>
+                                    <line class="grid-line" x1="0" y1="0" x2="0" y2="-120"/>
+                                    <line class="grid-line" x1="0" y1="0" x2="102" y2="-60"/>
+                                    <line class="grid-line" x1="0" y1="0" x2="102" y2="60"/>
+                                    <line class="grid-line" x1="0" y1="0" x2="0" y2="120"/>
+                                    <line class="grid-line" x1="0" y1="0" x2="-102" y2="60"/>
+                                    <line class="grid-line" x1="0" y1="0" x2="-102" y2="-60"/>
+                                    <text class="axis-text" x="0" y="-130" text-anchor="middle">收益</text>
+                                    <text class="axis-text" x="115" y="-65" text-anchor="middle">夏普</text>
+                                    <text class="axis-text" x="115" y="70" text-anchor="middle">胜率</text>
+                                    <text class="axis-text" x="0" y="138" text-anchor="middle">盈亏比</text>
+                                    <text class="axis-text" x="-115" y="70" text-anchor="middle">回撤(逆)</text>
+                                    <text class="axis-text" x="-115" y="-65" text-anchor="middle">波动(逆)</text>
+                                    <polygon points="0,-110 96,-56 92,55 0,108 -82,49 -78,-46"
+                                             fill="rgba(59,130,246,.2)" stroke="#3b82f6" stroke-width="2"/>
+                                    <polygon points="0,-86 82,-48 75,45 0,76 -68,40 -65,-38"
+                                             fill="rgba(139,92,246,.15)" stroke="#8b5cf6" stroke-width="2"/>
+                                    <polygon points="0,-48 50,-30 40,24 0,15 -38,22 -36,-22"
+                                             fill="rgba(236,72,153,.12)" stroke="#ec4899" stroke-width="2"/>
+                                </g>
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 结论卡 -->
+            <div class="card-base" style="position:relative; padding: 18px 22px; --card-accent: var(--accent-blue);">
+                <div style="display:flex; align-items:center; gap:14px; margin-bottom:12px;">
+                    <i style="font-size:22px;color:var(--accent-cyan);">💡</i>
+                    <div>
+                        <div style="font-size:14px;font-weight:600;color:var(--text-primary);">对比结论</div>
+                        <div style="font-size:11px;color:var(--text-muted);">基于本次对比数据的客观描述</div>
+                    </div>
+                </div>
+                <div style="font-size:12.5px;color:var(--text-secondary);line-height:1.8;">
+                    <strong style="color:var(--rise-light);">双均线金叉 v3</strong> 在所有维度全面领先：总收益 +24.53%（超额 +12.30%）、夏普 1.82、最大回撤仅 8.40%、卡玛 2.92 均为三者最优；<strong style="color:#a78bfa;">MACD 动量 v1</strong> 次之但跑赢基准；<strong style="color:#f472b6;">RSI 反转 v2</strong> 表现最弱，超额收益为负（-7.03%），夏普仅 0.62，建议谨慎激活。
+                </div>
+                <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border-light);font-size:11px;color:var(--text-muted);line-height:1.6;">
+                    <i style="color:var(--accent-yellow);">⚠️</i> 本次对比仅基于「近1年」区间。<strong>单区间表现好不等于全天候稳健</strong>，建议进入「同策略多时段对比」查看各策略在不同时间段的稳定性，识别过拟合风险。
+                </div>
+            </div>
+
+        </div>
+    </main>
+</div>
+
+</body>
+</html>

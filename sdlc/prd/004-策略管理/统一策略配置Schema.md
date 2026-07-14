@@ -186,6 +186,7 @@ Schema 字段**深度对齐 akquant 原生 API**，而非自造语义：
 | `initial_cash` | number | 是 | `100000` | → `initial_cash` |
 | `start_date` | string(YYYY-MM-DD) | 否 | `null` | → `start_time` |
 | `end_date` | string(YYYY-MM-DD) | 否 | `null` | → `end_time` |
+| `benchmark` | string | 否 | `null`（watcher 编排层默认填 `000300.SH` 沪深300） | 基准指数代码（如 `000300.SH`/`000905.SH`），用于回测报告相对收益比较与净值叠加。**不透传 `aq.run_backtest`**，由 watcher 拼装 `benchmark_data` 传 engine，engine 归一化到初始净值 1.0 后与策略净值同坐标系叠加。优先级：`overrideConfig.benchmark` > `config_json.backtest_config.benchmark` > watcher 默认 `000300.SH` |
 | `broker_profile` | enum | 否 | `"cn_stock_miniqmt"` | → `broker_profile`；注入：佣金 0.0003 / 印花 0.001 / 过户 0.00001 / 最低 5 / 滑点 0.0002 / 量限 0.2 / 手数 100（**不含 `t_plus_one`**） |
 | `t_plus_one` | bool | 否 | `true` | **必须显式传**（profile 不含）→ `t_plus_one` |
 | `commission_rate` | number | 否 | 继承 profile | 覆盖佣金率 → `commission_rate` |

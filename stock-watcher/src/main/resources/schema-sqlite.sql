@@ -227,6 +227,42 @@ CREATE TABLE IF NOT EXISTS quant_strategy_version (
 );
 CREATE INDEX IF NOT EXISTS idx_strategy_version_lookup ON quant_strategy_version (strategy_id, version_no);
 
+-- 16. 回测主表/任务表（quant_backtest）
+CREATE TABLE IF NOT EXISTS quant_backtest (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_id         TEXT        NOT NULL UNIQUE,
+    strategy_id     TEXT        NOT NULL,
+    version_no      INTEGER     NOT NULL,
+    mode            VARCHAR(16) DEFAULT 'SINGLE',
+    status          VARCHAR(16) DEFAULT 'PENDING',
+    progress        INTEGER     DEFAULT 0,
+    error_message   TEXT,
+    override_config TEXT,
+    benchmark       TEXT        DEFAULT '000300.SH',
+    created_by      TEXT,
+    started_at      TEXT,
+    finished_at     TEXT,
+    created_at      TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_backtest_strategy_version ON quant_backtest (strategy_id, version_no);
+CREATE INDEX IF NOT EXISTS idx_backtest_status ON quant_backtest (status);
+CREATE INDEX IF NOT EXISTS idx_backtest_mode ON quant_backtest (mode);
+
+-- 17. 回测报告表（quant_backtest_report，SINGLE 模式全量 JSON）
+CREATE TABLE IF NOT EXISTS quant_backtest_report (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    backtest_id         INTEGER NOT NULL,
+    metrics_json        TEXT,
+    equity_curve_json   TEXT,
+    benchmark_curve_json TEXT,
+    daily_returns_json  TEXT,
+    trades_json         TEXT,
+    orders_json         TEXT,
+    positions_json      TEXT,
+    created_at          TEXT,
+    UNIQUE(backtest_id)
+);
+
 -- 初始管理员账号（仅当表为空时插入，默认密码: admin123）
 INSERT INTO sys_user (username, password, enabled, role)
 SELECT 'admin', '$2a$10$pfuIlLGBbNZqO5xXa9oRKeEFABc4FIxs2SVY46UUG1xpA7o9tGn9u', 1, 'ADMIN'

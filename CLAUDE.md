@@ -34,6 +34,21 @@
 
 ---
 
+## 二·补、AI 高频易错点（每次写代码前扫一遍）
+
+> 这些规则分散在各分类规范里，但**实际开发中高频被违反**，特意提到入口层提醒。详细定义见对应权威文档。
+
+| 易错点 | 规则 | 权威文档 |
+|---|---|---|
+| **API 参数 >5 个未封装对象** | HTTP 接口方法中 `@RequestParam` + `@PathVariable` **合计 >5 个**时，必须封装为 DTO 对象（POST→`*RequestDTO` / GET→`*QueryDTO`）。**计数口径**：仅统计 `@RequestParam`/`@PathVariable`，`@RequestBody DTO`/`HttpSession`/`Model` 不计入。违反即违规，无例外。 | [`04-api-design.md` §11.1](./.trae/rules/stock-watcher/java/04-api-design.md) |
+| **API 请求/返回体用 Map** | 接口的**请求体、返回体禁止 `Map<?,?>`**（含 `Map<String,Object>`）。必须用显式类型 `*RequestDTO`/`*ResponseDTO`/`*VO`。仅跨系统透传 / 纯键值缓存返回 / Service 内部传输 3 种例外。 | [`04-api-design.md` §11.2`](./.trae/rules/stock-watcher/java/04-api-design.md) |
+| **engine 代码触库** | engine（Python 侧）**禁止** `sqlite3`/`sqlalchemy`/直连 `.db`。数据由 watcher HTTP 传入。 | §2.2 上方 |
+| **akquant 滑点用裸 float** | `slippage` **一律用 dict** `{"type":"percent","value":0.0002}`。裸 `0.2` 会被当 **20%** 滑点。 | [`09-pitfalls-conventions.md`](./.trae/rules/akquant/09-pitfalls-conventions.md) |
+| **akquant broker_profile 漏 T+1** | `broker_profile` 三个模板**都不含 `t_plus_one`**，必须单独传 `t_plus_one=True`。 | [`09-pitfalls-conventions.md`](./.trae/rules/akquant/09-pitfalls-conventions.md) |
+| **魔法值散落** | 常量必须抽到常量类（全大写）；有 code+label 语义的必须定义成 `DisplayableEnum` 枚举，通过 `GET /constants` + `StockApp.loadConstants` 下发前端。 | [`08-constants-usage.md`](./.trae/rules/stock-watcher/java/08-constants-usage.md) |
+
+---
+
 ## 三、通用开发规范（所有模块通用）
 
 路径：`.trae/rules/general/`

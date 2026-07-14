@@ -7,6 +7,7 @@ from config import settings
 from api.v1 import factor as factor_api
 from api.v1 import screener as screener_api
 from api.v1 import strategy as strategy_api
+from api.v1 import backtest as backtest_api
 
 # 创建FastAPI应用
 app = FastAPI(
@@ -65,6 +66,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 app.include_router(factor_api.router)
 app.include_router(screener_api.router)
 app.include_router(strategy_api.router)
+app.include_router(backtest_api.router)
 
 # 启动事件
 @app.on_event("startup")

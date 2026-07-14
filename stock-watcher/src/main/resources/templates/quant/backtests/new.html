@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/common :: head(${pageTitle})}"></head>
+<link rel="stylesheet" th:href="@{/css/backtest.css}">
+<body>
+<div class="app-container">
+    <nav th:replace="~{fragments/common :: sidebar}"></nav>
+    <div th:replace="~{fragments/common :: sidebarOverlay}"></div>
+
+    <div class="main-content">
+        <header th:replace="~{fragments/common :: topNavbar}"></header>
+
+        <main class="content-area backtest-page" id="backtestNewPage">
+            <!-- 页头 -->
+            <div class="bt-page-header">
+                <div>
+                    <h1 class="bt-page-title">
+                        <a th:href="@{/quant/backtests}" class="bt-icon-btn" title="返回" style="background:transparent;border:none;color:var(--text-muted);">
+                            <i class="bi bi-arrow-left"></i>
+                        </a>
+                        <span th:text="${pageTitle}">新建回测</span>
+                    </h1>
+                    <p class="bt-page-subtitle">3 步配置：选策略版本 → 配置参数 → 提交</p>
+                </div>
+            </div>
+
+            <!-- 步骤指示器 -->
+            <div class="bt-steps">
+                <div class="bt-step active" id="step1">
+                    <div class="bt-step-num">1</div>
+                    <div>选策略版本</div>
+                </div>
+                <div class="bt-step-line"></div>
+                <div class="bt-step" id="step2">
+                    <div class="bt-step-num">2</div>
+                    <div>配置参数</div>
+                </div>
+                <div class="bt-step-line"></div>
+                <div class="bt-step" id="step3">
+                    <div class="bt-step-num">3</div>
+                    <div>确认提交</div>
+                </div>
+            </div>
+
+            <!-- 步骤 1：选策略版本 -->
+            <div class="bt-card-base" id="panel1" style="padding:20px 22px;">
+                <div class="bt-form-section-title">
+                    <i class="bi bi-diagram-3"></i>选择策略与版本
+                    <span class="badge-tag">仅 VERIFIED/ACTIVE 可回测</span>
+                </div>
+
+                <div class="bt-form-row">
+                    <label class="bt-form-label">策略 <span class="req">*</span></label>
+                    <select class="bt-form-select" id="selStrategy">
+                        <option value="">加载中…</option>
+                    </select>
+                </div>
+
+                <div class="bt-form-row" id="versionRow" style="display:none;">
+                    <label class="bt-form-label">版本 <span class="req">*</span> <span class="hint">仅展示 VERIFIED/ACTIVE</span></label>
+                    <div id="versionList" style="display:flex;flex-direction:column;gap:8px;">
+                    </div>
+                </div>
+
+                <div id="strategySummary" style="display:none; margin-top:8px;"></div>
+            </div>
+
+            <!-- 步骤 2：配置参数 -->
+            <div class="bt-card-base" id="panel2" style="padding:20px 22px; display:none;">
+                <!-- 回测区间 -->
+                <div class="bt-form-section">
+                    <div class="bt-form-section-title">
+                        <i class="bi bi-calendar-range" style="color:var(--accent-yellow);"></i>回测区间
+                        <span class="badge-tag" style="background:color-mix(in srgb, var(--accent-yellow) 12%, transparent);color:var(--accent-yellow);">必填</span>
+                    </div>
+                    <div class="bt-range-presets">
+                        <button type="button" class="bt-range-preset" data-preset="1m">近1月</button>
+                        <button type="button" class="bt-range-preset" data-preset="3m">近3月</button>
+                        <button type="button" class="bt-range-preset" data-preset="6m">近6月</button>
+                        <button type="button" class="bt-range-preset active" data-preset="1y">近1年</button>
+                        <button type="button" class="bt-range-preset" data-preset="3y">近3年</button>
+                        <button type="button" class="bt-range-preset" data-preset="all">全历史</button>
+                    </div>
+                    <div class="bt-form-row-2" style="margin-bottom:0;">
+                        <div>
+                            <label class="bt-form-label">起始日 <span class="req">*</span></label>
+                            <input type="date" class="bt-form-input mono" id="inpStartDate">
+                        </div>
+                        <div>
+                            <label class="bt-form-label">结束日 <span class="req">*</span></label>
+                            <input type="date" class="bt-form-input mono" id="inpEndDate">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 基准对比 -->
+                <div class="bt-form-section">
+                    <div class="bt-form-section-title">
+                        <i class="bi bi-trophy" style="color:var(--accent-yellow);"></i>基准对比
+                        <span class="badge-tag">必填</span>
+                    </div>
+                    <label class="bt-form-label">对比基准</label>
+                    <select class="bt-form-select mono" id="selBenchmark">
+                        <option value="">加载中…</option>
+                    </select>
+                    <div class="bt-form-hint">报告页净值曲线叠加基准归一化净值 · 默认沪深300</div>
+                </div>
+
+                <!-- 资金与费率 -->
+                <div class="bt-form-section">
+                    <div class="bt-form-section-title">
+                        <i class="bi bi-gear"></i>资金与费率
+                        <span class="badge-tag">overrideConfig</span>
+                    </div>
+
+                    <div class="bt-form-row">
+                        <label class="bt-form-label">初始资金 <span class="req">*</span></label>
+                        <div class="bt-form-input-append">
+                            <input type="number" class="bt-form-input mono" id="inpInitialCash" value="100000" min="10000" step="10000" style="text-align:right;">
+                            <span class="append">CNY</span>
+                        </div>
+                        <div class="bt-form-hint">A 股最小建议 10 万，按 lot_size=100 向下取整下单</div>
+                    </div>
+
+                    <div class="bt-form-row-2" style="margin-bottom:0;">
+                        <div>
+                            <label class="bt-form-label">券商费率模板 <span class="hint">broker_profile</span></label>
+                            <select class="bt-form-select mono" id="selBrokerProfile">
+                                <option value="">加载中…</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="bt-form-label">T+1 规则</label>
+                            <div class="bt-switch-row" style="padding:9px 12px;background:var(--bg-input);border:1px solid var(--border-color);border-radius:var(--radius-md);">
+                                <div>
+                                    <div class="bt-switch-row-label">启用 T+1</div>
+                                    <div class="bt-switch-row-hint">A 股强制开启</div>
+                                </div>
+                                <div class="bt-switch on" id="swT1"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="margin-top:14px;padding:10px 12px;background:color-mix(in srgb, var(--accent-blue) 6%, transparent);border:1px solid color-mix(in srgb, var(--accent-blue) 20%, transparent);border-radius:var(--radius-sm);font-size:11px;color:var(--text-secondary);line-height:1.7;">
+                        <strong style="color:var(--accent-blue-light);"><i class="bi bi-lock"></i> A 股强制规则（不可改）</strong><br>
+                        <span class="mono">lot_size = 100</span> · <span class="mono">fill_policy = open · next_event · offset 1</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 步骤 3：确认提交 -->
+            <div class="bt-card-base" id="panel3" style="padding:20px 22px; display:none;">
+                <div class="bt-form-section-title">
+                    <i class="bi bi-clipboard-check"></i>确认回测配置
+                </div>
+                <div id="confirmSummary" style="font-size:12.5px;color:var(--text-secondary);line-height:1.9;"></div>
+                <div style="margin-top:14px;padding:10px 12px;background:color-mix(in srgb, var(--accent-cyan) 6%, transparent);border:1px solid color-mix(in srgb, var(--accent-cyan) 20%, transparent);border-radius:var(--radius-sm);font-size:11px;color:var(--text-secondary);">
+                    <i class="bi bi-info-circle" style="color:var(--accent-cyan);"></i> 提交后任务进入 <span class="mono">PENDING</span>，引擎空闲后转 <span class="mono">RUNNING</span>，可在列表页查看进度。
+                </div>
+            </div>
+
+            <!-- 底部行动条 -->
+            <div class="bt-actionbar">
+                <button type="button" class="btn-bt btn-bt-secondary btn-bt-sm" id="btnPrev" style="visibility:hidden;">
+                    <i class="bi bi-arrow-left"></i> 上一步
+                </button>
+                <div style="display:flex;gap:8px;">
+                    <a th:href="@{/quant/backtests}" class="btn-bt btn-bt-ghost btn-bt-sm">取消</a>
+                    <button type="button" class="btn-bt btn-bt-primary btn-bt-sm" id="btnNext">
+                        下一步 <i class="bi bi-arrow-right"></i>
+                    </button>
+                    <button type="button" class="btn-seal" id="btnSubmit" style="display:none;">
+                        <i class="bi bi-rocket-takeoff"></i> 提交回测
+                    </button>
+                </div>
+            </div>
+        </main>
+    </div>
+</div>
+
+<div th:replace="~{fragments/common :: toastContainer}"></div>
+<div th:replace="~{fragments/common :: scripts}"></div>
+<script th:src="@{/js/backtest-new.js}"></script>
+</body>
+</html>

@@ -157,6 +157,53 @@ public class PageController {
         return "quant/strategies/versions";
     }
 
+    // ============================================================
+    //  回测中心（007 模块）页面路由
+    //  视图目录 quant/backtests/*；数据由前端 JS 调 /api/backtest 拉取。
+    // ============================================================
+
+    /**
+     * 回测中心列表页（按策略分组 + 历史回测分页）。
+     */
+    @GetMapping("/quant/backtests")
+    public String backtestList(Model model) {
+        model.addAttribute("pageTitle", "回测中心");
+        model.addAttribute("activeMenu", "backtest-list");
+        return "quant/backtests/list";
+    }
+
+    /**
+     * 新建回测配置页（3 步：选策略版本 → 配置参数 → 提交）。
+     */
+    @GetMapping("/quant/backtests/new")
+    public String backtestNew(Model model) {
+        model.addAttribute("pageTitle", "新建回测");
+        model.addAttribute("activeMenu", "backtest-list");
+        return "quant/backtests/new";
+    }
+
+    /**
+     * 回测报告页（净值曲线 + 基准叠加 + 回撤 + 交易明细）。
+     */
+    @GetMapping("/quant/backtests/{backtestId}/report")
+    public String backtestReport(@PathVariable("backtestId") Long backtestId, Model model) {
+        model.addAttribute("pageTitle", "回测报告");
+        model.addAttribute("activeMenu", "backtest-list");
+        model.addAttribute("backtestId", backtestId);
+        return "quant/backtests/report";
+    }
+
+    /**
+     * 回测横向对比页（归一化净值叠加 + 指标对比表 + 雷达图）。
+     */
+    @GetMapping("/quant/backtests/compare")
+    public String backtestCompare(@org.springframework.web.bind.annotation.RequestParam(value = "ids", required = false) String ids, Model model) {
+        model.addAttribute("pageTitle", "回测对比");
+        model.addAttribute("activeMenu", "backtest-list");
+        model.addAttribute("compareIds", ids);
+        return "quant/backtests/compare";
+    }
+
     // ------------------------------------------------------------
     //  枚举 / 模板下拉选项辅助：转成 [code, label] 二元组列表，
     //  Thymeleaf 侧遍历 o.code / o.label 渲染 <option>。

@@ -85,8 +85,8 @@
                 <span>策略管理</span>
                 <span class="badge" id="strategyCountBadge" style="margin-left:auto;">—</span>
             </a>
-            <a href="#" class="nav-item">
-                <i class="bi bi-play-circle"></i>
+            <a th:href="@{/quant/backtests}" class="nav-item" th:classappend="${activeMenu == 'backtest-list'} ? 'active'">
+                <i class="bi bi-graph-up-arrow"></i>
                 <span>回测中心</span>
             </a>
         </div>

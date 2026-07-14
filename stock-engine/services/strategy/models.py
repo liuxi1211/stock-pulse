@@ -360,6 +360,11 @@ class BacktestConfigModel(BaseModel):
     initial_cash: float = Field(100000.0, description="初始资金")
     start_date: Optional[str] = Field(None, description="回测起始日期（YYYY-MM-DD）→ start_time")
     end_date: Optional[str] = Field(None, description="回测结束日期（YYYY-MM-DD）→ end_time")
+    benchmark: str = Field(
+        "000300.SH",
+        description="基准指数代码（如 000300.SH/000905.SH），用于回测报告相对收益比较与净值叠加。"
+        "不透传 aq.run_backtest，由 watcher 拼装 benchmark_data 传 engine，engine 归一化到初始净值 1.0 后叠加",
+    )
     broker_profile: Optional[str] = Field(
         "cn_stock_miniqmt", description="A 股费率模板（profile 不含 t_plus_one，需单独传）"
     )

@@ -73,6 +73,7 @@ const StrategyEditor = {
             lot_size: 100,
             warmup_period: 20,
             history_depth: 60,
+            benchmark: '000300.SH',
         },
     },
 
@@ -114,6 +115,9 @@ const StrategyEditor = {
 
         // 异步加载白名单常量（不阻塞渲染，加载后用于下拉选项 + 因子菜单）
         this.loadConstantsAsync();
+
+        // 加载 benchmark 下拉选项（数据源 /api/backtest/benchmarks）
+        this.loadBenchmarkOptions();
 
         // 渲染下拉（position method / sell method / broker profile / category）
         this.populateStaticSelects(boot);
@@ -264,6 +268,35 @@ const StrategyEditor = {
                 this.rebuildSelectFromList('f-bt-broker', this.constants['strategies.brokerProfiles']);
             }
         });
+    },
+
+    /**
+     * 加载 benchmark 下拉选项（数据源 /api/backtest/benchmarks）。
+     * 返回 [{code, name}]，渲染为 <option value=code>name (code)</option>。
+     * 加载失败保留默认的沪深300选项。
+     */
+    async loadBenchmarkOptions() {
+        const sel = document.getElementById('f-bt-benchmark');
+        if (!sel) return;
+        try {
+            const resp = await fetch('/api/backtest/benchmarks');
+            const json = await resp.json();
+            const list = (json && json.data) || [];
+            const cur = sel.value;
+            sel.innerHTML = '';
+            list.forEach(b => {
+                const opt = document.createElement('option');
+                opt.value = b.code;
+                opt.textContent = (b.name || b.code) + ' (' + b.code + ')';
+                sel.appendChild(opt);
+            });
+            // 恢复之前选中值或默认沪深300
+            sel.value = cur || '000300.SH';
+            if (!sel.value) sel.value = '000300.SH';
+        } catch (e) {
+            // 降级：保留默认沪深300
+            console.warn('[StrategyEditor] benchmark 下拉加载失败：', e);
+        }
     },
 
     /**
@@ -983,7 +1016,7 @@ const StrategyEditor = {
             if (sv != null) bt.slippage = { type: st, value: sv };
         }
         const benchmark = this.getVal('f-bt-benchmark');
-        if (benchmark) bt.benchmark = benchmark; // 注：engine models 当前未列 benchmark，engine extra=forbid 会拒；保留以便后续对齐
+        if (benchmark) bt.benchmark = benchmark;
         s.backtest_config = bt;
 
         return this._parseErrors;
@@ -1827,15 +1860,11 @@ const StrategyEditor = {
 
     /**
      * 序列化前清理：剔除 engine models.py 中 extra="forbid" 不接受的字段。
-     * 例如 benchmark/backtest_config.benchmark 当前 BacktestConfigModel 未声明。
+     * 注：backtest_config.benchmark 已由 007 spec 在 BacktestConfigModel 声明，不再剔除。
      * 去掉空字典/空数组的可选字段，避免无意义传输。
      */
     cleanState(s) {
         const out = JSON.parse(JSON.stringify(s));
-        // 剔除 backtest_config.benchmark（models.py 暂未支持）
-        if (out.backtest_config) {
-            delete out.backtest_config.benchmark;
-        }
         return out;
     },
 

@@ -21,8 +21,12 @@ import com.arthur.stock.exception.StrategyValidationException;
 import com.arthur.stock.exception.StrategyVersionConflictException;
 import com.arthur.stock.mapper.QuantStrategyMapper;
 import com.arthur.stock.mapper.QuantStrategyVersionMapper;
+import com.arthur.stock.mapper.QuantBacktestMapper;
+import com.arthur.stock.mapper.QuantBacktestReportMapper;
 import com.arthur.stock.model.QuantStrategyDO;
 import com.arthur.stock.model.QuantStrategyVersionDO;
+import com.arthur.stock.model.QuantBacktestDO;
+import com.arthur.stock.model.QuantBacktestReportDO;
 import com.arthur.stock.service.StrategyService;
 import com.arthur.stock.util.JsonDiffUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
@@ -71,16 +75,22 @@ public class StrategyServiceImpl implements StrategyService {
     private final QuantStrategyVersionMapper versionMapper;
     private final StrategyEngineClient engineClient;
     private final TransactionTemplate transactionTemplate;
+    private final QuantBacktestMapper backtestMapper;
+    private final QuantBacktestReportMapper backtestReportMapper;
 
     public StrategyServiceImpl(QuantStrategyMapper strategyMapper,
                                QuantStrategyVersionMapper versionMapper,
                                StrategyEngineClient engineClient,
-                               PlatformTransactionManager transactionManager) {
+                               PlatformTransactionManager transactionManager,
+                               QuantBacktestMapper backtestMapper,
+                               QuantBacktestReportMapper backtestReportMapper) {
         this.strategyMapper = strategyMapper;
         this.versionMapper = versionMapper;
         this.engineClient = engineClient;
         // 由 Spring Boot 自动配置的 PlatformTransactionManager 构造，无需额外 Bean
         this.transactionTemplate = new TransactionTemplate(transactionManager);
+        this.backtestMapper = backtestMapper;
+        this.backtestReportMapper = backtestReportMapper;
     }
 
     // ==================== createStrategy ====================
@@ -390,9 +400,75 @@ public class StrategyServiceImpl implements StrategyService {
 
     @Override
     public com.arthur.stock.dto.strategy.StrategyVersionCompareDTO compareVersions(String strategyId, Integer fromVer, Integer toVer) {
-        // TODO: 待回测中心打通后,联查 fromVer/toVer 版本对应的回测结果,填充指标对比。
-        // 当前回测数据未持久化,返回空 metrics。
-        return new com.arthur.stock.dto.strategy.StrategyVersionCompareDTO();
+        // 联查 quant_backtest_report 返回真实回测指标（spec 007 T5.1）。
+        // 对 fromVer/toVer 各取最近一条 SUCCESS 回测的 metrics_json，提取 5 项核心指标。
+        com.arthur.stock.dto.strategy.StrategyVersionCompareDTO result =
+                new com.arthur.stock.dto.strategy.StrategyVersionCompareDTO();
+
+        Map<String, Double> fromMetrics = loadLatestSuccessMetrics(strategyId, fromVer);
+        Map<String, Double> toMetrics = loadLatestSuccessMetrics(strategyId, toVer);
+
+        // 5 项核心指标对比
+        String[][] metricDefs = {
+                {"total_return_pct", "总收益(%)"},
+                {"sharpe_ratio", "夏普比率"},
+                {"max_drawdown_pct", "最大回撤(%)"},
+                {"win_rate", "胜率(%)"},
+                {"trade_count", "交易笔数"}
+        };
+        for (String[] def : metricDefs) {
+            String key = def[0];
+            String labelCn = def[1];
+            com.arthur.stock.dto.strategy.StrategyVersionCompareDTO.MetricRow row =
+                    new com.arthur.stock.dto.strategy.StrategyVersionCompareDTO.MetricRow();
+            row.setLabel(key);
+            row.setLabelCn(labelCn);
+            row.setFromVal(fromMetrics.get(key));
+            row.setToVal(toMetrics.get(key));
+            if (row.getFromVal() != null && row.getToVal() != null) {
+                row.setDelta(row.getToVal() - row.getFromVal());
+            }
+            result.getMetrics().add(row);
+        }
+        return result;
+    }
+
+    /**
+     * 查指定策略版本的最近一条 SUCCESS 回测的 metrics。
+     * 按 created_at DESC 取首条，反序列化 metrics_json 提取 5 项核心指标。
+     * 无回测记录返回空 Map（前端展示"暂无回测数据"）。
+     */
+    private Map<String, Double> loadLatestSuccessMetrics(String strategyId, Integer versionNo) {
+        Map<String, Double> out = new LinkedHashMap<>();
+        try {
+            QuantBacktestDO bt = backtestMapper.selectOne(
+                    new LambdaQueryWrapper<QuantBacktestDO>()
+                            .eq(QuantBacktestDO::getStrategyId, strategyId)
+                            .eq(QuantBacktestDO::getVersionNo, versionNo)
+                            .eq(QuantBacktestDO::getStatus, "SUCCESS")
+                            .orderByDesc(QuantBacktestDO::getCreatedAt)
+                            .last("LIMIT 1"));
+            if (bt == null) {
+                return out;
+            }
+            QuantBacktestReportDO report = backtestReportMapper.selectOne(
+                    new LambdaQueryWrapper<QuantBacktestReportDO>()
+                            .eq(QuantBacktestReportDO::getBacktestId, bt.getId())
+                            .last("LIMIT 1"));
+            if (report == null || report.getMetricsJson() == null) {
+                return out;
+            }
+            JSONObject metrics = JSON.parseObject(report.getMetricsJson());
+            for (String key : new String[]{"total_return_pct", "sharpe_ratio", "max_drawdown_pct", "win_rate", "trade_count"}) {
+                Double v = metrics.getDouble(key);
+                if (v != null) {
+                    out.put(key, v);
+                }
+            }
+        } catch (Exception e) {
+            log.warn("加载版本回测指标失败 strategyId={} versionNo={}: {}", strategyId, versionNo, e.getMessage());
+        }
+        return out;
     }
 
     // ==================== 内部：加载与校验 ====================

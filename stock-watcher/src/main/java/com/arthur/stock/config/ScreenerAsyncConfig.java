@@ -37,4 +37,25 @@ public class ScreenerAsyncConfig {
         executor.initialize();
         return executor;
     }
+
+    /**
+     * 回测中心专用线程池（spec 007 T3）。
+     * <p>
+     * 回测任务为长时 IO（engine 调用可能数分钟），核心数小、队列容量大，
+     * 避免回测任务挤占选股中心线程池。拒绝策略同 {@code CallerRunsPolicy}，
+     * 队列满时由调用线程兜底同步执行（不丢任务）。
+     */
+    @Bean("backtestExecutor")
+    public Executor backtestExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(2);
+        executor.setMaxPoolSize(4);
+        executor.setQueueCapacity(100);
+        executor.setThreadNamePrefix("backtest-");
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+        executor.setWaitForTasksToCompleteOnShutdown(true);
+        executor.setAwaitTerminationSeconds(60);
+        executor.initialize();
+        return executor;
+    }
 }

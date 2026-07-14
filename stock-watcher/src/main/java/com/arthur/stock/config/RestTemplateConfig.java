@@ -23,4 +23,18 @@ public class RestTemplateConfig {
         factory.setReadTimeout(30000);
         return new RestTemplate(factory);
     }
+
+    /**
+     * 回测专用 RestTemplate（spec 007 T3）。
+     * <p>
+     * 回测单次运行可能耗时数分钟，read timeout 设 300s；connect 仍 5s。
+     * 注入时用 @Qualifier("backtestRestTemplate") 或字段名匹配。
+     */
+    @Bean("backtestRestTemplate")
+    public RestTemplate backtestRestTemplate() {
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(5000);
+        factory.setReadTimeout(300000);
+        return new RestTemplate(factory);
+    }
 }

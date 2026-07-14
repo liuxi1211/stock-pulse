@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/common :: head(${pageTitle})}"></head>
+<link rel="stylesheet" th:href="@{/css/backtest.css}">
+<body>
+<div class="app-container">
+    <nav th:replace="~{fragments/common :: sidebar}"></nav>
+    <div th:replace="~{fragments/common :: sidebarOverlay}"></div>
+
+    <div class="main-content">
+        <header th:replace="~{fragments/common :: topNavbar}"></header>
+
+        <main class="content-area backtest-page" id="backtestReportPage">
+            <!-- 面包屑 -->
+            <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px;" id="breadcrumb">
+                <a th:href="@{/quant/backtests}" style="color:var(--text-secondary);">回测中心</a>
+                <span style="margin:0 6px;opacity:.5;">/</span>
+                <span id="crumbStrategy">策略</span>
+                <span style="margin:0 6px;opacity:.5;">/</span>
+                <span style="color:var(--text-primary);" id="crumbCurrent">报告</span>
+            </div>
+
+            <!-- 页头 -->
+            <div class="bt-page-header">
+                <div>
+                    <h1 class="bt-page-title" id="reportTitle">
+                        <span class="bt-empty-state-title">加载中…</span>
+                    </h1>
+                    <p class="bt-page-subtitle" id="reportSubtitle"></p>
+                </div>
+                <div class="bt-page-actions">
+                    <a th:href="@{/quant/backtests}" class="btn-bt btn-bt-secondary btn-bt-sm">
+                        <i class="bi bi-arrow-left"></i> 返回列表
+                    </a>
+                    <button type="button" class="btn-bt btn-bt-secondary btn-bt-sm" id="btnRerun">
+                        <i class="bi bi-arrow-repeat"></i> 重跑
+                    </button>
+                    <button type="button" class="btn-bt btn-bt-secondary btn-bt-sm" id="btnCompareAdd">
+                        <i class="bi bi-bar-chart-line"></i> 加入对比
+                    </button>
+                    <button type="button" class="btn-bt btn-bt-primary btn-bt-sm" id="btnExportCsv">
+                        <i class="bi bi-download"></i> 导出 CSV
+                    </button>
+                </div>
+            </div>
+
+            <!-- 同策略其他区间导航 -->
+            <div class="bt-report-nav" id="reportNav" style="display:none;">
+                <span class="bt-report-nav-label">同策略其他区间：</span>
+                <span id="reportNavChips"></span>
+            </div>
+
+            <!-- 指标卡（10 个） -->
+            <div class="bt-metric-grid" id="metricGrid">
+                <div class="bt-empty-state"><i class="bi bi-hourglass-split"></i><div class="bt-empty-state-title">加载中…</div></div>
+            </div>
+
+            <!-- 净值曲线 vs 基准 -->
+            <div class="bt-chart-card">
+                <div class="bt-chart-head">
+                    <div class="bt-chart-title"><i class="bi bi-graph-up"></i>净值曲线 vs 基准</div>
+                    <div class="bt-chart-legend" id="equityLegend">
+                        <span class="bt-chart-legend-item"><span class="swatch" style="background:var(--accent-blue);"></span>策略净值</span>
+                        <span class="bt-chart-legend-item"><span class="swatch" style="background:var(--accent-yellow);border:1px dashed var(--accent-yellow);"></span>基准归一化</span>
+                    </div>
+                </div>
+                <div class="bt-chart-body">
+                    <div class="bt-chart-canvas" id="equityChart" style="height:340px;"></div>
+                </div>
+            </div>
+
+            <!-- 回撤 + 月度热力 -->
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 18px;" id="ddMonthlyRow">
+                <div class="bt-chart-card" style="margin-bottom:0;">
+                    <div class="bt-chart-head">
+                        <div class="bt-chart-title"><i class="bi bi-graph-down"></i>回撤曲线</div>
+                        <div class="bt-chart-legend">
+                            <span class="bt-chart-legend-item"><span class="dot-sw" style="background:var(--rise-color);"></span>回撤</span>
+                        </div>
+                    </div>
+                    <div class="bt-chart-body">
+                        <div class="bt-chart-canvas" id="drawdownChart" style="height:220px;"></div>
+                    </div>
+                </div>
+
+                <div class="bt-chart-card" style="margin-bottom:0;">
+                    <div class="bt-chart-head">
+                        <div class="bt-chart-title"><i class="bi bi-grid-3x3"></i>月度收益热力</div>
+                        <div class="bt-chart-legend">
+                            <span class="bt-chart-legend-item"><span class="dot-sw" style="background:var(--rise-color);"></span>涨</span>
+                            <span class="bt-chart-legend-item"><span class="dot-sw" style="background:var(--fall-color);"></span>跌</span>
+                        </div>
+                    </div>
+                    <div class="bt-chart-body" id="monthlyBody">
+                        <div class="bt-heatmap" id="heatmap"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 交易明细表 -->
+            <div class="bt-table-wrap">
+                <div class="bt-table-head">
+                    <div class="bt-table-title"><i class="bi bi-list-ul"></i>交易明细 <span class="count" id="tradesCount">—</span></div>
+                    <div class="bt-table-actions">
+                        <button type="button" class="btn-bt btn-bt-secondary btn-bt-sm" id="btnExportCsv2">
+                            <i class="bi bi-download"></i> 导出 CSV
+                        </button>
+                    </div>
+                </div>
+                <div class="bt-table-scroll">
+                    <table class="bt-data-table">
+                        <thead>
+                            <tr>
+                                <th>标的</th><th>方向</th>
+                                <th class="num">入场价</th><th class="num">出场价</th>
+                                <th class="num">数量</th>
+                                <th>入场时间</th><th>出场时间</th>
+                                <th class="num">持仓(bar)</th>
+                                <th class="num">盈亏</th><th class="num">收益率</th>
+                                <th>出场标签</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tradesBody">
+                            <tr><td colspan="11" class="center" style="padding:30px;color:var(--text-muted);">加载中…</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 持仓快照表 -->
+            <div class="bt-table-wrap">
+                <div class="bt-table-head">
+                    <div class="bt-table-title"><i class="bi bi-box-seam"></i>持仓快照 <span class="count">回测期末</span></div>
+                </div>
+                <div class="bt-table-scroll">
+                    <table class="bt-data-table">
+                        <thead>
+                            <tr>
+                                <th>标的</th>
+                                <th class="num">持仓数量</th>
+                                <th class="num">可用数量</th>
+                                <th class="num">入场价</th>
+                                <th class="num">当前价</th>
+                                <th class="num">市值</th>
+                                <th class="num">浮动盈亏</th>
+                                <th class="num">收益率</th>
+                                <th>持仓天数</th>
+                            </tr>
+                        </thead>
+                        <tbody id="positionsBody">
+                            <tr><td colspan="9" class="center" style="padding:30px;color:var(--text-muted);">加载中…</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+</div>
+
+<div th:replace="~{fragments/common :: toastContainer}"></div>
+<div th:replace="~{fragments/common :: scripts}"></div>
+<script th:src="@{/js/backtest-report.js}"></script>
+</body>
+</html>

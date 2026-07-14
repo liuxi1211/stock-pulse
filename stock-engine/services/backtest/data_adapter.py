@@ -1,0 +1,119 @@
+"""回测数据适配层：watcher K 线 list[dict] → akquant DataFrame（spec 007-backtest-center T2）。
+
+衔接点：watcher 通过 HTTP 把 ``kline_data``(list[dict]) 传给 engine，本模块负责
+转成 akquant ``run_backtest`` 能消费的形态（DatetimeIndex + OHLCV float64）。
+
+约束：本模块不触库，仅做内存转换。
+"""
+from typing import Any
+
+import pandas as pd
+
+# watcher 实际可能用到的时间列名（按命中顺序匹配）
+_TIME_COLS: tuple[str, ...] = ("date", "trade_date", "datetime", "timestamp")
+
+# akquant 需要的标准 OHLCV 列（小写）
+_OHLCV_COLS: tuple[str, ...] = ("open", "high", "low", "close", "volume")
+
+# 基准序列候选收盘价列名
+_BENCHMARK_CLOSE_COLS: tuple[str, ...] = ("close", "CLOSE", "price")
+
+
+def kline_to_df(kline_data: list[dict]) -> pd.DataFrame:
+    """watcher K 线 ``list[dict]`` → akquant 可用的 DataFrame。
+
+    步骤：
+    1. ``pd.DataFrame(kline_data)``；
+    2. 识别 ``date``/``trade_date``/``datetime``/``timestamp`` 时间列 → ``DatetimeIndex``；
+    3. 仅保留 ``open``/``high``/``low``/``close``/``volume``；
+    4. ``astype("float64")`` + 升序排序。
+
+    空数据或缺时间列抛 ``ValueError``（含 errorCode=BACKTEST_DATA_INVALID 提示）。
+    """
+    if not kline_data:
+        raise ValueError("BACKTEST_DATA_INVALID: K线数据为空")
+
+    df = pd.DataFrame(kline_data)
+    if df.empty:
+        raise ValueError("BACKTEST_DATA_INVALID: K线数据为空")
+
+    # 1. 识别时间列
+    time_col: str | None = next((c for c in _TIME_COLS if c in df.columns), None)
+    if time_col is None:
+        raise ValueError(
+            "BACKTEST_DATA_INVALID: 缺少时间列(date/trade_date/datetime/timestamp)"
+        )
+
+    df[time_col] = pd.to_datetime(df[time_col], errors="raise")
+    df = df.set_index(time_col).sort_index()
+
+    # 去重索引（保留最后一条）
+    if df.index.has_duplicates:
+        df = df[~df.index.duplicated(keep="last")]
+
+    # 2. 仅保留 OHLCV
+    keep = [c for c in _OHLCV_COLS if c in df.columns]
+    if not keep:
+        raise ValueError(
+            "BACKTEST_DATA_INVALID: 缺少 OHLCV 列(open/high/low/close/volume)"
+        )
+    df = df[keep]
+
+    # 3. 数值化（非法值 → NaN，由上游/akquant 处理）
+    df = df.astype("float64")
+    return df
+
+
+def kline_to_df_map(kline_data: dict[str, list[dict]]) -> dict[str, pd.DataFrame]:
+    """多标的 K 线分组转换。
+
+    入参形如 ``{"000001.SZ": [...], "600000.SH": [...]}``，对每个 symbol 调
+    :func:`kline_to_df`，返回 ``{symbol: DataFrame}``。
+    """
+    if not kline_data:
+        raise ValueError("BACKTEST_DATA_INVALID: kline_data map 为空")
+
+    out: dict[str, pd.DataFrame] = {}
+    for symbol, rows in kline_data.items():
+        out[str(symbol)] = kline_to_df(rows)
+    return out
+
+
+def normalize_benchmark(benchmark_data: list[dict]) -> pd.Series:
+    """基准收盘价序列归一化到 1.0（``price / price[0]``）。
+
+    识别 ``close``/``CLOSE``/``price`` 列；空数据抛 ``ValueError``。
+
+    例：``[3000, 3030, 2970]`` → ``[1.0, 1.01, 0.99]``。
+    """
+    if not benchmark_data:
+        raise ValueError("BACKTEST_DATA_INVALID: benchmark_data 为空")
+
+    df = pd.DataFrame(benchmark_data)
+    close_col: str | None = next((c for c in _BENCHMARK_CLOSE_COLS if c in df.columns), None)
+    if close_col is None:
+        raise ValueError(
+            "BACKTEST_DATA_INVALID: benchmark_data 缺少收盘价列(close/CLOSE/price)"
+        )
+
+    prices = pd.to_numeric(df[close_col], errors="coerce").astype("float64")
+    prices = prices.dropna()
+    if prices.empty:
+        raise ValueError("BACKTEST_DATA_INVALID: benchmark_data 收盘价全为空")
+
+    first = prices.iloc[0]
+    if first == 0:
+        raise ValueError("BACKTEST_DATA_INVALID: benchmark_data 首个收盘价为 0，无法归一化")
+
+    normalized = prices / first
+
+    # 若有时间列，附带 DatetimeIndex 便于与权益曲线对齐
+    time_col: str | None = next((c for c in _TIME_COLS if c in df.columns), None)
+    if time_col is not None:
+        idx = pd.to_datetime(df.loc[prices.index, time_col], errors="coerce")
+        normalized.index = idx
+
+    return normalized
+
+
+__all__ = ["kline_to_df", "kline_to_df_map", "normalize_benchmark"]

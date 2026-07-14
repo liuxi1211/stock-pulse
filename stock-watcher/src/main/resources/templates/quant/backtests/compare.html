@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/common :: head(${pageTitle})}"></head>
+<link rel="stylesheet" th:href="@{/css/backtest.css}">
+<body>
+<div class="app-container">
+    <nav th:replace="~{fragments/common :: sidebar}"></nav>
+    <div th:replace="~{fragments/common :: sidebarOverlay}"></div>
+
+    <div class="main-content">
+        <header th:replace="~{fragments/common :: topNavbar}"></header>
+
+        <main class="content-area backtest-page" id="backtestComparePage">
+            <!-- 页头 -->
+            <div class="bt-page-header">
+                <div>
+                    <h1 class="bt-page-title">
+                        <span th:text="${pageTitle}">回测对比</span>
+                    </h1>
+                    <p class="bt-page-subtitle">归一化净值叠加 · 指标对比表高亮最优/最差 · 雷达图多维评估</p>
+                </div>
+                <div class="bt-page-actions">
+                    <a th:href="@{/quant/backtests}" class="btn-bt btn-bt-secondary btn-bt-sm">
+                        <i class="bi bi-arrow-left"></i> 返回回测中心
+                    </a>
+                </div>
+            </div>
+
+            <!-- 空状态 -->
+            <div class="bt-card-base" id="emptyState" style="padding:40px;display:none;">
+                <div class="bt-empty-state">
+                    <i class="bi bi-bar-chart-line"></i>
+                    <div class="bt-empty-state-title">尚未选择对比回测</div>
+                    <div class="bt-empty-state-sub">在回测中心勾选多个回测后点击"开始对比"，或通过 URL 参数 ?ids=1,2,3 指定</div>
+                    <a th:href="@{/quant/backtests}" class="btn-bt btn-bt-primary btn-bt-sm">
+                        <i class="bi bi-arrow-left"></i> 去列表页选择
+                    </a>
+                </div>
+            </div>
+
+            <!-- 对比内容 -->
+            <div id="compareContent" style="display:none;">
+                <!-- 参与对比的 chip 列表 -->
+                <div class="bt-compare-controls" id="compareChips"></div>
+
+                <!-- 区间一致性提示 -->
+                <div class="bt-consistency-tip" id="consistencyTip"></div>
+
+                <!-- 归一化净值叠加图 -->
+                <div class="bt-chart-card">
+                    <div class="bt-chart-head">
+                        <div class="bt-chart-title"><i class="bi bi-graph-up"></i>归一化净值叠加</div>
+                        <div class="bt-chart-legend" id="overlayLegend"></div>
+                    </div>
+                    <div class="bt-chart-body">
+                        <div class="bt-chart-canvas" id="overlayChart" style="height:340px;"></div>
+                    </div>
+                </div>
+
+                <!-- 指标对比表 + 雷达图 -->
+                <div style="display:grid; grid-template-columns: 1.6fr 1fr; gap: 16px; align-items: start; margin-bottom: 18px;" id="tableRadarRow">
+                    <div class="bt-table-wrap" style="margin-bottom:0;">
+                        <div class="bt-table-head">
+                            <div class="bt-table-title">
+                                <i class="bi bi-table"></i>指标对比表
+                                <span style="font-size:10.5px;color:var(--text-muted);margin-left:8px;font-weight:400;">最优红 · 最差灰</span>
+                            </div>
+                        </div>
+                        <div class="bt-table-scroll">
+                            <table class="bt-data-table bt-compare-table" id="metricsTable">
+                                <thead><tr id="metricsHead"></tr></thead>
+                                <tbody id="metricsBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="bt-chart-card" style="margin-bottom:0;">
+                        <div class="bt-chart-head">
+                            <div class="bt-chart-title"><i class="bi bi-bullseye"></i>雷达图对比</div>
+                            <div class="bt-chart-legend" id="radarLegend"></div>
+                        </div>
+                        <div class="bt-chart-body">
+                            <div class="bt-chart-canvas" id="radarChart" style="height:340px;"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+</div>
+
+<div th:replace="~{fragments/common :: toastContainer}"></div>
+<div th:replace="~{fragments/common :: scripts}"></div>
+<script th:src="@{/js/backtest-compare.js}"></script>
+</body>
+</html>

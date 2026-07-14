@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>策略卡片回测增量补丁 · StockPulse</title>
+<link rel="stylesheet" href="prototype.css">
+</head>
+<body>
+<div class="app-shell">
+    <aside class="sidebar">
+        <div class="sidebar-brand">
+            <div class="brand-logo">SP</div>
+            <div>
+                <div class="brand-name">StockPulse</div>
+                <div class="brand-sub">量化平台</div>
+            </div>
+        </div>
+        <div class="nav-section">
+            <div class="nav-section-title">市场</div>
+            <a class="nav-item" href="#"><i>📊</i>行情看板</a>
+            <a class="nav-item" href="#"><i>⭐</i>我的自选<span class="badge">27</span></a>
+        </div>
+        <div class="nav-section">
+            <div class="nav-section-title">量化</div>
+            <a class="nav-item" href="#"><i>🧬</i>标准因子库</a>
+            <a class="nav-item" href="#"><i>🎯</i>多因子选股</a>
+            <a class="nav-item active" href="#"><i>📐</i>策略管理<span class="badge">12</span></a>
+            <a class="nav-item" href="strategy-backtests.html"><i>📈</i>回测中心<span class="badge">36</span></a>
+            <a class="nav-item" href="#" style="opacity:.45"><i>📡</i>信号中心</a>
+        </div>
+        <div class="nav-section">
+            <div class="nav-section-title">账户</div>
+            <a class="nav-item" href="#"><i>⚙️</i>系统设置</a>
+        </div>
+    </aside>
+
+    <main class="main">
+        <div class="topbar">
+            <div class="crumb">
+                <a href="#">量化</a><span class="sep">/</span>
+                <a href="#">策略管理</a><span class="sep">/</span>
+                <span class="cur">增量补丁示意</span>
+            </div>
+            <div class="topbar-right">
+                <button class="top-icon-btn" title="通知">🔔</button>
+                <button class="top-icon-btn" title="主题">🌓</button>
+                <div class="avatar">Q</div>
+            </div>
+        </div>
+
+        <div class="content">
+            <!-- 说明条 -->
+            <div style="padding:12px 16px;background:rgba(139,92,246,.06);border:1px solid rgba(139,92,246,.2);border-radius:var(--radius-md);margin-bottom:18px;font-size:12px;color:var(--text-secondary);line-height:1.6;display:flex;gap:10px;align-items:flex-start;">
+                <i style="color:var(--accent-purple-light);font-size:14px;flex-shrink:0;margin-top:1px;">📌</i>
+                <div>
+                    本页是 <strong style="color:var(--text-primary);">004 策略管理页的增量补丁示意</strong>，展示三个新增点：
+                    ① 策略卡片底部新增「发起回测」按钮；
+                    ② 卡片右上角新增「回测次数徽章」（OQ-B 决策：不显���数字，只显示「N 次回测」点击进回测中心）；
+                    ③ 点击「发起回测」弹出右侧抽屉配置（原 new.html 内容合并至此）。
+                    原型仅展示增量部分，完整策略管理页见 004 原型。
+                </div>
+            </div>
+
+            <h2 style="font-size:14px;color:var(--text-secondary);margin-bottom:14px;text-transform:uppercase;letter-spacing:1px;">策略卡片三种状态示意</h2>
+
+            <!-- 三张策略卡片示意 -->
+            <div class="bt-grid">
+
+                <!-- 卡片 1：有回测记录的策略 -->
+                <div class="bt-card is-success" style="--card-accent: var(--gradient-primary);">
+                    <div class="bt-card-head">
+                        <div>
+                            <div class="bt-strat-name">
+                                双均线金叉策略
+                                <span class="mono" style="font-size:10.5px;color:var(--text-muted);font-weight:400;margin-left:4px;">S-7</span>
+                            </div>
+                            <div class="bt-strat-meta">
+                                <span>v3</span><span class="sep">·</span>
+                                <span class="status-badge status-verified" style="font-size:9.5px;padding:2px 8px;">VERIFIED</span><span class="sep">·</span>
+                                <span class="cat-badge cat-tech">技术面</span>
+                            </div>
+                        </div>
+                        <!-- OQ-B：回测次数徽章（不显示数字，只显示次数 + 点击进回测中心） -->
+                        <a href="strategy-backtests.html" class="bt-range-badge" style="text-decoration:none;">
+                            <i>🧪</i>6 次回测
+                        </a>
+                    </div>
+                    <div class="bt-card-body">
+                        <div class="card-desc">MA5 cross_up MA20 买入，cross_down 卖出，order_target_percent 95%，bracket 止损 5% / 止盈 10%</div>
+                        <div class="card-meta">
+                            <span class="card-tag">signals</span>
+                            <span class="card-tag">exit.bracket</span>
+                            <span class="card-tag mono">000001.SZ</span>
+                        </div>
+                    </div>
+                    <div class="bt-card-foot">
+                        <span class="bt-time">v3 · 2026-07-10</span>
+                        <div class="card-actions">
+                            <button class="icon-btn" title="编辑">✏️</button>
+                            <!-- 新增：发起回测按钮 -->
+                            <button class="btn btn-primary btn-sm" onclick="document.getElementById('drawer').classList.add('show');document.getElementById('drawerMask').classList.add('show');">🚀 发起回测</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 卡片 2：从未回测的策略 -->
+                <div class="bt-card is-pending" style="--card-accent: var(--accent-cyan);">
+                    <div class="bt-card-head">
+                        <div>
+                            <div class="bt-strat-name">
+                                布林带突破策略
+                                <span class="mono" style="font-size:10.5px;color:var(--text-muted);font-weight:400;margin-left:4px;">S-12</span>
+                            </div>
+                            <div class="bt-strat-meta">
+                                <span>v1</span><span class="sep">·</span>
+                                <span class="status-badge status-verified" style="font-size:9.5px;padding:2px 8px;">VERIFIED</span><span class="sep">·</span>
+                                <span class="cat-badge cat-tech">技术面</span>
+                            </div>
+                        </div>
+                        <!-- OQ-B：未回测时显示虚线引导徽章 -->
+                        <a href="strategy-backtests.html" class="bt-range-badge" style="background:transparent;border-style:dashed;color:var(--text-muted);text-decoration:none;">
+                            <i>⌛</i>待回测
+                        </a>
+                    </div>
+                    <div class="bt-card-body">
+                        <div class="card-desc">收盘价突破 BOLL 上轨买入，跌破中轨卖出，ATR 止损 mult=2</div>
+                        <div class="card-meta">
+                            <span class="card-tag">signals</span>
+                            <span class="card-tag">exit.bracket</span>
+                            <span class="card-tag mono">600519.SH</span>
+                        </div>
+                    </div>
+                    <div class="bt-card-foot">
+                        <span class="bt-time">v1 · 2026-07-12</span>
+                        <div class="card-actions">
+                            <button class="icon-btn" title="编辑">✏️</button>
+                            <button class="btn btn-primary btn-sm" onclick="document.getElementById('drawer').classList.add('show');document.getElementById('drawerMask').classList.add('show');">🚀 发起回测</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 卡片 3：DRAFT 状态（不可回测） -->
+                <div class="bt-card is-cancelled" style="--card-accent: var(--text-muted);opacity:.7;">
+                    <div class="bt-card-head">
+                        <div>
+                            <div class="bt-strat-name">
+                                动量轮动策略
+                                <span class="mono" style="font-size:10.5px;color:var(--text-muted);font-weight:400;margin-left:4px;">S-15</span>
+                            </div>
+                            <div class="bt-strat-meta">
+                                <span>v1</span><span class="sep">·</span>
+                                <span class="status-badge status-draft" style="font-size:9.5px;padding:2px 8px;">DRAFT</span><span class="sep">·</span>
+                                <span class="cat-badge cat-mixed">混合</span>
+                            </div>
+                        </div>
+                        <span class="bt-range-badge" style="background:transparent;border-style:dashed;color:var(--text-muted);">
+                            <i>🔒</i>需先校验
+                        </span>
+                    </div>
+                    <div class="bt-card-body">
+                        <div class="card-desc">rebalance 调仓驱动（第二波范式，第一波不支持回测）</div>
+                        <div class="card-meta">
+                            <span class="card-tag" style="color:var(--accent-orange);">rebalance</span>
+                            <span class="card-tag">未校验</span>
+                        </div>
+                    </div>
+                    <div class="bt-card-foot">
+                        <span class="bt-time">v1 · 2026-07-13 草稿</span>
+                        <div class="card-actions">
+                            <button class="icon-btn" title="编辑">✏️</button>
+                            <!-- DRAFT 不可回测：按钮禁用 + tooltip -->
+                            <button class="btn btn-secondary btn-sm" disabled title="DRAFT 状态不可回测，需先校验通过" style="cursor:not-allowed;">🚀 发起回测</button>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- ============ OQ-B 决策说明卡 ============ -->
+            <div class="card-base" style="position:relative;padding:18px 22px;margin-top:24px;--card-accent:var(--accent-yellow);">
+                <div style="display:flex;align-items:center;gap:14px;margin-bottom:12px;">
+                    <i style="font-size:22px;color:var(--accent-yellow);">⚖️</i>
+                    <div>
+                        <div style="font-size:14px;font-weight:600;color:var(--text-primary);">OQ-B 决策：策略卡片回测徽章展示规则</div>
+                        <div style="font-size:11px;color:var(--text-muted);">已拍板：选项 B · 不显示数字</div>
+                    </div>
+                </div>
+                <div style="font-size:12.5px;color:var(--text-secondary);line-height:1.8;">
+                    策略卡片<strong style="color:var(--text-primary);">不显示任何回测指标数字</strong>（如收益、夏普），只显示<strong style="color:var(--accent-cyan-light);">「N 次回测」</strong>或<strong style="color:var(--text-muted);">「待回测」</strong>徽章。
+                    理由：一个策略可有多次回测，展示单个数字会误导用户（取最新？取最优？取当前版本？均不诚实）。
+                    完整表现请进回测中心的「策略回测时间轴」查看。
+                </div>
+                <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border-light);font-size:11px;color:var(--text-muted);line-height:1.6;">
+                    <strong style="color:var(--text-secondary);">三种徽章状态：</strong><br>
+                    ① 已有回测：<code style="font-family:var(--font-mono);color:var(--accent-blue-light);">🧪 N 次回测</code>（蓝底，可点击进回测中���）<br>
+                    ② 从未回测：<code style="font-family:var(--font-mono);color:var(--text-muted);">⌛ 待回测</code>（虚线，引导发起）<br>
+                    ③ DRAFT 状态：<code style="font-family:var(--font-mono);color:var(--text-muted);">🔒 需先校验</code>（禁用，提示先校验）
+                </div>
+            </div>
+
+        </div>
+    </main>
+</div>
+
+<!-- ============ 抽屉遮罩 ============ -->
+<div class="bt-drawer-mask" id="drawerMask" onclick="document.getElementById('drawer').classList.remove('show');this.classList.remove('show');"></div>
+
+<!-- ============ 发起回测抽屉（原 new.html 内容合并至此） ============ -->
+<aside class="bt-drawer" id="drawer">
+    <div class="bt-drawer-head">
+        <div>
+            <div class="bt-drawer-title">发起回测</div>
+            <div class="bt-drawer-sub">双均线金叉策略 · v3 · VERIFIED</div>
+        </div>
+        <button class="bt-drawer-close" onclick="document.getElementById('drawer').classList.remove('show');document.getElementById('drawerMask').classList.remove('show');">✕</button>
+    </div>
+
+    <div class="bt-drawer-body">
+        <!-- 策略摘要（只读） -->
+        <div class="form-section">
+            <div class="form-section-title">
+                <i>📋</i>策略摘要
+                <span class="badge-tag">只读</span>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:6px;font-size:11.5px;">
+                <div class="flex-between">
+                    <span class="text-muted">范式</span>
+                    <span class="mono" style="color:var(--accent-cyan-light);">signals + exit.bracket</span>
+                </div>
+                <div class="flex-between">
+                    <span class="text-muted">买入信号</span>
+                    <span class="mono">MA5 cross_up MA20</span>
+                </div>
+                <div class="flex-between">
+                    <span class="text-muted">卖出信号</span>
+                    <span class="mono">MA5 cross_down MA20</span>
+                </div>
+                <div class="flex-between">
+                    <span class="text-muted">标的</span>
+                    <span class="mono">000001.SZ</span>
+                </div>
+                <div class="flex-between">
+                    <span class="text-muted">仓位</span>
+                    <span class="mono">order_target_percent 95%</span>
+                </div>
+                <div class="flex-between">
+                    <span class="text-muted">止损 / 止盈</span>
+                    <span class="mono"><span style="color:var(--rise-light);">-5%</span> / <span style="color:var(--accent-yellow);">+10%</span></span>
+                </div>
+            </div>
+            <div style="margin-top:10px;padding:8px 10px;background:rgba(15,21,32,.5);border-radius:var(--radius-sm);font-size:10.5px;color:var(--text-muted);line-height:1.5;">
+                <i style="color:var(--accent-cyan);">ℹ️</i> 策略逻辑不可改，只能覆盖回测参数（资金/区间/benchmark）。
+            </div>
+        </div>
+
+        <!-- 回测区间（时间为一等公民） -->
+        <div class="form-section" style="background: rgba(251,191,36,.05); border-color: rgba(251,191,36,.2);">
+            <div class="form-section-title">
+                <i style="color:var(--accent-yellow);">📅</i>回测区间
+                <span class="badge-tag" style="background:rgba(251,191,36,.12);color:var(--accent-yellow);">必填</span>
+            </div>
+
+            <!-- 快速预设 -->
+            <div class="bt-range-presets">
+                <button class="bt-range-preset">近1月</button>
+                <button class="bt-range-preset">近3月</button>
+                <button class="bt-range-preset">近6月</button>
+                <button class="bt-range-preset active">近1年</button>
+                <button class="bt-range-preset">近3年</button>
+                <button class="bt-range-preset">全历史</button>
+            </div>
+
+            <div class="form-row-2" style="margin-bottom:0;">
+                <div>
+                    <label class="form-label">起始日</label>
+                    <input type="date" class="form-input mono" value="2025-07-13">
+                </div>
+                <div>
+                    <label class="form-label">结束日</label>
+                    <input type="date" class="form-input mono" value="2026-07-13">
+                </div>
+            </div>
+            <div class="form-hint" style="margin-top:8px;">约 243 个交易日 · 建议多跑几个时间段对比稳健性</div>
+        </div>
+
+        <!-- benchmark -->
+        <div class="form-section">
+            <div class="form-section-title">
+                <i style="color:var(--accent-yellow);">🏆</i>基准对比
+                <span class="badge-tag">必填</span>
+            </div>
+            <label class="form-label">对比基准</label>
+            <select class="form-select mono">
+                <option value="000300.SH" selected>沪深300 · 000300.SH</option>
+                <option value="000905.SH">中证500 · 000905.SH</option>
+                <option value="000016.SH">上证50 · 000016.SH</option>
+                <option value="000852.SH">中证1000 · 000852.SH</option>
+            </select>
+            <div class="form-hint">报告页净值曲线叠加基准归一化净值 · 默认沪深300</div>
+        </div>
+
+        <!-- 资金与费率 -->
+        <div class="form-section">
+            <div class="form-section-title">
+                <i>⚙️</i>资金与费率
+                <span class="badge-tag">overrideConfig</span>
+            </div>
+
+            <div class="form-row">
+                <label class="form-label">初始资金</label>
+                <div class="form-input-append">
+                    <input type="text" class="form-input mono" value="200000" style="text-align:right;">
+                    <span class="append">CNY</span>
+                </div>
+            </div>
+
+            <div class="form-row-2" style="margin-bottom:0;">
+                <div>
+                    <label class="form-label">券商费率模板 <span class="hint">broker_profile</span></label>
+                    <select class="form-select mono">
+                        <option selected>cn_stock_miniqmt</option>
+                        <option>cn_stock_t1_low_fee</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="form-label">滑点</label>
+                    <select class="form-select mono">
+                        <option selected>percent 0.02%</option>
+                        <option>fixed ¥0.10</option>
+                        <option>zero</option>
+                    </select>
+                </div>
+            </div>
+
+            <div style="margin-top:14px;padding:10px 12px;background:rgba(59,130,246,.06);border:1px solid rgba(59,130,246,.2);border-radius:var(--radius-sm);font-size:11px;color:var(--text-secondary);line-height:1.7;">
+                <strong style="color:var(--accent-blue-light);">🔒 A 股强制规则（不可改）</strong><br>
+                <span class="mono">t_plus_one = true</span> · <span class="mono">lot_size = 100</span><br>
+                <span class="mono">fill_policy = open · next_event · offset 1</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="bt-drawer-foot">
+        <div style="font-size:11px;color:var(--text-muted);line-height:1.4;">
+            <i style="color:var(--accent-cyan);">ℹ️</i> 提交后任务进入 <span class="mono">PENDING</span><br>引擎空闲后转 <span class="mono">RUNNING</span>
+        </div>
+        <div class="flex gap-2">
+            <button class="btn btn-ghost" onclick="document.getElementById('drawer').classList.remove('show');document.getElementById('drawerMask').classList.remove('show');">取消</button>
+            <button class="btn-seal" style="height:36px;font-size:12px;padding:0 18px;">🚀 提交回测</button>
+        </div>
+    </div>
+</aside>
+
+</body>
+</html>

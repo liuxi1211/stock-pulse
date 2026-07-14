@@ -229,6 +229,43 @@ CREATE TABLE IF NOT EXISTS quant_strategy_version (
     INDEX idx_strategy_version_lookup (strategy_id, version_no)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='策略版本快照表';
 
+-- 16. 回测主表/任务表（quant_backtest）
+CREATE TABLE IF NOT EXISTS quant_backtest (
+    id              BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
+    task_id         VARCHAR(64)  NOT NULL COMMENT '任务唯一ID（UUID）',
+    strategy_id     VARCHAR(64)  NOT NULL COMMENT '策略业务ID（quant_strategy.strategy_id）',
+    version_no      INT          NOT NULL COMMENT '策略版本号',
+    mode            VARCHAR(16)  DEFAULT 'SINGLE' COMMENT '回测模式（SINGLE/GRID/WALK_FORWARD）',
+    status          VARCHAR(16)  DEFAULT 'PENDING' COMMENT '任务状态（PENDING/RUNNING/SUCCESS/FAILED/CANCELLED）',
+    progress        INT          DEFAULT 0 COMMENT '进度百分比（0-100）',
+    error_message   TEXT         COMMENT '失败原因（截断1024字符）',
+    override_config JSON         COMMENT '参数覆盖配置（JSON）',
+    benchmark       VARCHAR(32)  DEFAULT '000300.SH' COMMENT '基准指数代码',
+    created_by      VARCHAR(64)  COMMENT '创建人',
+    started_at      VARCHAR(32)  COMMENT '开始执行时间（UTC ISO8601）',
+    finished_at     VARCHAR(32)  COMMENT '完成时间（UTC ISO8601）',
+    created_at      VARCHAR(32)  COMMENT '创建时间（UTC ISO8601）',
+    UNIQUE KEY uk_backtest_task_id (task_id),
+    INDEX idx_backtest_strategy_version (strategy_id, version_no),
+    INDEX idx_backtest_status (status),
+    INDEX idx_backtest_mode (mode)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='回测主表/任务表';
+
+-- 17. 回测报告表（quant_backtest_report，SINGLE 模式全量 JSON）
+CREATE TABLE IF NOT EXISTS quant_backtest_report (
+    id                   BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
+    backtest_id          BIGINT       NOT NULL COMMENT '回测主表ID（quant_backtest.id）',
+    metrics_json         JSON         COMMENT '指标集合（sharpe/return/drawdown等）',
+    equity_curve_json    JSON         COMMENT '权益曲线（{dates,values}）',
+    benchmark_curve_json JSON         COMMENT '基准归一化净值曲线（{dates,values}）',
+    daily_returns_json   JSON         COMMENT '日收益率序列',
+    trades_json          JSON         COMMENT '交易明细列表',
+    orders_json          JSON         COMMENT '订单列表',
+    positions_json       JSON         COMMENT '持仓快照列表',
+    created_at           VARCHAR(32)  COMMENT '创建时间（UTC ISO8601）',
+    UNIQUE KEY uk_backtest_report (backtest_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='回测报告全量JSON表';
+
 -- 初始管理员账号（仅当表为空时插入，默认密码: admin123）
 INSERT INTO sys_user (username, password, enabled, role)
 SELECT 'admin', '$2a$10$pfuIlLGBbNZqO5xXa9oRKeEFABc4FIxs2SVY46UUG1xpA7o9tGn9u', 1, 'ADMIN'
