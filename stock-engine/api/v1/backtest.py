@@ -3,7 +3,7 @@
 - ``POST /python/v1/backtest/run``：执行回测，返回统一信封 ``{success, message, data}``；
 - ``GET /python/v1/backtest/constants``：返回 broker_profile / sort_metric / 支持范式。
 
-约束：engine 不触库，本模块无 sqlite3/sqlalchemy。
+约束：engine 不触库，本模块不含任何数据库驱动 import / 连接 / 路径字面量。
 """
 from typing import Any, Optional
 
@@ -110,7 +110,8 @@ class ConstantsResponse(BaseModel):
     summary="执行回测",
     description=(
         "传入策略配置 JSON + K 线数据，执行一次 akquant 回测，返回指标 / 权益曲线 / "
-        "交易明细等。Phase 1 仅支持 signals + exit.bracket 范式。"
+        "交易明细等。支持 signals 信号驱动 / rebalance 多因子调仓 / exit.rules 动态出场 / "
+        "exit.bracket 静态与 ATR 动态止损，以及 signals + rebalance 混合范式。"
     ),
     responses={
         200: {"description": "回测完成（无论策略是否命中信号，均返回 200 信封）", "model": BacktestRunResponse},
@@ -146,7 +147,7 @@ async def run_backtest(request: BacktestRunRequest) -> BacktestRunResponse:
     "/constants",
     response_model=ConstantsResponse,
     summary="回测常量",
-    description="返回 broker_profile 白名单 / 可用排序指标 / 第一波支持的范式。",
+    description="返回 broker_profile 白名单 / 可用排序指标 / 支持的范式（第二波：signals+bracket / signals+atr_stop / rebalance / exit.rules / mixed）。",
 )
 async def get_constants() -> ConstantsResponse:
     return ConstantsResponse(
@@ -163,7 +164,13 @@ async def get_constants() -> ConstantsResponse:
                 "calmar_ratio",
                 "cagr",
             ],
-            "paradigms_supported": ["signals+bracket"],
+            "paradigms_supported": [
+                "signals+bracket",
+                "signals+atr_stop",
+                "rebalance",
+                "exit.rules",
+                "mixed",
+            ],
         },
     )
 

@@ -151,9 +151,12 @@ def run_backtest_engine(
         # data_adapter 抛的 ValueError 已含 BACKTEST_DATA_INVALID 前缀
         raise BacktestError(str(exc), error_code=_extract_error_code(str(exc), "BACKTEST_DATA_INVALID")) from exc
 
-    # 4. 编译策略
+    # 4. 编译策略（rebalance 范式需传入 universe_symbols 以发现全池候选）
     try:
-        strategy_cls = compile_strategy(config)
+        strategy_cls = compile_strategy(
+            config,
+            universe_symbols=list(data_map.keys()) if data_map else None,
+        )
     except CompilerError as exc:
         raise BacktestError(str(exc), error_code=_extract_error_code(str(exc), "BACKTEST_COMPILE_FAILED")) from exc
 

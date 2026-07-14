@@ -20,7 +20,7 @@ public final class BacktestErrorCodes {
     /** 第一波范式不支持（含 rebalance / exit.rules / use_atr_stop） */
     public static final int BACKTEST_PARADIGM_NOT_SUPPORTED_PHASE_1 = 40011;
 
-    /** 第二波模式不支持（GRID / WALK_FORWARD） */
+    /** 第二波模式不支持（GRID / WALK_FORWARD，第三波；run() 入口对 req.mode 校验时使用） */
     public static final int BACKTEST_MODE_NOT_SUPPORTED = 40012;
 
     /** 基准不存在 */
@@ -40,4 +40,15 @@ public final class BacktestErrorCodes {
 
     /** 回测对比失败（对比数不足或无报告） */
     public static final int BACKTEST_COMPARE_FAILED = 40015;
+
+    /**
+     * 回测标的池规模超限（Phase 2，008-backtest-center-phase2）。
+     * <p>
+     * universe=all_a_shares 全市场在 watcher 侧直接拒绝，避免 5000+ 标的 K 线撑爆 HTTP 载荷与 engine 超时；
+     * 引导改用 csi300 / csi500 / manual 池。
+     * <p>
+     * 注：tasks.md T3.2 原文记为 40012，但 40012 已被 {@link #BACKTEST_MODE_NOT_SUPPORTED} 占用
+     * （第二波 spec 明确 GRID/WF 仍需返回该码），故此处改用下一空闲序号 40016。
+     */
+    public static final int BACKTEST_UNIVERSE_TOO_LARGE = 40016;
 }

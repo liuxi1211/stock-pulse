@@ -1,5 +1,12 @@
 """交易时序条件求值引擎（spec 007-backtest-center T2）。
 
+.. note::
+    spec 008-backtest-center-phase2 T1 起，本模块的求值能力同时经
+    :mod:`services.shared.condition_evaluator` 聚合对外暴露（时序 mode）。
+    本模块**保持原样**（行为单一真相源），向后兼容的
+    ``from services.backtest.trading_engine import TradingConditionEngine`` 不变；
+    新代码可统一从 ``services.shared`` 取用。
+
 区别于 003 选股的截面 ``ConditionEngine``，本引擎是**时序版**，在 ``on_bar`` 内逐 bar
 求值策略 JSON 的 signals.buy / signals.sell 条件树：
 

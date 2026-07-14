@@ -531,7 +531,7 @@ public class BacktestServiceImpl implements BacktestService {
      * <ul>
      *   <li>screen_config.universe=manual：用 screen_config.stocks；</li>
      *   <li>screen_config.universe=csi300/csi500：取回测区间内所有曾入选该指数的成分股并集（防幸存者偏差）；</li>
-     *   <li>其他（all_a_shares 等）：全市场（暂不回测，返回 null 由调用方报错）。</li>
+     *   <li>screen_config.universe=all_a_shares：Phase 2 直接在 resolveBacktestSymbols 抛 BACKTEST_UNIVERSE_TOO_LARGE，不进入本方法后续拼装。</li>
      * </ul>
      * 全空返回 null（调用方据此抛 DATA_INSUFFICIENT）。
      */
@@ -571,6 +571,9 @@ public class BacktestServiceImpl implements BacktestService {
     /**
      * 根据配置解析回测标的代码列表。
      * 指数成分股池（csi300/csi500）取回测区间内成分股并集，防幸存者偏差。
+     * <p>
+     * Phase 2（008-backtest-center-phase2）：universe=all_a_shares 全市场在 watcher 侧直接拒绝，
+     * 避免 5000+ 标的 K 线撑爆 HTTP 载荷与 engine 回测超时；引导改用 csi300/csi500/manual 池。
      */
     private List<String> resolveBacktestSymbols(JSONObject configJson) {
         JSONObject screen = configJson.getJSONObject("screen_config");
@@ -580,6 +583,10 @@ public class BacktestServiceImpl implements BacktestService {
         String universe = screen.getString("universe");
         if (universe == null) {
             return extractSymbols(configJson);
+        }
+        if ("all_a_shares".equalsIgnoreCase(universe)) {
+            throw new BusinessException(BacktestErrorCodes.BACKTEST_UNIVERSE_TOO_LARGE,
+                    "全市场回测暂不支持，请用 csi300/csi500 或 manual 池");
         }
         if ("csi300".equalsIgnoreCase(universe) || "csi500".equalsIgnoreCase(universe)) {
             String indexCode = "csi300".equalsIgnoreCase(universe) ? "000300.SH" : "000905.SH";
@@ -727,22 +734,17 @@ public class BacktestServiceImpl implements BacktestService {
     }
 
     /**
-     * 范式校验：config_json 含 trading_config.rebalance 或 exit.rules → 第一波不支持。
+     * 范式校验占位（Phase 2 放宽）。
+     * <p>
+     * 第一波曾在此拒绝 trading_config.rebalance 与 exit.rules；第二波 spec（008-backtest-center-phase2）
+     * 已将这两类范式的处理下沉到 engine（compiler.py 编译期生成 on_daily_rebalance / on_bar exit 分支），
+     * watcher 侧透传即可，故本方法不再拒绝上述范式。
+     * <p>
+     * GRID / WALK_FORWARD 模式拒绝属第三波，由 run() 入口对 req.mode 的校验独立负责，
+     * 不在此方法内；本方法保留为 no-op，便于后续按需扩展（如组合层风控校验）。
      */
     private void checkParadigmSupported(JSONObject configJson) {
-        if (configJson == null) {
-            return;
-        }
-        JSONObject trading = configJson.getJSONObject("trading_config");
-        if (trading != null && trading.containsKey("rebalance")) {
-            throw new BusinessException(BacktestErrorCodes.BACKTEST_PARADIGM_NOT_SUPPORTED_PHASE_1,
-                    "第一波不支持调仓型策略（trading_config.rebalance）");
-        }
-        JSONObject exit = configJson.getJSONObject("exit");
-        if (exit != null && exit.containsKey("rules")) {
-            throw new BusinessException(BacktestErrorCodes.BACKTEST_PARADIGM_NOT_SUPPORTED_PHASE_1,
-                    "第一波不支持含 exit.rules 的策略");
-        }
+        // Phase 2：rebalance / exit.rules / use_atr_stop 不再在 watcher 侧拒绝。
     }
 
     /**

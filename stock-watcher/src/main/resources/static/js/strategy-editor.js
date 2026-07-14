@@ -798,15 +798,10 @@ const StrategyEditor = {
             this.setVal('f-reb-day', rb.day_of_period != null ? rb.day_of_period : '');
             this.checkRadio('f-reb-replace', rb.replace_method || 'full');
             this.checkRadio('f-reb-weight', rb.weight_mode || 'equal');
-            this.setVal('f-reb-max-single', rb.max_single_position != null ? rb.max_single_position : 1);
-            this.setChecked('f-reb-long-only', rb.long_only !== false);
         } else {
             this.checkRadio('f-reb-replace', 'full');
             this.checkRadio('f-reb-weight', 'equal');
-            this.setVal('f-reb-max-single', 1);
-            this.setChecked('f-reb-long-only', true);
         }
-        this.updateMaxSingleLabel();
 
         // ---- Tab 8 回测 ----
         const bt = s.backtest_config || {};
@@ -948,7 +943,14 @@ const StrategyEditor = {
                 const tp = this.getNum('f-take-profit');
                 if (sl != null) bracket.stop_loss_pct = sl;
                 if (tp != null) bracket.take_profit_pct = tp;
-                // ATR 动态止损（use_atr_stop / atr_period / atr_multiplier）Phase 2 支持，Phase 1 不采集
+                // ATR 动态止损（use_atr_stop / atr_period / atr_multiplier）
+                if (this.getChecked('f-use-atr-stop')) {
+                    bracket.use_atr_stop = true;
+                    const atrPeriod = this.getNum('f-atr-period');
+                    if (atrPeriod != null) bracket.atr_period = atrPeriod;
+                    const atrMult = this.getNum('f-atr-multiplier');
+                    if (atrMult != null) bracket.atr_multiplier = atrMult;
+                }
                 s.trading_config.exit.bracket = bracket;
             }
             if (exitRules.length) s.trading_config.exit.rules = exitRules;
@@ -956,8 +958,8 @@ const StrategyEditor = {
             delete s.trading_config.exit;
         }
 
-        // ---- Tab 7 调仓（Phase 2 即将支持，Phase 1 不写入，避免回测范式校验拒绝）----
-        delete s.trading_config.rebalance;
+        // ---- Tab 7 调仓（rebalance）----
+        s.trading_config.rebalance = this.collectRebalance();
 
         // ---- Tab 8 回测 ----
         const bt = {};
@@ -1011,6 +1013,20 @@ const StrategyEditor = {
             return { method: 'composite', weights: weights };
         }
         return null;
+    },
+
+    /**
+     * 收集 Tab 7 调仓（rebalance）。frequency 必填，无值默认 monthly。
+     */
+    collectRebalance() {
+        const rb = {
+            frequency: this.getVal('f-reb-frequency') || 'monthly',
+            replace_method: this.getRadio('f-reb-replace') || 'full',
+            weight_mode: this.getRadio('f-reb-weight') || 'equal',
+        };
+        const day = this.getNum('f-reb-day');
+        if (day != null) rb.day_of_period = day;
+        return rb;
     },
 
     /**
@@ -1419,11 +1435,8 @@ const StrategyEditor = {
     },
 
     updateMaxSingleLabel() {
-        const slider = document.getElementById('f-reb-max-single');
-        const label = document.getElementById('f-reb-max-single-val');
-        if (slider && label) {
-            label.textContent = Math.round(Number(slider.value) * 100) + '%';
-        }
+        // max_single_position 字段已移除（akquant rebalance_to_topn 不支持该风控参数）。
+        // 保留空方法占位，避免历史调用点报错；可随调用点一并清理后删除。
     },
 
     /**
@@ -1621,11 +1634,6 @@ const StrategyEditor = {
         const onFee = (e) => { this.applyFeeToggle(e.target.checked); refresh(); };
         const onSlip = (e) => { this.applySlippageToggle(e.target.checked); refresh(); };
         const onFilterToggle = () => { this.applyFilterToggles(); refresh(); };
-        const onMaxSingle = (e) => {
-            const label = document.getElementById('f-reb-max-single-val');
-            if (label) label.textContent = Math.round(Number(e.target.value) * 100) + '%';
-            refresh();
-        };
 
         this.bindEl('f-universe', 'change', onUniverse);
         this.bindEl('f-ranking-method', 'change', onRanking);
@@ -1634,7 +1642,6 @@ const StrategyEditor = {
         this.bindEl('f-use-atr-stop', 'change', onAtr);
         this.bindEl('f-bt-use-custom-fee', 'change', onFee);
         this.bindEl('f-bt-use-slippage', 'change', onSlip);
-        this.bindEl('f-reb-max-single', 'input', onMaxSingle);
         ['f-filter-use-industries', 'f-filter-use-exclude-industries', 'f-filter-use-min-list-days']
             .forEach((id) => this.bindEl(id, 'change', onFilterToggle));
 

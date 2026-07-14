@@ -311,14 +311,14 @@
                                         <div class="row g-3">
                                             <div class="col-md-3"><label class="form-label">止损 %</label><input type="number" class="form-control" id="f-stop-loss" step="0.01" min="0" max="1" placeholder="如 0.08"></div>
                                             <div class="col-md-3"><label class="form-label">止盈 %</label><input type="number" class="form-control" id="f-take-profit" step="0.01" min="0" max="1" placeholder="如 0.20"></div>
-                                            <div class="col-md-6"><div class="form-check mt-4"><input class="form-check-input" type="checkbox" id="f-use-atr-stop" disabled><label class="form-check-label" for="f-use-atr-stop">使用 ATR 动态止损 <span class="badge bg-info text-dark">Phase 2</span></label></div></div>
-                                            <div class="col-md-3" id="f-atr-period-wrap" style="display:none;"><label class="form-label">ATR 周期</label><input type="number" class="form-control" id="f-atr-period" step="1" placeholder="如 14" disabled></div>
-                                            <div class="col-md-3" id="f-atr-multiplier-wrap" style="display:none;"><label class="form-label">ATR 倍数</label><input type="number" class="form-control" id="f-atr-multiplier" step="0.1" placeholder="如 2.5" disabled></div>
+                                            <div class="col-md-6"><div class="form-check mt-4"><input class="form-check-input" type="checkbox" id="f-use-atr-stop"><label class="form-check-label" for="f-use-atr-stop">使用 ATR 动态止损</label></div></div>
+                                            <div class="col-md-3" id="f-atr-period-wrap" style="display:none;"><label class="form-label">ATR 周期</label><input type="number" class="form-control" id="f-atr-period" step="1" placeholder="如 14"></div>
+                                            <div class="col-md-3" id="f-atr-multiplier-wrap" style="display:none;"><label class="form-label">ATR 倍数</label><input type="number" class="form-control" id="f-atr-multiplier" step="0.1" placeholder="如 2.5"></div>
                                         </div>
                                     </div>
                                 </fieldset>
 
-                                <fieldset class="mb-3" id="f-exit-rules-fieldset" style="display:none;">
+                                <fieldset class="mb-3" id="f-exit-rules-fieldset">
                                     <div class="d-flex justify-content-between align-items-center mb-2">
                                         <legend class="fs-6 fw-semibold mb-0">动态出场规则 Exit.rules</legend>
                                         <button type="button" class="btn btn-sm btn-outline-primary text-nowrap" data-add="exit-rule">+ 增行</button>
@@ -326,22 +326,15 @@
                                     <div id="f-exit-rules" class="d-flex flex-column gap-2"></div>
                                     <div class="form-text">每行：规则名 + 触发条件（条件树 JSON）+ 动作。命中即触发 action。</div>
                                 </fieldset>
-                                <div class="alert alert-secondary py-2 small mb-0">
-                                    <i class="bi bi-info-circle"></i> 动态出场规则（exit.rules）将在后续版本支持，当前请使用上方的括号单止损止盈。
-                                </div>
                             </div>
 
-                            <!-- ============ Tab 7 调仓（Phase 2 即将支持） ============ -->
+                            <!-- ============ Tab 7 调仓 ============ -->
                             <div class="tab-pane fade" id="tab-rebalance" role="tabpanel">
-                                <div class="alert alert-info py-2 small mb-3">
-                                    <i class="bi bi-hourglass-split"></i> <strong>调仓功能将在 Phase 2 支持。</strong>
-                                    多因子调仓驱动（rebalance）需要先抽取选股共享层，当前 Phase 1 暂不可用。Schema 字段已定义，下方配置项仅供预览。
-                                </div>
-                                <fieldset class="mb-3" id="f-rebalance-body" disabled>
+                                <fieldset class="mb-3" id="f-rebalance-body">
                                     <legend class="fs-6 fw-semibold mb-2">调仓规则</legend>
                                     <div class="row g-3">
                                         <div class="col-md-3"><label class="form-label">调仓频率 frequency</label>
-                                            <select class="form-select" id="f-reb-frequency" disabled>
+                                            <select class="form-select" id="f-reb-frequency">
                                                 <option value="daily">每日</option>
                                                 <option value="weekly">每周</option>
                                                 <option value="monthly">每月</option>
@@ -349,28 +342,21 @@
                                             </select>
                                         </div>
                                         <div class="col-md-3"><label class="form-label">调仓日序 day_of_period</label>
-                                            <input type="number" class="form-control" id="f-reb-day" min="1" max="28" step="1" placeholder="1-28" disabled>
+                                            <input type="number" class="form-control" id="f-reb-day" min="1" max="28" step="1" placeholder="1-28">
                                         </div>
                                         <div class="col-md-3">
                                             <label class="form-label">换仓方式 replace_method</label>
                                             <div class="d-flex gap-2">
-                                                <div class="form-check"><input class="form-check-input" type="radio" name="f-reb-replace" id="f-reb-replace-full" value="full" disabled><label class="form-check-label" for="f-reb-replace-full">全换</label></div>
-                                                <div class="form-check"><input class="form-check-input" type="radio" name="f-reb-replace" id="f-reb-replace-inc" value="incremental" disabled><label class="form-check-label" for="f-reb-replace-inc">增量换仓</label></div>
+                                                <div class="form-check"><input class="form-check-input" type="radio" name="f-reb-replace" id="f-reb-replace-full" value="full"><label class="form-check-label" for="f-reb-replace-full">全换</label></div>
+                                                <div class="form-check"><input class="form-check-input" type="radio" name="f-reb-replace" id="f-reb-replace-inc" value="incremental"><label class="form-check-label" for="f-reb-replace-inc">增量换仓</label></div>
                                             </div>
                                         </div>
                                         <div class="col-md-3">
                                             <label class="form-label">权重模式 weight_mode</label>
                                             <div class="d-flex gap-2">
-                                                <div class="form-check"><input class="form-check-input" type="radio" name="f-reb-weight" id="f-reb-weight-equal" value="equal" disabled><label class="form-check-label" for="f-reb-weight-equal">等权</label></div>
-                                                <div class="form-check"><input class="form-check-input" type="radio" name="f-reb-weight" id="f-reb-weight-score" value="score" disabled><label class="form-check-label" for="f-reb-weight-score">按分加权</label></div>
+                                                <div class="form-check"><input class="form-check-input" type="radio" name="f-reb-weight" id="f-reb-weight-equal" value="equal"><label class="form-check-label" for="f-reb-weight-equal">等权</label></div>
+                                                <div class="form-check"><input class="form-check-input" type="radio" name="f-reb-weight" id="f-reb-weight-score" value="score"><label class="form-check-label" for="f-reb-weight-score">按分加权</label></div>
                                             </div>
-                                        </div>
-                                        <div class="col-md-6">
-                                            <label class="form-label">单标的最大仓位 max_single_position：<span id="f-reb-max-single-val" class="badge bg-secondary">100%</span></label>
-                                            <input type="range" class="form-range" id="f-reb-max-single" min="0" max="1" step="0.05" value="1" disabled>
-                                        </div>
-                                        <div class="col-md-6">
-                                            <div class="form-check mt-4"><input class="form-check-input" type="checkbox" id="f-reb-long-only" checked disabled><label class="form-check-label" for="f-reb-long-only">仅做多 long_only</label></div>
                                         </div>
                                     </div>
                                 </fieldset>

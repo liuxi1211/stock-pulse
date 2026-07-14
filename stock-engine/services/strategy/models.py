@@ -303,10 +303,11 @@ class RebalanceModel(BaseModel):
     weight_mode: Optional[Literal["equal", "score"]] = Field(
         None, description="权重模式：equal（等权）/ score（按 ranking score 加权）"
     )
-    max_single_position: Optional[float] = Field(
-        None, description="单标的最大仓位占比（风控）"
+    long_only: Optional[bool] = Field(
+        True,
+        description="是否仅做多（默认 True）。A 股不支持融券做空，固定 True；"
+        "前端控件已移除，此处保留字段并固定默认值，待期货标的支持后再开放。",
     )
-    long_only: Optional[bool] = Field(True, description="是否仅做多（默认 True）")
 
 
 class TradingConfigModel(BaseModel):

@@ -1,5 +1,12 @@
 """选股条件表达式求值引擎（统一策略配置 Schema §4 / spec 003 阶段 0 Task 2）。
 
+.. note::
+    spec 008-backtest-center-phase2 T1 起，本模块的求值能力同时经
+    :mod:`services.shared.condition_evaluator` 聚合对外暴露（截面 mode）。
+    本模块**保持原样**（行为单一真相源），向后兼容的
+    ``from services.screener.engine import ConditionEngine`` 不变；
+    新代码可统一从 ``services.shared`` 取用。
+
 职责：
 - 把 ``ConditionTree``（AND/OR 递归）求值为布尔结果。
 - 把 ``ExpressionNode``（value/factor/arith/ref 4 形态）求值为浮点数。

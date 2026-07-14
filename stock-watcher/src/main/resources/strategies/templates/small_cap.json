@@ -35,7 +35,6 @@
       "frequency": "monthly",
       "day_of_period": 1,
       "weight_mode": "equal",
-      "max_single_position": 0.10,
       "long_only": true
     }
   },

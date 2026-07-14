@@ -1,5 +1,13 @@
 """因子批量预计算（统一策略配置 Schema §4 / spec 003 阶段 0 Task 3）。
 
+.. note::
+    spec 008-backtest-center-phase2 T1 起，本模块的批量预计算能力同时经
+    :mod:`services.shared.factor_pipeline` 聚合对外暴露
+    （``precompute_factors_batch`` / ``precompute``）。本模块**保持原样**
+    （行为单一真相源），向后兼容的
+    ``from services.screener.factor_precompute import precompute_factors`` 不变；
+    新代码可统一从 ``services.shared.factor_pipeline`` 取用。
+
 职责：在条件求值前，把每只候选股票的 ``{factor}`` 节点统一预计算为标量值，
 使 ``ConditionEngine`` 的求值成为纯查表 + 算术操作。
 
