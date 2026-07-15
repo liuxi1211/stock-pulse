@@ -15,11 +15,13 @@ import com.arthur.stock.dto.backtest.BacktestReportVO;
 import com.arthur.stock.dto.backtest.BacktestRunRequestDTO;
 import com.arthur.stock.dto.backtest.BacktestTaskVO;
 import com.arthur.stock.exception.BusinessException;
+import com.arthur.stock.mapper.DailyBasicMapper;
 import com.arthur.stock.mapper.DailyQuoteMapper;
 import com.arthur.stock.mapper.QuantBacktestMapper;
 import com.arthur.stock.mapper.QuantBacktestReportMapper;
 import com.arthur.stock.mapper.QuantStrategyMapper;
 import com.arthur.stock.mapper.QuantStrategyVersionMapper;
+import com.arthur.stock.model.DailyBasicDO;
 import com.arthur.stock.model.DailyQuoteDO;
 import com.arthur.stock.model.QuantBacktestDO;
 import com.arthur.stock.model.QuantBacktestReportDO;
@@ -91,6 +93,7 @@ public class BacktestServiceImpl implements BacktestService {
     private final QuantStrategyMapper strategyMapper;
     private final QuantStrategyVersionMapper versionMapper;
     private final DailyQuoteMapper dailyQuoteMapper;
+    private final DailyBasicMapper dailyBasicMapper;
     private final BacktestClient backtestClient;
     private final Executor backtestExecutor;
     private final IndexWeightService indexWeightService;
@@ -100,6 +103,7 @@ public class BacktestServiceImpl implements BacktestService {
                                QuantStrategyMapper strategyMapper,
                                QuantStrategyVersionMapper versionMapper,
                                DailyQuoteMapper dailyQuoteMapper,
+                               DailyBasicMapper dailyBasicMapper,
                                BacktestClient backtestClient,
                                @Qualifier("backtestExecutor") Executor backtestExecutor,
                                IndexWeightService indexWeightService) {
@@ -108,6 +112,7 @@ public class BacktestServiceImpl implements BacktestService {
         this.strategyMapper = strategyMapper;
         this.versionMapper = versionMapper;
         this.dailyQuoteMapper = dailyQuoteMapper;
+        this.dailyBasicMapper = dailyBasicMapper;
         this.backtestClient = backtestClient;
         this.backtestExecutor = backtestExecutor;
         this.indexWeightService = indexWeightService;
@@ -530,9 +535,9 @@ public class BacktestServiceImpl implements BacktestService {
      * <p>
      * 标的决定规则：
      * <ul>
-     *   <li>screen_config.universe=manual：用 screen_config.stocks；</li>
-     *   <li>screen_config.universe=csi300/csi500：取回测区间内所有曾入选该指数的成分股并集（防幸存者偏差）；</li>
-     *   <li>screen_config.universe=all_a_shares：Phase 2 直接在 resolveBacktestSymbols 抛 BACKTEST_UNIVERSE_TOO_LARGE，不进入本方法后续拼装。</li>
+     *   <li>screen_config.universe.pool=manual：用 screen_config.universe.stocks；</li>
+     *   <li>screen_config.universe.pool=csi300/csi500：取回测区间内所有曾入选该指数的成分股并集（防幸存者偏差）；</li>
+     *   <li>screen_config.universe.pool=all_a_shares：Phase 2 直接在 resolveBacktestSymbols 抛 BACKTEST_UNIVERSE_TOO_LARGE，不进入本方法后续拼装。</li>
      * </ul>
      * 全空返回 null（调用方据此抛 DATA_INSUFFICIENT）。
      */
@@ -544,6 +549,12 @@ public class BacktestServiceImpl implements BacktestService {
         if (symbols.isEmpty()) {
             return null;
         }
+        // 回测区间从 backtest_config.start_date/end_date（yyyyMMdd）取，留空表示全部历史；
+        // 与 csi300/csi500 成分股区间口径一致，daily_basic 按此区间批量拉取，避免全表扫描。
+        JSONObject bt = configJson.getJSONObject("backtest_config");
+        String startDate = bt == null ? null : normalizeDate(bt.getString("start_date"));
+        String endDate = bt == null ? null : normalizeDate(bt.getString("end_date"));
+
         JSONObject kline = new JSONObject();
         for (String code : symbols) {
             List<DailyQuoteDO> quotes = dailyQuoteMapper.selectList(
@@ -553,6 +564,13 @@ public class BacktestServiceImpl implements BacktestService {
             if (quotes.isEmpty()) {
                 continue;
             }
+            // 拉取同区间基本面（估值/换手率/市值），按 trade_date 建索引便于逐 bar join。
+            // daily_basic 缺记录的日期，bar 不含基本面字段（engine 侧 NaN 兜底）。
+            Map<String, DailyBasicDO> basicMap = dailyBasicMapper
+                    .selectByCodeAndDateRange(code, startDate, endDate)
+                    .stream()
+                    .collect(Collectors.toMap(DailyBasicDO::getTradeDate, b -> b, (a, b) -> a));
+
             JSONArray arr = new JSONArray(quotes.size());
             for (DailyQuoteDO q : quotes) {
                 JSONObject bar = new JSONObject();
@@ -562,6 +580,11 @@ public class BacktestServiceImpl implements BacktestService {
                 bar.put("low", toDouble(q.getLow()));
                 bar.put("close", toDouble(q.getClose()));
                 bar.put("volume", toDouble(q.getVol()));
+                // 追加基本面字段（字段名与 daily_basic 表下划线列名对齐，便于 engine 侧统一口径）
+                DailyBasicDO basic = basicMap.get(q.getTradeDate());
+                if (basic != null) {
+                    appendBasicFields(bar, basic);
+                }
                 arr.add(bar);
             }
             kline.put(code, arr);
@@ -570,8 +593,43 @@ public class BacktestServiceImpl implements BacktestService {
     }
 
     /**
+     * 把单日基本面（DailyBasicDO）的估值/换手率/市值字段平铺到 bar dict。
+     * <p>
+     * 字段名采用 daily_basic 表的下划线列名（pe/pe_ttm/pb/total_mv 等），
+     * 与 engine 选股/因子计算口径保持一致；缺失或为 null 的字段不写入（engine 侧 NaN 兜底）。
+     */
+    private static void appendBasicFields(JSONObject bar, DailyBasicDO b) {
+        putIfNotNull(bar, "pe", toDouble(b.getPe()));
+        putIfNotNull(bar, "pe_ttm", toDouble(b.getPeTtm()));
+        putIfNotNull(bar, "pb", toDouble(b.getPb()));
+        putIfNotNull(bar, "ps", toDouble(b.getPs()));
+        putIfNotNull(bar, "ps_ttm", toDouble(b.getPsTtm()));
+        putIfNotNull(bar, "dv_ratio", toDouble(b.getDvRatio()));
+        putIfNotNull(bar, "dv_ttm", toDouble(b.getDvTtm()));
+        putIfNotNull(bar, "total_mv", toDouble(b.getTotalMv()));
+        putIfNotNull(bar, "circ_mv", toDouble(b.getCircMv()));
+        putIfNotNull(bar, "turnover_rate", toDouble(b.getTurnoverRate()));
+        putIfNotNull(bar, "turnover_rate_f", toDouble(b.getTurnoverRateF()));
+        putIfNotNull(bar, "volume_ratio", toDouble(b.getVolumeRatio()));
+    }
+
+    /** 仅在 value 非 null 时写入 bar，避免回传大量 null 字段。 */
+    private static void putIfNotNull(JSONObject bar, String key, Double value) {
+        if (value != null) {
+            bar.put(key, value);
+        }
+    }
+
+    /**
      * 根据配置解析回测标的代码列表。
      * 指数成分股池（csi300/csi500）取回测区间内成分股并集，防幸存者偏差。
+     * <p>
+     * 注意：本方法对 csi300/csi500 使用 getConstituentsInRange 取回测区间成分股<b>并集</b>，
+     * 用于一次性准备全量 K 线数据（保证回测期间任何调仓日都有数据）。
+     * <p>
+     * point-in-time 成分股过滤（消除 lookahead bias）由 engine 在每个调仓日通过
+     * /api/internal/constituents/query 接口动态执行，不在本方法做。
+     * 详见 spec 010-rotation-data-governance 缺陷 A 修复。
      * <p>
      * Phase 2（008-backtest-center-phase2）：universe=all_a_shares 全市场在 watcher 侧直接拒绝，
      * 避免 5000+ 标的 K 线撑爆 HTTP 载荷与 engine 回测超时；引导改用 csi300/csi500/manual 池。
@@ -584,7 +642,11 @@ public class BacktestServiceImpl implements BacktestService {
         if (screen == null) {
             return extractSymbols(configJson);
         }
-        String universe = screen.getString("universe");
+        // universe 兼容两种形态（spec 010 4 层结构迁移）：
+        //   新结构：screen_config.universe 为对象 {pool, point_in_time, stocks}；
+        //   旧扁平：screen_config.universe 为字符串（"csi300"/"manual"/...）。
+        //   resolveUniversePool 统一归一为 pool 字符串。
+        String universe = resolveUniversePool(screen);
         if (universe == null) {
             return extractSymbols(configJson);
         }
@@ -603,13 +665,14 @@ public class BacktestServiceImpl implements BacktestService {
             JSONObject bt = configJson.getJSONObject("backtest_config");
             String startDate = bt == null ? null : normalizeDate(bt.getString("start_date"));
             String endDate = bt == null ? null : normalizeDate(bt.getString("end_date"));
+            // 区间并集：仅用于数据准备，非 point-in-time（engine 侧按调仓日动态过滤）
             List<String> constituents = indexWeightService.getConstituentsInRange(indexCode, startDate, endDate);
             if (constituents.isEmpty()) {
                 log.warn("回测成分股池[{}]在区间 {}~{} 内为空，请先初始化 index_weight", universe, startDate, endDate);
             }
             return constituents;
         }
-        // manual 或其他：用 extractSymbols（从 screen_config.stocks 提取）
+        // manual 或其他：用 extractSymbols（从 screen_config.universe.stocks 提取）
         List<String> symbols = extractSymbols(configJson);
         // signals 范式 universe 规模上限校验（spec 009-strategy-paradigm-exclusive）
         if (hasSignals(configJson) && symbols.size() > StrategySchemaConstants.SIGNALS_MAX_UNIVERSE_SIZE) {
@@ -640,17 +703,49 @@ public class BacktestServiceImpl implements BacktestService {
     }
 
     /**
-     * 从 config_json 的 screen_config.stocks（universe=manual 时指定的标的池）提取标的代码列表。
-     * 回测标的由 watcher 根据 screen_config 构造 kline_data 决定，不再从 trading_config.symbols 读取。
+     * 从 config_json 的 screen_config.universe.stocks（universe.pool=manual 时指定的标的池）提取标的代码列表。
+     * 兼容旧扁平结构（top-level screen_config.stocks）。回测标的由 watcher 根据 screen_config 构造 kline_data 决定，不再从 trading_config.symbols 读取。
      */
     private List<String> extractSymbols(JSONObject configJson) {
         List<String> out = new ArrayList<>();
         JSONObject screen = configJson.getJSONObject("screen_config");
         if (screen != null) {
-            addAllStrings(screen.get("stocks"), out);
+            // 新 4 层：stocks 嵌在 universe 对象下；旧扁平：top-level stocks。两者皆取兜底。
+            Object stocks = null;
+            Object universe = screen.get("universe");
+            if (universe instanceof JSONObject o) {
+                stocks = o.get("stocks");
+            }
+            if (stocks == null) {
+                stocks = screen.get("stocks");
+            }
+            addAllStrings(stocks, out);
         }
         // 去重保序
         return out.stream().distinct().collect(Collectors.toList());
+    }
+
+    /**
+     * 从 screen_config 解析 universe pool（兼容新 4 层对象结构与旧扁平字符串结构）。
+     * <p>
+     * 新结构（spec 010）：screen_config.universe 为对象 {pool, point_in_time, stocks}，取 .pool；
+     * 旧扁平结构：screen_config.universe 为字符串（"csi300"/"csi500"/"manual"/"all_a_shares"/...），原样返回。
+     *
+     * @param screen screen_config 的 JSONObject，可为 null
+     * @return pool 字符串；screen 为空或 universe 缺失/形态未知时返回 null
+     */
+    private static String resolveUniversePool(JSONObject screen) {
+        if (screen == null) {
+            return null;
+        }
+        Object universe = screen.get("universe");
+        if (universe instanceof String s) {
+            return s;
+        }
+        if (universe instanceof JSONObject o) {
+            return o.getString("pool");
+        }
+        return null;
     }
 
     private static void addAllStrings(Object obj, List<String> out) {

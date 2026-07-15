@@ -5,9 +5,10 @@
 
 约束：engine 不触库，本模块不含任何数据库驱动 import / 连接 / 路径字面量。
 """
+from os import getenv
 from typing import Any, Optional
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from pydantic import BaseModel, Field
 
 from services.backtest.runner import BacktestError, run_backtest_engine
@@ -119,12 +120,20 @@ class ConstantsResponse(BaseModel):
         500: {"description": "回测引擎内部错误", "model": BacktestErrorResponse},
     },
 )
-async def run_backtest(request: BacktestRunRequest) -> BacktestRunResponse:
+async def run_backtest(request: Request, payload: BacktestRunRequest) -> BacktestRunResponse:
+    # 提取 watcher 只读接口基址（spec 010 缺陷 A 修复）：
+    # 优先 HTTP header X-Watcher-Base-Url（按调用注入），回退环境变量 WATCHER_BASE_URL。
+    # 仅 rebalance 范式的 csi300/csi500 universe 会消费它做 point-in-time 成分股过滤；
+    # 缺失时降级为全量候选（保留旧行为）。
+    watcher_base_url = (
+        request.headers.get("X-Watcher-Base-Url") or getenv("WATCHER_BASE_URL")
+    )
     try:
         result = run_backtest_engine(
-            strategy_config=request.strategy_config,
-            kline_data=request.kline_data,
-            benchmark_data=request.benchmark_data,
+            strategy_config=payload.strategy_config,
+            kline_data=payload.kline_data,
+            benchmark_data=payload.benchmark_data,
+            watcher_base_url=watcher_base_url,
         )
     except BacktestError as exc:
         # 业务异常 → 200 信封（success=false）， errorCode 机器可读

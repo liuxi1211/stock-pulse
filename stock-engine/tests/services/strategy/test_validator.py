@@ -5,6 +5,10 @@
 用例构造方式：以最小合法 single 信号驱动配置为基底（``_base_config``），
 通过 overrides 注入单个违规点，断言 errors 列表含/不含特定 code。
 合法基线（TR-3.16）使用 dual_ma 模板的 config 子树。
+
+spec 010 Task 14：screen_config 已从旧 5 字段扁平结构重构为
+universe/factor/filter/portfolio 4 层对象结构。本测试文件全部用例
+已迁移到 4 层构造方式。
 """
 import copy
 
@@ -17,11 +21,26 @@ from services.strategy.validator import StrategyValidator
 # 辅助
 # ============================================================
 
+def _manual_universe(stocks=None):
+    """构造 4 层 universe 对象（manual 池）。
+
+    spec 010 后 screen_config.universe 是对象，不再是字符串。
+    """
+    return {"pool": "manual", "point_in_time": None, "stocks": stocks}
+
+
+def _index_universe(pool="csi300"):
+    """构造 4 层 universe 对象（指数池 csi300/csi500）。"""
+    return {"pool": pool, "point_in_time": None, "stocks": None}
+
+
 def _base_config(**overrides) -> dict:
     """最小合法 single 信号驱动配置（MA5 cross_up MA20 买入）。
 
-    spec 009 后：trading_config.symbols 已移除（回测标的由 screen_config.stocks
-    解析），且 signals 范式要求 screen_config.universe=manual + stocks ≤ 10。
+    spec 009 后：trading_config.symbols 已移除（回测标的由 screen_config
+    解析），且 signals 范式要求 screen_config.universe.pool=manual +
+    stocks ≤ 10。
+    spec 010 后：screen_config 采用 4 层对象结构（universe/factor/filter/portfolio）。
     """
     config = {
         "name": "test",
@@ -42,8 +61,7 @@ def _base_config(**overrides) -> dict:
             "position_sizing": {"method": "order_target_percent", "target": 0.95},
         },
         "screen_config": {
-            "universe": "manual",
-            "stocks": ["510300.SH"],
+            "universe": _manual_universe(["510300.SH"]),
         },
         "backtest_config": {"initial_cash": 100000},
     }
@@ -111,9 +129,9 @@ def test_signals_present_is_ok():
 # ============================================================
 
 def test_manual_universe_without_stocks():
-    """TR-3.2：screen universe=manual 无 stocks → MANUAL_SYMBOL_REQUIRED。"""
+    """TR-3.2：screen universe.pool=manual 无 stocks → MANUAL_SYMBOL_REQUIRED。"""
     cfg = _base_config(
-        screen_config={"universe": "manual"}
+        screen_config={"universe": _manual_universe(None)}
     )
     errors = _validate(cfg)
     _assert_has_error(errors, ErrorCode.MANUAL_SYMBOL_REQUIRED[0])
@@ -122,35 +140,38 @@ def test_manual_universe_without_stocks():
 def test_manual_universe_with_stocks_ok():
     """manual 且提供 stocks 不报 MANUAL_SYMBOL_REQUIRED。"""
     cfg = _base_config(
-        screen_config={"universe": "manual", "stocks": ["000001.SZ"]}
+        screen_config={"universe": _manual_universe(["000001.SZ"])}
     )
     errors = _validate(cfg)
     assert all(e.code != ErrorCode.MANUAL_SYMBOL_REQUIRED[0] for e in errors)
 
 
 # ============================================================
-# TR-3.3 RANKING_WEIGHTS_REQUIRED
+# TR-3.3 RANKING_WEIGHTS_REQUIRED（4 层：factor 层）
 # ============================================================
 
 def test_ranking_composite_without_weights():
-    """TR-3.3：ranking method=composite 无 weights → RANKING_WEIGHTS_REQUIRED。"""
+    """TR-3.3：factor method=composite 无 weights → RANKING_WEIGHTS_REQUIRED。"""
     cfg = _base_config(
-        screen_config={"universe": "csi300", "ranking": {"method": "composite"}}
+        screen_config={
+            "universe": _index_universe("csi300"),
+            "factor": {"method": "composite"},
+        }
     )
     errors = _validate(cfg)
     _assert_has_error(errors, ErrorCode.RANKING_WEIGHTS_REQUIRED[0])
 
 
 # ============================================================
-# TR-3.4 RANKING_SINGLE_FIELD_REQUIRED
+# TR-3.4 RANKING_SINGLE_FIELD_REQUIRED（4 层：factor 层）
 # ============================================================
 
 def test_ranking_single_missing_factor():
-    """TR-3.4：ranking method=single 缺 factor → RANKING_SINGLE_FIELD_REQUIRED。"""
+    """TR-3.4：factor method=single 缺 factor → RANKING_SINGLE_FIELD_REQUIRED。"""
     cfg = _base_config(
         screen_config={
-            "universe": "csi300",
-            "ranking": {"method": "single", "order": "desc"},
+            "universe": _index_universe("csi300"),
+            "factor": {"method": "single", "order": "desc"},
         }
     )
     errors = _validate(cfg)
@@ -214,24 +235,26 @@ def test_atr_stop_with_multiplier_ok():
 
 
 # ============================================================
-# TR-3.8 SCREEN_TIME_SERIES_FORBIDDEN
+# TR-3.8 SCREEN_TIME_SERIES_FORBIDDEN（4 层：filter.conditions）
 # ============================================================
 
 def test_screen_cross_up_forbidden():
-    """TR-3.8：screen_config.conditions 含 cross_up → SCREEN_TIME_SERIES_FORBIDDEN。"""
+    """TR-3.8：filter.conditions 含 cross_up → SCREEN_TIME_SERIES_FORBIDDEN。"""
     cfg = _base_config(
         screen_config={
-            "universe": "csi300",
-            "conditions": {
-                "operator": "AND",
-                "conditions": [
-                    {
-                        "type": "compare",
-                        "left": {"factor": "PE_TTM"},
-                        "comparator": "cross_up",
-                        "right": {"value": 10},
-                    }
-                ],
+            "universe": _index_universe("csi300"),
+            "filter": {
+                "conditions": {
+                    "operator": "AND",
+                    "conditions": [
+                        {
+                            "type": "compare",
+                            "left": {"factor": "PE_TTM"},
+                            "comparator": "cross_up",
+                            "right": {"value": 10},
+                        }
+                    ],
+                },
             },
         }
     )
@@ -240,24 +263,26 @@ def test_screen_cross_up_forbidden():
 
 
 # ============================================================
-# TR-3.9 SCREEN_REF_FORBIDDEN
+# TR-3.9 SCREEN_REF_FORBIDDEN（4 层：filter.conditions）
 # ============================================================
 
 def test_screen_ref_forbidden():
-    """TR-3.9：screen_config.conditions 含 RefNode → SCREEN_REF_FORBIDDEN。"""
+    """TR-3.9：filter.conditions 含 RefNode → SCREEN_REF_FORBIDDEN。"""
     cfg = _base_config(
         screen_config={
-            "universe": "csi300",
-            "conditions": {
-                "operator": "AND",
-                "conditions": [
-                    {
-                        "type": "compare",
-                        "left": {"factor": "PE_TTM"},
-                        "comparator": ">",
-                        "right": {"ref": "entry_price"},
-                    }
-                ],
+            "universe": _index_universe("csi300"),
+            "filter": {
+                "conditions": {
+                    "operator": "AND",
+                    "conditions": [
+                        {
+                            "type": "compare",
+                            "left": {"factor": "PE_TTM"},
+                            "comparator": ">",
+                            "right": {"ref": "entry_price"},
+                        }
+                    ],
+                },
             },
         }
     )
@@ -334,20 +359,22 @@ def test_fundamental_factor_in_trading():
 
 
 def test_fundamental_factor_in_screen_ok():
-    """基本面因子出现在 screen_config 不报 FUNDAMENTAL_FACTOR_IN_TRADING。"""
+    """基本面因子出现在 filter.conditions 不报 FUNDAMENTAL_FACTOR_IN_TRADING。"""
     cfg = _base_config(
         screen_config={
-            "universe": "csi300",
-            "conditions": {
-                "operator": "AND",
-                "conditions": [
-                    {
-                        "type": "compare",
-                        "left": {"factor": "PE_TTM"},
-                        "comparator": "<",
-                        "right": {"value": 20},
-                    }
-                ],
+            "universe": _index_universe("csi300"),
+            "filter": {
+                "conditions": {
+                    "operator": "AND",
+                    "conditions": [
+                        {
+                            "type": "compare",
+                            "left": {"factor": "PE_TTM"},
+                            "comparator": "<",
+                            "right": {"value": 20},
+                        }
+                    ],
+                },
             },
         }
     )
@@ -400,11 +427,16 @@ def test_injection_in_name():
 
 
 # ============================================================
-# TR-3.16 合法配置无错误（dual_ma 模板 config 子树）
+# TR-3.16 合法配置无错误（macd_short 模板已迁移为 4 层结构）
 # ============================================================
 
 def test_valid_dual_ma_template_no_errors():
-    """TR-3.16：合法配置（dual_ma 模板 config 子树）→ errors 为空。"""
+    """TR-3.16：合法配置（4 层结构）→ errors 为空。
+
+    spec 010 后 watcher 模板迁移分批进行；此处改用 macd_short.json
+    （已是 4 层 universe 对象结构）作为合法基线。dual_ma.json 尚未
+    迁移时会被 Pydantic 拒绝（旧 5 字段结构），故不在此处断言。
+    """
     import json
     from pathlib import Path
 
@@ -416,7 +448,7 @@ def test_valid_dual_ma_template_no_errors():
         / "resources"
         / "strategies"
         / "templates"
-        / "dual_ma.json"
+        / "macd_short.json"
     )
     data = json.loads(p.read_text(encoding="utf-8"))
     allowed = {
@@ -514,7 +546,7 @@ def _signals_buy_config(**overrides) -> dict:
     """
     cfg = _base_config()
     cfg.setdefault("screen_config", {})
-    cfg["screen_config"].update({"universe": "manual", "stocks": ["000001.SZ"]})
+    cfg["screen_config"].update({"universe": _manual_universe(["000001.SZ"])})
     cfg.update(overrides)
     return cfg
 
@@ -534,10 +566,10 @@ def test_signals_and_rebalance_both_present_rejected():
 
 
 def test_signals_universe_csi300_rejected():
-    """spec 009 Task 20.2：signals 范式 + screen_config.universe='csi300' →
+    """spec 009 Task 20.2：signals 范式 + universe.pool='csi300' →
     SIGNALS_UNIVERSE_NOT_MANUAL。"""
     cfg = _base_config()
-    cfg["screen_config"] = {"universe": "csi300"}
+    cfg["screen_config"] = {"universe": _index_universe("csi300")}
     errors = _validate(cfg)
     _assert_has_error(errors, ErrorCode.SIGNALS_UNIVERSE_NOT_MANUAL[0])
 
@@ -547,7 +579,7 @@ def test_signals_universe_manual_over_limit_rejected():
     SIGNALS_UNIVERSE_TOO_LARGE（SIGNALS_MAX_UNIVERSE_SIZE=10）。"""
     cfg = _base_config()
     stocks = [f"{i:06d}.SZ" for i in range(11)]  # 11 只，超出上限
-    cfg["screen_config"] = {"universe": "manual", "stocks": stocks}
+    cfg["screen_config"] = {"universe": _manual_universe(stocks)}
     errors = _validate(cfg)
     _assert_has_error(errors, ErrorCode.SIGNALS_UNIVERSE_TOO_LARGE[0])
 
@@ -557,7 +589,7 @@ def test_signals_universe_manual_within_limit_ok():
     不触发 SIGNALS_UNIVERSE_* / SIGNALS_REBALANCE_* 任一错误。"""
     cfg = _base_config()
     stocks = [f"{i:06d}.SZ" for i in range(10)]  # 10 只，恰好不超
-    cfg["screen_config"] = {"universe": "manual", "stocks": stocks}
+    cfg["screen_config"] = {"universe": _manual_universe(stocks)}
     errors = _validate(cfg)
     codes = [e.code for e in errors]
     assert ErrorCode.SIGNALS_UNIVERSE_NOT_MANUAL[0] not in codes
@@ -566,29 +598,31 @@ def test_signals_universe_manual_within_limit_ok():
 
 
 # ============================================================
-# signals 范式下 screen_config 字段禁用约束
+# signals 范式下 screen_config 字段禁用约束（4 层：factor/filter/portfolio）
 # ============================================================
 
 def test_signals_with_screen_conditions_rejected():
-    """signals 范式 + screen_config.conditions 非空 →
+    """signals 范式 + filter.conditions 非空 →
     SIGNALS_SCREEN_CONFIG_FORBIDDEN（选股条件在择时范式下不生效，禁止填写）。"""
     cfg = _base_config()
-    cfg["screen_config"]["conditions"] = {
-        "operator": "AND",
-        "conditions": [
-            {"type": "compare", "left": {"factor": "PE_TTM"},
-             "comparator": "<", "right": {"value": 30}}
-        ],
+    cfg["screen_config"]["filter"] = {
+        "conditions": {
+            "operator": "AND",
+            "conditions": [
+                {"type": "compare", "left": {"factor": "PE_TTM"},
+                 "comparator": "<", "right": {"value": 30}}
+            ],
+        }
     }
     errors = _validate(cfg)
     _assert_has_error(errors, ErrorCode.SIGNALS_SCREEN_CONFIG_FORBIDDEN[0])
 
 
 def test_signals_with_screen_ranking_rejected():
-    """signals 范式 + screen_config.ranking 非空 →
+    """signals 范式 + factor 层非空 →
     SIGNALS_SCREEN_CONFIG_FORBIDDEN。"""
     cfg = _base_config()
-    cfg["screen_config"]["ranking"] = {
+    cfg["screen_config"]["factor"] = {
         "method": "single", "factor": "RSI", "order": "desc"
     }
     errors = _validate(cfg)
@@ -596,52 +630,148 @@ def test_signals_with_screen_ranking_rejected():
 
 
 def test_signals_with_screen_top_n_rejected():
-    """signals 范式 + screen_config.top_n 非空 →
+    """signals 范式 + portfolio.top_n 非空 →
     SIGNALS_SCREEN_CONFIG_FORBIDDEN。"""
     cfg = _base_config()
-    cfg["screen_config"]["top_n"] = 5
+    cfg["screen_config"]["portfolio"] = {"top_n": 5}
     errors = _validate(cfg)
     _assert_has_error(errors, ErrorCode.SIGNALS_SCREEN_CONFIG_FORBIDDEN[0])
 
 
 def test_signals_with_screen_filters_rejected():
-    """signals 范式 + screen_config.filters 非空 →
-    SIGNALS_SCREEN_CONFIG_FORBIDDEN。"""
+    """signals 范式 + filter 层（静态过滤字段）非空 →
+    SIGNALS_SCREEN_CONFIG_FORBIDDEN。
+
+    注：filter 层只要有任何字段（含 exclude_st 等静态过滤项）即视为非空。
+    """
     cfg = _base_config()
-    cfg["screen_config"]["filters"] = {"exclude_st": True}
+    cfg["screen_config"]["filter"] = {"exclude_st": True}
     errors = _validate(cfg)
     _assert_has_error(errors, ErrorCode.SIGNALS_SCREEN_CONFIG_FORBIDDEN[0])
 
 
 def test_signals_with_only_universe_stocks_passes():
-    """signals 范式 + screen_config 仅 universe + stocks →
+    """signals 范式 + screen_config 仅 universe（含 stocks）→
     不触发 SIGNALS_SCREEN_CONFIG_FORBIDDEN（净化后的合法形态）。"""
     cfg = _base_config()
-    cfg["screen_config"] = {"universe": "manual", "stocks": ["510300.SH"]}
+    cfg["screen_config"] = {"universe": _manual_universe(["510300.SH"])}
     errors = _validate(cfg)
     codes = [e.code for e in errors]
     assert ErrorCode.SIGNALS_SCREEN_CONFIG_FORBIDDEN[0] not in codes
 
 
 def test_rebalance_with_screen_fields_passes():
-    """rebalance 范式 + screen_config 全字段（conditions/ranking/top_n）→
+    """rebalance 范式 + screen_config 全 4 层（factor/filter/portfolio）→
     不触发 SIGNALS_SCREEN_CONFIG_FORBIDDEN（轮动范式本就需要这些字段）。"""
     cfg = _base_config()
     del cfg["trading_config"]["signals"]
     del cfg["trading_config"]["position_sizing"]
     cfg["trading_config"]["rebalance"] = {"frequency": "weekly"}
     cfg["screen_config"] = {
-        "universe": "csi300",
-        "top_n": 10,
-        "conditions": {
-            "operator": "AND",
-            "conditions": [
-                {"type": "compare", "left": {"factor": "PE_TTM"},
-                 "comparator": "<", "right": {"value": 30}}
-            ],
+        "universe": _index_universe("csi300"),
+        "portfolio": {"top_n": 10},
+        "filter": {
+            "conditions": {
+                "operator": "AND",
+                "conditions": [
+                    {"type": "compare", "left": {"factor": "PE_TTM"},
+                     "comparator": "<", "right": {"value": 30}}
+                ],
+            },
         },
-        "ranking": {"method": "single", "factor": "RSI", "order": "desc"},
+        "factor": {"method": "single", "factor": "RSI", "order": "desc"},
     }
     errors = _validate(cfg)
     codes = [e.code for e in errors]
     assert ErrorCode.SIGNALS_SCREEN_CONFIG_FORBIDDEN[0] not in codes
+
+
+# ============================================================
+# spec 010 Task 14：4 层结构校验。
+# SCREEN_CONFIG_LAYER_MISSING / SCREEN_CONFIG_DEPRECATED_STRUCTURE 现由
+# StrategyValidator.validate_screen_structure 在 Pydantic 解析前识别并返回（友好迁移提示）；
+# 直接调 model_validate 仍会抛 ValidationError（Pydantic 兜底，下方两例验证该兜底）。
+# ============================================================
+
+def test_screen_config_missing_universe_layer_rejected_by_pydantic():
+    """spec 010：screen_config 缺 universe 层 → Pydantic ValidationError。
+
+    4 层结构下 universe 是必填字段；缺失会被 Pydantic 在解析阶段拒绝，
+    不会进入 validator 业务校验层（故不产生 SCREEN_CONFIG_LAYER_MISSING）。
+    """
+    import pytest
+    from pydantic import ValidationError
+
+    cfg = _base_config()
+    # 构造一个缺 universe 的 screen_config（仅 factor 层）
+    cfg["screen_config"] = {"factor": {"method": "disabled"}}
+    with pytest.raises(ValidationError):
+        StrategyConfigModel.model_validate(cfg)
+
+
+def test_screen_config_old_flat_structure_rejected_by_pydantic():
+    """spec 010：旧 5 字段扁平结构（顶层 conditions/ranking/top_n）→
+    Pydantic ValidationError（extra="forbid" 拒绝未知字段）。
+
+    旧结构迁移到 validator 层的 SCREEN_CONFIG_DEPRECATED_STRUCTURE 错误码
+    需要 Pydantic 放宽 extra 限制才能触达；当前 extra="forbid" 下旧字段
+    在解析阶段即被拒绝，故用例改为断言 ValidationError。
+    """
+    import pytest
+    from pydantic import ValidationError
+
+    cfg = _base_config()
+    # 旧结构：顶层 ranking / top_n（已被 4 层结构取代）
+    cfg["screen_config"] = {
+        "universe": _index_universe("csi300"),
+        "ranking": {"method": "single", "factor": "RSI", "order": "desc"},
+        "top_n": 5,
+    }
+    with pytest.raises(ValidationError):
+        StrategyConfigModel.model_validate(cfg)
+
+
+# ============================================================
+# spec 010 Task 14：validate_screen_structure 预检 → 友好错误码
+# （/strategies/validate 入口在 Pydantic 前调用，返回专用码而非通用 ValidationError）
+# ============================================================
+
+def test_screen_structure_legacy_string_universe():
+    """旧扁平结构（universe 为字符串）→ SCREEN_CONFIG_DEPRECATED_STRUCTURE。"""
+    cfg = {"screen_config": {"universe": "csi300", "top_n": 5}}
+    errors = StrategyValidator().validate_screen_structure(cfg)
+    assert len(errors) == 1
+    assert errors[0].code == ErrorCode.SCREEN_CONFIG_DEPRECATED_STRUCTURE[0]
+
+
+def test_screen_structure_legacy_top_level_keys():
+    """旧扁平结构（顶层 conditions/ranking/top_n/filters 任一）→ SCREEN_CONFIG_DEPRECATED_STRUCTURE。"""
+    cfg = {
+        "screen_config": {
+            "universe": _index_universe("csi300"),
+            "ranking": {"method": "single", "factor": "RSI", "order": "desc"},
+        }
+    }
+    errors = StrategyValidator().validate_screen_structure(cfg)
+    assert len(errors) == 1
+    assert errors[0].code == ErrorCode.SCREEN_CONFIG_DEPRECATED_STRUCTURE[0]
+
+
+def test_screen_structure_missing_universe_layer():
+    """缺失 universe 必需层 → SCREEN_CONFIG_LAYER_MISSING。"""
+    cfg = {"screen_config": {"factor": {"method": "disabled"}}}
+    errors = StrategyValidator().validate_screen_structure(cfg)
+    assert len(errors) == 1
+    assert errors[0].code == ErrorCode.SCREEN_CONFIG_LAYER_MISSING[0]
+
+
+def test_screen_structure_valid_4_layer_passes():
+    """合法 4 层结构 → 无结构错误（交由后续 Pydantic + 业务校验）。"""
+    cfg = {"screen_config": {"universe": _index_universe("csi300"), "portfolio": {"top_n": 10}}}
+    assert StrategyValidator().validate_screen_structure(cfg) == []
+
+
+def test_screen_structure_no_screen_config_passes():
+    """无 screen_config（缺失 / 非对象）→ 不报结构错误（由其它校验处理）。"""
+    assert StrategyValidator().validate_screen_structure({}) == []
+    assert StrategyValidator().validate_screen_structure({"screen_config": None}) == []

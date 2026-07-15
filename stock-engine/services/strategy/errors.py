@@ -75,6 +75,18 @@ class ErrorCode:
         "ranking method=single 时必须提供 factor 和 order",
     )
 
+    # ----- screen_config 4 层结构（Schema §3.2，缺陷 C 修复）-----
+    SCREEN_CONFIG_LAYER_MISSING = (
+        "SCREEN_CONFIG_LAYER_MISSING",
+        "screen_config 必须包含 universe 层（4 层结构：universe/factor/filter/portfolio）",
+    )
+    SCREEN_CONFIG_DEPRECATED_STRUCTURE = (
+        "SCREEN_CONFIG_DEPRECATED_STRUCTURE",
+        "screen_config 旧 5 字段扁平结构已废弃，请迁移到 4 层结构"
+        "（universe/factor/filter/portfolio）。映射：conditions→filter.conditions, "
+        "ranking→factor, filters→filter, top_n→portfolio.top_n, universe(string)→universe.pool",
+    )
+
     # ----- 仓位管理（Schema §3.3.2）-----
     INVALID_POSITION_METHOD = (
         "INVALID_POSITION_METHOD",

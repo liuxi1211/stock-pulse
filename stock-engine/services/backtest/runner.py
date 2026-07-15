@@ -18,8 +18,13 @@ import akquant as aq
 import pandas as pd
 
 from services.backtest.compiler import CompilerError, compile_strategy
-from services.backtest.data_adapter import kline_to_df_map, normalize_benchmark
+from services.backtest.data_adapter import (
+    kline_to_df_map,
+    kline_to_extra_map,
+    normalize_benchmark,
+)
 from services.backtest.result_serializer import serialize_result
+from services.backtest.watcher_client import build_watcher_client
 from services.strategy.models import BacktestConfigModel, StrategyConfigModel
 
 
@@ -121,13 +126,17 @@ def run_backtest_engine(
     strategy_config: dict,
     kline_data: dict,
     benchmark_data: Optional[list] = None,
+    watcher_base_url: Optional[str] = None,
 ) -> dict:
     """编排一次完整回测，返回序列化结果 dict。
 
     入参：
     - ``strategy_config``：原始 JSON dict（``StrategyConfigModel`` 形态）；
     - ``kline_data``：``{symbol: list[dict]}``，watcher 传入的 K 线；
-    - ``benchmark_data``：可选的基准 K 线 list[dict]，归一化后叠加到结果。
+    - ``benchmark_data``：可选的基准 K 线 list[dict]，归一化后叠加到结果；
+    - ``watcher_base_url``：可选的 watcher 只读接口基址，用于 rebalance 范式的
+      point-in-time 成分股过滤（spec 010 缺陷 A 修复）。None 时降级为全量候选。
+      watcher 与 engine 同机部署，通常为 ``http://localhost:<port>``（端口可变）。
 
     异常：抛 :class:`BacktestError`（含 errorCode），由 HTTP 层捕获转信封。
     成功返回：``serialize_result(...)`` 的 dict（无 success 包装）。
@@ -144,18 +153,28 @@ def run_backtest_engine(
     # 2. 回测配置兜底
     bt_config = config.backtest_config if config.backtest_config is not None else BacktestConfigModel()
 
-    # 3. K 线 → DataFrame map
+    # 3. K 线 → DataFrame map + 提取基本面 extra（缺陷 B 修复）
     try:
         data_map = kline_to_df_map(kline_data)
     except ValueError as exc:
         # data_adapter 抛的 ValueError 已含 BACKTEST_DATA_INVALID 前缀
         raise BacktestError(str(exc), error_code=_extract_error_code(str(exc), "BACKTEST_DATA_INVALID")) from exc
 
-    # 4. 编译策略（rebalance 范式需传入 universe_symbols 以发现全池候选）
+    # 从 K 线中提取基本面字段（pe_ttm/pb/...），供 rebalance_engine 按调仓日取用；
+    # 非 rebalance 范式下不会消费，提取代价低（纯内存遍历）。
+    extra_map = kline_to_extra_map(kline_data)
+
+    # 3.5 构造 watcher 只读客户端（point-in-time 成分股过滤，缺陷 A 修复）
+    watcher_client = build_watcher_client(watcher_base_url)
+
+    # 4. 编译策略（rebalance 范式需传入 universe_symbols 以发现全池候选；
+    #    watcher_client / extra_map 透传给 RebalanceEngine）
     try:
         strategy_cls = compile_strategy(
             config,
             universe_symbols=list(data_map.keys()) if data_map else None,
+            watcher_client=watcher_client,
+            extra_map=extra_map,
         )
     except CompilerError as exc:
         raise BacktestError(str(exc), error_code=_extract_error_code(str(exc), "BACKTEST_COMPILE_FAILED")) from exc

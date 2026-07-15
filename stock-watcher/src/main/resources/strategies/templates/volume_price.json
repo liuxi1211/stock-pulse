@@ -6,8 +6,11 @@
   "category": "TECHNICAL",
   "tags": ["量价", "趋势"],
   "screen_config": {
-    "universe": "manual",
-    "stocks": ["510300.SH"]
+    "universe": {
+      "pool": "manual",
+      "point_in_time": null,
+      "stocks": ["510300.SH"]
+    }
   },
   "trading_config": {
     "signals": {

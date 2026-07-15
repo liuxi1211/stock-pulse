@@ -81,6 +81,7 @@ public class AuthInterceptor implements HandlerInterceptor {
                 || uri.startsWith("/swagger-ui")
                 || uri.startsWith("/v3/api-docs")
                 || uri.startsWith("/webjars/")
+                || uri.startsWith("/api/internal/")
                 || uri.equals("/tushare/data-init")
                 || uri.equals("/tushare/data-init/status");
     }

@@ -5,7 +5,7 @@
 
 约束：本模块不触库，仅做内存转换。
 """
-from typing import Any
+from typing import Any, Optional
 
 import pandas as pd
 
@@ -17,6 +17,10 @@ _OHLCV_COLS: tuple[str, ...] = ("open", "high", "low", "close", "volume")
 
 # 基准序列候选收盘价列名
 _BENCHMARK_CLOSE_COLS: tuple[str, ...] = ("close", "CLOSE", "price")
+
+# watcher 在 buildKlineData 里补齐的基本面字段（与 watcher 侧字段名对齐）。
+# rebalance_engine 在调仓日按 trade_date 从 extra_map 取用，用于 TUSHARE 基本面因子补算。
+_EXTRA_FIELDS: tuple[str, ...] = ("pe_ttm", "pb", "total_mv", "roe_ttm")
 
 
 def kline_to_df(kline_data: list[dict]) -> pd.DataFrame:
@@ -79,6 +83,57 @@ def kline_to_df_map(kline_data: dict[str, list[dict]]) -> dict[str, pd.DataFrame
     return out
 
 
+def kline_to_extra_map(
+    kline_data: dict[str, list[dict]],
+    extra_fields: Optional[tuple[str, ...]] = None,
+) -> dict[str, dict[str, dict[str, float]]]:
+    """从 watcher K 线中提取基本面 extra 字段（spec 010 缺陷 B 修复）。
+
+    ``kline_to_df`` 只保留 OHLCV，基本面字段（pe_ttm/pb/total_mv/roe_ttm 等）
+    被丢弃。本函数独立抽取，返回按 symbol → 日期 → 字段 的三层 map，
+    供 ``RebalanceEngine._compute_one_factor`` 在调仓日按 trade_date 取用。
+
+    :param kline_data: ``{symbol: [{date, open, ..., pe_ttm, ...}, ...]}``。
+    :param extra_fields: 要提取的字段名元组，默认 :data:`_EXTRA_FIELDS`。
+    :return: ``{symbol: {trade_date_str: {pe_ttm: 12.3, pb: 1.1, ...}}}``，
+        日期统一归一化为 ``YYYY-MM-DD``。无 extra 字段的 symbol 返回空 dict。
+    """
+    fields = extra_fields if extra_fields is not None else _EXTRA_FIELDS
+    out: dict[str, dict[str, dict[str, float]]] = {}
+    if not kline_data:
+        return out
+
+    for symbol, rows in kline_data.items():
+        sym_key = str(symbol)
+        per_day: dict[str, dict[str, float]] = {}
+        if not rows:
+            continue
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            # 取日期（兼容 date/trade_date/datetime/timestamp 列名）
+            time_col = next((c for c in _TIME_COLS if c in row), None)
+            if time_col is None:
+                continue
+            try:
+                day_str = pd.Timestamp(row[time_col]).strftime("%Y-%m-%d")
+            except Exception:  # noqa: BLE001 - 单行日期解析失败跳过
+                continue
+            day_vals: dict[str, float] = {}
+            for fld in fields:
+                if fld in row and row[fld] is not None:
+                    try:
+                        day_vals[fld] = float(row[fld])
+                    except (TypeError, ValueError):
+                        # 非数跳过（NaN 安全，下游用缺失值处理）
+                        continue
+            if day_vals:
+                per_day[day_str] = day_vals
+        if per_day:
+            out[sym_key] = per_day
+    return out
+
+
 def normalize_benchmark(benchmark_data: list[dict]) -> pd.Series:
     """基准收盘价序列归一化到 1.0（``price / price[0]``）。
 
@@ -116,4 +171,4 @@ def normalize_benchmark(benchmark_data: list[dict]) -> pd.Series:
     return normalized
 
 
-__all__ = ["kline_to_df", "kline_to_df_map", "normalize_benchmark"]
+__all__ = ["kline_to_df", "kline_to_df_map", "kline_to_extra_map", "normalize_benchmark"]

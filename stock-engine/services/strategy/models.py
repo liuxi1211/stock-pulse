@@ -176,26 +176,104 @@ class StaticFiltersModel(BaseModel):
     min_list_days: Optional[int] = Field(None, description="上市天数下限（过滤次新）")
 
 
-class ScreenConfigModel(BaseModel):
-    """选股配置。Schema §3.2。
+class UniverseModel(BaseModel):
+    """① Universe 层：选股范围 + point-in-time 成分股过滤。Schema §3.2.2。
 
+    - ``pool="manual"`` 时 ``stocks`` 必填（validator 层校验，错误码 MANUAL_SYMBOL_REQUIRED）；
+    - ``pool="csi300"/"csi500"`` 时建议开启 ``point_in_time``（rebalance_engine
+      会调 watcher 查成分股快照，消除 lookahead bias）。
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    pool: str = Field(
+        ..., description="股票池：all_a_shares / csi300 / csi500 / manual / 自定义池 ID"
+    )
+    point_in_time: Optional[bool] = Field(
+        None, description="是否启用 point-in-time 成分股过滤（csi300/csi500 默认 True）"
+    )
+    stocks: Optional[List[str]] = Field(
+        None, description="pool=manual 时必填的标的列表"
+    )
+
+
+class FactorModel(BaseModel):
+    """② Factor Scoring 层：因子打分公式。Schema §3.2.2。
+
+    平移自旧 ``RankingModel``（保留旧类名兼容性，但 ScreenConfigModel 不再引用）：
+
+    - ``method="composite"`` → ``weights`` 必填（validator 层校验）；
+    - ``method="single"`` → ``factor`` + ``order`` 必填（validator 层校验）；
+    - ``method="disabled"`` → 不排序（仅过滤）。
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    method: Literal["disabled", "single", "composite"] = Field(
+        ..., description="排序方法：disabled / single / composite"
+    )
+    weights: Optional[Dict[str, float]] = Field(
+        None, description="composite 时的 {factorKey: 权重}，负权重=越小越好"
+    )
+    factor: Optional[str] = Field(None, description="single 时的单因子 factorKey")
+    order: Optional[Literal["asc", "desc"]] = Field(
+        None, description="single 时的排序方向（asc 升序 / desc 降序）"
+    )
+
+
+class FilterModel(BaseModel):
+    """③ Filter 层：硬性筛选（布尔判断）。Schema §3.2.2。
+
+    合并自旧 ``conditions``（截面布尔过滤）+ ``StaticFiltersModel``（静态过滤）。
     ``conditions`` 内禁止 cross_up/cross_down 与 ref（Schema §7.2，validator 层校验）。
     """
 
     model_config = ConfigDict(extra="forbid")
 
-    universe: str = Field(
-        ..., description="股票池：all_a_shares / csi300 / csi500 / manual / 自定义池 ID"
-    )
-    stocks: Optional[List[str]] = Field(
-        None, description="universe=manual 时必填的标的列表"
-    )
-    top_n: Optional[int] = Field(None, description="选出的标的数量（→ rebalance_to_topn top_n）")
     conditions: Optional[ConditionTree] = Field(
-        None, description="选股过滤条件树（禁 cross_*/ref）"
+        None, description="截面布尔过滤条件树（禁 cross_*/ref）"
     )
-    ranking: Optional[RankingModel] = Field(None, description="排序规则")
-    filters: Optional[StaticFiltersModel] = Field(None, description="静态过滤规则")
+    exclude_st: bool = Field(True, description="排除 ST/*ST")
+    exclude_suspended: bool = Field(True, description="排除停牌")
+    exclude_limit_up: bool = Field(True, description="排除涨停（无法买入）")
+    exclude_limit_down: bool = Field(False, description="排除跌停")
+    industries: Optional[List[str]] = Field(None, description="行业白名单（仅保留）")
+    exclude_industries: Optional[List[str]] = Field(None, description="行业黑名单（排除）")
+    min_list_days: Optional[int] = Field(None, description="上市天数下限（过滤次新）")
+
+
+class PortfolioModel(BaseModel):
+    """④ Portfolio 层：TopN。Schema §3.2.2。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    top_n: Optional[int] = Field(
+        None, description="选出的标的数量（→ rebalance_to_topn top_n）"
+    )
+
+
+class ScreenConfigModel(BaseModel):
+    """选股配置（4 层结构）。Schema §3.2。
+
+    BREAKING：替换旧 5 字段扁平结构（universe(str)/stocks/top_n/conditions/ranking/filters）
+    为 4 层对象结构（universe/factor/filter/portfolio）。旧结构迁移映射：
+
+    - ``universe(string)`` → ``universe.pool``
+    - ``stocks`` → ``universe.stocks``
+    - ``ranking`` → ``factor``
+    - ``conditions`` → ``filter.conditions``
+    - ``filters``（StaticFiltersModel）→ ``filter``（其余字段平移）
+    - ``top_n`` → ``portfolio.top_n``
+
+    ``universe`` 必填；``factor`` / ``filter`` / ``portfolio`` 可选。
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    universe: UniverseModel = Field(..., description="① 选股范围层")
+    factor: Optional[FactorModel] = Field(None, description="② 因子打分层")
+    filter: Optional[FilterModel] = Field(None, description="③ 硬性筛选层")
+    portfolio: Optional[PortfolioModel] = Field(None, description="④ 组合构建层")
 
 
 # ============================================================

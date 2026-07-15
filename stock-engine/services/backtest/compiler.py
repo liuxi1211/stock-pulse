@@ -24,7 +24,7 @@ position_sizing.method 下单；exit.bracket 在场时在 ``on_before_trading`` 
 from __future__ import annotations
 
 import math
-from typing import Any, Optional, Type
+from typing import TYPE_CHECKING, Any, Optional, Type
 
 import akquant.talib as talib
 import numpy as np
@@ -55,6 +55,10 @@ from services.strategy.models import (
     StrategyConfigModel,
     ValueNode,
 )
+
+if TYPE_CHECKING:
+    # 仅用于类型注解（spec 010 缺陷 A 修复：watcher 只读客户端注入路径）
+    from services.backtest.watcher_client import WatcherClient
 
 
 # ============================================================
@@ -237,9 +241,11 @@ def _infer_factor_window(spec: FactorSpec) -> int:
 def _infer_rebalance_warmup(config: StrategyConfigModel) -> int:
     """推断 rebalance 范式所需的最小 warmup（bar 数）。
 
-    扫描 ``screen_config.conditions`` 条件树 + ``ranking`` 因子（single.factor 或
-    composite.weights 的每个 key），用 :func:`_infer_factor_window` 取最大窗口；
-    再与默认 history_window（60）取 max。无 rebalance / 无 screen_config 时返回 0。
+    扫描 ``screen_config.filter.conditions`` 条件树 + ``factor`` 因子
+    （4 层结构：原 conditions/ranking 平移到 filter/factor 层；
+    single.factor 或 composite.weights 的每个 key），用
+    :func:`_infer_factor_window` 取最大窗口；再与默认 history_window（60）取 max。
+    无 rebalance / 无 screen_config 时返回 0。
     """
     tc = config.trading_config
     if tc is None or tc.rebalance is None:
@@ -251,20 +257,21 @@ def _infer_rebalance_warmup(config: StrategyConfigModel) -> int:
 
     windows: list[int] = []
 
-    # conditions 条件树里的因子
-    if screen.conditions is not None:
+    # conditions 条件树里的因子（4 层结构：conditions 位于 filter 层）
+    filter_layer = screen.filter
+    if filter_layer is not None and filter_layer.conditions is not None:
         specs: dict[str, FactorSpec] = {}
-        _collect_factor_specs(screen.conditions, specs)
+        _collect_factor_specs(filter_layer.conditions, specs)
         for spec in specs.values():
             windows.append(_infer_factor_window(spec))
 
-    # ranking 因子
-    ranking = screen.ranking
-    if ranking is not None:
-        if ranking.method == "single" and ranking.factor:
-            windows.append(_infer_factor_window(FactorSpec(ranking.factor, None, None)))
-        elif ranking.method == "composite" and ranking.weights:
-            for fk in ranking.weights.keys():
+    # factor 打分因子（4 层结构：原 ranking 平移到 factor 层）
+    factor = screen.factor
+    if factor is not None:
+        if factor.method == "single" and factor.factor:
+            windows.append(_infer_factor_window(FactorSpec(factor.factor, None, None)))
+        elif factor.method == "composite" and factor.weights:
+            for fk in factor.weights.keys():
                 windows.append(_infer_factor_window(FactorSpec(fk, None, None)))
 
     return max(windows) if windows else 0
@@ -410,6 +417,8 @@ def compile_strategy(
     config: StrategyConfigModel,
     *,
     universe_symbols: Optional[list[str]] = None,
+    watcher_client: Optional["WatcherClient"] = None,
+    extra_map: Optional[dict[str, dict[str, dict[str, float]]]] = None,
 ) -> Type[Strategy]:
     """JSON config → akquant Strategy 子类。
 
@@ -418,9 +427,15 @@ def compile_strategy(
     :param config: 策略配置模型。
     :param universe_symbols: 可选，watcher 经 HTTP 传入的全 universe 标的列表
        （即 ``kline_data`` 的 keys）。rebalance 范式下用于发现调仓候选池；
-        非 manual universe（csi300/csi500）时 ``screen_config.stocks`` 为空，
+        非 manual universe（csi300/csi500）时 ``screen_config.universe.stocks`` 为空，
         必须靠此参数才能遍历全池，否则 rebalance 会锁死在初始持仓。signals-only
         范式可省略。
+    :param watcher_client: 可选的 watcher 只读客户端（spec 010 缺陷 A 修复）。
+        rebalance 范式下传给 ``RebalanceEngine.select_at_rebalance_date`` 做
+        point-in-time 成分股过滤；None 时降级为全量候选。
+    :param extra_map: 可选的 ``{symbol: {trade_date_str: {field: float}}}``
+        基本面 map（spec 010 缺陷 B 修复），传给 RebalanceEngine 供 TUSHARE
+        因子补算；None 时基本面因子回退为 NaN。
 
     返回一个动态生成的 ``Strategy`` 子类（用 class 定义 + 闭包绑定，无动态代码执行）。
     """
@@ -523,13 +538,16 @@ def compile_strategy(
             raise CompilerError(
                 "BACKTEST_CONFIG_INVALID: rebalance 范式要求 screen_config 在场"
             )
-        if screen_config.top_n is None or screen_config.top_n <= 0:
+        # 4 层结构：top_n 位于 portfolio 层
+        portfolio_layer = screen_config.portfolio
+        sc_top_n = portfolio_layer.top_n if portfolio_layer is not None else None
+        if sc_top_n is None or sc_top_n <= 0:
             raise CompilerError(
-                "BACKTEST_CONFIG_INVALID: rebalance 范式要求 screen_config.top_n 正整数"
+                "BACKTEST_CONFIG_INVALID: rebalance 范式要求 screen_config.portfolio.top_n 正整数"
             )
         rb_frequency = rebalance.frequency if rebalance else "daily"
         rb_day_of_period = rebalance.day_of_period if (rebalance and rebalance.day_of_period is not None) else 0
-        rb_top_n = int(screen_config.top_n)
+        rb_top_n = int(sc_top_n)
         rb_weight_mode = rebalance.weight_mode if (rebalance and rebalance.weight_mode) else "equal"
         rb_long_only = rebalance.long_only if (rebalance and rebalance.long_only is not None) else True
         # replace_method: None 或 "full" → 全换（liquidate_unmentioned=True）；"incremental" → 只换差额
@@ -851,6 +869,8 @@ def compile_strategy(
             screen_config=screen_config,
             rebalance_engine=rebalance_engine,
             universe_symbols=rb_universe_symbols,
+            watcher_client=watcher_client,
+            extra_map=extra_map,
         )
 
     # 重命名类（便于日志/调试）
@@ -883,6 +903,8 @@ def _attach_rebalance_method(
     screen_config: Optional[ScreenConfigModel],
     rebalance_engine: Optional[RebalanceEngine],
     universe_symbols: Optional[list[str]] = None,
+    watcher_client: Optional["WatcherClient"] = None,
+    extra_map: Optional[dict[str, dict[str, dict[str, float]]]] = None,
 ) -> None:
     """把 ``on_daily_rebalance`` 方法挂到策略类上。
 
@@ -919,13 +941,15 @@ def _attach_rebalance_method(
         if not kline_map:
             return
 
-        # 3) 调 RebalanceEngine 选股打分
+        # 3) 调 RebalanceEngine 选股打分（透传 watcher_client / extra_map）
         try:
             scores = rebalance_engine.select_at_rebalance_date(
                 screen_config=screen_config,
                 kline_map=kline_map,
                 trading_date=trading_date,
                 history_window=history_window,
+                watcher_client=watcher_client,
+                extra_map=extra_map,
             )
         except Exception:  # noqa: BLE001 - 选股失败不阻断回测
             return
@@ -999,8 +1023,8 @@ def _discover_symbols(
 
     1. ``universe_symbols``：watcher 经 HTTP 传入的全池（即 ``kline_data`` 的 keys）。
        **非 manual universe（csi300/csi500）时为唯一可靠来源**——此时
-       ``screen_config.stocks`` 在 engine 侧为空（由 watcher 解析成分股后裁剪 K 线）。
-    2. ``screen_config.stocks``：manual 池（用户显式指定的标的列表）。
+       ``screen_config.universe.stocks`` 在 engine 侧为空（由 watcher 解析成分股后裁剪 K 线）。
+    2. ``screen_config.universe.stocks``：manual 池（用户显式指定的标的列表）。
     3. 兜底：akquant 已知持仓 + 当前 bar symbol（仅适用于 universe 无法确定的退化场景，
        可能导致「锁死在初始持仓」，仅作最后保障）。
     """
@@ -1008,9 +1032,13 @@ def _discover_symbols(
     if universe_symbols:
         return list(universe_symbols)
 
-    # 2) screen_config.stocks（manual 池）
-    if screen_config is not None and screen_config.stocks:
-        return list(screen_config.stocks)
+    # 2) screen_config.universe.stocks（manual 池；4 层结构：stocks 位于 universe 层）
+    if (
+        screen_config is not None
+        and screen_config.universe is not None
+        and screen_config.universe.stocks
+    ):
+        return list(screen_config.universe.stocks)
 
     # 3) 兜底：持仓 + 当前 symbol（退化场景，可能不完整）
     syms: list[str] = []

@@ -33,7 +33,7 @@ from services.strategy.models import (
     RefNode,
     ValueNode,
     PositionSizingModel,
-    RankingModel,
+    FactorModel,
 )
 
 
@@ -108,6 +108,37 @@ class StrategyValidator:
 
         return errors
 
+    def validate_screen_structure(self, raw_config: dict) -> List[StrategyValidationError]:
+        """screen_config 4 层结构预检（spec 010 缺陷 C）。
+
+        在 Pydantic 解析（``StrategyConfigModel.model_validate``）之前对原始 dict 做轻量结构判定，
+        把「旧 5 字段扁平结构」「缺失 universe 必需层」映射到专用错误码，给出可迁移的友好提示——
+        否则这两类情形会被 ``ScreenConfigModel`` 的 ``extra="forbid"`` / 必填 ``universe`` 拦成
+        通用 Pydantic ValidationError，迁移体验差。
+
+        - 旧扁平结构（universe 为字符串，或顶层含 conditions/ranking/top_n/filters）
+          → ``SCREEN_CONFIG_DEPRECATED_STRUCTURE``；
+        - 缺失 universe 层（screen_config 为对象但无 universe 键 / universe 为 null）
+          → ``SCREEN_CONFIG_LAYER_MISSING``；
+        - 其余（新 4 层 / 无 screen_config / 非对象）返回空列表，交由 Pydantic + 业务校验继续。
+
+        :param raw_config: 原始策略配置 dict（未解析）。
+        """
+        if not isinstance(raw_config, dict):
+            return []
+        sc = raw_config.get("screen_config")
+        if not isinstance(sc, dict):
+            return []
+        universe = sc.get("universe")
+        has_legacy_keys = any(k in sc for k in ("conditions", "ranking", "top_n", "filters"))
+        if isinstance(universe, str) or has_legacy_keys:
+            code, msg = ErrorCode.SCREEN_CONFIG_DEPRECATED_STRUCTURE
+            return [StrategyValidationError(path="screen_config", code=code, message=msg)]
+        if "universe" not in sc or universe is None:
+            code, msg = ErrorCode.SCREEN_CONFIG_LAYER_MISSING
+            return [StrategyValidationError(path="screen_config.universe", code=code, message=msg)]
+        return []
+
     # ========================================================
     # §7.1 结构约束：trading_config
     # ========================================================
@@ -180,35 +211,35 @@ class StrategyValidator:
     def _validate_structure_screen(
         self, sc: ScreenConfigModel, errors: List[StrategyValidationError]
     ) -> None:
-        # (2) universe=manual 时 stocks 必须非空
-        if sc.universe == "manual":
-            if not sc.stocks:  # None 或空列表都算缺失
+        # (2) universe.pool=manual 时 universe.stocks 必须非空
+        if sc.universe.pool == "manual":
+            if not sc.universe.stocks:  # None 或空列表都算缺失
                 code, msg = ErrorCode.MANUAL_SYMBOL_REQUIRED
                 errors.append(
                     StrategyValidationError(
-                        path="screen_config.stocks", code=code, message=msg
+                        path="screen_config.universe.stocks", code=code, message=msg
                     )
                 )
 
-        # (3)(4) ranking 规则
-        ranking: Optional[RankingModel] = sc.ranking
-        if ranking is not None:
-            if ranking.method == "composite":
-                if not ranking.weights:  # None 或空 dict 都算缺失
+        # (3)(4) factor 打分规则（4 层结构：原 ranking 平移到 factor）
+        factor: Optional[FactorModel] = sc.factor
+        if factor is not None:
+            if factor.method == "composite":
+                if not factor.weights:  # None 或空 dict 都算缺失
                     code, msg = ErrorCode.RANKING_WEIGHTS_REQUIRED
                     errors.append(
                         StrategyValidationError(
-                            path="screen_config.ranking.weights",
+                            path="screen_config.factor.weights",
                             code=code,
                             message=msg,
                         )
                     )
-            elif ranking.method == "single":
-                if ranking.factor is None or ranking.order is None:
+            elif factor.method == "single":
+                if factor.factor is None or factor.order is None:
                     code, msg = ErrorCode.RANKING_SINGLE_FIELD_REQUIRED
                     errors.append(
                         StrategyValidationError(
-                            path="screen_config.ranking", code=code, message=msg
+                            path="screen_config.factor", code=code, message=msg
                         )
                     )
 
@@ -221,8 +252,8 @@ class StrategyValidator:
         """signals（择时）范式的 universe 规模约束。
 
         - 仅当 trading_config.signals 在场时触发；
-        - screen_config.universe 必须为 "manual"（否则 SIGNALS_UNIVERSE_NOT_MANUAL）；
-        - screen_config.stocks 数量 <= SIGNALS_MAX_UNIVERSE_SIZE（否则 SIGNALS_UNIVERSE_TOO_LARGE）。
+        - screen_config.universe.pool 必须为 "manual"（否则 SIGNALS_UNIVERSE_NOT_MANUAL）；
+        - screen_config.universe.stocks 数量 <= SIGNALS_MAX_UNIVERSE_SIZE（否则 SIGNALS_UNIVERSE_TOO_LARGE）。
 
         设计依据：signals 范式对每个命中 symbol 独立 order_target_percent，
         多标的会资金争抢导致大面积拒单且不可复现；故限定为 manual 小池子。
@@ -242,23 +273,24 @@ class StrategyValidator:
             )
             return
 
-        if sc.universe != "manual":
+        if sc.universe.pool != "manual":
             code, msg = ErrorCode.SIGNALS_UNIVERSE_NOT_MANUAL
             errors.append(
                 StrategyValidationError(
-                    path="screen_config.universe", code=code, message=msg
+                    path="screen_config.universe.pool", code=code, message=msg
                 )
             )
             return
 
-        stocks_count = len(sc.stocks) if sc.stocks else 0
+        stocks = sc.universe.stocks
+        stocks_count = len(stocks) if stocks else 0
         max_size = constants.SIGNALS_MAX_UNIVERSE_SIZE
         if stocks_count > max_size:
             code, msg = ErrorCode.SIGNALS_UNIVERSE_TOO_LARGE
             msg = msg.format(max=max_size, actual=stocks_count)
             errors.append(
                 StrategyValidationError(
-                    path="screen_config.stocks", code=code, message=msg
+                    path="screen_config.universe.stocks", code=code, message=msg
                 )
             )
 
@@ -267,8 +299,8 @@ class StrategyValidator:
     ) -> None:
         """signals（择时）范式下 screen_config 的字段禁用约束。
 
-        signals 范式只消费 screen_config.universe + stocks（圈定回测 symbols）；
-        conditions / ranking / top_n / filters 即使填写也不会被 compiler 执行，
+        signals 范式只消费 screen_config.universe（圈定回测 symbols）；
+        factor / filter / portfolio 三层即使填写也不会被 compiler 执行，
         属于"静默忽略"。为防止用户误填产生困惑，升级为错误。
         """
         tc = config.trading_config
@@ -279,14 +311,12 @@ class StrategyValidator:
             return  # screen_config 缺失已由 _validate_signals_universe 处理
 
         forbidden_paths = []
-        if sc.conditions is not None:
-            forbidden_paths.append("screen_config.conditions")
-        if sc.ranking is not None:
-            forbidden_paths.append("screen_config.ranking")
-        if sc.top_n is not None:
-            forbidden_paths.append("screen_config.top_n")
-        if sc.filters is not None:
-            forbidden_paths.append("screen_config.filters")
+        if sc.factor is not None:
+            forbidden_paths.append("screen_config.factor")
+        if sc.filter is not None:
+            forbidden_paths.append("screen_config.filter")
+        if sc.portfolio is not None:
+            forbidden_paths.append("screen_config.portfolio")
 
         if forbidden_paths:
             code, msg = ErrorCode.SIGNALS_SCREEN_CONFIG_FORBIDDEN
@@ -327,10 +357,13 @@ class StrategyValidator:
     def _validate_screen_conditions(
         self, sc: ScreenConfigModel, errors: List[StrategyValidationError]
     ) -> None:
-        if sc.conditions is None:
+        # conditions 现在位于 filter 层（4 层结构）；filter 为 None 时无条件树可校验
+        if sc.filter is None or sc.filter.conditions is None:
             return
         ctx = _Ctx(is_screen=True)
-        self._walk_condition_tree(sc.conditions, "screen_config.conditions", ctx, errors)
+        self._walk_condition_tree(
+            sc.filter.conditions, "screen_config.filter.conditions", ctx, errors
+        )
 
     # ========================================================
     # §7.2 条件树递归
@@ -512,12 +545,16 @@ class StrategyValidator:
         if config.description is not None:
             self._check_dangerous_text(config.description, "description", errors)
 
-        # screen_config.ranking.weights 的 key（自定义 factorKey 字符串）
+        # screen_config.factor.weights 的 key（自定义 factorKey 字符串）
         sc = config.screen_config
-        if sc is not None and sc.ranking is not None and sc.ranking.weights:
-            for key in sc.ranking.weights.keys():
+        if (
+            sc is not None
+            and sc.factor is not None
+            and sc.factor.weights
+        ):
+            for key in sc.factor.weights.keys():
                 self._check_dangerous_text(
-                    str(key), "screen_config.ranking.weights", errors
+                    str(key), "screen_config.factor.weights", errors
                 )
 
         # trading_config.exit.rules[].name（规则展示名）

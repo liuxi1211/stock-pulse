@@ -246,3 +246,26 @@ signals 范式对每个命中 symbol 独立 `order_target_percent`，多标的 u
 - 单标的/少量标的（行业龙头组合、ETF 轮动小池）择时 → signals
 - csi300/csi500 等宽基横截面选股轮动 → rebalance
 - 不要尝试"横截面选股 + 选中标的择时"联动，akquant 当前封装不支持
+
+### 12.5 轮动范式 point-in-time 成分股要求
+
+> **面向 AI**：轮动范式（rebalance）的 universe 为 csi300/csi500 时，**必须**在每个调仓日做 point-in-time 成分股过滤，否则会产生 lookahead bias。
+
+#### 问题
+watcher 的 `resolveBacktestSymbols` 取回测区间成分股**并集**（`getConstituentsInRange`），用于一次性准备全量 K 线数据。但 engine 在每个调仓日决策时，候选池必须限定为「该日实际入选成分股」——否则回测早期可用「未来才入选」的股票做决策。
+
+#### 解决方案（spec 010-rotation-data-governance）
+1. watcher 提供只读内部接口 `POST /api/internal/constituents/query`，返回 ≤ trade_date 的最新生效日成分股快照。
+2. engine 通过 `WatcherClient.get_constituents_at(index_code, trade_date)` 在每个调仓日查询。
+3. `rebalance_engine.select_at_rebalance_date` 在 `_build_candidates` 之前过滤 kline_map。
+
+#### 边界约束分层
+- 数据单源性（强）：engine 永不直接读写业务数据库。
+- 行情/基本面（强）：由 watcher 预传，engine 不反向拉取。
+- **参考数据（弱，例外）**：成分股身份允许 engine 查询 watcher 的 `/api/internal/*` 只读端点。
+
+#### 降级
+未配置 `WATCHER_BASE_URL` 时，`watcher_client=None`，跳过 point-in-time 过滤并打 warning（向后兼容，但结果可能含 lookahead bias）。
+
+#### manual universe
+universe=manual 时不查接口，直接用 `screen_config.universe.stocks` 列表（≤ 10 只，无成分股泄露问题）。

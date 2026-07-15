@@ -6,29 +6,35 @@
   "category": "FUNDAMENTAL",
   "tags": ["小市值", "基本面"],
   "screen_config": {
-    "universe": "all_a_shares",
-    "conditions": {
-      "operator": "AND",
-      "conditions": [
-        {
-          "type": "compare",
-          "left": { "factor": "TOTAL_MV" },
-          "comparator": "<",
-          "right": { "value": 5000000000 }
-        }
-      ]
+    "universe": {
+      "pool": "csi500",
+      "point_in_time": true,
+      "stocks": null
     },
-    "ranking": {
+    "factor": {
       "method": "single",
       "factor": "TOTAL_MV",
       "order": "asc"
     },
-    "filters": {
+    "filter": {
+      "conditions": {
+        "operator": "AND",
+        "conditions": [
+          {
+            "type": "compare",
+            "left": { "factor": "TOTAL_MV" },
+            "comparator": "<",
+            "right": { "value": 5000000000 }
+          }
+        ]
+      },
       "exclude_st": true,
       "exclude_suspended": true,
       "exclude_limit_up": true
     },
-    "top_n": 20
+    "portfolio": {
+      "top_n": 20
+    }
   },
   "trading_config": {
     "rebalance": {

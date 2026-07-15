@@ -23,7 +23,7 @@ _validator = StrategyValidator()
 def _loc_to_path(loc: tuple) -> str:
     """Pydantic ValidationError 的 loc 元组转点号路径。
     例：("trading_config","signals") → "trading_config.signals"
-         ("screen_config","conditions",0) → "screen_config.conditions[0]"
+         ("screen_config","filter","conditions",0) → "screen_config.filter.conditions[0]"
     整数元素用 [n] 包裹。
     """
     parts = []
@@ -43,7 +43,18 @@ def _loc_to_path(loc: tuple) -> str:
 
 @router.post("/validate", response_model=ValidateResponse, summary="校验策略配置")
 async def validate_strategy(request: ValidateRequest) -> ValidateResponse:
-    """两段式校验：Pydantic 解析 → 业务规则校验。"""
+    """三段式校验：screen_config 结构预检 → Pydantic 解析 → 业务规则校验。"""
+    # ① screen_config 4 层结构预检（spec 010 缺陷 C）：在 Pydantic 解析前识别旧 5 字段扁平结构
+    #    / 缺失 universe 层，返回 SCREEN_CONFIG_DEPRECATED_STRUCTURE / SCREEN_CONFIG_LAYER_MISSING
+    #    友好错误（否则会被 extra="forbid" 拦成通用 Pydantic 错误，迁移体验差）。
+    struct_errors = _validator.validate_screen_structure(request.config)
+    if struct_errors:
+        error_models = [
+            StrategyValidationErrorModel(path=e.path, code=e.code, message=e.message)
+            for e in struct_errors
+        ]
+        return ValidateResponse(valid=False, errors=error_models)
+
     try:
         config = StrategyConfigModel.model_validate(request.config)
     except ValidationError as e:

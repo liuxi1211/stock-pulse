@@ -82,23 +82,30 @@ const StrategyEditor = {
     },
 
     // 错误 path 前缀 → Tab id 映射（与 #strategyTab 的 data-target 对齐）
-    // 注意：screen_config.stocks 在择时范式定位到 tab-pool，其余 screen_config 字段定位到 tab-screen（轮动）
+    // 注意：screen_config.universe.stocks 在择时范式定位到 tab-pool，其余 screen_config 字段定位到 tab-screen（轮动）
+    // spec 010 Task 12 后：4 层路径 universe/factor/filter/portfolio；保留旧顶层路径兼容过渡期后端报错。
     ERROR_TAB_MAP: [
-        { prefix: 'name',                         tab: 'tab-basic' },
-        { prefix: 'description',                  tab: 'tab-basic' },
-        { prefix: 'screen_config.conditions',     tab: 'tab-screen' },
-        { prefix: 'screen_config.ranking',        tab: 'tab-screen' },
-        { prefix: 'screen_config.top_n',          tab: 'tab-screen' },
-        { prefix: 'screen_config.filters',        tab: 'tab-screen' },
-        { prefix: 'screen_config.universe',       tab: 'tab-screen' },
-        { prefix: 'screen_config.stocks',         tab: 'tab-pool' },
-        { prefix: 'screen_config',                tab: 'tab-screen' },
-        { prefix: 'trading_config.signals.buy',   tab: 'tab-buy' },
-        { prefix: 'trading_config.signals.sell',  tab: 'tab-sell' },
-        { prefix: 'trading_config.position_sizing', tab: 'tab-position' },
-        { prefix: 'trading_config.exit',          tab: 'tab-exit' },
-        { prefix: 'trading_config.rebalance',     tab: 'tab-rebalance' },
-        { prefix: 'backtest_config',              tab: 'tab-backtest' },
+        { prefix: 'name',                                    tab: 'tab-basic' },
+        { prefix: 'description',                             tab: 'tab-basic' },
+        { prefix: 'screen_config.filter.conditions',         tab: 'tab-screen' },
+        { prefix: 'screen_config.filter',                    tab: 'tab-screen' },
+        { prefix: 'screen_config.factor',                    tab: 'tab-screen' },
+        { prefix: 'screen_config.portfolio',                 tab: 'tab-screen' },
+        { prefix: 'screen_config.universe',                  tab: 'tab-screen' },
+        { prefix: 'screen_config.universe.stocks',           tab: 'tab-pool' },
+        { prefix: 'screen_config.stocks',                    tab: 'tab-pool' },
+        // 兼容旧顶层路径（过渡期后端可能仍返回 conditions/ranking/top_n/filters）
+        { prefix: 'screen_config.conditions',                tab: 'tab-screen' },
+        { prefix: 'screen_config.ranking',                   tab: 'tab-screen' },
+        { prefix: 'screen_config.top_n',                     tab: 'tab-screen' },
+        { prefix: 'screen_config.filters',                   tab: 'tab-screen' },
+        { prefix: 'screen_config',                           tab: 'tab-screen' },
+        { prefix: 'trading_config.signals.buy',              tab: 'tab-buy' },
+        { prefix: 'trading_config.signals.sell',             tab: 'tab-sell' },
+        { prefix: 'trading_config.position_sizing',          tab: 'tab-position' },
+        { prefix: 'trading_config.exit',                     tab: 'tab-exit' },
+        { prefix: 'trading_config.rebalance',                tab: 'tab-rebalance' },
+        { prefix: 'backtest_config',                         tab: 'tab-backtest' },
     ],
 
     // ===================== 初始化 =====================
@@ -198,27 +205,74 @@ const StrategyEditor = {
     },
 
     /**
-     * 选股中心 screenConfig（驼峰）→ 策略 screen_config（snake_case）字段转换。
-     * 字段映射（与 screener.js collectConfig / engine ScreenConfigModel 对齐）：
-     *   universe        → universe（不变）
-     *   conditions      → conditions（结构尽力保留；操作数形态差异做尽力转换）
-     *   ranking         → ranking（method/factor/order/weights 不变）
-     *   filters         → filters（键名 camelCase → snake_case）
-     *   topN            → top_n
-     *   stocks          → stocks（不变）
+     * 把任意形态的 screen_config 归一为 4 层结构（universe/factor/filter/portfolio）。
+     * 兼容存量旧 5 字段（spec 010 Task 12 迁移期；Task 15 清存量前的过渡编辑场景）：
+     *   universe(string)  → universe.pool
+     *   stocks            → universe.stocks
+     *   conditions        → filter.conditions
+     *   ranking           → factor（method/factor/order/weights 透传）
+     *   filters           → filter（exclude_st 等开关、industries、min_list_days 合并进 filter）
+     *   top_n             → portfolio.top_n
+     * 新结构（已是 4 层）原样返回（深拷贝，避免污染原 state）。
+     * 传 null/非对象返回 null。
+     */
+    normalizeScreenConfig(sc) {
+        if (!sc || typeof sc !== 'object') return null;
+        const out = {};
+        // 旧结构判定：顶层 universe 为字符串，或存在顶层 conditions/ranking/filters/top_n
+        const isLegacy = (typeof sc.universe === 'string') ||
+            ('conditions' in sc) || ('ranking' in sc) || ('filters' in sc) || ('top_n' in sc);
+
+        if (isLegacy) {
+            // ---- universe 层 ----
+            const pool = typeof sc.universe === 'string' ? sc.universe : 'all_a_shares';
+            const universe = { pool: pool };
+            universe.point_in_time = (pool === 'csi300' || pool === 'csi500') ? true : null;
+            universe.stocks = Array.isArray(sc.stocks) ? sc.stocks.slice() : null;
+            out.universe = universe;
+
+            // ---- factor 层（原 ranking 平移）----
+            if (sc.ranking != null) out.factor = JSON.parse(JSON.stringify(sc.ranking));
+
+            // ---- filter 层（conditions + filters 合并）----
+            const filter = {};
+            if (sc.conditions != null) filter.conditions = JSON.parse(JSON.stringify(sc.conditions));
+            if (sc.filters && typeof sc.filters === 'object') Object.assign(filter, sc.filters);
+            if (Object.keys(filter).length) out.filter = filter;
+
+            // ---- portfolio 层 ----
+            if (sc.top_n != null) out.portfolio = { top_n: sc.top_n };
+            return out;
+        }
+
+        // 新 4 层结构：深拷贝透传
+        if (sc.universe != null) out.universe = JSON.parse(JSON.stringify(sc.universe));
+        if (sc.factor != null) out.factor = JSON.parse(JSON.stringify(sc.factor));
+        if (sc.filter != null) out.filter = JSON.parse(JSON.stringify(sc.filter));
+        if (sc.portfolio != null) out.portfolio = JSON.parse(JSON.stringify(sc.portfolio));
+        return out;
+    },
+
+    /**
+     * 选股中心 screenConfig（驼峰）→ 策略 4 层 screen_config（snake_case）转换。
+     * 字段映射（spec 010 Task 12 后对齐 4 层）：
+     *   universe        → universe.pool（csi300/csi500 默认 point_in_time=true）
+     *   stocks          → universe.stocks
+     *   conditions      → filter.conditions
+     *   ranking         → factor（method/factor/order/weights 不变）
+     *   filters         → filter（exclude_st 等开关、industries、min_list_days 合并）
+     *   topN            → portfolio.top_n
      */
     convertScreenConfig(sc) {
         if (!sc || typeof sc !== 'object') return null;
-        const out = {};
-
-        if (sc.universe != null) out.universe = sc.universe;
-        if (Array.isArray(sc.stocks) && sc.stocks.length) out.stocks = sc.stocks.slice();
-        if (sc.topN != null) out.top_n = sc.topN;
-        if (sc.conditions != null) out.conditions = this.convertConditions(sc.conditions);
-        if (sc.ranking != null) out.ranking = this.convertRanking(sc.ranking);
-        if (sc.filters != null) out.filters = this.convertFilters(sc.filters);
-
-        return out;
+        const legacy = {};
+        if (sc.universe != null) legacy.universe = sc.universe;
+        if (Array.isArray(sc.stocks) && sc.stocks.length) legacy.stocks = sc.stocks.slice();
+        if (sc.topN != null) legacy.top_n = sc.topN;
+        if (sc.conditions != null) legacy.conditions = this.convertConditions(sc.conditions);
+        if (sc.ranking != null) legacy.ranking = this.convertRanking(sc.ranking);
+        if (sc.filters != null) legacy.filters = this.convertFilters(sc.filters);
+        return this.normalizeScreenConfig(legacy);
     },
 
     /**
@@ -389,7 +443,7 @@ const StrategyEditor = {
      * exit.rules 的 targetId 在每次增删行后动态变化（按行序号），不在此静态表里。
      */
     COND_AREAS: [
-        { targetId: 'f-screen-conditions', statePath: 'screen_config.conditions',     allowRef: false, allowCross: false },
+        { targetId: 'f-screen-conditions', statePath: 'screen_config.filter.conditions', allowRef: false, allowCross: false },
         { targetId: 'f-buy-conditions',    statePath: 'trading_config.signals.buy',   allowRef: true,  allowCross: true },
         { targetId: 'f-sell-conditions',   statePath: 'trading_config.signals.sell',  allowRef: true,  allowCross: true },
     ],
@@ -738,36 +792,53 @@ const StrategyEditor = {
         this.setVal('f-category', this.meta.category || '');
 
         // ---- Tab 2 选股 ----
-        const sc = s.screen_config || null;
+        // 4 层结构（spec 010 Task 12）：universe/factor/filter/portfolio。
+        // normalizeScreenConfig 兼容旧 5 字段（顶层 universe/conditions/ranking/filters/top_n）。
+        const sc = this.normalizeScreenConfig(s.screen_config || null);
         if (sc) {
-            this.setVal('f-universe', sc.universe || 'all_a_shares');
-            this.applyUniverse(sc.universe || 'all_a_shares');
-            this._loadManualStocksDetail(sc.stocks || []);
-            this.setVal('f-top-n', sc.top_n != null ? sc.top_n : '');
-            this.setJson('f-screen-conditions', sc.conditions);
-            const r = sc.ranking || null;
-            if (r) {
-                this.setVal('f-ranking-method', r.method || 'disabled');
-                this.applyRankingMethod(r.method || 'disabled');
-                this.setVal('f-ranking-factor', r.factor || '');
-                this.setVal('f-ranking-order', r.order || 'desc');
-                this.renderWeightRows(r.weights || {});
+            const universe = sc.universe || {};
+            const pool = universe.pool || 'all_a_shares';
+            this.setVal('f-universe', pool);
+            this.applyUniverse(pool);
+            this._loadManualStocksDetail(universe.stocks || []);
+            this.setChecked('f-universe-point-in-time',
+                pool === 'csi300' || pool === 'csi500' ? universe.point_in_time !== false : false);
+            // 标记已回填，防止 applyUniversePointInTime 的默认勾选覆盖后端值
+            const pitCb = document.getElementById('f-universe-point-in-time');
+            if (pitCb) pitCb.dataset.touched = '1';
+            this.applyUniversePointInTime(pool);
+
+            const portfolio = sc.portfolio || {};
+            this.setVal('f-top-n', portfolio.top_n != null ? portfolio.top_n : '');
+
+            // filter.conditions（旧结构从顶层 conditions 取，已由 normalizeScreenConfig 归一到 filter.conditions）
+            const filter = sc.filter || {};
+            this.setJson('f-screen-conditions', filter.conditions);
+
+            // factor 层（原 ranking，single→method/factor/order，composite→method/weights）
+            const f = sc.factor || null;
+            if (f) {
+                this.setVal('f-ranking-method', f.method || 'disabled');
+                this.applyRankingMethod(f.method || 'disabled');
+                this.setVal('f-ranking-factor', f.factor || '');
+                this.setVal('f-ranking-order', f.order || 'desc');
+                this.renderWeightRows(f.weights || {});
             } else {
                 this.setVal('f-ranking-method', 'disabled');
                 this.applyRankingMethod('disabled');
                 this.renderWeightRows({});
             }
-            const f = sc.filters || {};
-            this.setChecked('f-filter-exclude-st', f.exclude_st);
-            this.setChecked('f-filter-exclude-suspended', f.exclude_suspended);
-            this.setChecked('f-filter-exclude-limit-up', f.exclude_limit_up);
-            this.setChecked('f-filter-exclude-limit-down', f.exclude_limit_down);
-            this.setChecked('f-filter-use-industries', Array.isArray(f.industries) && f.industries.length > 0);
-            this.setChecked('f-filter-use-exclude-industries', Array.isArray(f.exclude_industries) && f.exclude_industries.length > 0);
-            this.setVal('f-filter-industries', (f.industries || []).join(','));
-            this.setVal('f-filter-exclude-industries', (f.exclude_industries || []).join(','));
-            this.setChecked('f-filter-use-min-list-days', f.min_list_days != null);
-            this.setVal('f-filter-min-list-days', f.min_list_days != null ? f.min_list_days : '');
+
+            this.setChecked('f-filter-exclude-st', filter.exclude_st);
+            this.setChecked('f-filter-exclude-suspended', filter.exclude_suspended);
+            this.setChecked('f-filter-exclude-limit-up', filter.exclude_limit_up);
+            this.setChecked('f-filter-exclude-limit-down', filter.exclude_limit_down);
+            this.setChecked('f-filter-use-industries', Array.isArray(filter.industries) && filter.industries.length > 0);
+            this.setChecked('f-filter-use-exclude-industries', Array.isArray(filter.exclude_industries) && filter.exclude_industries.length > 0);
+            this.setVal('f-filter-industries', (filter.industries || []).join(','));
+            this.setVal('f-filter-exclude-industries', (filter.exclude_industries || []).join(','));
+            this.setChecked('f-filter-use-min-list-days', filter.min_list_days != null);
+            this.setVal('f-filter-min-list-days', filter.min_list_days != null ? filter.min_list_days : '');
         } else {
             this.setVal('f-universe', 'all_a_shares');
             this.applyUniverse('all_a_shares');
@@ -901,33 +972,51 @@ const StrategyEditor = {
         const stocks = (this._manualStocks || []).map(function (s) { return s.tsCode; }).filter(Boolean);
 
         if (this.paradigm === 'signals') {
-            // 择时范式：screen_config 仅 universe=manual + stocks，禁止 conditions/ranking/top_n/filters
+            // 择时范式：screen_config 仅 universe（pool=manual + stocks），禁止 factor/filter/portfolio
             // （与后端 SIGNALS_SCREEN_CONFIG_FORBIDDEN 校验对齐，主动清空防止历史脏数据）
             s.screen_config = {
-                universe: 'manual',
-                stocks: stocks,
+                universe: {
+                    pool: 'manual',
+                    point_in_time: null,
+                    stocks: stocks,
+                },
             };
         } else {
-            // 轮动范式：收集全部 screen_config 字段
-            const universe = this.getVal('f-universe');
+            // 轮动范式：收集 4 层 screen_config（universe/factor/filter/portfolio），spec 010 Task 12
+            const pool = this.getVal('f-universe') || 'all_a_shares';
             const topN = this.getNum('f-top-n');
-            const screenConditions = this.parseJsonField('f-screen-conditions', 'tab-screen', 'screen_config.conditions');
-            const ranking = this.collectRanking();
+            const screenConditions = this.parseJsonField('f-screen-conditions', 'tab-screen', 'filter.conditions');
+            const factor = this.collectRanking();
             const filters = this.collectFilters();
 
-            const hasScreenContent = universe || stocks.length || topN != null ||
+            const hasScreenContent = pool || stocks.length || topN != null ||
                 (screenConditions && !this.isEmptyTree(screenConditions)) ||
-                ranking || filters;
+                factor || filters;
             if (hasScreenContent) {
-                s.screen_config = s.screen_config || {};
-                s.screen_config.universe = universe || 'all_a_shares';
-                if (universe === 'manual' && stocks.length) s.screen_config.stocks = stocks;
-                else delete s.screen_config.stocks;
-                if (topN != null) s.screen_config.top_n = topN; else delete s.screen_config.top_n;
-                if (screenConditions && !this.isEmptyTree(screenConditions)) s.screen_config.conditions = screenConditions;
-                else delete s.screen_config.conditions;
-                if (ranking) s.screen_config.ranking = ranking; else delete s.screen_config.ranking;
-                if (filters) s.screen_config.filters = filters; else delete s.screen_config.filters;
+                // ---- universe 层 ----
+                const universe = { pool: pool };
+                // csi300/csi500 默认 point_in_time=true；manual/all_a_shares 为 null（不查接口）
+                if (pool === 'csi300' || pool === 'csi500') {
+                    universe.point_in_time = this.getChecked('f-universe-point-in-time');
+                } else {
+                    universe.point_in_time = null;
+                }
+                if (pool === 'manual' && stocks.length) universe.stocks = stocks;
+                else universe.stocks = null;
+
+                s.screen_config = { universe: universe };
+
+                // ---- factor 层（原 ranking 平移：single→method/factor/order，composite→method/weights）----
+                if (factor) s.screen_config.factor = factor;
+
+                // ---- filter 层（合并原 conditions + filters）----
+                const filter = {};
+                if (screenConditions && !this.isEmptyTree(screenConditions)) filter.conditions = screenConditions;
+                if (filters) Object.assign(filter, filters);
+                if (Object.keys(filter).length) s.screen_config.filter = filter;
+
+                // ---- portfolio 层（原 top_n 平移）----
+                if (topN != null) s.screen_config.portfolio = { top_n: topN };
             } else {
                 s.screen_config = null;
             }
@@ -1033,7 +1122,8 @@ const StrategyEditor = {
     },
 
     /**
-     * 收集 ranking。disabled 返回 null，single/composite 构造 RankingModel 结构。
+     * 收集 factor 层（原 ranking，spec 010 Task 12 平移到 screen_config.factor）。
+     * disabled 返回 null，single/composite 构造结构（method/factor/order 或 method/weights）。
      */
     collectRanking() {
         const m = this.getVal('f-ranking-method');
@@ -1445,6 +1535,23 @@ const StrategyEditor = {
         const wrap = document.getElementById('f-stocks-wrap');
         if (wrap) wrap.style.display = value === 'manual' ? '' : 'none';
         if (value === 'manual') this._ensureManualStockSuggest();
+        // point_in_time 仅对宽基（csi300/csi500）有意义，联动显隐
+        this.applyUniversePointInTime(value);
+    },
+
+    /**
+     * 控制 universe.point_in_time 开关显隐（spec 010 Task 12）。
+     * 仅 csi300/csi500 显示并默认勾选；manual/all_a_shares 隐藏。
+     */
+    applyUniversePointInTime(pool) {
+        const wrap = document.getElementById('f-universe-point-in-time-wrap');
+        if (!wrap) return;
+        const show = pool === 'csi300' || pool === 'csi500';
+        wrap.style.display = show ? '' : 'none';
+        if (show) {
+            const cb = document.getElementById('f-universe-point-in-time');
+            if (cb && !cb.dataset.touched) this.setChecked('f-universe-point-in-time', true);
+        }
     },
 
     // ===================== 手动股票池（搜索建议 + 标签云） =====================
@@ -1684,11 +1791,14 @@ const StrategyEditor = {
         const bt = s.backtest_config || {};
 
         if (this.paradigm === 'rebalance') {
-            const sc = s.screen_config || {};
+            const sc = this.normalizeScreenConfig(s.screen_config) || {};
+            const universe = sc.universe || {};
+            const factor = sc.factor || null;
+            const portfolio = sc.portfolio || {};
             const rb = tc.rebalance || {};
-            const rankDesc = sc.ranking ? (sc.ranking.method === 'composite' ? 'composite 排序' : ('按 ' + (sc.ranking.factor || '?') + ' ' + (sc.ranking.order || '') + ' 排序')) : '无排序';
-            return ['轮动策略 · ' + (sc.universe || '未指定池'),
-                sc.top_n != null ? ('top_n=' + sc.top_n) : '',
+            const rankDesc = factor ? (factor.method === 'composite' ? 'composite 排序' : ('按 ' + (factor.factor || '?') + ' ' + (factor.order || '') + ' 排序')) : '无排序';
+            return ['轮动策略 · ' + (universe.pool || '未指定池'),
+                portfolio.top_n != null ? ('top_n=' + portfolio.top_n) : '',
                 rankDesc,
                 rb.frequency ? (this.rebFreqLabel(rb.frequency) + '调仓') : '',
                 rb.weight_mode ? this.weightModeLabel(rb.weight_mode) : ''].filter(Boolean).join(' · ');
@@ -1802,7 +1912,12 @@ const StrategyEditor = {
         });
 
         // ---- 联动：各 select/checkbox/radio 的即时 UI 切换 ----
-        const onUniverse = (e) => this.applyUniverse(e.target.value);
+        const onUniverse = (e) => { this.applyUniverse(e.target.value); refresh(); };
+        const onPointInTime = (e) => {
+            // 用户手动操作后标记 touched，避免后续 applyUniversePointInTime 用默认值覆盖
+            if (e.target) e.target.dataset.touched = '1';
+            refresh();
+        };
         const onRanking = (e) => { this.applyRankingMethod(e.target.value); refresh(); };
         const onPsMethod = (e) => { this.applyPositionMethod(e.target.value); refresh(); };
         const onBracket = (e) => { this.applyBracketToggle(e.target.checked); refresh(); };
@@ -1812,6 +1927,7 @@ const StrategyEditor = {
         const onFilterToggle = () => { this.applyFilterToggles(); refresh(); };
 
         this.bindEl('f-universe', 'change', onUniverse);
+        this.bindEl('f-universe-point-in-time', 'change', onPointInTime);
         this.bindEl('f-ranking-method', 'change', onRanking);
         this.bindEl('f-ps-method', 'change', onPsMethod);
         this.bindEl('f-use-bracket', 'change', onBracket);
@@ -2259,6 +2375,11 @@ const StrategyEditor = {
         }
         if (loaded && loaded.backtest_config) {
             out.backtest_config = Object.assign({}, d.backtest_config, loaded.backtest_config);
+        }
+        // screen_config 归一为 4 层（universe/factor/filter/portfolio），兼容存量旧 5 字段。
+        // 这样 COND_AREAS 的 statePath 'screen_config.filter.conditions' 能稳定取到值。
+        if (loaded && loaded.screen_config != null) {
+            out.screen_config = this.normalizeScreenConfig(loaded.screen_config);
         }
         return out;
     },

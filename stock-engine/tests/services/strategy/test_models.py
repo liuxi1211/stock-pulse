@@ -13,7 +13,10 @@
 - 额外：extra="forbid" 生效（未知字段被拒）；多输出因子 output_index 字段存在性。
 
 测试数据来源：读取 ``stock-watcher/src/main/resources/strategies/templates/*.json``
-的 config 子树（剔除 watcher 元数据 category/tags），贴近真实场景。
+的 config 子树（剔除 watcher 元数据 category/tags/scope），贴近真实场景。
+
+spec 010 Task 14：watcher 模板已全部迁移为 4 层 screen_config 结构
+（universe/factor/filter/portfolio）。新增对 4 层对象字段的断言。
 """
 import json
 from pathlib import Path
@@ -30,6 +33,7 @@ from services.strategy.models import (
     OpNode,
     RefNode,
     ValueNode,
+    ScreenConfigModel,
 )
 
 
@@ -56,11 +60,11 @@ def _templates_dir() -> Path:
 
 
 def _load_template_config(name: str) -> dict:
-    """读取模板，返回 config 子树（去掉 watcher 元数据 category/tags）。
+    """读取模板，返回 config 子树（去掉 watcher 元数据 category/tags/scope）。
 
-    StrategyConfigModel 只接受 strategy_id/name/description/scope/
-    screen_config/trading_config/backtest_config，多出的 category/tags
-    会被 extra="forbid" 拒绝，故先剔除。
+    StrategyConfigModel 只接受 strategy_id/name/description/screen_config/
+    trading_config/backtest_config，多出的 category/tags/scope 会被
+    extra="forbid" 拒绝，故先剔除。
     """
     p = _templates_dir() / f"{name}.json"
     data = json.loads(p.read_text(encoding="utf-8"))
@@ -74,31 +78,51 @@ def _load_template_config(name: str) -> dict:
     return {k: v for k, v in data.items() if k in allowed}
 
 
+def _manual_universe(stocks):
+    """4 层 universe 对象（manual 池）。"""
+    return {"pool": "manual", "point_in_time": None, "stocks": stocks}
+
+
 # ============================================================
 # TR-2.1 / TR-2.2 模板 config 子树可被成功解析
 # ============================================================
 
 def test_dual_ma_template_parses():
-    """TR-2.1：dual_ma.json 的 config 子树可被 StrategyConfigModel 成功解析。"""
+    """TR-2.1：dual_ma.json 的 config 子树（4 层结构）可被成功解析。"""
     cfg = StrategyConfigModel.model_validate(_load_template_config("dual_ma"))
     assert cfg.name == "双均线策略"
     # trading_config.signals 在场
     assert cfg.trading_config is not None
     assert cfg.trading_config.signals is not None
     assert cfg.trading_config.signals.buy is not None
+    # screen_config.universe 为 4 层对象
+    assert cfg.screen_config is not None
+    assert cfg.screen_config.universe.pool == "manual"
+    assert cfg.screen_config.universe.stocks == ["510300.SH"]
     # backtest_config 默认值与模板一致
     assert cfg.backtest_config.initial_cash == 100000
 
 
 def test_low_pe_value_template_parses():
-    """TR-2.2：low_pe_value.json 的 config 子树（多因子价值示例）可被成功解析。"""
+    """TR-2.2：low_pe_value.json 的 config 子树（4 层结构）可被成功解析。"""
     cfg = StrategyConfigModel.model_validate(_load_template_config("low_pe_value"))
     assert cfg.name == "低PE价值策略"
-    # screen_config 在场（多因子选股）
+    # screen_config 在场（4 层结构）
     assert cfg.screen_config is not None
-    assert cfg.screen_config.universe == "all_a_shares"
-    assert cfg.screen_config.ranking.method == "single"
-    assert cfg.screen_config.ranking.factor == "ROE_TTM"
+    # pool=csi500（可回测的宽基池，spec 010 I1：不再用被回测拒绝的 all_a_shares）
+    assert cfg.screen_config.universe.pool == "csi500"
+    assert cfg.screen_config.universe.point_in_time is True
+    # factor 层（原 ranking）
+    assert cfg.screen_config.factor is not None
+    assert cfg.screen_config.factor.method == "single"
+    assert cfg.screen_config.factor.factor == "ROE_TTM"
+    # filter 层（conditions + 静态过滤合并）
+    assert cfg.screen_config.filter is not None
+    assert cfg.screen_config.filter.conditions is not None
+    assert cfg.screen_config.filter.exclude_st is True
+    # portfolio 层（原 top_n）
+    assert cfg.screen_config.portfolio is not None
+    assert cfg.screen_config.portfolio.top_n == 30
     # trading_config.rebalance 在场（调仓范式）
     assert cfg.trading_config is not None
     assert cfg.trading_config.rebalance is not None
@@ -148,28 +172,36 @@ def test_defaults_via_top_level_when_backtest_config_omitted():
 # TR-2.5 ExpressionNode discriminated union 4 形态识别
 # ============================================================
 
+def _signals_config(condition):
+    """构造含单个 buy condition 的最小配置（4 层 screen_config）。
+
+    ``condition`` 可以是 CompareLeaf dict 或嵌套 ConditionTree dict，
+    直接作为 buy 根条件树的唯一子项。
+    """
+    return {
+        "name": "t",
+        "screen_config": {"universe": _manual_universe(["000001.SZ"])},
+        "trading_config": {
+            "signals": {
+                "buy": {
+                    "operator": "AND",
+                    "conditions": [condition],
+                }
+            },
+            "position_sizing": {"method": "buy", "target": 100},
+        },
+    }
+
+
 def test_expression_node_value_form():
     """形态① ValueNode：{"value": ...}。"""
     cfg = StrategyConfigModel.model_validate(
-        {
-            "name": "t",
-            "trading_config": {
-                "signals": {
-                    "buy": {
-                        "operator": "AND",
-                        "conditions": [
-                            {
-                                "type": "compare",
-                                "left": {"factor": "RSI"},
-                                "comparator": "<",
-                                "right": {"value": 30},
-                            }
-                        ],
-                    }
-                },
-                "position_sizing": {"method": "buy", "target": 100},
-            },
-        }
+        _signals_config({
+            "type": "compare",
+            "left": {"factor": "RSI"},
+            "comparator": "<",
+            "right": {"value": 30},
+        })
     )
     leaf = cfg.trading_config.signals.buy.conditions[0]
     assert isinstance(leaf, CompareLeaf)
@@ -192,29 +224,16 @@ def test_expression_node_factor_form():
 def test_expression_node_op_form():
     """形态③ OpNode：{"op": "+", "left": ..., "right": ...}（递归）。"""
     cfg = StrategyConfigModel.model_validate(
-        {
-            "name": "t",
-            "trading_config": {
-                "signals": {
-                    "buy": {
-                        "operator": "AND",
-                        "conditions": [
-                            {
-                                "type": "compare",
-                                "left": {
-                                    "op": "+",
-                                    "left": {"factor": "CLOSE"},
-                                    "right": {"value": 0.1},
-                                },
-                                "comparator": ">",
-                                "right": {"value": 10},
-                            }
-                        ],
-                    }
-                },
-                "position_sizing": {"method": "buy", "target": 100},
+        _signals_config({
+            "type": "compare",
+            "left": {
+                "op": "+",
+                "left": {"factor": "CLOSE"},
+                "right": {"value": 0.1},
             },
-        }
+            "comparator": ">",
+            "right": {"value": 10},
+        })
     )
     leaf = cfg.trading_config.signals.buy.conditions[0]
     assert isinstance(leaf.left, OpNode)
@@ -226,25 +245,12 @@ def test_expression_node_op_form():
 def test_expression_node_ref_form():
     """形态④ RefNode：{"ref": "entry_price"}（仅 trading_config 合法）。"""
     cfg = StrategyConfigModel.model_validate(
-        {
-            "name": "t",
-            "trading_config": {
-                "signals": {
-                    "buy": {
-                        "operator": "AND",
-                        "conditions": [
-                            {
-                                "type": "compare",
-                                "left": {"factor": "CLOSE"},
-                                "comparator": ">",
-                                "right": {"ref": "entry_price"},
-                            }
-                        ],
-                    }
-                },
-                "position_sizing": {"method": "buy", "target": 100},
-            },
-        }
+        _signals_config({
+            "type": "compare",
+            "left": {"factor": "CLOSE"},
+            "comparator": ">",
+            "right": {"ref": "entry_price"},
+        })
     )
     leaf = cfg.trading_config.signals.buy.conditions[0]
     assert isinstance(leaf.right, RefNode)
@@ -256,10 +262,15 @@ def test_expression_node_ref_form():
 # ============================================================
 
 def test_condition_tree_recursive_nesting():
-    """TR-2.6：AND(OR(compare, compare), compare) 递归嵌套可正确解析。"""
+    """TR-2.6：AND(OR(compare, compare), compare) 递归嵌套可正确解析。
+
+    buy 根 = AND；其 conditions[0] = 嵌套 OR（含两个 compare 叶子），
+    conditions[1] = compare 叶子。
+    """
     cfg = StrategyConfigModel.model_validate(
         {
             "name": "t",
+            "screen_config": {"universe": _manual_universe(["000001.SZ"])},
             "trading_config": {
                 "signals": {
                     "buy": {
@@ -311,7 +322,7 @@ def test_condition_tree_recursive_nesting():
 # ============================================================
 
 def test_extra_field_forbidden_at_top_level():
-    """顶层 StrategyConfigModel 拒绝未知字段（category/tags）。"""
+    """顶层 StrategyConfigModel 拒绝未知字段（category）。"""
     base = _load_template_config("dual_ma")
     base["category"] = "TECHNICAL"
     with pytest.raises(ValidationError):
@@ -322,6 +333,31 @@ def test_extra_field_forbidden_in_factor_node():
     """FactorNode 拒绝未知字段。"""
     with pytest.raises(ValidationError):
         FactorNode.model_validate({"factor": "RSI", "unknown_extra": 1})
+
+
+def test_extra_field_forbidden_in_universe_model():
+    """UniverseModel 拒绝未知字段（4 层 universe 对象）。"""
+    with pytest.raises(ValidationError):
+        ScreenConfigModel.model_validate({
+            "universe": {"pool": "manual", "stocks": ["000001.SZ"], "unknown": 1}
+        })
+
+
+def test_extra_field_forbidden_for_old_flat_screen_config():
+    """旧 5 字段扁平结构（顶层 ranking/top_n/conditions）→ Pydantic 拒绝。
+
+    spec 010 BREAKING：screen_config 只接受 4 层字段
+    （universe/factor/filter/portfolio），旧字段被 extra="forbid" 拒绝。
+    """
+    with pytest.raises(ValidationError):
+        StrategyConfigModel.model_validate({
+            "name": "t",
+            "screen_config": {
+                "universe": _manual_universe(["000001.SZ"]),
+                "ranking": {"method": "single", "factor": "RSI", "order": "desc"},
+                "top_n": 5,
+            },
+        })
 
 
 # ============================================================

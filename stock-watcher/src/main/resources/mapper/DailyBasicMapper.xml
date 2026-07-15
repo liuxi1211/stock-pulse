@@ -46,4 +46,16 @@
         SELECT * FROM daily_basic WHERE ts_code = #{tsCode} AND trade_date = #{tradeDate} LIMIT 1
     </select>
 
+    <select id="selectByCodeAndDateRange" resultMap="dailyBasicMap">
+        SELECT * FROM daily_basic
+        WHERE ts_code = #{tsCode}
+        <if test="startDate != null and startDate != ''">
+            AND trade_date &gt;= #{startDate}
+        </if>
+        <if test="endDate != null and endDate != ''">
+            AND trade_date &lt;= #{endDate}
+        </if>
+        ORDER BY trade_date ASC
+    </select>
+
 </mapper>

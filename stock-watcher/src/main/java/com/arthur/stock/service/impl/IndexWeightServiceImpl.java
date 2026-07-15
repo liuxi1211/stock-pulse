@@ -109,6 +109,11 @@ public class IndexWeightServiceImpl implements IndexWeightService {
     }
 
     @Override
+    public String getEffectiveDate(String indexCode, String tradeDate) {
+        return indexWeightMapper.selectEffectiveDate(indexCode, tradeDate);
+    }
+
+    @Override
     public List<String> getConstituentsInRange(String indexCode, String startDate, String endDate) {
         List<String> codes = indexWeightMapper.selectConstituentsInRange(indexCode, startDate, endDate);
         return codes == null ? Collections.emptyList() : codes;

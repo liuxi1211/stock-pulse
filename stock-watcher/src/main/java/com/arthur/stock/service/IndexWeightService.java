@@ -40,6 +40,12 @@ public interface IndexWeightService {
     List<String> getConstituentsAt(String indexCode, String tradeDate);
 
     /**
+     * 取该指数 ≤ 指定日期的最新生效交易日（即上述快照的 trade_date）。
+     * 早于最早快照时返回 null，调用方据此判定是否告警。
+     */
+    String getEffectiveDate(String indexCode, String tradeDate);
+
+    /**
      * 取该指数在指定日期区间内所有曾入选的成分股代码并集（回测防幸存者偏差）。
      * startDate/endDate 为 null 时不加该侧边界（取全部历史）。
      */

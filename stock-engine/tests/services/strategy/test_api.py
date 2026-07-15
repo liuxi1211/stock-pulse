@@ -56,8 +56,11 @@ def _valid_config() -> dict:
             "position_sizing": {"method": "order_target_percent", "target": 0.95},
         },
         "screen_config": {
-            "universe": "manual",
-            "stocks": ["510300.SH"],
+            "universe": {
+                "pool": "manual",
+                "point_in_time": None,
+                "stocks": ["510300.SH"],
+            },
         },
         "backtest_config": {"initial_cash": 100000},
     }

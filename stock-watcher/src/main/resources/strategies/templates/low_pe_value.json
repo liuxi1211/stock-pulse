@@ -6,42 +6,48 @@
   "category": "FUNDAMENTAL",
   "tags": ["价值", "基本面"],
   "screen_config": {
-    "universe": "all_a_shares",
-    "conditions": {
-      "operator": "AND",
-      "conditions": [
-        {
-          "type": "compare",
-          "left": { "factor": "PE_TTM" },
-          "comparator": "<",
-          "right": { "value": 20 }
-        },
-        {
-          "type": "compare",
-          "left": { "factor": "ROE_TTM" },
-          "comparator": ">",
-          "right": { "value": 15 }
-        },
-        {
-          "type": "compare",
-          "left": { "factor": "TOTAL_MV" },
-          "comparator": "<",
-          "right": { "value": 20000000000 }
-        }
-      ]
+    "universe": {
+      "pool": "csi500",
+      "point_in_time": true,
+      "stocks": null
     },
-    "ranking": {
+    "factor": {
       "method": "single",
       "factor": "ROE_TTM",
       "order": "desc"
     },
-    "filters": {
+    "filter": {
+      "conditions": {
+        "operator": "AND",
+        "conditions": [
+          {
+            "type": "compare",
+            "left": { "factor": "PE_TTM" },
+            "comparator": "<",
+            "right": { "value": 20 }
+          },
+          {
+            "type": "compare",
+            "left": { "factor": "ROE_TTM" },
+            "comparator": ">",
+            "right": { "value": 15 }
+          },
+          {
+            "type": "compare",
+            "left": { "factor": "TOTAL_MV" },
+            "comparator": "<",
+            "right": { "value": 20000000000 }
+          }
+        ]
+      },
       "exclude_st": true,
       "exclude_suspended": true,
       "exclude_limit_up": true,
       "min_list_days": 250
     },
-    "top_n": 30
+    "portfolio": {
+      "top_n": 30
+    }
   },
   "trading_config": {
     "rebalance": {

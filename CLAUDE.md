@@ -26,10 +26,14 @@
 | **stock-engine** | Python 3.12 + FastAPI + AKQuant[Rust 核心] | :8085 | 计算服务——技术/基本面/情绪面指标、策略回测、因子库。API 文档 :8085/docs |
 
 
-### 2.2 ⚠️ 硬约束：engine 绝不读写 SQLite
+### 2.2 ⚠️ 硬约束：engine 绝不读写 SQLite（分层，spec 010 修订）
 
-- **数据单源性**：watcher 独占 SQLite 读写；engine 需要数据时由 watcher 通过 HTTP 传入，engine 只返回 JSON。交互单向（watcher → engine，engine 不回调 watcher）。
-- **AI 约束**：engine（Python 侧）**禁止**出现 `sqlite3` / `sqlalchemy` / 直连 `.db` 的代码。
+> 「engine 不回调 watcher」的单向约束已**分层化放宽**（spec 010-rotation-data-governance）：行情/基本面/数据库仍强约束单向；仅**成分股身份等参考数据**允许 engine 按需查询 watcher 的只读内部接口。
+
+- **数据单源性（强，无例外）**：watcher 独占数据库（SQLite/MySQL）读写；engine 需要数据时由 watcher 通过 HTTP 传入，engine 只返回 JSON。
+- **行情/基本面（强，无例外）**：行情与基本面由 watcher 预传，engine 不反向拉取。
+- **参考数据（弱，spec 010 新增例外）**：成分股身份等「参考数据」允许 engine 在回测期间按需查询 watcher 的只读内部接口 `/api/internal/*`（幂等、无副作用）。watcher 与 engine **同机部署**，engine 经 `http://localhost:<port>` 调用（端口可变，由 engine 侧 `WATCHER_BASE_URL` 指定），**无鉴权**；典型场景：rebalance 范式 point-in-time 成分股过滤（`stock-engine/services/backtest/watcher_client.py`）。
+- **AI 约束（无变化）**：engine（Python 侧）**禁止**出现 `sqlite3` / `sqlalchemy` / 直连 `.db` 的代码（经 HTTP 调 watcher 只读接口**不算**触库）。
 - 运行时闭环：① watcher 每日 16:00 定时任务拉 Tushare → SQLite → ② 前复权清洗（price × adj_factor）/ 剔除停牌涨跌停 ST → ③ watcher 读行情 HTTP 传 engine 算指标 → JSON → Caffeine 缓存 → ④ 策略回测同理（AKQuant 模拟 T+1/涨跌停）→ ⑤ 收盘后跑策略生成买卖信号 + 原因 → 推送（企微/钉钉/邮件/网页）→ ⑥ 模拟交易 / 风控检查。
 
 ---
@@ -43,6 +47,7 @@
 | **API 参数 >5 个未封装对象** | HTTP 接口方法中 `@RequestParam` + `@PathVariable` **合计 >5 个**时，必须封装为 DTO 对象（POST→`*RequestDTO` / GET→`*QueryDTO`）。**计数口径**：仅统计 `@RequestParam`/`@PathVariable`，`@RequestBody DTO`/`HttpSession`/`Model` 不计入。违反即违规，无例外。 | [`04-api-design.md` §11.1](./.trae/rules/stock-watcher/java/04-api-design.md) |
 | **API 请求/返回体用 Map** | 接口的**请求体、返回体禁止 `Map<?,?>`**（含 `Map<String,Object>`）。必须用显式类型 `*RequestDTO`/`*ResponseDTO`/`*VO`。仅跨系统透传 / 纯键值缓存返回 / Service 内部传输 3 种例外。 | [`04-api-design.md` §11.2`](./.trae/rules/stock-watcher/java/04-api-design.md) |
 | **engine 代码触库** | engine（Python 侧）**禁止** `sqlite3`/`sqlalchemy`/直连 `.db`。数据由 watcher HTTP 传入。 | §2.2 上方 |
+| **engine 回调 watcher（分层例外）** | 「engine 不回调 watcher」已分层化（spec 010）：行情/基本面/数据库仍强约束单向；仅成分股身份等**参考数据**允许 engine 查 watcher 只读 `/api/internal/*`（同机 localhost 调用、无鉴权，如 `watcher_client.py`）。**不要**把这类只读查询误判为违规。 | §2.2 |
 | **akquant 滑点用裸 float** | `slippage` **一律用 dict** `{"type":"percent","value":0.0002}`。裸 `0.2` 会被当 **20%** 滑点。 | [`09-pitfalls-conventions.md`](./.trae/rules/akquant/09-pitfalls-conventions.md) |
 | **akquant broker_profile 漏 T+1** | `broker_profile` 三个模板**都不含 `t_plus_one`**，必须单独传 `t_plus_one=True`。 | [`09-pitfalls-conventions.md`](./.trae/rules/akquant/09-pitfalls-conventions.md) |
 | **魔法值散落** | 常量必须抽到常量类（全大写）；有 code+label 语义的必须定义成 `DisplayableEnum` 枚举，通过 `GET /constants` + `StockApp.loadConstants` 下发前端。 | [`08-constants-usage.md`](./.trae/rules/stock-watcher/java/08-constants-usage.md) |

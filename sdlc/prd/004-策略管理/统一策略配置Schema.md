@@ -30,7 +30,7 @@ strategy_config
 | 字段在场 | 推断范式 | 含义 |
 |---|---|---|
 | `trading_config.signals` 在场 | **择时范式**（单标的/固定小池） | 每根 bar 评估买卖条件树，触发即下单 |
-| `trading_config.rebalance` 在场 | **轮动范式**（多标的横截面） | 调仓日评估 screen + ranking，组合层换仓 |
+| `trading_config.rebalance` 在场 | **轮动范式**（多标的横截面） | 调仓日评估 screen_config 4 层（universe→factor→filter→portfolio），组合层换仓 |
 | 二者均在场 | **非法** | 校验报错 `SIGNALS_REBALANCE_EXCLUSIVE` |
 | 二者均不在场 | **非法** | 校验报错 `MISSING_SIGNALS_OR_REBALANCE` |
 
@@ -60,37 +60,117 @@ Schema 字段**深度对齐 akquant 原生 API**，而非自造语义：
 | `trading_config` | object | 是 | — | 交易配置（见 §3.3）；至少含 `signals` 或 `rebalance` 之一 |
 | `backtest_config` | object | 否 | — | 回测配置（见 §3.4）；实盘/纯选股可省略 |
 
-### 3.2 `screen_config`（选股层）
+### 3.2 `screen_config`（选股层，4 层结构）
+
+> **对齐 spec 010 缺陷 C 修复**：`screen_config` 从旧「universe/conditions/ranking/filters/top_n」5 字段扁平结构，重构为 `universe / factor / filter / portfolio` **4 层对象结构**，对齐 akquant `rebalance_to_topn` 执行链路（选股范围 → 因子打分 → 硬筛选 → TopN）。详见 [007-轮动范式治理 §5.3](../007-轮动范式治理/轮动范式未来数据治理与选股模型重构.md)。
+
+```jsonc
+{
+  "screen_config": {
+    "universe": {
+      "pool": "csi300",           // all_a_shares / csi300 / csi500 / manual / 自定义池ID
+      "point_in_time": true,      // 是否启用 point-in-time 成分股过滤（csi300/csi500 默认 true）
+      "stocks": null              // universe.pool=manual 时必填的标的列表
+    },
+    "factor": {
+      "method": "composite",      // disabled / single / composite
+      "weights": { "MOM_20D": 0.4, "ROE_TTM": 0.3, "TOTAL_MV": -0.3 },  // composite 时必填
+      "factor": null,             // single 时的单因子 factorKey
+      "order": null               // single 时的排序方向 asc/desc
+    },
+    "filter": {
+      "conditions": null,         // ConditionTree（截面布尔过滤，禁 cross_*/ref）
+      "exclude_st": true,
+      "exclude_suspended": true,
+      "exclude_limit_up": true,
+      "exclude_limit_down": false,
+      "industries": null,
+      "exclude_industries": null,
+      "min_list_days": 60
+    },
+    "portfolio": {
+      "top_n": 30                 // 选出的标的数量（→ rebalance_to_topn top_n）
+    }
+  }
+}
+```
+
+#### 3.2.1 4 层职责定义表
+
+| 层 | 字段 | 职责 | akquant 对应 | 变化频率 |
+|---|---|---|---|---|
+| ① Universe | `universe` | 选股范围 + point-in-time 成分股过滤 | 决定 `get_history_map` 的 symbols | 低（指数调整半年一次） |
+| ② Factor Scoring | `factor` | 因子打分公式，输出连续 score | 构造 `scores` 字典 | 高（每调仓日重算） |
+| ③ Filter | `filter` | 硬性筛选（布尔判断），剔除不达标 | 打分前置过滤（scores 只含达标标的） | 中（条件较稳定） |
+| ④ Portfolio | `portfolio` | TopN + 权重模式 | `rebalance_to_topn(top_n, weight_mode)` | 低 |
+
+> **4 层执行顺序**：Universe（圈定候选集）→ Factor（对候选集打分）→ Filter（剔除不达标，scores 只含达标标的）→ Portfolio（按 top_n 截取 + 权重模式落地为仓位）。这与 akquant `rebalance_to_topn(scores, top_n, weight_mode, ...)` 的参数来源一一对应。
+
+#### 3.2.2 各层字段详解
+
+**① `universe`（选股范围）**
+
+| 字段 | 类型 | 必填 | 默认 | 说明 |
+|---|---|---|---|---|
+| `pool` | enum\|string | 是 | — | `"all_a_shares"` / `"csi300"` / `"csi500"` / `"manual"` / 自定义池 ID |
+| `point_in_time` | bool | 否 | `true`（csi300/csi500）/ `false`（其他） | 是否启用 point-in-time 成分股过滤，避免 lookahead bias（spec 010 缺陷 A） |
+| `stocks` | string[] | `pool=="manual"` 时必填 | `null` | 如 `["510300.SH"]` |
+
+> `point_in_time=true` 时，engine 在每个调仓日按当日实际成分股集合过滤（调 `WatcherClient.get_constituents_at`），剔除「未来才入选」的股票。`pool=="manual"` 时直接用 `stocks`，不查接口。
+
+**② `factor`（因子打分，→ scores 字典）**
 
 | 字段 | 类型 | 必填 | 默认 | 映射 / 说明 |
 |---|---|---|---|---|
-| `universe` | enum\|string | 是 | — | `"all_a_shares"` / `"csi300"` / `"csi500"` / `"manual"` / 自定义池 ID |
-| `stocks` | string[] | 条件必填 | — | `universe=="manual"` 时必填，如 `["510300.SH"]` |
-| `top_n` | int | 否 | `null` | 选出的标的数量 → `rebalance_to_topn(top_n=)` |
-| `conditions` | ConditionTree | 否 | `null` | 选股过滤条件树（§4）；**禁 `cross_up`/`cross_down`/`ref`**（§7.2） |
-| `ranking` | Ranking | 否 | `null` | 排序规则（§3.2.1） |
-| `filters` | Filters | 否 | 见 §3.2.2 | 静态过滤（ST/涨跌停/行业等） |
-
-#### 3.2.1 `Ranking`
-
-| 字段 | 类型 | 必填 | 默认 | 映射 / 说明 |
-|---|---|---|---|---|
-| `method` | enum | 是 | — | `"composite"`（加权综合，配合 weights）/ `"single"`（单因子排序） |
-| `weights` | map<string,number> | composite 时必填 | — | `{factorKey: 权重}`，负权重=越小越好（如 `PE_TTM: -0.3`）→ 参与 `rebalance_to_topn(weight_mode="score")` 的 score 计算 |
-| `factor` | string | single 时必填 | — | 单因子排序的 factorKey |
+| `method` | enum | 是 | — | `"composite"`（加权综合）/ `"single"`（单因子排序）/ `"disabled"`（不打分，配合 weight_mode=equal） |
+| `weights` | map<string,number> | composite 时必填 | `null` | `{factorKey: 权重}`，负权重=越小越好（如 `PE_TTM: -0.3`）→ 参与 `rebalance_to_topn(weight_mode="score")` 的 score 计算 |
+| `factor` | string | single 时必填 | `null` | 单因子排序的 factorKey |
 | `order` | enum | single 时必填 | `"desc"` | `"asc"` / `"desc"` |
 
-#### 3.2.2 `Filters`
+**③ `filter`（硬性筛选，布尔剔除）**
 
 | 字段 | 类型 | 默认 | 说明 |
 |---|---|---|---|
+| `conditions` | ConditionTree | `null` | 截面布尔过滤条件树（§4）；**禁 `cross_up`/`cross_down`/`ref`**（§7.2） |
 | `exclude_st` | bool | `true` | 排除 ST/*ST |
 | `exclude_suspended` | bool | `true` | 排除停牌 |
 | `exclude_limit_up` | bool | `true` | 排除涨停（无法买入） |
 | `exclude_limit_down` | bool | `false` | 排除跌停 |
-| `industries` | string[] | `[]` | 行业白名单（仅保留） |
-| `exclude_industries` | string[] | `[]` | 行业黑名单（排除） |
-| `min_list_days` | int | `0` | 上市天数下限（过滤次新） |
+| `industries` | string[] | `null` | 行业白名单（仅保留） |
+| `exclude_industries` | string[] | `null` | 行业黑名单（排除） |
+| `min_list_days` | int | `60` | 上市天数下限（过滤次新） |
+
+> `filter` 在 factor 打分**前置**执行：不达标标的不进入 scores。`conditions` 表达连续阈值（如 `PE_TTM < 20`），与 `factor.weights` 的「连续打分」语义严格分离（旧 `conditions` 把二者混在一起，spec 010 缺陷 C）。
+
+**④ `portfolio`（TopN 截取）**
+
+| 字段 | 类型 | 必填 | 默认 | 说明 |
+|---|---|---|---|---|
+| `top_n` | int | 轮动范式必填 | `null` | 选出的标的数量 → `rebalance_to_topn(top_n=)` |
+
+#### 3.2.3 `weight_mode` 归属说明
+
+`weight_mode` **留在 `trading_config.rebalance.weight_mode`**（不在 `screen_config`），对齐 akquant `rebalance_to_topn(weight_mode=)`：
+
+- `rebalance.weight_mode="equal"` → 等权分配，**忽略** factor 分数
+- `rebalance.weight_mode="score"` → 按 `screen_config.factor` 计算的 score 加权
+
+> 选股（screen_config）只决定「选谁、打多少分」；交易（trading_config.rebalance）决定「怎么分配仓位」。两层职责严格分离。
+
+#### 3.2.4 不兼容声明与迁移映射（BREAKING）
+
+> ⚠️ **BREAKING / 存量清零**：本次重构与 spec 009（策略范式互斥）同步执行 `TRUNCATE quant_strategy + quant_strategy_version`，**不做自动迁移**。提交旧 5 字段扁平结构返回校验错误 `SCREEN_CONFIG_DEPRECATED_STRUCTURE`（提示迁移到 4 层），缺失必需层返回 `SCREEN_CONFIG_LAYER_MISSING`。
+
+**旧 → 新字段迁移映射规则**：
+
+| 旧字段（v1.0 扁平） | 新字段（4 层） | 说明 |
+|---|---|---|
+| `screen_config.conditions` | `screen_config.filter.conditions` | 截面布尔过滤平移进 filter 层 |
+| `screen_config.ranking` | `screen_config.factor` | method/weights/factor/order 平移 |
+| `screen_config.filters` | `screen_config.filter` | exclude_*/industries 等合并进 filter 对象 |
+| `screen_config.top_n` | `screen_config.portfolio.top_n` | TopN 归 portfolio 层 |
+| `screen_config.universe`（string） | `screen_config.universe.pool`（object） | 字符串升级为对象，新增 `point_in_time` 字段 |
+| `screen_config.stocks` | `screen_config.universe.stocks` | 标的列表归 universe 层 |
 
 ### 3.3 `trading_config`（交易层）
 
@@ -105,7 +185,7 @@ Schema 字段**深度对齐 akquant 原生 API**，而非自造语义：
 > - 二者均在场 → `SIGNALS_REBALANCE_EXCLUSIVE`（422）
 > - 二者均不在场 → `MISSING_SIGNALS_OR_REBALANCE`（422）
 
-> **signals（择时）范式的 universe 约束**：择时范式要求 `screen_config.universe = "manual"`，且 `screen_config.stocks` 数量 ≤ `SIGNALS_MAX_UNIVERSE_SIZE`（常量，= 10）。理由：signals 对每个命中 symbol 独立 `order_target_percent`，多标的 universe 下首只吃光资金、其余整单 Reject，且回测结果不可复现（详见 [akquant 规则 03 §12.3](.trae/rules/akquant/03-strategy-api.md)）。**多标的横截面场景请使用 `rebalance`（轮动）范式**（配合 `rebalance_to_topn` / `order_target_weights`）。
+> **signals（择时）范式的 universe 约束**：择时范式要求 `screen_config.universe.pool = "manual"`，且 `screen_config.universe.stocks` 数量 ≤ `SIGNALS_MAX_UNIVERSE_SIZE`（常量，= 10）。理由：signals 对每个命中 symbol 独立 `order_target_percent`，多标的 universe 下首只吃光资金、其余整单 Reject，且回测结果不可复现（详见 [akquant 规则 03 §12.3](.trae/rules/akquant/03-strategy-api.md)）。**多标的横截面场景请使用 `rebalance`（轮动）范式**（配合 `rebalance_to_topn` / `order_target_weights`）。
 
 #### 3.3.1 `Signals`
 
@@ -179,7 +259,7 @@ Schema 字段**深度对齐 akquant 原生 API**，而非自造语义：
 | `frequency` | enum | 是 | — | `"daily"`/`"weekly"`/`"monthly"`/`"quarterly"` → `on_daily_rebalance` 触发判断 |
 | `day_of_period` | int | 否 | `1` | 调仓日序（monthly=每月第几个交易日，weekly=周几） |
 | `replace_method` | enum | 否 | `"full"` | `"full"`（全换）/ `"incremental"`（只换差额）→ `rebalance_to_topn(liquidate_unmentioned=)` |
-| `weight_mode` | enum | 否 | `"equal"` | **`"equal"`（等权）/ `"score"`（按 ranking score 加权）** → `rebalance_to_topn(weight_mode=)` |
+| `weight_mode` | enum | 否 | `"equal"` | **`"equal"`（等权）/ `"score"`（按 factor score 加权）** → `rebalance_to_topn(weight_mode=)`；与 `screen_config.factor` 的关系见 §3.2.3 |
 | `max_single_position` | number | 否 | `0.1` | 单标的最大仓位占比（风控） |
 | `long_only` | bool | 否 | `true` | → `rebalance_to_topn(long_only=)` |
 
@@ -212,7 +292,7 @@ Schema 字段**深度对齐 akquant 原生 API**，而非自造语义：
 
 ## §4 条件树与表达式节点
 
-选股条件（`screen_config.conditions`）与买卖信号（`trading_config.signals`）、出场规则（`exit.rules`）**共用同一套条件模型**。
+选股过滤条件（`screen_config.filter.conditions`）与买卖信号（`trading_config.signals`）、出场规则（`exit.rules`）**共用同一套条件模型**。
 
 ### 4.1 ConditionTree（递归逻辑组）
 
@@ -383,7 +463,7 @@ Schema 字段**深度对齐 akquant 原生 API**，而非自造语义：
 
 ### 5.2 示例 ②：选股调仓驱动（多因子价值策略）
 
-> 即旧 003 §6.2 的等价策略，用新 Schema 重写。注意三处修正：①删除 conditions 里的 `MA5 cross_up MA20`（截面禁 cross）；②`equal_weight` 移到 `rebalance.weight_mode`；③`exit_rules` → `exit.bracket`。
+> 即旧 003 §6.2 的等价策略，用新 Schema 重写。注意修正：①删除 conditions 里的 `MA5 cross_up MA20`（截面禁 cross）；②`equal_weight` 移到 `rebalance.weight_mode`；③`exit_rules` → `exit.bracket`；④screen_config 已重构为 4 层结构（universe/factor/filter/portfolio）。
 
 ```jsonc
 {
@@ -392,24 +472,31 @@ Schema 字段**深度对齐 akquant 原生 API**，而非自造语义：
   "description": "低PE + 高ROE + 小市值",
 
   "screen_config": {
-    "universe": "all_a_shares",
-    "top_n": 30,
-    "conditions": {
-      "operator": "AND",
-      "conditions": [
-        { "type": "compare", "left": { "factor": "PE_TTM" },  "comparator": "<", "right": { "value": 20 } },
-        { "type": "compare", "left": { "factor": "ROE_TTM" }, "comparator": ">", "right": { "value": 15 } },
-        { "type": "compare", "left": { "factor": "TOTAL_MV" }, "comparator": "<", "right": { "value": 20000000000 } }
-      ]
+    "universe": {
+      "pool": "all_a_shares",
+      "point_in_time": false,
+      "stocks": null
     },
-    "ranking": {
+    "factor": {
       "method": "composite",
       "weights": { "PE_TTM": -0.3, "ROE_TTM": 0.4, "TOTAL_MV": -0.3 }
     },
-    "filters": {
+    "filter": {
+      "conditions": {
+        "operator": "AND",
+        "conditions": [
+          { "type": "compare", "left": { "factor": "PE_TTM" },  "comparator": "<", "right": { "value": 20 } },
+          { "type": "compare", "left": { "factor": "ROE_TTM" }, "comparator": ">", "right": { "value": 15 } },
+          { "type": "compare", "left": { "factor": "TOTAL_MV" }, "comparator": "<", "right": { "value": 20000000000 } }
+        ]
+      },
       "exclude_st": true, "exclude_suspended": true,
       "exclude_limit_up": true, "exclude_limit_down": false,
-      "industries": ["银行", "医药"], "exclude_industries": []
+      "industries": ["银行", "医药"], "exclude_industries": null,
+      "min_list_days": 60
+    },
+    "portfolio": {
+      "top_n": 30
     }
   },
 
@@ -465,15 +552,15 @@ Schema 字段**深度对齐 akquant 原生 API**，而非自造语义：
 
 | 场景 | 统一 Schema 表达 |
 |---|---|
-| **A：单标的回测** | `screen_config` 省略或 `universe:"manual"+stocks:[x]`；`trading_config.signals` 在场；回测标的由 watcher 的 `kline_data` key 决定 |
-| **B：固定池 + 技术指标** | `screen_config.universe:"csi300"`（或 manual+stocks）；`signals` 在场；回测标的由 watcher 按 `screen_config` 构造的 `kline_data` 决定；position_sizing 可用 `order_target_weights` |
-| **C：多因子选股 + 调仓** | `screen_config` 全量；`trading_config.rebalance` 在场；`weight_mode:"equal"\|"score"` |
+| **A：单标的回测** | `screen_config` 省略或 `universe.pool:"manual"+universe.stocks:[x]`；`trading_config.signals` 在场；回测标的由 watcher 的 `kline_data` key 决定 |
+| **B：固定池 + 技术指标** | `screen_config.universe.pool:"csi300"`（或 manual+stocks）；`signals` 在场；回测标的由 watcher 按 `screen_config` 构造的 `kline_data` 决定；position_sizing 可用 `order_target_weights` |
+| **C：多因子选股 + 调仓** | `screen_config` 4 层全量（universe/factor/filter/portfolio）；`trading_config.rebalance` 在场；`weight_mode:"equal"\|"score"` |
 
 ### 6.3 akquant 动量轮动（`rebalance_to_topn`）
 
 | 场景 | 统一 Schema 表达 |
 |---|---|
-| TopN 动量轮动 | `screen_config.ranking` 按动量因子排序（如 `{factor:"MOM_20D"}` 或 RSI）；`top_n=N`；`trading_config.rebalance.{frequency, weight_mode:"equal"\|"score"}` → `rebalance_to_topn(scores, top_n, weight_mode, long_only, liquidate_unmentioned)` |
+| TopN 动量轮动 | `screen_config.factor` 按动量因子打分（如 `factor.method:"single", factor.factor:"MOM_20D"` 或 RSI）；`portfolio.top_n=N`；`trading_config.rebalance.{frequency, weight_mode:"equal"\|"score"}` → `rebalance_to_topn(scores, top_n, weight_mode, long_only, liquidate_unmentioned)` |
 
 ### 6.4 未覆盖场景（明确标注，节点扩展即可演进）
 
@@ -493,8 +580,10 @@ Schema 字段**深度对齐 akquant 原生 API**，而非自造语义：
 | 规则 | 失败行为 |
 |---|---|
 | `trading_config.signals` 与 `trading_config.rebalance` 至少一个在场 | 422 |
-| `screen_config.universe=="manual"` 时 `stocks` 必填且非空 | 422 |
-| `ranking.method=="composite"` → `weights` 必填；`=="single"` → `factor`+`order` 必填 | 422 |
+| `screen_config` 必须为 4 层结构（`universe`/`factor`/`filter`/`portfolio`） | 422 `SCREEN_CONFIG_DEPRECATED_STRUCTURE`（旧 5 字段）/ `SCREEN_CONFIG_LAYER_MISSING`（缺层） |
+| `screen_config.universe` 与 `screen_config.portfolio` 为必填层 | 422 |
+| `screen_config.universe.pool=="manual"` 时 `universe.stocks` 必填且非空 | 422 |
+| `screen_config.factor.method=="composite"` → `weights` 必填；`=="single"` → `factor`+`order` 必填 | 422 |
 | `position_sizing.method` 为 `order_target_*` 时 `target` 必填 | 422 |
 | `exit.bracket.use_atr_stop==true` → `atr_multiplier` 必填 | 422 |
 
@@ -502,8 +591,8 @@ Schema 字段**深度对齐 akquant 原生 API**，而非自造语义：
 
 | 规则 | 原因 |
 |---|---|
-| `screen_config.conditions` 内**禁止 `cross_up`/`cross_down`** | 选股是截面操作（某日全市场快照），无"上一根 bar"，穿越无定义 |
-| `screen_config.conditions` 内**禁止 `ref`** | 选股时无持仓上下文 |
+| `screen_config.filter.conditions` 内**禁止 `cross_up`/`cross_down`** | 选股是截面操作（某日全市场快照），无"上一根 bar"，穿越无定义 |
+| `screen_config.filter.conditions` 内**禁止 `ref`** | 选股时无持仓上下文 |
 | `cross_up`/`cross_down` 要求 left/right 都是 `{factor}` 节点 | 穿越判断需对比两个因子序列，算术表达式无法维护快照 |
 | `exit.rules[].condition` 内**允许 `ref`** | 出场规则针对持仓，有持仓上下文 |
 | 因子预热期返回 NaN → 该条件求值为 `false` | 避免预热期误触发 |
@@ -514,7 +603,7 @@ Schema 字段**深度对齐 akquant 原生 API**，而非自造语义：
 |---|---|
 | 技术面 factorKey 必须在 §4.5 的 20 个之内 | 否则因子计算模块抛 `UNKNOWN_INDICATOR` |
 | 多输出因子（`MACD`/`BOLL`/`KDJ`）取值必须带 `output_index` | 否则无法降维到标量 |
-| 基本面 factorKey 仅在 `screen_config` 内合法 | 基本面无日线时序，不进 `signals`/`exit.rules` 的 on_bar 路径 |
+| 基本面 factorKey 仅在 `screen_config`（`factor.weights`/`factor.factor`/`filter.conditions`）内合法 | 基本面无日线时序，不进 `signals`/`exit.rules` 的 on_bar 路径 |
 
 ---
 
@@ -544,9 +633,9 @@ akquant 下单方法天然分两层：`order_target_percent`（per_symbol）vs `
 
 ### 9.2 cross_up/cross_down 的截面陷阱
 
-旧 003 §6.2 把 `MA5 cross_up MA20` 写进 `screen_config.conditions` 是潜在 bug：选股是截面，无"上一根 bar"；若实现层偷偷用标的历史 bar 算 cross，选股结果会依赖隐藏时序状态，对停牌/新股产生诡异结果。
+旧 003 §6.2 把 `MA5 cross_up MA20` 写进选股条件是潜在 bug：选股是截面，无"上一根 bar"；若实现层偷偷用标的历史 bar 算 cross，选股结果会依赖隐藏时序状态，对停牌/新股产生诡异结果。
 
-**本文决策**：校验层硬性禁止 `screen_config.conditions` 出现 cross_*/ref。趋势过滤移入 `trading_config.signals`。
+**本文决策**：校验层硬性禁止 `screen_config.filter.conditions` 出现 cross_*/ref。趋势过滤移入 `trading_config.signals`。
 **代价**：用户在"选股+调仓"范式下无法在 screen 里直接写趋势过滤，需理解 screen/trading 的时序边界——必要的概念清晰度。
 
 ### 9.3 ref 仅 trading 合法

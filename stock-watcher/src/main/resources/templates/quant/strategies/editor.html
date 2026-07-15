@@ -176,6 +176,12 @@
                                             <label class="form-label">Top N</label>
                                             <input type="number" class="form-control" id="f-top-n" min="1" step="1" placeholder="选出的标的数量">
                                         </div>
+                                        <div class="col-md-4 d-flex align-items-end" id="f-universe-point-in-time-wrap" style="display:none;">
+                                            <div class="form-check form-switch">
+                                                <input class="form-check-input" type="checkbox" role="switch" id="f-universe-point-in-time" checked>
+                                                <label class="form-check-label" for="f-universe-point-in-time">Point-in-Time 成分股过滤</label>
+                                            </div>
+                                        </div>
                                         <div class="col-12" id="f-stocks-wrap" style="display:none;">
                                             <label class="form-label">标的代码</label>
                                             <div class="manual-stocks-panel">
@@ -197,7 +203,7 @@
 
                                 <fieldset class="mb-3">
                                     <legend class="fs-6 fw-semibold mb-2 d-flex justify-content-between align-items-center">
-                                        <span>选股条件树 Conditions</span>
+                                        <span>选股条件树 Filter.conditions</span>
                                         <div class="dropdown">
                                             <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">插入因子</button>
                                             <ul class="dropdown-menu dropdown-menu-end factors-menu" id="f-screen-factors" data-target="f-screen-conditions" style="max-height:320px;overflow:auto;min-width:220px;"></ul>
@@ -210,11 +216,11 @@
                                     </div>
                                     <div class="cond-visual-wrap" data-cond-visual="f-screen-conditions"></div>
                                     <textarea class="form-control font-monospace" id="f-screen-conditions" rows="8" spellcheck="false" style="display:none;" placeholder='{"operator":"AND","conditions":[{"type":"compare","left":{"factor":"PE_TTM"},"comparator":"<","right":{"value":30}}]}'></textarea>
-                                    <div class="form-text">JSON 结构：{operator:"AND"/"OR", conditions:[...]}，叶子 type="compare"。screen 内禁止 cross_up/cross_down 与 ref。</div>
+                                    <div class="form-text">JSON 结构：{operator:"AND"/"OR", conditions:[...]}，叶子 type="compare"。存入 screen_config.filter.conditions；screen 内禁止 cross_up/cross_down 与 ref。</div>
                                 </fieldset>
 
                                 <fieldset class="mb-3">
-                                    <legend class="fs-6 fw-semibold mb-2">排序规则 Ranking</legend>
+                                    <legend class="fs-6 fw-semibold mb-2">排序规则 Factor</legend>
                                     <div class="row g-3">
                                         <div class="col-md-4">
                                             <label class="form-label">method</label>
@@ -246,7 +252,7 @@
                                 </fieldset>
 
                                 <fieldset class="mb-3">
-                                    <legend class="fs-6 fw-semibold mb-2">静态过滤 Filters</legend>
+                                    <legend class="fs-6 fw-semibold mb-2">静态过滤 Filter（exclude_*/industries/min_list_days）</legend>
                                     <div class="row g-2">
                                         <div class="col-md-3"><div class="form-check"><input class="form-check-input" type="checkbox" id="f-filter-exclude-st"><label class="form-check-label" for="f-filter-exclude-st">排除 ST</label></div></div>
                                         <div class="col-md-3"><div class="form-check"><input class="form-check-input" type="checkbox" id="f-filter-exclude-suspended"><label class="form-check-label" for="f-filter-exclude-suspended">排除停牌</label></div></div>
