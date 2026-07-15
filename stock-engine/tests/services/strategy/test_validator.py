@@ -842,3 +842,62 @@ def test_rebalance_day_of_period_deprecation_warning(caplog):
     assert any("day_of_period" in rec.message for rec in caplog.records), (
         f"期望 day_of_period deprecation warning，实际 logs: {[r.message for r in caplog.records]}"
     )
+
+
+# ============================================================
+# PRD 009 §1 P1-6：transform type/window 校验
+# ============================================================
+
+def _rotation_screen_with_transform(transform: dict) -> dict:
+    """构造轮动范式 + filter.conditions 含 transform 的 screen_config 子树。"""
+    return {
+        "operator": "AND",
+        "conditions": [
+            {
+                "type": "compare",
+                "left": {"factor": "PE_TTM", "transform": transform},
+                "comparator": "<",
+                "right": {"value": 30},
+            }
+        ],
+    }
+
+
+def test_transform_window_out_of_range_rejected():
+    """filter.conditions 中 FactorNode.transform.window > 60 → INVALID_TRANSFORM_WINDOW。"""
+    cfg = _rebalance_only_config()
+    cfg["screen_config"]["filter"] = {
+        "conditions": _rotation_screen_with_transform({"type": "ma", "window": 999})
+    }
+    errors = _validate(cfg)
+    _assert_has_error(errors, ErrorCode.INVALID_TRANSFORM_WINDOW[0])
+
+
+def test_transform_valid_no_errors():
+    """filter.conditions 中合法 transform 不报 transform 相关错误。"""
+    cfg = _rebalance_only_config()
+    cfg["screen_config"]["filter"] = {
+        "conditions": _rotation_screen_with_transform({"type": "ma", "window": 20})
+    }
+    errors = _validate(cfg)
+    codes = [e.code for e in errors]
+    assert ErrorCode.TRANSFORM_NOT_ALLOWED_OUTSIDE_SCREEN[0] not in codes
+    assert ErrorCode.INVALID_TRANSFORM_WINDOW[0] not in codes
+
+
+def test_transform_in_trading_config_rejected():
+    """PRD 009 §1 P1-6：transform 出现在 trading_config（signals.buy）→
+    TRANSFORM_NOT_ALLOWED_OUTSIDE_SCREEN。"""
+    cfg = _base_config()
+    cfg["trading_config"]["signals"]["buy"]["conditions"][0] = {
+        "type": "compare",
+        "left": {
+            "factor": "MA",
+            "params": {"timeperiod": 5},
+            "transform": {"type": "ma", "window": 5},
+        },
+        "comparator": "cross_up",
+        "right": {"factor": "MA", "params": {"timeperiod": 20}},
+    }
+    errors = _validate(cfg)
+    _assert_has_error(errors, ErrorCode.TRANSFORM_NOT_ALLOWED_OUTSIDE_SCREEN[0])

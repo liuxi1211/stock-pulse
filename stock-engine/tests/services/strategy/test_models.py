@@ -378,3 +378,40 @@ def test_factor_node_output_index_optional_for_single_output():
     """单输出因子 output_index 可省（默认 None）。"""
     n = FactorNode.model_validate({"factor": "RSI"})
     assert n.output_index is None
+
+
+def test_transform_config_valid():
+    from services.strategy.models import FactorNode, TransformConfig
+
+    node = FactorNode(
+        factor="PE_TTM",
+        transform=TransformConfig(type="ma", window=20),
+    )
+    assert node.transform is not None
+    assert node.transform.type == "ma"
+    assert node.transform.window == 20
+
+
+def test_transform_config_rejects_bad_type():
+    import pytest
+    from pydantic import ValidationError
+    from services.strategy.models import TransformConfig
+
+    with pytest.raises(ValidationError):
+        TransformConfig(type="median", window=20)  # type 不在枚举
+
+
+def test_transform_config_rejects_zero_window():
+    import pytest
+    from pydantic import ValidationError
+    from services.strategy.models import TransformConfig
+
+    with pytest.raises(ValidationError):
+        TransformConfig(type="ma", window=0)  # window ≥ 1
+
+
+def test_factornode_transform_optional():
+    from services.strategy.models import FactorNode
+
+    node = FactorNode(factor="RSI")  # 不带 transform，等价现状
+    assert node.transform is None

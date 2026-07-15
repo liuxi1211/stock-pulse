@@ -99,7 +99,9 @@ def collect_factor_refs(
     if isinstance(tree, ExpressionNode):
         kind = tree.kind
         if kind == "factor":
-            sig = factor_signature(tree.factor, tree.params, tree.outputIndex)
+            sig = factor_signature(
+                tree.factor, tree.params, tree.outputIndex, tree.transform
+            )
             if sig not in _seen:
                 _seen.add(sig)
                 ref = {"factorKey": tree.factor}
@@ -107,6 +109,8 @@ def collect_factor_refs(
                     ref["params"] = tree.params
                 if tree.outputIndex is not None:
                     ref["outputIndex"] = tree.outputIndex
+                if tree.transform:
+                    ref["transform"] = tree.transform
                 _acc.append(ref)
         elif kind == "arith":
             collect_factor_refs(tree.left, _acc, _seen)
@@ -158,24 +162,37 @@ def precompute_factors(
     for symbol, candidate in candidates.items():
         per_symbol: dict[str, float] = {}
 
-        # 1) 基本面因子：从 fundamentals 快照取
+        # 1) 基本面因子
         fundamentals = candidate.get("fundamentals") or {}
+        extras = candidate.get("extra") or {}
         for ref in refs_by_source["fundamental"]:
             key = ref["factorKey"]
-            val = fundamentals.get(key)
-            per_symbol[key] = _to_float(val)
-            # 基本面以 factorKey 作 key 即可（engine._resolve_factor 优先查 fundamentals）
+            transform = ref.get("transform")
+            sig = factor_signature(key, ref.get("params"), ref.get("outputIndex"), transform)
+            if transform is None:
+                # 现状：从 fundamentals 快照取，以 factorKey 作 key
+                per_symbol[key] = _to_float(fundamentals.get(key))
+            else:
+                # transform：从 extra 逐 bar 取 tushareField 序列再聚合
+                fd = factor_registry.get_factor(key)
+                field = getattr(fd, "tushareField", None) or key.lower()
+                series = []
+                for d in sorted(extras.keys()):
+                    v = extras[d].get(field) if isinstance(extras[d], dict) else None
+                    if v is not None:
+                        series.append(v)
+                per_symbol[sig] = aggregate_series(series, transform)
 
         # 2) 技术面/价格因子：kline_to_arrays → compute_single → [-1]
         ohlcv_history = candidate.get("ohlcv_history")
         arrays = None
         for ref in refs_by_source["technical"]:
+            transform = ref.get("transform")
             sig = factor_signature(
-                ref["factorKey"], ref.get("params"), ref.get("outputIndex")
+                ref["factorKey"], ref.get("params"), ref.get("outputIndex"), transform
             )
             try:
                 if arrays is None:
-                    # 懒初始化数组转换（无技术面因子时跳过）
                     if not ohlcv_history:
                         per_symbol[sig] = float("nan")
                         continue
@@ -187,10 +204,11 @@ def precompute_factors(
                     params=ref.get("params"),
                     output_index=ref.get("outputIndex"),
                 )
-                # 取当日值（最后一位）；NaN 安全（空数组/全 NaN 都落到 NaN）
-                per_symbol[sig] = _last_or_nan(arr)
+                if transform is None:
+                    per_symbol[sig] = _last_or_nan(arr)
+                else:
+                    per_symbol[sig] = aggregate_series(arr, transform)
             except Exception as exc:
-                # 计算异常 → 该因子 NaN（不阻断批量），记录 warning
                 logger.warning(
                     "选股因子预计算失败 symbol=%s factor=%s: %s",
                     symbol, ref["factorKey"], exc,
@@ -200,6 +218,67 @@ def precompute_factors(
         result[symbol] = per_symbol
 
     return result
+
+
+# ============================================================
+# 因子序列聚合（transform 滚动窗口，PRD 009 §1 P1-6 共享内核）
+# ============================================================
+
+def aggregate_series(series, transform):
+    """对因子值序列做滚动窗口聚合（PRD 009 §1 P1-6 共享内核）。
+
+    :param series: list[float] / np.ndarray（可能含 NaN），按时间升序。
+    :param transform: ``{"type": "ma"|"std"|"pct_change"|"max"|"min", "window": int}``
+        或 None。None → 返回末值（与无 transform 行为一致）。
+    :return: 聚合后的标量；窗口未满 / 空 / 非法 → NaN。
+
+    语义（与 Step 1 测试一致）：
+    - 先要求 ``len(vals) >= window``（窗口被可用历史填满），否则 NaN；
+    - 在末 ``window`` 个值中跳过 NaN 得 ``seg``；
+    - ``seg`` 为空 → NaN；``std``/``pct_change`` 要求 ``len(seg) >= 2``，否则 NaN；
+    - ``ma``=均值；``std``=样本标准差(ddof=1)；``pct_change``=(末-首)/首（首为 0 → NaN）；
+      ``max``/``min``=极值。
+
+    依赖方向：本函数为纯数值工具（零依赖），定义在本模块（其唯一内部调用方
+    :func:`precompute_factors` 旁），由 :mod:`services.shared.factor_pipeline`
+    re-export 对外暴露，避免 ``factor_pipeline`` ↔ ``factor_precompute`` 循环导入。
+    """
+    try:
+        vals = [float(v) for v in list(series)]
+    except TypeError:
+        return float("nan")
+
+    if transform is None:
+        return vals[-1] if vals else float("nan")
+
+    t = transform.get("type")
+    window = int(transform.get("window", 0))
+    if t not in ("ma", "std", "pct_change", "max", "min") or window < 1:
+        return float("nan")
+    if len(vals) < window:
+        return float("nan")  # 可用历史不足一个完整窗口
+
+    seg = [v for v in vals[-window:] if not (isinstance(v, float) and math.isnan(v))]
+    if len(seg) == 0:
+        return float("nan")
+    if len(seg) < 2 and t in ("std", "pct_change"):
+        return float("nan")
+
+    if t == "ma":
+        return sum(seg) / len(seg)
+    if t == "std":
+        mean = sum(seg) / len(seg)
+        var = sum((x - mean) ** 2 for x in seg) / (len(seg) - 1)
+        return math.sqrt(var)
+    if t == "pct_change":
+        if seg[0] == 0:
+            return float("nan")
+        return (seg[-1] - seg[0]) / seg[0]
+    if t == "max":
+        return max(seg)
+    if t == "min":
+        return min(seg)
+    return float("nan")
 
 
 # ============================================================

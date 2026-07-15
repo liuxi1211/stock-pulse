@@ -47,6 +47,11 @@ class ExpressionNode(BaseModel):
     params: Optional[dict[str, Any]] = Field(None, description="因子参数（透传 talib）", examples=[{"timeperiod": 14}])
     inputs: Optional[list[str]] = Field(None, description="输入列覆盖（一般留空用因子默认 inputs）")
     outputIndex: Optional[int] = Field(None, description="多输出因子取第几路（None→defaultOutputIndex）")
+    # 形态 2 扩展：因子滚动窗口聚合（PRD 009 §1 P1-6），仅选股条件用
+    transform: Optional[dict] = Field(
+        None, description="因子滚动窗口聚合 {type,window}，仅 filter.conditions",
+        examples=[{"type": "ma", "window": 20}],
+    )
 
     # 形态 3：算术
     op: Optional[str] = Field(None, description="算术运算符", examples=["+"])

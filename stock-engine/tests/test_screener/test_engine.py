@@ -297,3 +297,52 @@ def test_factor_signature_no_params_equals_key():
     """基本面因子（无 params）签名即 factorKey 本身。"""
     assert factor_signature("PE_TTM") == "PE_TTM"
     assert factor_signature("PE_TTM", None, None) == "PE_TTM"
+
+
+def test_expression_node_accepts_transform():
+    from models.schemas.condition import ExpressionNode
+
+    node = ExpressionNode(factor="PE_TTM", transform={"type": "ma", "window": 20})
+    assert node.kind == "factor"
+    assert node.transform == {"type": "ma", "window": 20}
+
+
+def test_expression_node_transform_defaults_none():
+    from models.schemas.condition import ExpressionNode
+
+    node = ExpressionNode(factor="RSI", params={"timeperiod": 14})
+    assert node.transform is None
+
+
+def test_factor_signature_without_transform_unchanged():
+    from services.screener.engine import factor_signature
+
+    assert factor_signature("MA", {"timeperiod": 5}, 0) == "MA(timeperiod=5)#0"
+    assert factor_signature("PE_TTM") == "PE_TTM"
+
+
+def test_factor_signature_with_transform():
+    from services.screener.engine import factor_signature
+
+    assert (
+        factor_signature("PE_TTM", transform={"type": "ma", "window": 20})
+        == "PE_TTM__ma20"
+    )
+    assert (
+        factor_signature("MA", {"timeperiod": 5}, 0, {"type": "std", "window": 10})
+        == "MA(timeperiod=5)#0__std10"
+    )
+
+
+def test_resolve_factor_with_transform():
+    """带 transform 的 factor 节点应使用 transform 感知签名查 factor_values。"""
+    sig = factor_signature("PE_TTM", transform={"type": "ma", "window": 3})
+    ctx = EvalContext(symbol="S1", factor_values={sig: 16.0}, fundamentals={})
+    engine = ConditionEngine()
+    leaf = {
+        "type": "compare",
+        "left": {"factor": "PE_TTM", "transform": {"type": "ma", "window": 3}},
+        "comparator": "<",
+        "right": {"value": 30},
+    }
+    assert engine.evaluate(leaf, ctx) is True

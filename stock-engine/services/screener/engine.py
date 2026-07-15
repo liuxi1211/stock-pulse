@@ -39,11 +39,13 @@ def factor_signature(
     factor_key: str,
     params: Optional[dict] = None,
     output_index: Optional[int] = None,
+    transform: Optional[dict] = None,
 ) -> str:
-    """生成 factor 缓存 key，如 ``MA(timeperiod=5)#0``。
+    """生成 factor 缓存 key，如 ``MA(timeperiod=5)#0``，transform 追加 ``__ma20``。
 
     基本面因子（TUSHARE）由调用方直接以 factorKey 作为签名（无 params / output_index）。
-    本函数对参数按 key 排序，保证不同顺序的同参数等价。
+    本函数对参数按 key 排序，保证不同顺序的同参数等价。transform 存在时追加
+    ``__<type><window>``，使「当日值」与「窗口聚合值」共存不冲突（PRD 009 §1.2.3）。
     """
     if params:
         kv = ",".join(f"{k}={v}" for k, v in sorted(params.items()))
@@ -52,6 +54,8 @@ def factor_signature(
         sig = factor_key
     if output_index is not None:
         sig = f"{sig}#{output_index}"
+    if transform:
+        sig = f"{sig}__{transform.get('type')}{transform.get('window')}"
     return sig
 
 
@@ -210,12 +214,18 @@ class ConditionEngine:
         raise TypeError(f"不支持的表达式形态: {kind}")
 
     def _resolve_factor(self, node: ExpressionNode, context: EvalContext) -> float:
-        """解析因子引用：技术面用签名查 factor_values，基本面用 factorKey 查 fundamentals。
+        """解析因子引用。
 
-        优先查 fundamentals（基本面签名即 factorKey 本身），未命中再查 factor_values（技术面签名）。
-        缺失→NaN（不阻断，由比较层兜底为 False）。
+        - 带 transform：用 transform 感知签名查 ``factor_values``（技术面/基本面
+          的聚合值都存在这里，见 precompute_factors）；缺失→NaN。
+        - 无 transform：基本面优先查 ``fundamentals``（key=factorKey），技术面查
+          ``factor_values``（factor_signature）；缺失→NaN。
         """
         key = node.factor
+        transform = getattr(node, "transform", None)
+        if transform:
+            sig = factor_signature(key, node.params, node.outputIndex, transform)
+            return _to_float(context.factor_values.get(sig, float("nan")))
         # 基本面：直接以 factorKey 作为 key（无 params / output_index）
         if key in context.fundamentals:
             return _to_float(context.fundamentals[key])

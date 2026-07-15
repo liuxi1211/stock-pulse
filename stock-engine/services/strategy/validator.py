@@ -624,6 +624,27 @@ class StrategyValidator:
                         )
                     )
 
+        # (4) transform 作用域约束：仅 screen_config.filter.conditions 合法
+        #（ranking 的 factor.weights 值为数字，无法挂载 transform；trading_config 会静默忽略）。
+        tf = node.transform
+        if tf is not None and not ctx.is_screen:
+            code, msg = ErrorCode.TRANSFORM_NOT_ALLOWED_OUTSIDE_SCREEN
+            errors.append(
+                StrategyValidationError(
+                    path=f"{path}.transform", code=code, message=msg
+                )
+            )
+
+        # (5) transform window 上限校验（PRD 009 §1 P1-6）。
+        # type 由 Pydantic Literal 在解析阶段保证；window 下限由 Pydantic ge=1 保证。
+        if tf is not None and tf.window > 60:
+            code, msg = ErrorCode.INVALID_TRANSFORM_WINDOW
+            errors.append(
+                StrategyValidationError(
+                    path=f"{path}.transform.window", code=code, message=msg
+                )
+            )
+
     # ========================================================
     # 注入防护（自由文本字段）
     # ========================================================

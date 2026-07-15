@@ -187,3 +187,13 @@ class ErrorCode:
         "INVALID_OP",
         "op 不在允许的操作符集合内",
     )
+
+    # ----- 因子滚动窗口聚合 transform（PRD 009 §1 P1-6）-----
+    INVALID_TRANSFORM_WINDOW = (
+        "INVALID_TRANSFORM_WINDOW",
+        "transform.window 必须是 1~60 的整数",
+    )
+    TRANSFORM_NOT_ALLOWED_OUTSIDE_SCREEN = (
+        "TRANSFORM_NOT_ALLOWED_OUTSIDE_SCREEN",
+        "transform 仅支持 filter.conditions（选股条件），不允许出现在 trading_config（signals/exit.rules 等）",
+    )

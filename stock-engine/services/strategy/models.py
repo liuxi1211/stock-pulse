@@ -42,6 +42,22 @@ class ValueNode(BaseModel):
     value: Union[float, int, str] = Field(..., description="静态值（数字或字符串）")
 
 
+class TransformConfig(BaseModel):
+    """对因子值再做滚动窗口聚合（仅选股条件 filter.conditions 用）。
+
+    Schema PRD 009 §1。聚合在 engine 即时完成（非预计算），取候选窗口末 N 日因子序列：
+    - ma=均值；std=样本标准差(ddof=1)；pct_change=(末-首)/首；
+    - max=最大；min=最小。窗口不足返回 NaN。
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["ma", "std", "pct_change", "max", "min"] = Field(
+        ..., description="聚合类型"
+    )
+    window: int = Field(..., ge=1, description="窗口天数（交易日，≥1）")
+
+
 class FactorNode(BaseModel):
     """因子引用节点：调因子计算模块 ``compute(name=factor, inputs, **params)``。
 
@@ -60,6 +76,9 @@ class FactorNode(BaseModel):
     )
     output_index: Optional[int] = Field(
         None, description="多输出因子取第几路（MACD/BOLL/KDJ 必填）"
+    )
+    transform: Optional["TransformConfig"] = Field(
+        None, description="对因子值再做滚动窗口聚合；仅 filter.conditions 生效"
     )
 
 

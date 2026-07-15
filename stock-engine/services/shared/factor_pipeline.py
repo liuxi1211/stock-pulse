@@ -33,6 +33,7 @@ from services.factor.calculator import factor_calculator
 from services.factor.registry import factor_registry
 from services.screener.engine import factor_signature
 from services.screener.factor_precompute import (
+    aggregate_series,
     collect_factor_refs,
     precompute_factors,
 )
@@ -192,6 +193,12 @@ def precompute(
     return precompute_factors(tree, candidates)
 
 
+# aggregate_series 定义在 services.screener.factor_precompute（其唯一内部调用方
+# precompute_factors 旁），此处经上方 import re-export 对外暴露——避免本模块对
+# factor_precompute 的顶层 import 与 aggregate_series 反向 import 形成循环依赖。
+# 详见 services.screener.factor_precompute.aggregate_series。
+
+
 __all__ = [
     "compute_latest",
     "precompute",
@@ -199,4 +206,5 @@ __all__ = [
     "precompute_factors",
     "collect_factor_refs",
     "trim_leading_nan",
+    "aggregate_series",
 ]
