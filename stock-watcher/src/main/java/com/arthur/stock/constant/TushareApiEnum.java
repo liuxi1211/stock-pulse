@@ -38,7 +38,15 @@ public enum TushareApiEnum {
 
     /** 指数成分和权重接口 */
     INDEX_WEIGHT("index_weight",
-            "ts_code,trade_date,con_code,weight");
+            "ts_code,trade_date,con_code,weight"),
+
+    /** 申万行业分类接口（index_classify，按 src=SWS2021 取 2021 版本） */
+    INDEX_CLASSIFY("index_classify",
+            "index_code,index_name,level,parent_code"),
+
+    /** 申万行业成分股接口（index_member_all，全量成分股进出记录） */
+    INDEX_MEMBER_ALL("index_member_all",
+            "ts_code,index_code,index_name,in_date,out_date,is_new");
 
     private final String apiName;
     private final String fields;

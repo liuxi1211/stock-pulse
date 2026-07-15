@@ -227,7 +227,6 @@ const StrategyEditor = {
             // ---- universe 层 ----
             const pool = typeof sc.universe === 'string' ? sc.universe : 'all_a_shares';
             const universe = { pool: pool };
-            universe.point_in_time = (pool === 'csi300' || pool === 'csi500') ? true : null;
             universe.stocks = Array.isArray(sc.stocks) ? sc.stocks.slice() : null;
             out.universe = universe;
 
@@ -256,7 +255,7 @@ const StrategyEditor = {
     /**
      * 选股中心 screenConfig（驼峰）→ 策略 4 层 screen_config（snake_case）转换。
      * 字段映射（spec 010 Task 12 后对齐 4 层）：
-     *   universe        → universe.pool（csi300/csi500 默认 point_in_time=true）
+     *   universe        → universe.pool（spec 011 P1-1：point-in-time 已强制开启，字段移除）
      *   stocks          → universe.stocks
      *   conditions      → filter.conditions
      *   ranking         → factor（method/factor/order/weights 不变）
@@ -435,6 +434,12 @@ const StrategyEditor = {
             // screen 的菜单 id=f-screen-factors 没写 data-target，默认指向 f-screen-conditions
             menu.setAttribute('data-target', old || target);
         });
+        // spec 011 P1-2：同步填充 factorKey 联想输入 datalist（权重面板复用）
+        const datalist = document.getElementById('factor-keys-datalist');
+        if (datalist) {
+            const allKeys = tech.concat(fund);
+            datalist.innerHTML = allKeys.map((f) => '<option value="' + StockApp.escapeHtml(f) + '">').join('');
+        }
     },
 
     // ===================== 条件树编辑器（可视化 / JSON 模式）=====================
@@ -801,15 +806,14 @@ const StrategyEditor = {
             this.setVal('f-universe', pool);
             this.applyUniverse(pool);
             this._loadManualStocksDetail(universe.stocks || []);
-            this.setChecked('f-universe-point-in-time',
-                pool === 'csi300' || pool === 'csi500' ? universe.point_in_time !== false : false);
-            // 标记已回填，防止 applyUniversePointInTime 的默认勾选覆盖后端值
-            const pitCb = document.getElementById('f-universe-point-in-time');
-            if (pitCb) pitCb.dataset.touched = '1';
-            this.applyUniversePointInTime(pool);
 
             const portfolio = sc.portfolio || {};
             this.setVal('f-top-n', portfolio.top_n != null ? portfolio.top_n : '');
+            // spec 011 迭代 4：权重体系字段
+            this.setVal('f-cash-reserve', portfolio.cash_reserve_pct != null ? portfolio.cash_reserve_pct : '');
+            this.setVal('f-buffer-n', portfolio.buffer_n != null ? portfolio.buffer_n : '');
+            this.applyOptionalNumber('f-max-weight-enable', 'f-max-weight', portfolio.max_weight_per_symbol);
+            this.applyOptionalNumber('f-max-industry-enable', 'f-max-industry', portfolio.max_industry_exposure);
 
             // filter.conditions（旧结构从顶层 conditions 取，已由 normalizeScreenConfig 归一到 filter.conditions）
             const filter = sc.filter || {};
@@ -883,13 +887,27 @@ const StrategyEditor = {
         const rb = tc.rebalance || null;
         if (rb) {
             this.setVal('f-reb-frequency', rb.frequency || 'monthly');
-            this.setVal('f-reb-day', rb.day_of_period != null ? rb.day_of_period : '');
+            // spec 011 P2-1：trigger 优先；旧数据 day_of_period 兼容映射（<=1→first，否则 last）
+            let trig = rb.trigger;
+            if (!trig && rb.day_of_period != null) {
+                trig = (rb.day_of_period || 0) <= 1 ? 'first' : 'last';
+            }
+            this.setVal('f-reb-trigger', trig || 'first');
             this.checkRadio('f-reb-replace', rb.replace_method || 'full');
             this.checkRadio('f-reb-weight', rb.weight_mode || 'equal');
+            // spec 011 迭代 4：min_holding_bars / 涨跌停拒单
+            this.setVal('f-min-holding-bars', rb.min_holding_bars != null ? rb.min_holding_bars : '');
+            this.setChecked('f-reject-limit-up', rb.reject_limit_up_on_buy !== false);
+            this.setChecked('f-reject-limit-down', rb.reject_limit_down_on_sell !== false);
         } else {
+            this.setVal('f-reb-trigger', 'first');
             this.checkRadio('f-reb-replace', 'full');
             this.checkRadio('f-reb-weight', 'equal');
+            this.setVal('f-min-holding-bars', '');
+            this.setChecked('f-reject-limit-up', true);
+            this.setChecked('f-reject-limit-down', true);
         }
+        this.applyRebTriggerVisibility();
 
         // ---- Tab 8 回测 ----
         const bt = s.backtest_config || {};
@@ -918,6 +936,19 @@ const StrategyEditor = {
             this.setVal('f-bt-slippage-type', 'percent');
             this.setVal('f-bt-slippage-value', bt.slippage);
         }
+        // fill_policy：已有值反向匹配；无值时按范式默认（轮动→当日收盘，择时→空）
+        if (bt.fill_policy && typeof bt.fill_policy === 'object') {
+            this.setVal('f-bt-fill-policy', JSON.stringify(bt.fill_policy));
+        } else {
+            const closeFp = '{"price_basis":"close","temporal":"same_cycle","bar_offset":0}';
+            this.setVal('f-bt-fill-policy', this.paradigm === 'rebalance' ? closeFp : '');
+        }
+        // spec 011 P2-2/3：risk_config 回填
+        const hasRisk = bt.risk_config && typeof bt.risk_config === 'object';
+        this.setChecked('f-bt-use-risk-config', hasRisk);
+        this.applyRiskToggle(hasRisk);
+        this.setVal('f-bt-risk-max-position', hasRisk && bt.risk_config.max_position_pct != null ? bt.risk_config.max_position_pct : '');
+        this.setVal('f-bt-risk-max-dd', hasRisk && bt.risk_config.max_drawdown_pct != null ? bt.risk_config.max_drawdown_pct : '');
 
         // 同步条件树可视化组件：edit/template/screenSource 导入后 state 已更新，
         // 把新树推给已挂载的 builder（visual 模式）或刷新 textarea（json 模式）。
@@ -977,7 +1008,6 @@ const StrategyEditor = {
             s.screen_config = {
                 universe: {
                     pool: 'manual',
-                    point_in_time: null,
                     stocks: stocks,
                 },
             };
@@ -993,14 +1023,8 @@ const StrategyEditor = {
                 (screenConditions && !this.isEmptyTree(screenConditions)) ||
                 factor || filters;
             if (hasScreenContent) {
-                // ---- universe 层 ----
+                // ---- universe 层（spec 011 P1-1：point-in-time 已强制开启，不再下发字段）----
                 const universe = { pool: pool };
-                // csi300/csi500 默认 point_in_time=true；manual/all_a_shares 为 null（不查接口）
-                if (pool === 'csi300' || pool === 'csi500') {
-                    universe.point_in_time = this.getChecked('f-universe-point-in-time');
-                } else {
-                    universe.point_in_time = null;
-                }
                 if (pool === 'manual' && stocks.length) universe.stocks = stocks;
                 else universe.stocks = null;
 
@@ -1015,8 +1039,18 @@ const StrategyEditor = {
                 if (filters) Object.assign(filter, filters);
                 if (Object.keys(filter).length) s.screen_config.filter = filter;
 
-                // ---- portfolio 层（原 top_n 平移）----
-                if (topN != null) s.screen_config.portfolio = { top_n: topN };
+                // ---- portfolio 层（原 top_n 平移 + spec 011 迭代 4 权重体系）----
+                const portfolio = {};
+                if (topN != null) portfolio.top_n = topN;
+                const cashReserve = this.getNum('f-cash-reserve');
+                if (cashReserve != null) portfolio.cash_reserve_pct = cashReserve;
+                const bufferN = this.getInt('f-buffer-n');
+                if (bufferN != null) portfolio.buffer_n = bufferN;
+                const maxWeight = this.getOptionalNumber('f-max-weight-enable', 'f-max-weight');
+                if (maxWeight != null) portfolio.max_weight_per_symbol = maxWeight;
+                const maxIndustry = this.getOptionalNumber('f-max-industry-enable', 'f-max-industry');
+                if (maxIndustry != null) portfolio.max_industry_exposure = maxIndustry;
+                if (Object.keys(portfolio).length) s.screen_config.portfolio = portfolio;
             } else {
                 s.screen_config = null;
             }
@@ -1025,12 +1059,13 @@ const StrategyEditor = {
         // ---- Tab 3/4/5/6/7 交易配置（按范式二选一，spec 009 Task 10）----
         s.trading_config = s.trading_config || {};
         if (this.paradigm === 'rebalance') {
-            // 轮动范式：仅 rebalance，不产出 signals/position_sizing/exit
+            // 轮动范式：rebalance + exit（止损止盈，spec 011 P1-5）；不产出 signals/position_sizing
             const rb = this.collectRebalance();
             if (rb) s.trading_config.rebalance = rb; else delete s.trading_config.rebalance;
             delete s.trading_config.signals;
             delete s.trading_config.position_sizing;
-            delete s.trading_config.exit;
+            const exitObj = this.collectExit();
+            if (exitObj) s.trading_config.exit = exitObj; else delete s.trading_config.exit;
         } else {
             // 择时范式：signals + position_sizing + exit，不产出 rebalance
             s.trading_config.signals = {
@@ -1059,30 +1094,8 @@ const StrategyEditor = {
             s.trading_config.position_sizing = ps;
 
             // ---- Tab 6 止损止盈 ----
-            const useBracket = this.getChecked('f-use-bracket');
-            const exitRules = this.collectExitRules();
-            if (useBracket || exitRules.length) {
-                s.trading_config.exit = {};
-                if (useBracket) {
-                    const bracket = {};
-                    const sl = this.getNum('f-stop-loss');
-                    const tp = this.getNum('f-take-profit');
-                    if (sl != null) bracket.stop_loss_pct = sl;
-                    if (tp != null) bracket.take_profit_pct = tp;
-                    // ATR 动态止损（use_atr_stop / atr_period / atr_multiplier）
-                    if (this.getChecked('f-use-atr-stop')) {
-                        bracket.use_atr_stop = true;
-                        const atrPeriod = this.getNum('f-atr-period');
-                        if (atrPeriod != null) bracket.atr_period = atrPeriod;
-                        const atrMult = this.getNum('f-atr-multiplier');
-                        if (atrMult != null) bracket.atr_multiplier = atrMult;
-                    }
-                    s.trading_config.exit.bracket = bracket;
-                }
-                if (exitRules.length) s.trading_config.exit.rules = exitRules;
-            } else {
-                delete s.trading_config.exit;
-            }
+            const exitObj = this.collectExit();
+            if (exitObj) s.trading_config.exit = exitObj; else delete s.trading_config.exit;
             delete s.trading_config.rebalance;
         }
 
@@ -1116,6 +1129,19 @@ const StrategyEditor = {
         }
         const benchmark = this.getVal('f-bt-benchmark');
         if (benchmark) bt.benchmark = benchmark;
+        const fpRaw = this.getVal('f-bt-fill-policy');
+        if (fpRaw) {
+            try { bt.fill_policy = JSON.parse(fpRaw); } catch (e) { /* 忽略非法值 */ }
+        }
+        // spec 011 P2-2/3：risk_config（dict，空值不写）
+        if (this.getChecked('f-bt-use-risk-config')) {
+            const rc = {};
+            const mp = this.getNum('f-bt-risk-max-position');
+            const md = this.getNum('f-bt-risk-max-dd');
+            if (mp != null) rc.max_position_pct = mp;
+            if (md != null) rc.max_drawdown_pct = md;
+            if (Object.keys(rc).length) bt.risk_config = rc;
+        }
         s.backtest_config = bt;
 
         return this._parseErrors;
@@ -1149,12 +1175,45 @@ const StrategyEditor = {
         if (this.paradigm !== 'rebalance') return null;
         const rb = {
             frequency: this.getVal('f-reb-frequency') || 'monthly',
+            trigger: this.getVal('f-reb-trigger') || 'first',
             replace_method: this.getRadio('f-reb-replace') || 'full',
             weight_mode: this.getRadio('f-reb-weight') || 'equal',
         };
-        const day = this.getNum('f-reb-day');
-        if (day != null) rb.day_of_period = day;
+        // spec 011 P2-1：trigger 下拉；day_of_period 不主动写（仅旧数据兼容由 refill 处理）
+        // spec 011 迭代 4：min_holding_bars / 涨跌停拒单
+        const minHolding = this.getInt('f-min-holding-bars');
+        if (minHolding != null) rb.min_holding_bars = minHolding;
+        rb.reject_limit_up_on_buy = this.getChecked('f-reject-limit-up');
+        rb.reject_limit_down_on_sell = this.getChecked('f-reject-limit-down');
         return rb;
+    },
+
+    /**
+     * 收集 Tab 6 止损止盈（exit）。两范式共用（spec 011 P1-5）。
+     * 返回 {bracket?, rules?} 或 null（未启用）。
+     */
+    collectExit() {
+        const useBracket = this.getChecked('f-use-bracket');
+        const exitRules = this.collectExitRules();
+        if (!useBracket && !exitRules.length) return null;
+        const exit = {};
+        if (useBracket) {
+            const bracket = {};
+            const sl = this.getNum('f-stop-loss');
+            const tp = this.getNum('f-take-profit');
+            if (sl != null) bracket.stop_loss_pct = sl;
+            if (tp != null) bracket.take_profit_pct = tp;
+            if (this.getChecked('f-use-atr-stop')) {
+                bracket.use_atr_stop = true;
+                const atrPeriod = this.getNum('f-atr-period');
+                if (atrPeriod != null) bracket.atr_period = atrPeriod;
+                const atrMult = this.getNum('f-atr-multiplier');
+                if (atrMult != null) bracket.atr_multiplier = atrMult;
+            }
+            exit.bracket = bracket;
+        }
+        if (exitRules.length) exit.rules = exitRules;
+        return exit;
     },
 
     /**
@@ -1203,9 +1262,14 @@ const StrategyEditor = {
     },
 
     weightRowHtml(factor, weight, idx) {
-        return '<div class="row g-1" data-row="ranking-weight">' +
-            '<div class="col"><input type="text" class="form-control form-control-sm" placeholder="factorKey" value="' + StockApp.escapeHtml(factor) + '" data-k="factor"></div>' +
-            '<div class="col"><input type="number" class="form-control form-control-sm" step="0.1" placeholder="权重（可负）" value="' + StockApp.escapeHtml(String(weight)) + '" data-k="weight"></div>' +
+        const direction = (weight == null || Number(weight) >= 0) ? '+' : '-';
+        const absVal = weight == null ? 1 : Math.abs(Number(weight));
+        const dirLabel = direction === '+' ? '↑ 越大越好' : '↓ 越小越好';
+        const dirClass = direction === '+' ? 'btn-outline-success' : 'btn-outline-danger';
+        return '<div class="row g-1 align-items-center" data-row="ranking-weight">' +
+            '<div class="col"><input type="text" list="factor-keys-datalist" class="form-control form-control-sm" placeholder="factorKey（联想选择）" value="' + StockApp.escapeHtml(factor) + '" data-k="factor"></div>' +
+            '<div class="col-auto"><button type="button" class="btn btn-sm ' + dirClass + '" data-k="direction" data-direction="' + direction + '" title="点击切换方向">' + dirLabel + '</button></div>' +
+            '<div class="col"><input type="number" class="form-control form-control-sm" step="0.1" min="0" placeholder="权重绝对值" value="' + StockApp.escapeHtml(String(absVal)) + '" data-k="weight"></div>' +
             '<div class="col-auto"><button type="button" class="btn btn-sm btn-outline-danger" data-del="ranking-weight">×</button></div>' +
             '</div>';
     },
@@ -1215,9 +1279,13 @@ const StrategyEditor = {
         document.querySelectorAll('#f-ranking-weights [data-row="ranking-weight"]').forEach((row) => {
             const k = (row.querySelector('[data-k="factor"]') || {}).value;
             const v = (row.querySelector('[data-k="weight"]') || {}).value;
+            const dirBtn = row.querySelector('[data-k="direction"]');
+            const direction = dirBtn ? dirBtn.getAttribute('data-direction') : '+';
             if (k && v !== '') {
                 const n = Number(v);
-                out[k.trim()] = isNaN(n) ? Number(v) : n;
+                if (isNaN(n)) return;
+                const signed = direction === '-' ? -Math.abs(n) : Math.abs(n);
+                out[k.trim()] = signed;
             }
         });
         return out;
@@ -1493,6 +1561,12 @@ const StrategyEditor = {
         this.refreshManualCountForParadigm(paradigm);
         // 确保两套股票池搜索框都绑定（择时用 f-pool-stocks-search，轮动用 f-stocks-search）
         this._ensureManualStockSuggest();
+        // fill_policy 范式联动：仅在控件为「默认（空）」时切换默认值，尊重用户显式选择
+        const fpSel = document.getElementById('f-bt-fill-policy');
+        if (fpSel && fpSel.value === '') {
+            const closeFp = '{"price_basis":"close","temporal":"same_cycle","bar_offset":0}';
+            fpSel.value = paradigm === 'rebalance' ? closeFp : '';
+        }
     },
 
     /**
@@ -1535,23 +1609,6 @@ const StrategyEditor = {
         const wrap = document.getElementById('f-stocks-wrap');
         if (wrap) wrap.style.display = value === 'manual' ? '' : 'none';
         if (value === 'manual') this._ensureManualStockSuggest();
-        // point_in_time 仅对宽基（csi300/csi500）有意义，联动显隐
-        this.applyUniversePointInTime(value);
-    },
-
-    /**
-     * 控制 universe.point_in_time 开关显隐（spec 010 Task 12）。
-     * 仅 csi300/csi500 显示并默认勾选；manual/all_a_shares 隐藏。
-     */
-    applyUniversePointInTime(pool) {
-        const wrap = document.getElementById('f-universe-point-in-time-wrap');
-        if (!wrap) return;
-        const show = pool === 'csi300' || pool === 'csi500';
-        wrap.style.display = show ? '' : 'none';
-        if (show) {
-            const cb = document.getElementById('f-universe-point-in-time');
-            if (cb && !cb.dataset.touched) this.setChecked('f-universe-point-in-time', true);
-        }
     },
 
     // ===================== 手动股票池（搜索建议 + 标签云） =====================
@@ -1672,6 +1729,126 @@ const StrategyEditor = {
         if (singleWrap) singleWrap.style.display = method === 'single' ? '' : 'none';
         if (orderWrap) orderWrap.style.display = method === 'single' ? '' : 'none';
         if (weightsWrap) weightsWrap.style.display = method === 'composite' ? '' : 'none';
+        // spec 011 P0-2：factor.method=single 时置灰 rebalance.weight_mode=score
+        // （single 的 score 是因子原始值，量纲不一，加权会导致单只标的独占资金）
+        this.applyScoreRadioLock(method === 'single');
+        this.refreshWeightsFeedback();
+    },
+
+    /**
+     * spec 011 P1-2：权重面板实时反馈——组合校验（红字）+ 归一化提示。
+     * 仅在 factor.method=composite 且面板可见时有意义；其余情况清空提示。
+     */
+    refreshWeightsFeedback() {
+        const errEl = document.getElementById('f-ranking-weights-err');
+        const normEl = document.getElementById('f-ranking-weights-norm');
+        const wrap = document.getElementById('f-ranking-weights-wrap');
+        if (!errEl || !normEl) return;
+        const visible = wrap && wrap.style.display !== 'none';
+        if (!visible) {
+            errEl.style.display = 'none';
+            normEl.textContent = '';
+            return;
+        }
+
+        // 收集当前行（factorKey, 绝对值）
+        const rows = [];
+        document.querySelectorAll('#f-ranking-weights [data-row="ranking-weight"]').forEach((row) => {
+            const k = ((row.querySelector('[data-k="factor"]') || {}).value || '').trim();
+            const v = (row.querySelector('[data-k="weight"]') || {}).value;
+            const n = v === '' ? NaN : Number(v);
+            rows.push({ key: k, abs: isNaN(n) ? 0 : Math.abs(n) });
+        });
+
+        const filled = rows.filter((r) => r.key);
+        const errs = [];
+        if (filled.length === 0) {
+            errs.push('composite 模式必须至少配置一个因子权重');
+        }
+        const sumAbs = filled.reduce((s, r) => s + r.abs, 0);
+        if (filled.length > 0 && sumAbs === 0) {
+            errs.push('权重不能全为 0');
+        }
+        const seen = {};
+        let dup = false;
+        filled.forEach((r) => {
+            if (seen[r.key]) dup = true;
+            seen[r.key] = true;
+        });
+        if (dup) errs.push('同一因子不能配置多次');
+
+        // 白名单校验（从 datalist 取，未加载则跳过）
+        const datalist = document.getElementById('factor-keys-datalist');
+        if (datalist && datalist.options.length) {
+            const whitelist = new Set();
+            for (let i = 0; i < datalist.options.length; i++) {
+                whitelist.add(datalist.options[i].value);
+            }
+            const invalid = filled.filter((r) => r.key && !whitelist.has(r.key));
+            if (invalid.length) {
+                errs.push('存在不在因子白名单内的 factorKey：' + invalid.map((r) => r.key).join(', '));
+            }
+        }
+
+        if (errs.length) {
+            errEl.textContent = errs.join('；');
+            errEl.style.display = '';
+        } else {
+            errEl.style.display = 'none';
+        }
+
+        // 归一化提示（按绝对值归一化）
+        if (filled.length === 0 || sumAbs === 0) {
+            normEl.textContent = '';
+        } else {
+            const parts = filled.map((r) => {
+                const pct = sumAbs > 0 ? (r.abs / sumAbs) * 100 : 0;
+                return r.key + ' ' + pct.toFixed(1) + '%';
+            });
+            normEl.textContent = '归一化后实际权重：' + parts.join(' · ') + '（按绝对值归一化）';
+        }
+    },
+
+    /**
+     * spec 011 P1-2：提交时权重组合校验，返回首个错误文案（无错返回 null）。
+     * 与 refreshWeightsFeedback 同源规则，但用于阻断提交。
+     */
+    validateWeightsOnSubmit() {
+        const method = this.getVal('f-ranking-method');
+        if (method !== 'composite') return null;
+        const weights = this.collectWeightRows();
+        const keys = Object.keys(weights);
+        if (keys.length === 0) return 'composite 模式必须至少配置一个因子权重';
+        const sumAbs = keys.reduce((s, k) => s + Math.abs(weights[k]), 0);
+        if (sumAbs === 0) return '权重不能全为 0';
+        const datalist = document.getElementById('factor-keys-datalist');
+        if (datalist && datalist.options.length) {
+            const whitelist = new Set();
+            for (let i = 0; i < datalist.options.length; i++) {
+                whitelist.add(datalist.options[i].value);
+            }
+            const invalid = keys.filter((k) => !whitelist.has(k));
+            if (invalid.length) return '存在不在因子白名单内的 factorKey：' + invalid.join(', ');
+        }
+        return null;
+    },
+
+    /**
+     * 锁定/解锁 weight_mode=score 单选框（spec 011 P0-2）。
+     * locked=true 时置灰 score radio 并回退选中到 equal；false 时恢复可选。
+     */
+    applyScoreRadioLock(locked) {
+        const scoreRadio = document.getElementById('f-reb-weight-score');
+        if (!scoreRadio) return;
+        scoreRadio.disabled = !!locked;
+        scoreRadio.title = locked
+            ? '排序方式为 single 时不支持「按分加权」（量纲不一，会单只标的独占资金）；请改用等权或 composite 多因子'
+            : '';
+        if (locked && scoreRadio.checked) {
+            scoreRadio.checked = false;
+            const equalRadio = document.getElementById('f-reb-weight-equal');
+            if (equalRadio) equalRadio.checked = true;
+        }
     },
 
     applyFilterToggles() {
@@ -1719,6 +1896,28 @@ const StrategyEditor = {
 
     applyFeeToggle(on) { this.toggleWrap('f-bt-fee-wrap', on); },
     applySlippageToggle(on) { this.toggleWrap('f-bt-slippage-wrap', on); },
+    applyRiskToggle(on) { this.toggleWrap('f-bt-risk-wrap', on); },
+
+    /**
+     * spec 011 P2-1：rebalance.trigger 下拉的显隐 + label 联动。
+     * frequency=daily 时隐藏（每日调仓无首末之分）；其余显示，label 随 frequency 变化。
+     */
+    applyRebTriggerVisibility() {
+        const col = document.getElementById('f-reb-trigger-col');
+        const label = document.getElementById('f-reb-trigger-label');
+        const freqSel = document.getElementById('f-reb-frequency');
+        const freq = freqSel ? freqSel.value : 'monthly';
+        const show = freq !== 'daily';
+        if (col) col.style.display = show ? '' : 'none';
+        if (label && show) {
+            const map = {
+                weekly: '调仓触发 trigger（周一 / 周五）',
+                monthly: '调仓触发 trigger（月初 / 月末）',
+                quarterly: '调仓触发 trigger（季初 / 季末）',
+            };
+            label.textContent = map[freq] || '调仓触发 trigger';
+        }
+    },
 
     toggleWrap(id, on) {
         const el = document.getElementById(id);
@@ -1904,38 +2103,64 @@ const StrategyEditor = {
         const refresh = () => {
             this.collectStateFromForm();
             this.updateJsonPreview();
+            this.refreshWeightsFeedback();
         };
         editor.addEventListener('change', refresh);
-        // textarea input 也即时刷新预览（不影响焦点）
+        // textarea / 权重面板输入也即时刷新预览（不影响焦点）
         editor.addEventListener('input', (e) => {
-            if (e.target && e.target.matches('textarea')) refresh();
+            if (!e.target) return;
+            if (e.target.matches('textarea')) refresh();
+            // spec 011 P1-2：权重面板 factorKey/权重输入实时更新归一化与校验
+            if (e.target.closest('#f-ranking-weights')) this.refreshWeightsFeedback();
         });
 
         // ---- 联动：各 select/checkbox/radio 的即时 UI 切换 ----
         const onUniverse = (e) => { this.applyUniverse(e.target.value); refresh(); };
-        const onPointInTime = (e) => {
-            // 用户手动操作后标记 touched，避免后续 applyUniversePointInTime 用默认值覆盖
-            if (e.target) e.target.dataset.touched = '1';
+        const onRanking = (e) => { this.applyRankingMethod(e.target.value); refresh(); };
+        // spec 011 P0-2：weight_mode=score 切换时，若 method=single 则拦截并提示
+        const onRebWeight = (e) => {
+            const method = this.getVal('f-ranking-method');
+            if (e.target.value === 'score' && method === 'single') {
+                alert('排序方式为 single 时不支持「按分加权」（量纲不一，会单只标的独占资金）。\n请改用等权(equal)，或将排序方式改为 composite 多因子。');
+                e.target.checked = false;
+                const equalRadio = document.getElementById('f-reb-weight-equal');
+                if (equalRadio) equalRadio.checked = true;
+                return;
+            }
             refresh();
         };
-        const onRanking = (e) => { this.applyRankingMethod(e.target.value); refresh(); };
         const onPsMethod = (e) => { this.applyPositionMethod(e.target.value); refresh(); };
         const onBracket = (e) => { this.applyBracketToggle(e.target.checked); refresh(); };
         const onAtr = (e) => { this.applyAtrToggle(e.target.checked); refresh(); };
         const onFee = (e) => { this.applyFeeToggle(e.target.checked); refresh(); };
         const onSlip = (e) => { this.applySlippageToggle(e.target.checked); refresh(); };
+        const onRisk = (e) => { this.applyRiskToggle(e.target.checked); refresh(); };
+        const onRebFreq = () => { this.applyRebTriggerVisibility(); refresh(); };
         const onFilterToggle = () => { this.applyFilterToggles(); refresh(); };
 
         this.bindEl('f-universe', 'change', onUniverse);
-        this.bindEl('f-universe-point-in-time', 'change', onPointInTime);
         this.bindEl('f-ranking-method', 'change', onRanking);
+        // spec 011 P0-2：weight_mode radio 组（name=f-reb-weight）绑定 change
+        editor.querySelectorAll('input[name="f-reb-weight"]').forEach((r) => {
+            r.addEventListener('change', onRebWeight);
+        });
         this.bindEl('f-ps-method', 'change', onPsMethod);
         this.bindEl('f-use-bracket', 'change', onBracket);
         this.bindEl('f-use-atr-stop', 'change', onAtr);
         this.bindEl('f-bt-use-custom-fee', 'change', onFee);
         this.bindEl('f-bt-use-slippage', 'change', onSlip);
+        this.bindEl('f-bt-use-risk-config', 'change', onRisk);
+        this.bindEl('f-reb-frequency', 'change', onRebFreq);
         ['f-filter-use-industries', 'f-filter-use-exclude-industries', 'f-filter-use-min-list-days']
             .forEach((id) => this.bindEl(id, 'change', onFilterToggle));
+
+        // spec 011 迭代 4：单标的/行业暴露上限启用开关
+        const onOptionalNumber = (enableId, inputId) => () => {
+            const input = document.getElementById(inputId);
+            if (input) input.disabled = !this.getChecked(enableId);
+        };
+        this.bindEl('f-max-weight-enable', 'change', onOptionalNumber('f-max-weight-enable', 'f-max-weight'));
+        this.bindEl('f-max-industry-enable', 'change', onOptionalNumber('f-max-industry-enable', 'f-max-industry'));
 
         // ---- 动态列表：增删行 ----
         editor.addEventListener('click', (e) => {
@@ -1967,6 +2192,25 @@ const StrategyEditor = {
             }
         });
 
+        // ---- spec 011 P1-2：权重行方向切换（↑越大越好 / ↓越小越好）----
+        editor.addEventListener('click', (e) => {
+            const dirBtn = e.target.closest('#f-ranking-weights [data-k="direction"]');
+            if (!dirBtn) return;
+            const cur = dirBtn.getAttribute('data-direction') || '+';
+            const next = cur === '+' ? '-' : '+';
+            dirBtn.setAttribute('data-direction', next);
+            if (next === '+') {
+                dirBtn.textContent = '↑ 越大越好';
+                dirBtn.classList.remove('btn-outline-danger');
+                dirBtn.classList.add('btn-outline-success');
+            } else {
+                dirBtn.textContent = '↓ 越小越好';
+                dirBtn.classList.remove('btn-outline-success');
+                dirBtn.classList.add('btn-outline-danger');
+            }
+            this.refreshWeightsFeedback();
+        });
+
         // ---- 因子下拉：点击在对应 textarea 光标处插入 ----
         editor.addEventListener('click', (e) => {
             const item = e.target.closest('.factors-menu .dropdown-item');
@@ -1995,6 +2239,12 @@ const StrategyEditor = {
             e.preventDefault();
             // 已是当前模式则不重复切换
             if ((this._condMode[targetId] || 'visual') === mode) return;
+            // spec 011 P2-6：切换前确认（切换会同步当前编辑内容）
+            if (!window.confirm('切换模式将同步当前编辑内容，是否继续？')) {
+                // 用户取消：保持当前模式高亮
+                this.applyCondModeUI(targetId, this._condMode[targetId] || 'visual');
+                return;
+            }
             const ok = this.switchCondMode(targetId, mode);
             if (!ok) {
                 // 切换失败（如 JSON 解析错误）：按钮恢复到当前模式的高亮
@@ -2100,6 +2350,14 @@ const StrategyEditor = {
             this.activateTab(first.tab);
             this._parseErrors.forEach((e) => this.markErrorTabs([{ path: e.field, code: 'JSON_PARSE', message: e.message }]));
             StockApp.toast('条件 JSON 格式错误：' + first.message, 'danger');
+            return;
+        }
+
+        // 前端预校验 3：spec 011 P1-2 composite 权重组合校验
+        const weightErr = this.validateWeightsOnSubmit();
+        if (weightErr) {
+            this.activateTab('tab-screen');
+            StockApp.toast(weightErr, 'danger');
             return;
         }
 
@@ -2294,6 +2552,30 @@ const StrategyEditor = {
     checkRadio(name, value) {
         const el = document.querySelector('input[name="' + name + '"][value="' + value + '"]');
         if (el) el.checked = true;
+    },
+    getInt(id) {
+        const n = this.getNum(id);
+        if (n == null) return null;
+        return Math.trunc(n);
+    },
+    /**
+     * spec 011 迭代 4：带启用开关的数值字段回填。
+     * 值非空 → 勾选启用开关 + 填值；值为空 → 取消勾选 + 清空。
+     */
+    applyOptionalNumber(enableId, inputId, value) {
+        const hasValue = value != null && value !== '';
+        this.setChecked(enableId, hasValue);
+        this.setVal(inputId, hasValue ? value : '');
+        const input = document.getElementById(inputId);
+        if (input) input.disabled = !hasValue;
+    },
+    /**
+     * spec 011 迭代 4：带启用开关的数值字段收集。
+     * 开关未勾选 → null（不写入配置）；勾选但值空 → null；否则返回数值。
+     */
+    getOptionalNumber(enableId, inputId) {
+        if (!this.getChecked(enableId)) return null;
+        return this.getNum(inputId);
     },
 
     /**

@@ -75,6 +75,16 @@ class ErrorCode:
         "ranking method=single 时必须提供 factor 和 order",
     )
 
+    # ----- 因子打分 × 权重模式 联动约束（spec 011 P0-2）-----
+    # factor.method=single 时 score 是因子原始值（量纲不一），与 rebalance.weight_mode=score
+    # 的归一化加权语义不兼容，会导致单只标的独占资金。
+    FACTOR_SCORE_INCOMPATIBLE = (
+        "FACTOR_SCORE_INCOMPATIBLE",
+        "factor.method=single 与 rebalance.weight_mode=score 不兼容"
+        "（single 的 score 是因子原始值，量纲不一，加权会导致单只标的独占资金）；"
+        "请改用 weight_mode=equal 或 factor.method=composite",
+    )
+
     # ----- screen_config 4 层结构（Schema §3.2，缺陷 C 修复）-----
     SCREEN_CONFIG_LAYER_MISSING = (
         "SCREEN_CONFIG_LAYER_MISSING",
@@ -95,6 +105,13 @@ class ErrorCode:
     POSITION_TARGET_REQUIRED = (
         "POSITION_TARGET_REQUIRED",
         "position_sizing 当前 method 需要 target 字段",
+    )
+
+    # ----- 调仓触发（spec 011 P2-1）-----
+    # rebalance.trigger 取值非法（非 first/last/None）。
+    INVALID_REBALANCE_TRIGGER = (
+        "INVALID_REBALANCE_TRIGGER",
+        "rebalance.trigger 必须为 first 或 last（frequency=daily 时可省略）",
     )
 
     # ----- 出场规则（Schema §3.3.3）-----
@@ -147,6 +164,22 @@ class ErrorCode:
     INJECTION_FORBIDDEN = (
         "INJECTION_FORBIDDEN",
         "字段含危险字符串，疑似注入",
+    )
+
+    # ----- point-in-time 强制过滤（spec 011 P1-1）-----
+    # 所有 universe 类型强制 point-in-time 成分股过滤，失败即报错（不再降级）。
+    # 这三个码用于 BacktestError 的 message 前缀（runner._extract_error_code 解析）。
+    PIT_WATCHER_UNAVAILABLE = (
+        "PIT_WATCHER_UNAVAILABLE",
+        "watcher 未配置，point-in-time 成分股过滤无法执行",
+    )
+    PIT_CONSTITUENTS_EMPTY = (
+        "PIT_CONSTITUENTS_EMPTY",
+        "watcher 查询返回空成分股集合，point-in-time 过滤无法执行",
+    )
+    PIT_QUERY_FAILED = (
+        "PIT_QUERY_FAILED",
+        "watcher 查询成分股抛异常，point-in-time 过滤无法执行",
     )
 
     # ----- 算术运算符 -----

@@ -8,7 +8,6 @@
   "screen_config": {
     "universe": {
       "pool": "manual",
-      "point_in_time": null,
       "stocks": ["510300.SH"]
     }
   },

@@ -182,6 +182,15 @@ def run_backtest_engine(
     # 5. 构建 run_backtest kwargs
     kwargs = build_backtest_kwargs(bt_config)
 
+    # 5.1 轮动范式默认当日收盘成交（实盘调仓在尾盘抓收盘价）：
+    #     has_rebalance 且用户未显式配置 fill_policy 时，覆盖 akquant 默认的 next-open。
+    #     择时范式（signals）保持 akquant 默认行为，不注入。
+    has_rebalance = config.trading_config is not None and config.trading_config.rebalance is not None
+    if has_rebalance and not kwargs.get("fill_policy"):
+        kwargs["fill_policy"] = aq.make_fill_policy(
+            price_basis="close", temporal="same_cycle", bar_offset=0
+        )
+
     # 6. 推断 symbols
     symbols = list(data_map.keys())
     kwargs["symbols"] = symbols if len(symbols) > 1 else symbols[0]
@@ -206,7 +215,40 @@ def run_backtest_engine(
             benchmark_series = None
 
     # 9. 序列化
-    return serialize_result(result, benchmark_series=benchmark_series)
+    # spec 011 P2-5：透传 effective warmup 元信息（compiler 在策略类上挂的类属性）
+    effective_config = _build_effective_config(strategy_cls, bt_config)
+    return serialize_result(
+        result,
+        benchmark_series=benchmark_series,
+        effective_config=effective_config,
+    )
+
+
+def _build_effective_config(strategy_cls: Any, bt_config: BacktestConfigModel) -> dict:
+    """构造 ``effective_config``（spec 011 P2-5）。
+
+    从编译产物 ``strategy_cls`` 的类属性读 warmup 元信息：
+
+    - ``_akw_effective_warmup``：实际生效 warmup（用户值与自动推断值的较大者）；
+    - ``_akw_warmup_source``：``auto_inferred`` / ``user_override``；
+    - ``_akw_warmup_reason``：``max(user=<u>, auto_inferred=<a>)``。
+
+    缺失时（strategy_cls 无类属性，如绕过 compiler 的场景）降级为只回传用户配置值。
+    """
+    eff_warmup = getattr(strategy_cls, "_akw_effective_warmup", None)
+    warmup_source = getattr(strategy_cls, "_akw_warmup_source", None)
+    warmup_reason = getattr(strategy_cls, "_akw_warmup_reason", None)
+
+    out: dict[str, Any] = {}
+    if eff_warmup is not None:
+        out["warmup_period"] = int(eff_warmup)
+    elif bt_config.warmup_period is not None:
+        out["warmup_period"] = int(bt_config.warmup_period)
+    if warmup_source is not None:
+        out["warmup_source"] = warmup_source
+    if warmup_reason is not None:
+        out["warmup_reason"] = warmup_reason
+    return out
 
 
 # ============================================================

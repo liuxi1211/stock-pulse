@@ -14,12 +14,24 @@ Task 14.2 / AC-2 / AC-3）。
 测试不依赖 watcher HTTP：直接构造含 extra 字段的 kline_data dict。
 """
 import math
+from unittest.mock import MagicMock
 
 import pandas as pd
 import pytest
 
 from services.backtest.data_adapter import kline_to_extra_map
 from services.backtest.rebalance_engine import RebalanceEngine
+
+
+def _fake_watcher_all_eligible(symbols):
+    """构造一个 watcher_client mock，get_constituents_at 返回全部 symbols（均可交易）。
+
+    spec 011 P1-1 后所有 universe（含 manual）强制查 watcher，测试需注入 mock
+    以避免抛 PIT_WATCHER_UNAVAILABLE。
+    """
+    client = MagicMock()
+    client.get_constituents_at.return_value = set(symbols)
+    return client
 
 
 # ============================================================
@@ -227,6 +239,7 @@ def test_factor_weight_from_extra():
         kline_map=kline_map,
         trading_date=trade_date,
         extra_map=extra_map,
+        watcher_client=_fake_watcher_all_eligible(["A.SZ", "B.SZ", "C.SZ"]),
     )
 
     # 三只候选都应被打分（非空）
@@ -275,6 +288,7 @@ def test_factor_weight_from_extra_partial_missing():
         kline_map=kline_map,
         trading_date=trade_date,
         extra_map=extra_map,
+        watcher_client=_fake_watcher_all_eligible(["A.SZ", "B.SZ", "C.SZ"]),
     )
 
     # A/B 有 ROE_TTM；C 的 extra 为空（kline_to_extra_map 跳过无字段行）

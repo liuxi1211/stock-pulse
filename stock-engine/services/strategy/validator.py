@@ -20,6 +20,8 @@ Pydantic 模型在解析阶段完成；本层只做**业务规则**校验：
 """
 from typing import List, Optional
 
+import logging
+
 from services.strategy.errors import ErrorCode, StrategyValidationError
 from services.strategy import constants
 from services.strategy.models import (
@@ -35,6 +37,8 @@ from services.strategy.models import (
     PositionSizingModel,
     FactorModel,
 )
+
+logger = logging.getLogger(__name__)
 
 
 # position_sizing.method 需要 target 的方法集合（与 buy_all/close_position 区分）
@@ -105,6 +109,9 @@ class StrategyValidator:
 
         # 5. signals 范式下 screen_config 仅允许 universe+stocks，禁止 conditions/ranking/top_n/filters
         self._validate_signals_screen_fields(config, errors)
+
+        # 6. factor.method=single × rebalance.weight_mode=score 互斥（spec 011 P0-2）
+        self._validate_factor_score_compatibility(config, errors)
 
         return errors
 
@@ -204,6 +211,55 @@ class StrategyValidator:
                         message=msg,
                     )
                 )
+
+        # (8) rebalance.trigger 校验 + day_of_period 兼容映射（spec 011 P2-1）
+        self._validate_rebalance_trigger(tc, errors)
+
+    # ========================================================
+    # §7.1 调仓触发（spec 011 P2-1）
+    # ========================================================
+    def _validate_rebalance_trigger(
+        self, tc: TradingConfigModel, errors: List[StrategyValidationError]
+    ) -> None:
+        """rebalance.trigger 联动校验 + day_of_period 兼容映射。
+
+        - ``trigger`` 非 first/last/None（Pydantic Literal 已拦截，但此处兜底防御）
+          → ``INVALID_REBALANCE_TRIGGER``；
+        - ``frequency=daily`` 时 trigger 可忽略（不报错）；
+        - 检测到 ``day_of_period`` 在场而 ``trigger`` 为 None 时，
+          打 deprecation warning（实际映射由 compiler 完成）。
+
+        .. note::
+            ``trigger`` 默认值为 ``None``（不是 first），因此可以通过
+            ``rb.trigger is None`` 准确判断"用户未显式指定 trigger"。
+            真实 trigger 由 ``compiler._resolve_rebalance_trigger`` 在编译期
+            做最终解析（day_of_period 映射 + 缺省规约为 first）。
+        """
+        rb = tc.rebalance
+        if rb is None:
+            return
+
+        # trigger 合法性兜底（Literal 已拦截，防御双保险）
+        if rb.trigger is not None and rb.trigger not in ("first", "last"):
+            code, msg = ErrorCode.INVALID_REBALANCE_TRIGGER
+            errors.append(
+                StrategyValidationError(
+                    path="trading_config.rebalance.trigger",
+                    code=code,
+                    message=msg,
+                )
+            )
+            return
+
+        # day_of_period 兼容：检测到旧字段且 trigger 缺失/默认时打 warning
+        if rb.day_of_period is not None:
+            mapped = "first" if (rb.day_of_period or 0) <= 1 else "last"
+            logger.warning(
+                "rebalance.day_of_period=%s 已废弃（spec 011 P2-1），"
+                "自动映射为 trigger=%r；建议改用 rebalance.trigger(first/last)。",
+                rb.day_of_period,
+                mapped,
+            )
 
     # ========================================================
     # §7.1 结构约束：screen_config
@@ -324,6 +380,45 @@ class StrategyValidator:
                 errors.append(
                     StrategyValidationError(path=path, code=code, message=msg)
                 )
+
+    # ========================================================
+    # spec 011 P0-2：factor.method=single × rebalance.weight_mode=score 互斥
+    # ========================================================
+    def _validate_factor_score_compatibility(
+        self, config: StrategyConfigModel, errors: List[StrategyValidationError]
+    ) -> None:
+        """factor.method=single 与 rebalance.weight_mode=score 不兼容（spec 011 P0-2）。
+
+        - 仅当 rebalance 在场（轮动范式）时触发；
+        - ``rebalance.weight_mode == "score"`` 且 ``screen_config.factor.method == "single"``
+          → 报 ``FACTOR_SCORE_INCOMPATIBLE``。
+
+        设计依据：``factor.method=single`` 时 score 是因子原始值（量纲不一，如 PE=15、
+        换手率=0.03），与 ``weight_mode=score`` 的归一化加权语义不兼容——直接按原始值
+        归一化会导致量纲大的因子独占资金。``composite`` 多因子打分已做量纲统一，
+        或改用 ``weight_mode=equal`` 等权规避。
+        """
+        tc = config.trading_config
+        if tc is None or tc.rebalance is None:
+            return
+
+        weight_mode = tc.rebalance.weight_mode
+        if weight_mode != "score":
+            return
+
+        sc = config.screen_config
+        if sc is None or sc.factor is None:
+            return
+
+        if sc.factor.method == "single":
+            code, msg = ErrorCode.FACTOR_SCORE_INCOMPATIBLE
+            errors.append(
+                StrategyValidationError(
+                    path="trading_config.rebalance.weight_mode",
+                    code=code,
+                    message=msg,
+                )
+            )
 
     # ========================================================
     # §7.2 条件树遍历：trading_config 入口

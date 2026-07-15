@@ -71,6 +71,12 @@ CREATE TABLE IF NOT EXISTS trade_cal (
     cal_date        TEXT    NOT NULL,
     is_open         TEXT,
     pretrade_date   TEXT,
+    is_first_of_week     TEXT DEFAULT '0',
+    is_last_of_week      TEXT DEFAULT '0',
+    is_first_of_month    TEXT DEFAULT '0',
+    is_last_of_month     TEXT DEFAULT '0',
+    is_first_of_quarter  TEXT DEFAULT '0',
+    is_last_of_quarter   TEXT DEFAULT '0',
     UNIQUE(exchange, cal_date)
 );
 
@@ -272,6 +278,31 @@ CREATE TABLE IF NOT EXISTS index_weight (
     PRIMARY KEY (ts_code, trade_date, con_code)
 );
 CREATE INDEX IF NOT EXISTS idx_index_weight_date ON index_weight (ts_code, trade_date);
+
+-- 19. 申万行业分类表（tushare index_classify，SWS2021 版本）
+CREATE TABLE IF NOT EXISTS sw_industry (
+    index_code  TEXT NOT NULL,
+    index_name  TEXT,
+    level       INTEGER,
+    parent_code TEXT,
+    src         TEXT NOT NULL DEFAULT 'SWS2021',
+    PRIMARY KEY (index_code, src)
+);
+
+-- 20. 申万行业成分股表（tushare index_member_all）
+CREATE TABLE IF NOT EXISTS sw_industry_member (
+    ts_code     TEXT NOT NULL,
+    index_code  TEXT NOT NULL,
+    index_name  TEXT,
+    in_date     TEXT,
+    out_date    TEXT,
+    is_new      TEXT,
+    src         TEXT NOT NULL DEFAULT 'SWS2021',
+    update_date TEXT NOT NULL,
+    PRIMARY KEY (ts_code, index_code, update_date)
+);
+CREATE INDEX IF NOT EXISTS idx_sw_member_tscode ON sw_industry_member (ts_code);
+CREATE INDEX IF NOT EXISTS idx_sw_member_index ON sw_industry_member (index_code, is_new);
 
 -- 初始管理员账号（仅当表为空时插入，默认密码: admin123）
 INSERT INTO sys_user (username, password, enabled, role)

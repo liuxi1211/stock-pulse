@@ -15,6 +15,8 @@
 - 数据单源性（强）：engine 永不直接读写业务数据库（SQLite/MySQL）；源码不含任何数据库驱动 import / 连接 / 路径字面量。
 - 行情/基本面（强）：行情与基本面数据由 watcher 预传，engine 不反向拉取。
 - 参考数据（弱，例外）：成分股身份等「参考数据」允许 engine 在回测期间按需查询 watcher 的只读内部接口（/api/internal/*，幂等无副作用）。
+  **spec 011 P1-1**：point-in-time 成分股过滤已从「可选+降级」收紧为「强制+失败即报错」，
+  所有 universe 类型在每个调仓日必须成功查到成分股快照（watcher_client=None / 空集 / 异常均抛 BacktestError）。
 - 禁用动态代码解释 / 编译执行 / 动态模块装载（强，无例外）。
 """
 import math
@@ -74,9 +76,9 @@ class RebalanceEngine:
             每个标的的 K 线历史（由 watcher 经 HTTP 传入回测区间全量数据）。
         :param trading_date: 调仓日（``pd.Timestamp`` 或可识别的日期字符串）。
         :param history_window: 每个 symbol 截至调仓日保留的最近 K 线根数（因子计算窗口）。
-        :param watcher_client: 可选的 watcher 只读客户端。当 universe 为 csi300/csi500
-            时，按 trading_date 查询 point-in-time 成分股快照过滤候选池（spec 010 §5.1.3 缺陷 A 修复）。
-            None 时降级为全量候选（保留旧行为，但有 lookahead bias 风险，会打 warning）。
+        :param watcher_client: watcher 只读客户端（**必填**，spec 011 P1-1）。
+            所有 universe 类型在每个调仓日强制查询 point-in-time 成分股快照过滤候选池，
+            消除 lookahead bias。None 时抛 ``BacktestError("PIT_WATCHER_UNAVAILABLE")``。
         :param extra_map: 可选的 ``{symbol: {trade_date_str: {pe_ttm, pb, ...}}}``，
             由 ``kline_to_extra_map`` 从 watcher K 线提取。用于 TUSHARE 基本面因子补算
             （spec 010 缺陷 B 修复）。None 时基本面因子回退为 NaN（保留旧行为）。
@@ -89,7 +91,7 @@ class RebalanceEngine:
         # 2) 归一化 trading_date
         ts = self._normalize_date(trading_date)
 
-        # 2.5) point-in-time 成分股过滤（缺陷 A 修复，spec 010 §5.1.3）
+        # 2.5) point-in-time 成分股过滤（spec 011 P1-1：强制开启，失败即报错）
         kline_map = self._apply_universe_filter(cfg, kline_map, ts, watcher_client)
 
         # 3) 构建 candidates：截至 trading_date 的历史窗口（注入 extra）
@@ -106,6 +108,14 @@ class RebalanceEngine:
 
         # 6) NaN 安全：剔除因子计算失败（全 NaN）的 symbol
         factor_values_by_symbol = self._filter_valid_symbols(factor_values_by_symbol)
+
+        if not factor_values_by_symbol:
+            return {}
+
+        # 6.5) 静态过滤（spec 011 P0-1）：ST/停牌/涨跌停/行业/上市天数
+        factor_values_by_symbol = self._filter_by_static_rules(
+            cfg, factor_values_by_symbol, candidates, ts
+        )
 
         if not factor_values_by_symbol:
             return {}
@@ -179,13 +189,18 @@ class RebalanceEngine:
         return ts.normalize()  # 截断到 00:00:00，只保留日期
 
     # ============================================================
-    # point-in-time 成分股过滤（缺陷 A 修复，spec 010 §5.1.3）
+    # point-in-time 成分股过滤（spec 011 P1-1：强制开启，失败即报错）
     # ============================================================
 
-    # universe pool 字符串 → watcher 指数代码
+    # universe pool 字符串 → watcher 查询用的指数代码。
+    # - csi300 / csi500：直接用对应宽基指数成分股
+    # - all_a_shares / manual / 自定义池：watcher 无「全 A 可交易标的」专用接口，
+    #   用中证全 A（000985.SH）作为可交易性 proxy，剔除当日停牌/退市（spec 011 P1-1）
     _INDEX_CODE_MAP: dict[str, str] = {
         "csi300": "000300.SH",
         "csi500": "000905.SH",
+        "all_a_shares": "000985.SH",
+        "manual": "000985.SH",
     }
 
     @staticmethod
@@ -213,43 +228,68 @@ class RebalanceEngine:
         trading_date: pd.Timestamp,
         watcher_client: Optional["WatcherClient"],
     ) -> dict[str, list[dict]]:
-        """point-in-time 成分股过滤：仅对 csi300/csi500 universe 生效。
+        """point-in-time 成分股过滤（spec 011 P1-1：**强制开启**，失败即报错）。
 
-        - universe=csi300/csi500 且 watcher_client 在场：查询 ≤ trading_date 的成分股快照，
-          保留交集，剔除「调入日前 / 调出后」的标的（消除 lookahead bias）；
-        - watcher_client 查询返回空：不强制过滤（降级为全量候选，打 warning）；
-        - watcher_client=None 但 universe 是指数池：打 warning 提示 lookahead bias 风险，
-          返回原 kline_map（向后兼容）；
-        - universe=manual/''/其它：不过滤。
+        所有 universe 类型无条件执行成分股过滤（不再判断 ``point_in_time`` 字段，
+        该字段已 deprecated）：
+
+        - **csi300** → 查 ``000300.SH`` 成分股，按交集过滤候选池；
+        - **csi500** → 查 ``000905.SH`` 成分股，按交集过滤候选池；
+        - **all_a_shares / manual / 自定义池** → watcher 无「全 A 可交易标的」专用接口，
+          用中证全 A（``000985.SH``）作为可交易性 proxy，剔除当日停牌/退市的标的。
+
+        失败处理（**不再降级**，spec 011 P1-1）：
+
+        - ``watcher_client=None`` → 抛 ``BacktestError("PIT_WATCHER_UNAVAILABLE: ...")``；
+        - 查询返回空集 → 抛 ``BacktestError("PIT_CONSTITUENTS_EMPTY: ...")``；
+        - 查询抛异常 → 抛 ``BacktestError("PIT_QUERY_FAILED: ...")``。
+
+        每个调仓日成功过滤后打 INFO 日志。
+
+        :raises BacktestError: 任一失败场景（错误码见上）。
         """
-        pool = RebalanceEngine._get_universe_pool(cfg)
-        if pool not in RebalanceEngine._INDEX_CODE_MAP:
-            return kline_map
+        # 延迟导入避免循环依赖
+        from services.backtest.runner import BacktestError
 
-        index_code = RebalanceEngine._INDEX_CODE_MAP[pool]
+        pool = RebalanceEngine._get_universe_pool(cfg)
         trade_date_str = trading_date.strftime("%Y-%m-%d")
 
-        if watcher_client is None:
-            logger.warning(
-                "universe=%s 但 watcher_client 未配置，跳过 point-in-time 过滤"
-                "（可能引入 lookahead bias）date=%s",
-                pool, trade_date_str,
-            )
-            return kline_map
+        # universe 类型 → watcher 查询用的指数代码；未知 pool 视为自定义池，用全 A proxy
+        index_code = RebalanceEngine._INDEX_CODE_MAP.get(pool, "000985.SH")
 
-        eligible = watcher_client.get_constituents_at(index_code, trade_date_str)
-        if not eligible:
-            logger.warning(
-                "point-in-time 过滤未生效（查询返回空）: universe=%s date=%s，使用全量候选",
-                pool, trade_date_str,
+        if watcher_client is None:
+            raise BacktestError(
+                f"PIT_WATCHER_UNAVAILABLE: point-in-time 成分股过滤无法执行"
+                f"（universe={pool}, date={trade_date_str}）。"
+                f"请确认 stock-watcher 服务已启动，并通过 HTTP header X-Watcher-Base-Url "
+                f"或环境变量 WATCHER_BASE_URL 配置服务地址。",
+                error_code="PIT_WATCHER_UNAVAILABLE",
             )
-            return kline_map
+
+        try:
+            eligible = watcher_client.get_constituents_at(index_code, trade_date_str)
+        except Exception as exc:  # noqa: BLE001 - 查询异常即报错（不再降级）
+            raise BacktestError(
+                f"PIT_QUERY_FAILED: point-in-time 成分股查询失败"
+                f"（universe={pool}, date={trade_date_str}, index={index_code}）：{exc}。"
+                f"请检查 stock-watcher 服务状态、成分股数据是否已同步。",
+                error_code="PIT_QUERY_FAILED",
+            ) from exc
+
+        if not eligible:
+            raise BacktestError(
+                f"PIT_CONSTITUENTS_EMPTY: point-in-time 成分股查询返回空集"
+                f"（universe={pool}, date={trade_date_str}, index={index_code}）。"
+                f"请确认该日期对应的指数成分股数据已同步到 stock-watcher。",
+                error_code="PIT_CONSTITUENTS_EMPTY",
+            )
 
         orig_count = len(kline_map)
         filtered = {sym: df for sym, df in kline_map.items() if sym in eligible}
+        excluded = orig_count - len(filtered)
         logger.info(
-            "point-in-time 过滤: universe=%s date=%s 候选 %d/%d",
-            pool, trade_date_str, len(filtered), orig_count,
+            "PIT 过滤: universe=%s date=%s 候选 %d/%d（剔除 %d 只）",
+            pool, trade_date_str, len(filtered), orig_count, excluded,
         )
         return filtered
 
@@ -550,6 +590,231 @@ class RebalanceEngine:
             if has_valid:
                 out[symbol] = values
         return out
+
+    # ============================================================
+    # 静态过滤（spec 011 P0-1：回测路径接通 7 项静态过滤）
+    # ============================================================
+
+    # FilterModel 的 7 个静态字段名（与 services.strategy.models.FilterModel 对齐）
+    _STATIC_FILTER_FIELDS: tuple[str, ...] = (
+        "exclude_st",
+        "exclude_suspended",
+        "exclude_limit_up",
+        "exclude_limit_down",
+        "industries",
+        "exclude_industries",
+        "min_list_days",
+    )
+
+    @staticmethod
+    def _filter_by_static_rules(
+        cfg: ScreenConfigModel,
+        factor_values_by_symbol: dict[str, dict[str, float]],
+        candidates: dict[str, dict[str, Any]],
+        trading_date: pd.Timestamp,
+    ) -> dict[str, dict[str, float]]:
+        """静态过滤：按 filter 层的 7 个静态字段剔除候选（spec 011 P0-1）。
+
+        与 ``services.screener.filters.apply_filters`` 判定逻辑等价，但在回测路径
+        独立实现（避免跨模块耦合）。元数据来源：``candidates[symbol]["extra"]`` 按
+        ``trading_date`` 取当日 meta（由 watcher 经 kline 下发，data_adapter
+        ``kline_to_extra_map`` 提取）。
+
+        判定规则（命中即剔除）：
+        - ``exclude_st=True`` 且 ``is_st`` 真（"1"/1/True）→ 剔除
+        - ``exclude_suspended=True`` 且 ``is_suspended`` 真 → 剔除
+        - ``exclude_limit_up=True`` 且 ``is_limit_up`` 真 → 剔除
+        - ``exclude_limit_down=True`` 且 ``is_limit_down`` 真 → 剔除
+        - ``industries`` 白名单非空且行业不在白名单 → 剔除
+        - ``exclude_industries`` 黑名单非空且行业在黑名单 → 剔除
+        - ``min_list_days`` 非空：上市天数 < min_list_days → 剔除
+
+        元数据缺失某字段：对应过滤项静默跳过（不报错不剔除）+ warning。
+        行业字段优先取 ``sw_industry_l1``，兜底取 ``industry``。
+
+        :return: 剔除后的 ``factor_values_by_symbol`` 子集（保留原 dict 引用）。
+        """
+        filter_layer = getattr(cfg, "filter", None)
+        if filter_layer is None:
+            return factor_values_by_symbol
+
+        exclude_st = bool(getattr(filter_layer, "exclude_st", False))
+        exclude_suspended = bool(getattr(filter_layer, "exclude_suspended", False))
+        exclude_limit_up = bool(getattr(filter_layer, "exclude_limit_up", False))
+        exclude_limit_down = bool(getattr(filter_layer, "exclude_limit_down", False))
+        industries_whitelist = RebalanceEngine._normalize_str_set(
+            getattr(filter_layer, "industries", None)
+        )
+        industries_blacklist = RebalanceEngine._normalize_str_set(
+            getattr(filter_layer, "exclude_industries", None)
+        )
+        min_list_days = RebalanceEngine._to_nonneg_int(
+            getattr(filter_layer, "min_list_days", None)
+        )
+
+        # 7 项全关闭 → 无需过滤
+        if not (
+            exclude_st
+            or exclude_suspended
+            or exclude_limit_up
+            or exclude_limit_down
+            or industries_whitelist
+            or industries_blacklist
+            or min_list_days > 0
+        ):
+            return factor_values_by_symbol
+
+        td_str = pd.Timestamp(trading_date).strftime("%Y-%m-%d")
+        td_normalized = pd.Timestamp(trading_date).normalize()
+
+        # 各剔除项计数（汇总日志用）
+        cnt_st = cnt_suspended = cnt_limit_up = cnt_limit_down = 0
+        cnt_industry = cnt_list_days = 0
+        warned_missing_meta = False
+
+        out: dict[str, dict[str, float]] = {}
+        for symbol, values in factor_values_by_symbol.items():
+            meta = RebalanceEngine._get_meta_for_day(
+                candidates.get(symbol, {}), td_str
+            )
+
+            # 任一布尔过滤项开启但 meta 缺失 → 跳过该项（不剔除）+ 首次 warning
+            if meta is None:
+                if not warned_missing_meta:
+                    logger.warning(
+                        "rebalance 静态过滤: symbol=%s date=%s 缺少 extra 元数据，"
+                        "跳过静态过滤项（不剔除）",
+                        symbol, td_str,
+                    )
+                    warned_missing_meta = True
+                out[symbol] = values
+                continue
+
+            # 1) ST
+            if exclude_st and RebalanceEngine._meta_bool(meta, "is_st"):
+                cnt_st += 1
+                continue
+            # 2) 停牌
+            if exclude_suspended and RebalanceEngine._meta_bool(meta, "is_suspended"):
+                cnt_suspended += 1
+                continue
+            # 3) 涨停
+            if exclude_limit_up and RebalanceEngine._meta_bool(meta, "is_limit_up"):
+                cnt_limit_up += 1
+                continue
+            # 4) 跌停
+            if exclude_limit_down and RebalanceEngine._meta_bool(meta, "is_limit_down"):
+                cnt_limit_down += 1
+                continue
+            # 5) 行业白/黑名单
+            industry = RebalanceEngine._get_industry(meta)
+            if industries_whitelist and industry not in industries_whitelist:
+                cnt_industry += 1
+                continue
+            if industries_blacklist and industry in industries_blacklist:
+                cnt_industry += 1
+                continue
+            # 6) 上市天数
+            if min_list_days > 0:
+                list_d = RebalanceEngine._parse_meta_date(meta.get("list_date"))
+                if list_d is None:
+                    # list_date 缺失：保守剔除（与 screener apply_filters 一致，次新股过滤场景）
+                    cnt_list_days += 1
+                    continue
+                list_days = (td_normalized - pd.Timestamp(list_d)).days
+                if list_days < min_list_days:
+                    cnt_list_days += 1
+                    continue
+
+            out[symbol] = values
+
+        # 汇总日志（任一有剔除才打 INFO）
+        total_excluded = (
+            cnt_st + cnt_suspended + cnt_limit_up + cnt_limit_down
+            + cnt_industry + cnt_list_days
+        )
+        if total_excluded > 0:
+            logger.info(
+                "rebalance 静态过滤 date=%s: 剔除 ST=%d 停牌=%d 涨停=%d 跌停=%d "
+                "行业=%d 上市天数=%d（共 %d，剩余 %d）",
+                td_str, cnt_st, cnt_suspended, cnt_limit_up, cnt_limit_down,
+                cnt_industry, cnt_list_days, total_excluded, len(out),
+            )
+        return out
+
+    @staticmethod
+    def _get_meta_for_day(
+        candidate: dict[str, Any], td_str: str
+    ) -> Optional[dict[str, Any]]:
+        """从 candidate["extra"][td_str] 取当日 meta 字段。
+
+        ``_build_candidates`` 把 ``extra_map[symbol]``（``{trade_date_str: {field}}``）
+        整体注入 ``candidate["extra"]``。当日无记录返回 None。
+        """
+        extras = candidate.get("extra") if isinstance(candidate, dict) else None
+        if not isinstance(extras, dict) or not extras:
+            return None
+        day_meta = extras.get(td_str)
+        return day_meta if isinstance(day_meta, dict) else None
+
+    @staticmethod
+    def _meta_bool(meta: dict[str, Any], key: str) -> bool:
+        """meta 布尔字段真值判定（兼容 "1"/1/True/"true"）。"""
+        v = meta.get(key)
+        if isinstance(v, bool):
+            return v
+        if isinstance(v, (int, float)):
+            return v != 0
+        if isinstance(v, str):
+            return v.strip().lower() in ("1", "true", "yes", "y", "t")
+        return False
+
+    @staticmethod
+    def _get_industry(meta: dict[str, Any]) -> str:
+        """行业字段：优先 sw_industry_l1，兜底 industry；归一为非空 str。"""
+        for key in ("sw_industry_l1", "industry"):
+            v = meta.get(key)
+            if v is not None:
+                s = str(v).strip()
+                if s:
+                    return s
+        return ""
+
+    @staticmethod
+    def _normalize_str_set(raw: Any) -> set[str]:
+        """行业列表归一为非空 str 集合（None/非可迭代/全空 → 空集合）。"""
+        if raw is None:
+            return set()
+        if isinstance(raw, (str, bytes)):
+            raw = [raw]
+        try:
+            return {str(x).strip() for x in raw if str(x).strip()}
+        except TypeError:
+            return set()
+
+    @staticmethod
+    def _to_nonneg_int(value: Any) -> int:
+        """转非负整数；失败/None/负数 → 0。"""
+        if value is None:
+            return 0
+        try:
+            n = int(value)
+        except (TypeError, ValueError):
+            return 0
+        return n if n > 0 else 0
+
+    @staticmethod
+    def _parse_meta_date(value: Any) -> Optional[pd.Timestamp]:
+        """解析 meta 日期字段（list_date 等）；失败 → None。"""
+        if value is None:
+            return None
+        try:
+            ts = pd.Timestamp(value)
+            if pd.isna(ts):
+                return None
+            return ts.normalize()
+        except (ValueError, TypeError):
+            return None
 
     @staticmethod
     def _filter_by_conditions(

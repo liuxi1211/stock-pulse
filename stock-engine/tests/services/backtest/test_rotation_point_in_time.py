@@ -1,13 +1,14 @@
-"""轮动范式 point-in-time 成分股过滤单元测试（spec 010-rotation-data-governance
-Task 14.1 / AC-1 / AC-5 / AC-9）。
+"""轮动范式 point-in-time 成分股过滤单元测试（spec 011 P1-1）。
 
-覆盖 ``RebalanceEngine._apply_universe_filter``（缺陷 A 修复）：
+覆盖 ``RebalanceEngine._apply_universe_filter``（**强制开启**，失败即报错）：
 
 - AC-1：universe=csi300/csi500 时，按调仓日 point-in-time 成分股快照过滤候选池，
   剔除「调入日前 / 调出后」的标的（消除 lookahead bias）。
-- AC-5：watcher_client=None + 指数 universe 时降级（不过滤、打 warning、不报错）。
-- AC-9：universe=manual 时不调用 WatcherClient。
-- watcher 查询返回空集时保留全量候选并打 warning。
+- PIT 强制：watcher_client=None → 抛 ``BacktestError("PIT_WATCHER_UNAVAILABLE")``。
+- PIT 强制：查询返回空集 → 抛 ``BacktestError("PIT_CONSTITUENTS_EMPTY")``。
+- PIT 强制：查询抛异常 → 抛 ``BacktestError("PIT_QUERY_FAILED")``。
+- 所有 universe 类型（含 manual / all_a_shares）均查 watcher（用 000985.SH 作全 A proxy）。
+- 每个调仓日成功过滤后打 INFO 日志。
 
 测试不依赖真实 watcher HTTP：用 ``FakeWatcherClient`` 实现
 ``get_constituents_at`` 方法，或用 ``unittest.mock`` 拦截调用。
@@ -19,6 +20,7 @@ import pandas as pd
 import pytest
 
 from services.backtest.rebalance_engine import RebalanceEngine
+from services.backtest.runner import BacktestError
 from services.strategy.models import ScreenConfigModel
 
 
@@ -27,7 +29,11 @@ from services.strategy.models import ScreenConfigModel
 # ============================================================
 
 def _screen_config(pool: str, point_in_time: Optional[bool] = None) -> ScreenConfigModel:
-    """构造 4 层 screen_config（universe 层）。"""
+    """构造 4 层 screen_config（universe 层）。
+
+    point_in_time 参数保留仅为兼容旧调用方；spec 011 P1-1 后该字段已 deprecated，
+    传入非 None 会触发 deprecation warning（测试不关心）。
+    """
     return ScreenConfigModel.model_validate({
         "universe": {"pool": pool, "point_in_time": point_in_time, "stocks": None}
     })
@@ -46,29 +52,30 @@ def _kline_map(symbols: list[str]) -> dict[str, list[dict]]:
 class FakeWatcherClient:
     """模拟 WatcherClient，记录调用并返回预设成分股集合。
 
-    ``return_value`` 为 None 时模拟「未配置」（不应被调用方使用）；
-    ``empty=True`` 时返回空集（模拟查询无快照）。
+    ``empty=True`` 时返回空集；``raise_exc`` 非 None 时抛指定异常。
     """
 
     def __init__(self, constituents: Optional[set[str]] = None,
-                 empty: bool = False):
+                 empty: bool = False, raise_exc: Optional[Exception] = None):
         self._constituents = set() if empty else (constituents or set())
+        self._raise_exc = raise_exc
         self.calls: list[tuple[str, str]] = []
 
     def get_constituents_at(self, index_code: str, trade_date: str) -> set[str]:
         self.calls.append((index_code, trade_date))
+        if self._raise_exc is not None:
+            raise self._raise_exc
         return set(self._constituents)
 
 
 # ============================================================
-# AC-1：csi300 point-in-time 过滤
+# AC-1：csi300 / csi500 point-in-time 过滤
 # ============================================================
 
 def test_csi300_point_in_time_filter():
     """AC-1：universe=csi300 时，不在成分股集合的 symbol 被过滤掉。"""
-    cfg = _screen_config("csi300", point_in_time=True)
+    cfg = _screen_config("csi300")
     kline_map = _kline_map(["000001.SZ", "600000.SH", "600519.SH"])
-    # 仅 000001.SZ / 600000.SH 在 2022-06-15 的 csi300 成分股中
     eligible = {"000001.SZ", "600000.SH"}
     client = FakeWatcherClient(constituents=eligible)
 
@@ -78,13 +85,12 @@ def test_csi300_point_in_time_filter():
 
     assert set(filtered.keys()) == eligible
     assert "600519.SH" not in filtered
-    # 调用参数：csi300 → 000300.SH
     assert client.calls == [("000300.SH", "2022-06-15")]
 
 
 def test_csi500_point_in_time_filter():
     """AC-1：universe=csi500 时按 000905.SH 查询并过滤。"""
-    cfg = _screen_config("csi500", point_in_time=True)
+    cfg = _screen_config("csi500")
     kline_map = _kline_map(["000001.SZ", "002001.SZ", "600519.SH"])
     eligible = {"002001.SZ", "600519.SH"}
     client = FakeWatcherClient(constituents=eligible)
@@ -99,79 +105,104 @@ def test_csi500_point_in_time_filter():
 
 
 # ============================================================
-# AC-9：manual universe 不查接口
+# spec 011 P1-1：所有 universe 类型强制查 watcher
 # ============================================================
 
-def test_manual_universe_no_filter():
-    """AC-9：universe=manual 时不调用 WatcherClient，候选池原样返回。"""
+def test_manual_universe_queries_watcher():
+    """spec 011 P1-1：universe=manual 也强制查 watcher（用 000985.SH 全 A proxy）。
+
+    manual 池的候选 = universe.stocks ∩ watcher 当日可交易标的。
+    """
     cfg = _screen_config("manual")
     kline_map = _kline_map(["000001.SZ", "600000.SH"])
-    client = FakeWatcherClient(constituents={"000001.SZ"})  # 即便有数据也不该被用
+    # watcher 全 A proxy 返回这两只均可交易
+    client = FakeWatcherClient(constituents={"000001.SZ", "600000.SH"})
 
     filtered = RebalanceEngine._apply_universe_filter(
         cfg, kline_map, pd.Timestamp("2022-06-15"), client
     )
 
     assert set(filtered.keys()) == {"000001.SZ", "600000.SH"}
-    assert client.calls == []  # 未被调用
+    # manual → 000985.SH（中证全 A proxy）
+    assert client.calls == [("000985.SH", "2022-06-15")]
 
 
-def test_all_a_shares_universe_no_filter():
-    """universe=all_a_shares（非指数池）也不触发 point-in-time 过滤。"""
+def test_all_a_shares_universe_queries_watcher():
+    """spec 011 P1-1：universe=all_a_shares 也强制查 watcher（000985.SH proxy）。"""
     cfg = _screen_config("all_a_shares")
     kline_map = _kline_map(["000001.SZ", "600000.SH"])
+    client = FakeWatcherClient(constituents={"000001.SZ", "600000.SH"})
+
+    filtered = RebalanceEngine._apply_universe_filter(
+        cfg, kline_map, pd.Timestamp("2022-06-15"), client
+    )
+
+    assert set(filtered.keys()) == {"000001.SZ", "600000.SH"}
+    assert client.calls == [("000985.SH", "2022-06-15")]
+
+
+def test_custom_pool_universe_uses_all_a_proxy():
+    """spec 011 P1-1：未知 pool（自定义池 ID）用 000985.SH 兜底 proxy。"""
+    cfg = _screen_config("my_custom_pool_42")
+    kline_map = _kline_map(["000001.SZ"])
     client = FakeWatcherClient(constituents={"000001.SZ"})
 
     filtered = RebalanceEngine._apply_universe_filter(
         cfg, kline_map, pd.Timestamp("2022-06-15"), client
     )
 
-    assert set(filtered.keys()) == {"000001.SZ", "600000.SH"}
-    assert client.calls == []
+    assert set(filtered.keys()) == {"000001.SZ"}
+    assert client.calls == [("000985.SH", "2022-06-15")]
 
 
 # ============================================================
-# AC-5：watcher_client=None 降级
+# spec 011 P1-1：失败即报错（不再降级）
 # ============================================================
 
-def test_watcher_client_none_degrade():
-    """AC-5：watcher_client=None + universe=csi300 时跳过过滤、不报错（降级）。
-
-    返回原 kline_map（向后兼容），仅依赖日志 warning 提示 lookahead bias 风险。
-    """
-    cfg = _screen_config("csi300", point_in_time=True)
+def test_watcher_client_none_raises():
+    """spec 011 P1-1：watcher_client=None 抛 PIT_WATCHER_UNAVAILABLE（不再降级）。"""
+    cfg = _screen_config("csi300")
     kline_map = _kline_map(["000001.SZ", "600000.SH", "600519.SH"])
 
-    # watcher_client=None 不应抛异常
-    filtered = RebalanceEngine._apply_universe_filter(
-        cfg, kline_map, pd.Timestamp("2022-06-15"), None
-    )
+    with pytest.raises(BacktestError) as exc_info:
+        RebalanceEngine._apply_universe_filter(
+            cfg, kline_map, pd.Timestamp("2022-06-15"), None
+        )
 
-    # 降级：全量候选保留
-    assert set(filtered.keys()) == {"000001.SZ", "600000.SH", "600519.SH"}
+    assert "PIT_WATCHER_UNAVAILABLE" in str(exc_info.value)
+    assert exc_info.value.error_code == "PIT_WATCHER_UNAVAILABLE"
 
 
-# ============================================================
-# watcher 查询返回空集：保留全量候选
-# ============================================================
-
-def test_watcher_client_query_returns_empty():
-    """watcher_client.get_constituents_at 返回空集时保留全量候选（降级）。
-
-    场景：查询日早于 index_weight 表最早快照，或 watcher 暂无该指数数据。
-    不强制过滤（否则会清空候选池导致回测静默不调仓），打 warning。
-    """
-    cfg = _screen_config("csi300", point_in_time=True)
+def test_watcher_client_query_returns_empty_raises():
+    """spec 011 P1-1：查询返回空集抛 PIT_CONSTITUENTS_EMPTY（不再降级保留全量）。"""
+    cfg = _screen_config("csi300")
     kline_map = _kline_map(["000001.SZ", "600000.SH", "600519.SH"])
     client = FakeWatcherClient(empty=True)
 
-    filtered = RebalanceEngine._apply_universe_filter(
-        cfg, kline_map, pd.Timestamp("2010-01-04"), client
-    )
+    with pytest.raises(BacktestError) as exc_info:
+        RebalanceEngine._apply_universe_filter(
+            cfg, kline_map, pd.Timestamp("2010-01-04"), client
+        )
 
-    # 空集 → 不过滤，保留全量
-    assert set(filtered.keys()) == {"000001.SZ", "600000.SH", "600519.SH"}
+    assert "PIT_CONSTITUENTS_EMPTY" in str(exc_info.value)
+    assert exc_info.value.error_code == "PIT_CONSTITUENTS_EMPTY"
     assert len(client.calls) == 1  # 确实发起了查询
+
+
+def test_watcher_client_query_raises_propagates():
+    """spec 011 P1-1：查询抛异常时包装为 PIT_QUERY_FAILED（不再降级）。"""
+    cfg = _screen_config("csi300")
+    kline_map = _kline_map(["000001.SZ"])
+    client = FakeWatcherClient(raise_exc=ConnectionError("watcher 连接超时"))
+
+    with pytest.raises(BacktestError) as exc_info:
+        RebalanceEngine._apply_universe_filter(
+            cfg, kline_map, pd.Timestamp("2022-06-15"), client
+        )
+
+    assert "PIT_QUERY_FAILED" in str(exc_info.value)
+    assert exc_info.value.error_code == "PIT_QUERY_FAILED"
+    assert "watcher 连接超时" in str(exc_info.value)
 
 
 # ============================================================
@@ -185,7 +216,7 @@ def test_select_at_rebalance_date_invokes_watcher_for_csi300():
     （index_code=000300.SH, trade_date=调仓日）。
     """
     cfg = ScreenConfigModel.model_validate({
-        "universe": {"pool": "csi300", "point_in_time": True, "stocks": None},
+        "universe": {"pool": "csi300", "stocks": None},
         "portfolio": {"top_n": 5},
     })
     kline_map = _kline_map(["000001.SZ", "600000.SH"])
@@ -202,13 +233,14 @@ def test_select_at_rebalance_date_invokes_watcher_for_csi300():
     client.get_constituents_at.assert_called_once_with("000300.SH", "2022-06-15")
 
 
-def test_select_at_rebalance_date_skips_watcher_for_manual():
-    """集成验证：select_at_rebalance_date 对 manual universe 不调 watcher_client。"""
+def test_select_at_rebalance_date_invokes_watcher_for_manual():
+    """集成验证：spec 011 P1-1 后 manual universe 也调 watcher（000985.SH proxy）。"""
     cfg = ScreenConfigModel.model_validate({
         "universe": {"pool": "manual", "stocks": ["000001.SZ"]},
     })
     kline_map = _kline_map(["000001.SZ"])
     client = MagicMock()
+    client.get_constituents_at.return_value = {"000001.SZ"}
 
     RebalanceEngine().select_at_rebalance_date(
         screen_config=cfg,
@@ -217,4 +249,4 @@ def test_select_at_rebalance_date_skips_watcher_for_manual():
         watcher_client=client,
     )
 
-    client.get_constituents_at.assert_not_called()
+    client.get_constituents_at.assert_called_once_with("000985.SH", "2022-06-15")

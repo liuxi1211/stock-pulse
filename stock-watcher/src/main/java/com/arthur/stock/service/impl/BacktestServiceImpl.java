@@ -7,6 +7,7 @@ import com.arthur.stock.client.BacktestClient;
 import com.arthur.stock.constant.BacktestErrorCodes;
 import com.arthur.stock.constant.BacktestModeEnum;
 import com.arthur.stock.constant.BacktestStatusEnum;
+import com.arthur.stock.constant.ExchangeEnum;
 import com.arthur.stock.constant.StrategySchemaConstants;
 import com.arthur.stock.constant.StrategyStatusEnum;
 import com.arthur.stock.dto.PageResult;
@@ -27,8 +28,11 @@ import com.arthur.stock.model.QuantBacktestDO;
 import com.arthur.stock.model.QuantBacktestReportDO;
 import com.arthur.stock.model.QuantStrategyDO;
 import com.arthur.stock.model.QuantStrategyVersionDO;
+import com.arthur.stock.model.TradeCalDO;
 import com.arthur.stock.service.BacktestService;
 import com.arthur.stock.service.IndexWeightService;
+import com.arthur.stock.service.SwIndustryService;
+import com.arthur.stock.service.TradeCalService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import lombok.extern.slf4j.Slf4j;
@@ -97,6 +101,8 @@ public class BacktestServiceImpl implements BacktestService {
     private final BacktestClient backtestClient;
     private final Executor backtestExecutor;
     private final IndexWeightService indexWeightService;
+    private final SwIndustryService swIndustryService;
+    private final TradeCalService tradeCalService;
 
     public BacktestServiceImpl(QuantBacktestMapper backtestMapper,
                                QuantBacktestReportMapper reportMapper,
@@ -106,7 +112,9 @@ public class BacktestServiceImpl implements BacktestService {
                                DailyBasicMapper dailyBasicMapper,
                                BacktestClient backtestClient,
                                @Qualifier("backtestExecutor") Executor backtestExecutor,
-                               IndexWeightService indexWeightService) {
+                               IndexWeightService indexWeightService,
+                               SwIndustryService swIndustryService,
+                               TradeCalService tradeCalService) {
         this.backtestMapper = backtestMapper;
         this.reportMapper = reportMapper;
         this.strategyMapper = strategyMapper;
@@ -116,6 +124,8 @@ public class BacktestServiceImpl implements BacktestService {
         this.backtestClient = backtestClient;
         this.backtestExecutor = backtestExecutor;
         this.indexWeightService = indexWeightService;
+        this.swIndustryService = swIndustryService;
+        this.tradeCalService = tradeCalService;
     }
 
     // ==================== run ====================
@@ -556,6 +566,15 @@ public class BacktestServiceImpl implements BacktestService {
         String endDate = bt == null ? null : normalizeDate(bt.getString("end_date"));
 
         JSONObject kline = new JSONObject();
+        // 批量预查每只标的当前所属的申万一级行业（key=tsCode, value=index_code），避免逐 bar 查询；
+        // 未匹配到（如未同步申万数据）的 tsCode 不在 Map 中，对应 bar 不下发 sw_industry_l1。
+        Map<String, String> swL1Map = swIndustryService.getLatestL1Industries(symbols);
+        // 批量预查回测区间内的调仓标记（周/月/季 first/last），key=cal_date(yyyyMMdd)，
+        // 供 engine 调仓日判定（spec 011 P2-1：从自然日 day_of_period 改为 trade_cal 预计算标记）。
+        // 仅交易日有记录；非交易日（或区间外）的 bar 不下发标记字段，engine 侧按缺省处理。
+        // 用 SSE 标准交易日历（A 股两交易所交易日基本一致）。
+        Map<String, TradeCalDO> rebalanceFlags = tradeCalService.queryFlagsByRange(
+                ExchangeEnum.SSE.getCode(), startDate, endDate);
         for (String code : symbols) {
             List<DailyQuoteDO> quotes = dailyQuoteMapper.selectList(
                     new LambdaQueryWrapper<DailyQuoteDO>()
@@ -571,6 +590,9 @@ public class BacktestServiceImpl implements BacktestService {
                     .stream()
                     .collect(Collectors.toMap(DailyBasicDO::getTradeDate, b -> b, (a, b) -> a));
 
+            // 该标的的申万一级行业归属（静态元数据，全区间每个 bar 相同；回测内不随时间变）。
+            String swL1 = swL1Map.get(code);
+
             JSONArray arr = new JSONArray(quotes.size());
             for (DailyQuoteDO q : quotes) {
                 JSONObject bar = new JSONObject();
@@ -580,6 +602,27 @@ public class BacktestServiceImpl implements BacktestService {
                 bar.put("low", toDouble(q.getLow()));
                 bar.put("close", toDouble(q.getClose()));
                 bar.put("volume", toDouble(q.getVol()));
+                // 申万一级行业归属（元数据下发，供 engine 行业暴露/静态过滤/行业轮动使用）。
+                // 注：当前下发的是「最新」归属，未做 point-in-time；历史归属切换需后续按 bar 日期
+                // 查 sw_industry_member 的 in_date/out_date 区间（依赖 engine data_adapter 处理）。
+                if (swL1 != null) {
+                    bar.put("sw_industry_l1", swL1);
+                }
+                // 调仓标记（spec 011 P2-1）：按 bar 的 trade_date 从预查的 trade_cal 标记注入。
+                // 仅在命中交易日记录时下发；engine 侧据 is_first_of_week/..._month/..._quarter
+                // 结合 trigger(first/last) 判定调仓日，取代自然日 day_of_period。
+                TradeCalDO calFlags = rebalanceFlags.get(q.getTradeDate());
+                if (calFlags != null) {
+                    bar.put("is_first_of_week", calFlags.getIsFirstOfWeek());
+                    bar.put("is_last_of_week", calFlags.getIsLastOfWeek());
+                    bar.put("is_first_of_month", calFlags.getIsFirstOfMonth());
+                    bar.put("is_last_of_month", calFlags.getIsLastOfMonth());
+                    bar.put("is_first_of_quarter", calFlags.getIsFirstOfQuarter());
+                    bar.put("is_last_of_quarter", calFlags.getIsLastOfQuarter());
+                }
+                // TODO: is_st / is_suspended / is_limit_up / is_limit_down / list_date 等元数据字段
+                //  当前数据源（DailyQuoteDO/DailyBasicDO）暂无对应列，待后续数据源扩展后在此一并下发。
+                //  list_date 可在 stock_basic 表中获取（StockBasicDO.listDate），后续按需联查补充。
                 // 追加基本面字段（字段名与 daily_basic 表下划线列名对齐，便于 engine 侧统一口径）
                 DailyBasicDO basic = basicMap.get(q.getTradeDate());
                 if (basic != null) {

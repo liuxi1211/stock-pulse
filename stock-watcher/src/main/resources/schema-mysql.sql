@@ -71,6 +71,12 @@ CREATE TABLE IF NOT EXISTS trade_cal (
     cal_date       VARCHAR(8)  NOT NULL COMMENT '日历日期（YYYYMMDD）',
     is_open        VARCHAR(4)  COMMENT '是否交易：0=休市，1=交易',
     pretrade_date  VARCHAR(8)  COMMENT '上一交易日（YYYYMMDD）',
+    is_first_of_week     VARCHAR(4) DEFAULT '0' COMMENT '是否本周首个交易日：1=是，0=否',
+    is_last_of_week      VARCHAR(4) DEFAULT '0' COMMENT '是否本周末个交易日：1=是，0=否',
+    is_first_of_month    VARCHAR(4) DEFAULT '0' COMMENT '是否本月首个交易日：1=是，0=否',
+    is_last_of_month     VARCHAR(4) DEFAULT '0' COMMENT '是否本月末个交易日：1=是，0=否',
+    is_first_of_quarter  VARCHAR(4) DEFAULT '0' COMMENT '是否本季首个交易日：1=是，0=否',
+    is_last_of_quarter   VARCHAR(4) DEFAULT '0' COMMENT '是否本季末个交易日：1=是，0=否',
     UNIQUE(exchange, cal_date)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='交易日历表';
 
@@ -275,6 +281,31 @@ CREATE TABLE IF NOT EXISTS index_weight (
     PRIMARY KEY (ts_code, trade_date, con_code),
     INDEX idx_index_weight_date (ts_code, trade_date)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='指数成分股权重表';
+
+-- 19. 申万行业分类表（tushare index_classify，SWS2021 版本）
+CREATE TABLE IF NOT EXISTS sw_industry (
+    index_code  VARCHAR(32) NOT NULL COMMENT '行业代码（申万一级/二级/三级行业指数代码）',
+    index_name  VARCHAR(64) COMMENT '行业名称',
+    level       INT         COMMENT '行业层级（1/2/3）',
+    parent_code VARCHAR(32) COMMENT '父级行业代码（一级行业为空）',
+    src         VARCHAR(16) NOT NULL DEFAULT 'SWS2021' COMMENT '分类版本（SWS2021）',
+    PRIMARY KEY (index_code, src)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='申万行业分类表';
+
+-- 20. 申万行业成分股表（tushare index_member_all）
+CREATE TABLE IF NOT EXISTS sw_industry_member (
+    ts_code     VARCHAR(16) NOT NULL COMMENT '股票代码（如 000001.SZ）',
+    index_code  VARCHAR(32) NOT NULL COMMENT '所属行业代码（对应 sw_industry.index_code）',
+    index_name  VARCHAR(64) COMMENT '行业名称',
+    in_date     VARCHAR(8)  COMMENT '纳入日期（YYYYMMDD）',
+    out_date    VARCHAR(8)  COMMENT '剔除日期（YYYYMMDD，为空表示当前在册）',
+    is_new      VARCHAR(4)  COMMENT '是否最新（1=是，0=否）',
+    src         VARCHAR(16) NOT NULL DEFAULT 'SWS2021' COMMENT '分类版本（SWS2021）',
+    update_date VARCHAR(8)  NOT NULL COMMENT '更新日期（YYYYMMDD）',
+    PRIMARY KEY (ts_code, index_code, update_date),
+    INDEX idx_sw_member_tscode (ts_code),
+    INDEX idx_sw_member_index (index_code, is_new)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='申万行业成分股表';
 
 -- 初始管理员账号（仅当表为空时插入，默认密码: admin123）
 INSERT INTO sys_user (username, password, enabled, role)

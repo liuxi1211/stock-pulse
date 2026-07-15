@@ -775,3 +775,70 @@ def test_screen_structure_no_screen_config_passes():
     """无 screen_config（缺失 / 非对象）→ 不报结构错误（由其它校验处理）。"""
     assert StrategyValidator().validate_screen_structure({}) == []
     assert StrategyValidator().validate_screen_structure({"screen_config": None}) == []
+
+
+# ============================================================
+# spec 011 P2-1：rebalance.trigger 校验 + day_of_period 兼容映射
+# ============================================================
+
+def _rebalance_only_config(**rb_overrides) -> dict:
+    """仅 rebalance 范式（无 signals）的最小配置，screen_config 为 csi300 4 层。"""
+    cfg = _base_config()
+    del cfg["trading_config"]["signals"]
+    del cfg["trading_config"]["position_sizing"]
+    rb = {"frequency": "monthly"}
+    rb.update(rb_overrides)
+    cfg["trading_config"]["rebalance"] = rb
+    cfg["screen_config"] = {
+        "universe": _index_universe("csi300"),
+        "portfolio": {"top_n": 10},
+        "factor": {"method": "single", "factor": "RSI", "order": "desc"},
+    }
+    return cfg
+
+
+def test_rebalance_trigger_first_last_passes():
+    """trigger=first / last 均合法，不报 INVALID_REBALANCE_TRIGGER。"""
+    for trig in ("first", "last"):
+        cfg = _rebalance_only_config(trigger=trig)
+        errors = _validate(cfg)
+        codes = [e.code for e in errors]
+        assert ErrorCode.INVALID_REBALANCE_TRIGGER[0] not in codes, (
+            f"trigger={trig} 应合法，但报错: {[(e.code, e.path) for e in errors]}"
+        )
+
+
+def test_rebalance_trigger_invalid_rejected():
+    """trigger 取非法值 → Pydantic Literal 在解析阶段即拒绝（ValidationError）。"""
+    import pytest
+    from pydantic import ValidationError
+
+    cfg = _rebalance_only_config(trigger="middle")
+    with pytest.raises(ValidationError):
+        StrategyConfigModel.model_validate(cfg)
+
+
+def test_rebalance_daily_ignores_trigger():
+    """frequency=daily 时 trigger 可任意省略/取值，不报错（daily 恒触发）。"""
+    cfg = _rebalance_only_config(frequency="daily")
+    # 删 trigger 键也合法
+    cfg["trading_config"]["rebalance"] = {"frequency": "daily"}
+    errors = _validate(cfg)
+    codes = [e.code for e in errors]
+    assert ErrorCode.INVALID_REBALANCE_TRIGGER[0] not in codes
+
+
+def test_rebalance_day_of_period_deprecation_warning(caplog):
+    """旧 JSON 带 day_of_period → validator 打 deprecation warning（不报错）。"""
+    import logging
+
+    cfg = _rebalance_only_config(day_of_period=5)
+    with caplog.at_level(logging.WARNING, logger="services.strategy.validator"):
+        errors = _validate(cfg)
+    codes = [e.code for e in errors]
+    # 不应产生 INVALID_REBALANCE_TRIGGER 错误
+    assert ErrorCode.INVALID_REBALANCE_TRIGGER[0] not in codes
+    # 应打 deprecation warning
+    assert any("day_of_period" in rec.message for rec in caplog.records), (
+        f"期望 day_of_period deprecation warning，实际 logs: {[r.message for r in caplog.records]}"
+    )

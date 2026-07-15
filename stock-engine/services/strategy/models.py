@@ -18,7 +18,12 @@
 """
 from typing import Any, Dict, List, Literal, Optional, Union
 
+import logging
+
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+
+_log = logging.getLogger(__name__)
 
 
 # ============================================================
@@ -180,8 +185,10 @@ class UniverseModel(BaseModel):
     """① Universe 层：选股范围 + point-in-time 成分股过滤。Schema §3.2.2。
 
     - ``pool="manual"`` 时 ``stocks`` 必填（validator 层校验，错误码 MANUAL_SYMBOL_REQUIRED）；
-    - ``pool="csi300"/"csi500"`` 时建议开启 ``point_in_time``（rebalance_engine
-      会调 watcher 查成分股快照，消除 lookahead bias）。
+    - ``point_in_time`` 字段已 **deprecated**（spec 011 P1-1）：所有 universe 类型现在
+      **强制** 执行 point-in-time 成分股过滤，由 ``rebalance_engine._apply_universe_filter``
+      无条件查 watcher。字段保留仅为向后兼容旧 JSON（避免 ``extra="forbid"`` 拒绝），
+      在场时会打 deprecation warning。
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -190,11 +197,27 @@ class UniverseModel(BaseModel):
         ..., description="股票池：all_a_shares / csi300 / csi500 / manual / 自定义池 ID"
     )
     point_in_time: Optional[bool] = Field(
-        None, description="是否启用 point-in-time 成分股过滤（csi300/csi500 默认 True）"
+        None,
+        description="[deprecated] 已废弃。所有 universe 强制 point-in-time 过滤，"
+        "字段保留仅为向后兼容旧 JSON，在场时会打 warning。",
     )
     stocks: Optional[List[str]] = Field(
         None, description="pool=manual 时必填的标的列表"
     )
+
+    @model_validator(mode="after")
+    def _warn_deprecated_point_in_time(self) -> "UniverseModel":
+        """检测到 point_in_time 字段显式在场时打 deprecation warning。
+
+        spec 011 P1-1：point-in-time 已从可选收紧为强制，该字段不再有语义作用，
+        但为兼容旧 JSON 保留（不报错，仅 warning）。
+        """
+        if self.point_in_time is not None:
+            _log.warning(
+                "point_in_time 字段已废弃，所有 universe 强制 point-in-time 过滤"
+                "（spec 011 P1-1）；该字段保留仅为向后兼容，请从配置中移除。"
+            )
+        return self
 
 
 class FactorModel(BaseModel):
@@ -243,12 +266,32 @@ class FilterModel(BaseModel):
 
 
 class PortfolioModel(BaseModel):
-    """④ Portfolio 层：TopN。Schema §3.2.2。"""
+    """④ Portfolio 层：TopN + 权重体系。Schema §3.2.2 / spec 011 迭代 4。
+
+    spec 011 迭代 4 新增权重体系字段：
+
+    - ``cash_reserve_pct`` (P1-3)：现金保留比例，总持仓权重 = 1 - cash_reserve_pct。
+    - ``max_weight_per_symbol`` (P1-4)：单标的最大权重上限，超出截断。
+    - ``max_industry_exposure`` (P1-4)：单行业最大暴露上限，超出按比例缩减。
+    - ``buffer_n`` (P1-7)：换仓缓冲带，买入取 top_(n-buffer)，卖出取 top_(n+buffer)。
+    """
 
     model_config = ConfigDict(extra="forbid")
 
     top_n: Optional[int] = Field(
         None, description="选出的标的数量（→ rebalance_to_topn top_n）"
+    )
+    cash_reserve_pct: Optional[float] = Field(
+        None, ge=0.0, le=0.95, description="现金保留比例（0.2=保留 20% 现金）"
+    )
+    max_weight_per_symbol: Optional[float] = Field(
+        None, ge=0.0, le=1.0, description="单标的最大权重上限"
+    )
+    max_industry_exposure: Optional[float] = Field(
+        None, ge=0.0, le=1.0, description="单行业最大暴露上限"
+    )
+    buffer_n: Optional[int] = Field(
+        None, ge=0, description="换仓缓冲带：买入取 top_(n-buffer)，卖出取 top_(n+buffer)"
     )
 
 
@@ -372,8 +415,22 @@ class RebalanceModel(BaseModel):
     frequency: Literal["daily", "weekly", "monthly", "quarterly"] = Field(
         ..., description="调仓频率（→ on_daily_rebalance 触发判断）"
     )
+    trigger: Optional[Literal["first", "last"]] = Field(
+        None,
+        description=(
+            "触发时点：first=周期首个交易日，last=周期末个交易日。"
+            "frequency=daily 时忽略。触发判定改查 bar 的 trade_cal 标记"
+            "（is_first_of_month / is_last_of_month 等，零状态）。"
+            "默认 None 时由 compiler 从 day_of_period 兼容映射，最终都缺省规约为 first。"
+        ),
+    )
     day_of_period: Optional[int] = Field(
-        None, description="调仓日序（monthly=每月第几个交易日，weekly=周几）"
+        None,
+        description=(
+            "[DEPRECATED] 调仓日序（monthly=每月第几个交易日，weekly=周几）。"
+            "已被 trigger(first/last) 取代，仅保留以兼容旧 JSON；"
+            "validator/compiler 检测到时会映射为 trigger 并打 deprecation warning。"
+        ),
     )
     replace_method: Optional[Literal["full", "incremental"]] = Field(
         None, description="换仓方式：full（全换）/ incremental（只换差额）"
@@ -385,6 +442,15 @@ class RebalanceModel(BaseModel):
         True,
         description="是否仅做多（默认 True）。A 股不支持融券做空，固定 True；"
         "前端控件已移除，此处保留字段并固定默认值，待期货标的支持后再开放。",
+    )
+    min_holding_bars: Optional[int] = Field(
+        None, ge=0, description="最小持仓周期 bar 数（未满则不卖）"
+    )
+    reject_limit_up_on_buy: bool = Field(
+        True, description="涨停拒买（当日涨停标的不买入）"
+    )
+    reject_limit_down_on_sell: bool = Field(
+        True, description="跌停拒卖（当日跌停标的不卖出）"
     )
 
 

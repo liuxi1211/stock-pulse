@@ -8,7 +8,6 @@
   "screen_config": {
     "universe": {
       "pool": "csi500",
-      "point_in_time": true,
       "stocks": null
     },
     "factor": {

@@ -13,6 +13,10 @@ import com.arthur.stock.dto.tushare.DailyQuoteDTO;
 import com.arthur.stock.dto.tushare.DividendDTO;
 import com.arthur.stock.dto.tushare.DividendQueryDTO;
 import com.arthur.stock.dto.tushare.FinaIndicatorDTO;
+import com.arthur.stock.dto.tushare.IndexClassifyDTO;
+import com.arthur.stock.dto.tushare.IndexClassifyQueryDTO;
+import com.arthur.stock.dto.tushare.IndexMemberDTO;
+import com.arthur.stock.dto.tushare.IndexMemberQueryDTO;
 import com.arthur.stock.dto.tushare.IndexWeightDTO;
 import com.arthur.stock.dto.tushare.IndexWeightQueryDTO;
 import com.arthur.stock.dto.tushare.StockBasicQueryDTO;
@@ -147,6 +151,46 @@ public class TushareClient {
     public List<IndexWeightDTO> indexWeight(IndexWeightQueryDTO param) {
         JSONObject params = buildIndexWeightParams(param);
         return query(TushareApiEnum.INDEX_WEIGHT, params, IndexWeightDTO.class);
+    }
+
+    /**
+     * 申万行业分类接口（index_classify，doc_id=181）。
+     *
+     * @param param 查询参数，src（如 SWS2021）必传，level 可选
+     * @return 申万行业分类列表
+     */
+    public List<IndexClassifyDTO> indexClassify(IndexClassifyQueryDTO param) {
+        JSONObject params = buildIndexClassifyParams(param);
+        return query(TushareApiEnum.INDEX_CLASSIFY, params, IndexClassifyDTO.class);
+    }
+
+    /**
+     * 申万行业成分股接口（index_member_all，doc_id=335），不分页。
+     *
+     * @param param 查询参数，tsCode / indexCode / src 均可选
+     * @return 行业成分股列表
+     */
+    public List<IndexMemberDTO> indexMemberAll(IndexMemberQueryDTO param) {
+        return indexMemberAll(param, null, null);
+    }
+
+    /**
+     * 申万行业成分股接口（index_member_all，doc_id=335），支持分页。
+     *
+     * @param param  查询参数，tsCode / indexCode / src 均可选
+     * @param offset 偏移量（null 不传）
+     * @param limit  单页条数（null 不传，建议 ≤ 2000）
+     * @return 行业成分股列表
+     */
+    public List<IndexMemberDTO> indexMemberAll(IndexMemberQueryDTO param, Integer offset, Integer limit) {
+        JSONObject params = buildIndexMemberParams(param);
+        if (offset != null) {
+            params.put("offset", String.valueOf(offset));
+        }
+        if (limit != null) {
+            params.put("limit", String.valueOf(limit));
+        }
+        return query(TushareApiEnum.INDEX_MEMBER_ALL, params, IndexMemberDTO.class);
     }
 
     // ==================== 通用请求方法 ====================
@@ -336,6 +380,37 @@ public class TushareClient {
         }
         if (param.getEndDate() != null) {
             params.put("end_date", param.getEndDate());
+        }
+        return params;
+    }
+
+    /**
+     * 构建 index_classify 接口参数，非空字段才传入（src 如 SWS2021）
+     */
+    private JSONObject buildIndexClassifyParams(IndexClassifyQueryDTO param) {
+        JSONObject params = new JSONObject();
+        if (param.getSrc() != null) {
+            params.put("src", param.getSrc());
+        }
+        if (param.getLevel() != null) {
+            params.put("level", param.getLevel());
+        }
+        return params;
+    }
+
+    /**
+     * 构建 index_member_all 接口参数，非空字段才传入
+     */
+    private JSONObject buildIndexMemberParams(IndexMemberQueryDTO param) {
+        JSONObject params = new JSONObject();
+        if (param.getTsCode() != null) {
+            params.put("ts_code", param.getTsCode());
+        }
+        if (param.getIndexCode() != null) {
+            params.put("index_code", param.getIndexCode());
+        }
+        if (param.getSrc() != null) {
+            params.put("src", param.getSrc());
         }
         return params;
     }

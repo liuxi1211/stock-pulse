@@ -42,13 +42,14 @@ public class DataInitServiceImpl implements DataInitService {
 
     /** 固定执行顺序，确保依赖关系正确（stock_basic 先于 per-stock 步骤） */
     private static final List<InitStep> EXECUTION_ORDER = List.of(
-            InitStep.STOCK_BASIC, InitStep.TRADE_CAL, InitStep.INDEX_WEIGHT,
+            InitStep.STOCK_BASIC, InitStep.TRADE_CAL, InitStep.INDEX_WEIGHT, InitStep.SW_INDUSTRY,
             InitStep.DAILY, InitStep.ADJ_FACTOR, InitStep.DIVIDEND);
 
     private final JdbcTemplate jdbcTemplate;
     private final StockBasicService stockBasicService;
     private final TradeCalService tradeCalService;
     private final IndexWeightService indexWeightService;
+    private final SwIndustryService swIndustryService;
     private final DailyQuoteService dailyQuoteService;
     private final AdjFactorService adjFactorService;
     private final DividendService dividendService;
@@ -115,6 +116,7 @@ public class DataInitServiceImpl implements DataInitService {
                 case STOCK_BASIC -> executeStockBasic(stocks);
                 case TRADE_CAL -> executeTradeCal();
                 case INDEX_WEIGHT -> executeIndexWeight();
+                case SW_INDUSTRY -> executeSwIndustry();
                 case DAILY -> executeDaily(stocks);
                 case ADJ_FACTOR -> executeAdjFactor(stocks);
                 case DIVIDEND -> executeDividend(stocks);
@@ -142,10 +144,63 @@ public class DataInitServiceImpl implements DataInitService {
 
     private void executeTradeCal() {
         updateStep("拉取交易日历");
+        // 老库幂等迁移：trade_cal 表新增 6 个调仓标记列（CREATE TABLE IF NOT EXISTS 不会为已存在的表加列）。
+        ensureTradeCalRebalanceColumns();
         String startDate = LocalDate.now().minusYears(30).format(DATE_FMT);
         String endDate = LocalDate.now().format(DATE_FMT);
         tradeCalService.fetchAndSaveTradeCal(null, startDate, endDate);
         log.info("Trade calendar synced");
+    }
+
+    /** trade_cal 需要幂等补齐的 6 个调仓标记列。 */
+    private static final List<String> TRADE_CAL_REBALANCE_COLUMNS = List.of(
+            "is_first_of_week", "is_last_of_week",
+            "is_first_of_month", "is_last_of_month",
+            "is_first_of_quarter", "is_last_of_quarter");
+
+    /**
+     * 幂等地为已存在的 trade_cal 表补齐 6 个调仓标记列。
+     * <p>
+     * 全新建库时 schema-*.sql / CREATE_TABLE_SQL_* 已包含这些列；但对已运行的老库，
+     * {@code CREATE TABLE IF NOT EXISTS} 不会加列，故在此按方言检测列是否存在后 ADD COLUMN。
+     * <ul>
+     *   <li>MySQL：查 INFORMATION_SCHEMA.COLUMNS；</li>
+     *   <li>SQLite：查 PRAGMA table_info(trade_cal)。</li>
+     * </ul>
+     */
+    private void ensureTradeCalRebalanceColumns() {
+        for (String column : TRADE_CAL_REBALANCE_COLUMNS) {
+            if (isSqlite()) {
+                if (!sqliteColumnExists("trade_cal", column)) {
+                    jdbcTemplate.execute("ALTER TABLE trade_cal ADD COLUMN " + column + " TEXT DEFAULT '0'");
+                    log.info("trade_cal: added column {} (sqlite)", column);
+                }
+            } else {
+                if (!mysqlColumnExists("trade_cal", column)) {
+                    jdbcTemplate.execute("ALTER TABLE trade_cal ADD COLUMN " + column + " VARCHAR(4) DEFAULT '0'");
+                    log.info("trade_cal: added column {} (mysql)", column);
+                }
+            }
+        }
+    }
+
+    private boolean isSqlite() {
+        return "sqlite".equalsIgnoreCase(dbType);
+    }
+
+    private boolean sqliteColumnExists(String table, String column) {
+        Integer cnt = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM pragma_table_info('" + table + "') WHERE name = ?",
+                Integer.class, column);
+        return cnt != null && cnt > 0;
+    }
+
+    private boolean mysqlColumnExists(String table, String column) {
+        Integer cnt = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS " +
+                        "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?",
+                Integer.class, table, column);
+        return cnt != null && cnt > 0;
     }
 
     /** 指数成分股权重：拉取沪深300/中证500/上证50/中证1000 最近 5 年历史快照（回测防幸存者偏差） */
@@ -163,6 +218,29 @@ public class DataInitServiceImpl implements DataInitService {
             } catch (Exception e) {
                 log.error("Index weight sync failed for {}: {}", indexCode, e.getMessage(), e);
             }
+        }
+    }
+
+    /** 申万行业分类（SWS2021）：先拉分类，再全量分页拉成分股。clearSelectedData 已 DROP sw_industry，
+     *  这里额外重建 sw_industry_member（两表属于同一步骤的关联数据）。 */
+    private void executeSwIndustry() {
+        updateStep("拉取申万行业分类");
+        // 成员表与主表强关联，主表 DROP 后成员表也一并重建
+        Map<String, String> createTableSql = getCreateTableSql();
+        jdbcTemplate.execute("DROP TABLE IF EXISTS sw_industry_member");
+        jdbcTemplate.execute(createTableSql.get("sw_industry_member"));
+        log.info("Recreated table: sw_industry_member");
+        try {
+            int classify = swIndustryService.fetchAndSaveClassify("SWS2021");
+            log.info("SW industry classify synced: {} industries", classify);
+        } catch (Exception e) {
+            log.error("SW industry classify sync failed: {}", e.getMessage(), e);
+        }
+        try {
+            int members = swIndustryService.fetchAndSaveAllMembers("SWS2021");
+            log.info("SW industry members synced: {} records", members);
+        } catch (Exception e) {
+            log.error("SW industry members sync failed: {}", e.getMessage(), e);
         }
     }
 
@@ -233,6 +311,9 @@ public class DataInitServiceImpl implements DataInitService {
             Map.entry("trade_cal", "CREATE TABLE IF NOT EXISTS trade_cal ("
                     + "id BIGINT AUTO_INCREMENT PRIMARY KEY,"
                     + "exchange VARCHAR(16),cal_date VARCHAR(8) NOT NULL,is_open VARCHAR(4),pretrade_date VARCHAR(8),"
+                    + "is_first_of_week VARCHAR(4) DEFAULT '0',is_last_of_week VARCHAR(4) DEFAULT '0',"
+                    + "is_first_of_month VARCHAR(4) DEFAULT '0',is_last_of_month VARCHAR(4) DEFAULT '0',"
+                    + "is_first_of_quarter VARCHAR(4) DEFAULT '0',is_last_of_quarter VARCHAR(4) DEFAULT '0',"
                     + "UNIQUE(exchange, cal_date)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"),
             Map.entry("daily_quote", "CREATE TABLE IF NOT EXISTS daily_quote ("
                     + "ts_code VARCHAR(16) NOT NULL,trade_date VARCHAR(8) NOT NULL,"
@@ -253,6 +334,16 @@ public class DataInitServiceImpl implements DataInitService {
                     + "ts_code VARCHAR(16) NOT NULL,trade_date VARCHAR(8) NOT NULL,"
                     + "con_code VARCHAR(16) NOT NULL,weight DECIMAL(10,6),"
                     + "PRIMARY KEY (ts_code, trade_date, con_code)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"),
+            Map.entry("sw_industry", "CREATE TABLE IF NOT EXISTS sw_industry ("
+                    + "index_code VARCHAR(32) NOT NULL,index_name VARCHAR(64),"
+                    + "level INT,parent_code VARCHAR(32),"
+                    + "src VARCHAR(16) NOT NULL DEFAULT 'SWS2021',"
+                    + "PRIMARY KEY (index_code, src)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"),
+            Map.entry("sw_industry_member", "CREATE TABLE IF NOT EXISTS sw_industry_member ("
+                    + "ts_code VARCHAR(16) NOT NULL,index_code VARCHAR(32) NOT NULL,"
+                    + "index_name VARCHAR(64),in_date VARCHAR(8),out_date VARCHAR(8),"
+                    + "is_new VARCHAR(4),src VARCHAR(16) NOT NULL DEFAULT 'SWS2021',update_date VARCHAR(8) NOT NULL,"
+                    + "PRIMARY KEY (ts_code, index_code, update_date)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"),
             Map.entry("screen_plan", "CREATE TABLE IF NOT EXISTS screen_plan ("
                     + "id BIGINT AUTO_INCREMENT PRIMARY KEY,"
                     + "name VARCHAR(128) NOT NULL,description VARCHAR(512),screen_config TEXT NOT NULL,"
@@ -279,6 +370,9 @@ public class DataInitServiceImpl implements DataInitService {
             Map.entry("trade_cal", "CREATE TABLE IF NOT EXISTS trade_cal ("
                     + "id INTEGER PRIMARY KEY AUTOINCREMENT,"
                     + "exchange TEXT,cal_date TEXT NOT NULL,is_open TEXT,pretrade_date TEXT,"
+                    + "is_first_of_week TEXT DEFAULT '0',is_last_of_week TEXT DEFAULT '0',"
+                    + "is_first_of_month TEXT DEFAULT '0',is_last_of_month TEXT DEFAULT '0',"
+                    + "is_first_of_quarter TEXT DEFAULT '0',is_last_of_quarter TEXT DEFAULT '0',"
                     + "UNIQUE(exchange, cal_date))"),
             Map.entry("daily_quote", "CREATE TABLE IF NOT EXISTS daily_quote ("
                     + "ts_code TEXT NOT NULL,trade_date TEXT NOT NULL,"
@@ -299,6 +393,16 @@ public class DataInitServiceImpl implements DataInitService {
                     + "ts_code TEXT NOT NULL,trade_date TEXT NOT NULL,"
                     + "con_code TEXT NOT NULL,weight REAL,"
                     + "PRIMARY KEY (ts_code, trade_date, con_code))"),
+            Map.entry("sw_industry", "CREATE TABLE IF NOT EXISTS sw_industry ("
+                    + "index_code TEXT NOT NULL,index_name TEXT,"
+                    + "level INTEGER,parent_code TEXT,"
+                    + "src TEXT NOT NULL DEFAULT 'SWS2021',"
+                    + "PRIMARY KEY (index_code, src))"),
+            Map.entry("sw_industry_member", "CREATE TABLE IF NOT EXISTS sw_industry_member ("
+                    + "ts_code TEXT NOT NULL,index_code TEXT NOT NULL,"
+                    + "index_name TEXT,in_date TEXT,out_date TEXT,"
+                    + "is_new TEXT,src TEXT NOT NULL DEFAULT 'SWS2021',update_date TEXT NOT NULL,"
+                    + "PRIMARY KEY (ts_code, index_code, update_date))"),
             Map.entry("screen_plan", "CREATE TABLE IF NOT EXISTS screen_plan ("
                     + "id INTEGER PRIMARY KEY AUTOINCREMENT,"
                     + "name VARCHAR(128) NOT NULL,description VARCHAR(512),screen_config TEXT NOT NULL,"

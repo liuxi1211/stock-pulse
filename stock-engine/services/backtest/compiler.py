@@ -23,7 +23,9 @@ position_sizing.method 下单；exit.bracket 在场时在 ``on_before_trading`` 
 下单走显式方法分派（白名单），无任何字符串代码执行。"""
 from __future__ import annotations
 
+import logging
 import math
+import os
 from typing import TYPE_CHECKING, Any, Optional, Type
 
 import akquant.talib as talib
@@ -59,6 +61,23 @@ from services.strategy.models import (
 if TYPE_CHECKING:
     # 仅用于类型注解（spec 010 缺陷 A 修复：watcher 只读客户端注入路径）
     from services.backtest.watcher_client import WatcherClient
+
+
+# ============================================================
+# 日志 / feature flag（spec 011 迭代 4）
+# ============================================================
+
+logger = logging.getLogger(__name__)
+
+# spec 011 迭代 4：权重体系重构 feature flag。
+# - False（默认）：走自托管权重新路径（cash_reserve / 单标的与行业暴露上限 /
+#   buffer_n / min_holding_bars / 涨跌停拒单 / score 降序 + 诊断）。
+# - True：回滚到旧 ``rebalance_to_topn`` 调用路径。
+_USE_LEGACY_REBALANCE = os.environ.get("USE_LEGACY_REBALANCE", "").lower() in (
+    "1",
+    "true",
+    "yes",
+)
 
 
 # ============================================================
@@ -502,6 +521,24 @@ def compile_strategy(
     # cross_* 需要额外一根历史
     warmup = max_window + 2
 
+    # spec 011 P2-5：warmup 来源判定（透传到 result_serializer.effective_config）
+    # - auto_inferred：compiler 自动推断值（max_window + 2）
+    # - user_override：用户在 backtest_config.warmup_period 显式指定的值
+    # - 最终生效值取二者较大（akquant run_backtest 内部 effective_depth = max(warmup_period, history_depth)）
+    user_warmup = (
+        int(config.backtest_config.warmup_period)
+        if (config.backtest_config is not None
+            and config.backtest_config.warmup_period is not None)
+        else None
+    )
+    if user_warmup is not None and user_warmup > warmup:
+        warmup_source = "user_override"
+        effective_warmup = user_warmup
+    else:
+        warmup_source = "auto_inferred"
+        effective_warmup = warmup
+    warmup_reason = f"max(user={user_warmup}, auto_inferred={warmup})"
+
     # 5. exit 配置（bracket + rules）
     exit_cfg = tc.exit
     bracket = exit_cfg.bracket if (exit_cfg is not None) else None
@@ -524,12 +561,22 @@ def compile_strategy(
     rebalance_engine: Optional[RebalanceEngine] = None
     screen_config: Optional[ScreenConfigModel] = None
     rb_frequency: str = ""
-    rb_day_of_period: int = 0
+    # spec 011 P2-1：trigger(first/last) 替代 day_of_period。
+    # None 表示"未指定"，下游 _is_rebalance_day 内规约为 "first"。
+    rb_trigger: Optional[str] = None
     rb_top_n: int = 0
     rb_weight_mode: str = "equal"
     rb_long_only: bool = True
     rb_liquidate_unmentioned: bool = True
     rb_history_window: int = 60
+    # spec 011 迭代 4：权重体系字段（自托管权重路径用）
+    rb_cash_reserve: float = 0.0
+    rb_max_weight_per_symbol: Optional[float] = None
+    rb_max_industry_exposure: Optional[float] = None
+    rb_buffer_n: int = 0
+    rb_min_holding_bars: int = 0
+    rb_reject_limit_up_on_buy: bool = True
+    rb_reject_limit_down_on_sell: bool = True
 
     if has_rebalance:
         rebalance_engine = RebalanceEngine()
@@ -546,14 +593,58 @@ def compile_strategy(
                 "BACKTEST_CONFIG_INVALID: rebalance 范式要求 screen_config.portfolio.top_n 正整数"
             )
         rb_frequency = rebalance.frequency if rebalance else "daily"
-        rb_day_of_period = rebalance.day_of_period if (rebalance and rebalance.day_of_period is not None) else 0
+        # spec 011 P2-1：优先用 trigger；旧 JSON 的 day_of_period 兼容映射。
+        rb_trigger = _resolve_rebalance_trigger(rebalance)
         rb_top_n = int(sc_top_n)
         rb_weight_mode = rebalance.weight_mode if (rebalance and rebalance.weight_mode) else "equal"
         rb_long_only = rebalance.long_only if (rebalance and rebalance.long_only is not None) else True
+        # spec 011 P0-2 后端兜底：factor.method=single × weight_mode=score 不兼容
+        # （validator 已校验，此处防止绕过 validator 直接调 compiler）
+        sc_factor = screen_config.factor
+        if (
+            rb_weight_mode == "score"
+            and sc_factor is not None
+            and sc_factor.method == "single"
+        ):
+            raise CompilerError(
+                "FACTOR_SCORE_INCOMPATIBLE: factor.method=single 与 "
+                "rebalance.weight_mode=score 不兼容；"
+                "请改用 weight_mode=equal 或 factor.method=composite"
+            )
         # replace_method: None 或 "full" → 全换（liquidate_unmentioned=True）；"incremental" → 只换差额
         replace_method = rebalance.replace_method if rebalance else None
         rb_liquidate_unmentioned = (replace_method != "incremental")
         rb_history_window = max(rebalance_warmup, 60)
+        # spec 011 迭代 4：权重体系字段捕获
+        rb_cash_reserve = float(
+            portfolio_layer.cash_reserve_pct if portfolio_layer is not None else None
+        ) if (portfolio_layer is not None and portfolio_layer.cash_reserve_pct is not None) else 0.0
+        rb_max_weight_per_symbol = (
+            portfolio_layer.max_weight_per_symbol
+            if portfolio_layer is not None
+            else None
+        )
+        rb_max_industry_exposure = (
+            portfolio_layer.max_industry_exposure
+            if portfolio_layer is not None
+            else None
+        )
+        rb_buffer_n = int(
+            portfolio_layer.buffer_n
+            if (portfolio_layer is not None and portfolio_layer.buffer_n is not None)
+            else 0
+        )
+        rb_min_holding_bars = int(
+            rebalance.min_holding_bars
+            if (rebalance and rebalance.min_holding_bars is not None)
+            else 0
+        )
+        rb_reject_limit_up_on_buy = (
+            rebalance.reject_limit_up_on_buy if rebalance else True
+        )
+        rb_reject_limit_down_on_sell = (
+            rebalance.reject_limit_down_on_sell if rebalance else True
+        )
         # universe_symbols：watcher 传入的全池（非 manual universe 时为唯一可靠来源）
         rb_universe_symbols: Optional[list[str]] = (
             list(universe_symbols) if universe_symbols else None
@@ -566,6 +657,10 @@ def compile_strategy(
     class _CompiledStrategy(Strategy):
         # 类级配置（akquant 读 warmup_period 类属性）
         warmup_period = warmup
+        # spec 011 P2-5：effective warmup 元信息（runner/serializer 读取）
+        _akw_effective_warmup = effective_warmup
+        _akw_warmup_source = warmup_source
+        _akw_warmup_reason = warmup_reason
 
         def __init__(self):
             super().__init__()
@@ -594,12 +689,22 @@ def compile_strategy(
             self._rb_engine = rebalance_engine
             self._screen_config = screen_config
             self._rb_frequency = rb_frequency
-            self._rb_day_of_period = rb_day_of_period
+            self._rb_trigger = rb_trigger
             self._rb_top_n = rb_top_n
             self._rb_weight_mode = rb_weight_mode
             self._rb_long_only = rb_long_only
             self._rb_liquidate_unmentioned = rb_liquidate_unmentioned
             self._rb_history_window = rb_history_window
+            # spec 011 迭代 4：权重体系字段
+            self._rb_cash_reserve = rb_cash_reserve
+            self._rb_max_weight_per_symbol = rb_max_weight_per_symbol
+            self._rb_max_industry_exposure = rb_max_industry_exposure
+            self._rb_buffer_n = rb_buffer_n
+            self._rb_min_holding_bars = rb_min_holding_bars
+            self._rb_reject_limit_up_on_buy = rb_reject_limit_up_on_buy
+            self._rb_reject_limit_down_on_sell = rb_reject_limit_down_on_sell
+            # P0-5 诊断容器（最后一次调仓的诊断信息；result_serializer 读取）
+            self._rb_diagnosis: dict[str, Any] = {}
 
         # ------------------------------------------------------------------
         # 因子预计算 → snapshot
@@ -860,7 +965,7 @@ def compile_strategy(
         _attach_rebalance_method(
             _CompiledStrategy,
             frequency=rb_frequency,
-            day_of_period=rb_day_of_period,
+            trigger=rb_trigger,
             history_window=rb_history_window,
             top_n=rb_top_n,
             weight_mode=rb_weight_mode,
@@ -871,6 +976,15 @@ def compile_strategy(
             universe_symbols=rb_universe_symbols,
             watcher_client=watcher_client,
             extra_map=extra_map,
+            # spec 011 迭代 4：权重体系字段
+            cash_reserve=rb_cash_reserve,
+            max_weight_per_symbol=rb_max_weight_per_symbol,
+            max_industry_exposure=rb_max_industry_exposure,
+            buffer_n=rb_buffer_n,
+            min_holding_bars=rb_min_holding_bars,
+            reject_limit_up_on_buy=rb_reject_limit_up_on_buy,
+            reject_limit_down_on_sell=rb_reject_limit_down_on_sell,
+            use_legacy_rebalance=_USE_LEGACY_REBALANCE,
         )
 
     # 重命名类（便于日志/调试）
@@ -894,7 +1008,7 @@ def _attach_rebalance_method(
     strategy_cls: type,
     *,
     frequency: str,
-    day_of_period: int,
+    trigger: Optional[str],
     history_window: int,
     top_n: int,
     weight_mode: str,
@@ -905,25 +1019,41 @@ def _attach_rebalance_method(
     universe_symbols: Optional[list[str]] = None,
     watcher_client: Optional["WatcherClient"] = None,
     extra_map: Optional[dict[str, dict[str, dict[str, float]]]] = None,
+    # spec 011 迭代 4：权重体系参数
+    cash_reserve: float = 0.0,
+    max_weight_per_symbol: Optional[float] = None,
+    max_industry_exposure: Optional[float] = None,
+    buffer_n: int = 0,
+    min_holding_bars: int = 0,
+    reject_limit_up_on_buy: bool = True,
+    reject_limit_down_on_sell: bool = True,
+    use_legacy_rebalance: bool = False,
 ) -> None:
     """把 ``on_daily_rebalance`` 方法挂到策略类上。
 
     akquant 的 ``on_daily_rebalance(trading_date, timestamp)`` 每根 bar 触发一次
-    （每天最多一次），在此判断频率是否命中调仓日，命中则调 RebalanceEngine 选股 +
-    ``rebalance_to_topn`` 调仓。
+    （每天最多一次），在此判断频率是否命中调仓日，命中则调 RebalanceEngine 选股。
 
-    频率命中启发式（spec 接受 day<=7 首周启发式）：
-    - ``daily``：每日触发；
-    - ``weekly``：``trading_date.weekday() == day_of_period``（0=周一，day_of_period 默认 0）；
-    - ``monthly``：每月首个交易日（启发式：``trading_date.day <= 7`` 视为月初首周，
-      取月份变化后的第一根 bar；day_of_period 非 0 时按 ``trading_date.day == day_of_period``）；
-    - ``quarterly``：季度首月（1/4/7/10）的月初首周（``day <= 7``）。
+    spec 011 迭代 4 后存在两条调仓路径（由 ``use_legacy_rebalance`` 切换）：
+
+    - **新路径（默认）**：engine 自托管 target_weights 计算 → ``order_target_weights``。
+      支持 cash_reserve / 单标的与行业暴露上限 / buffer_n / min_holding_bars /
+      涨跌停拒单 / score 降序 + 诊断。
+    - **旧路径**（``use_legacy_rebalance=True``）：``rebalance_to_topn``（回滚用）。
+
+    频率命中判定（spec 011 P2-1：零状态，查 bar 的 trade_cal 标记）：
+
+    - ``daily``：恒触发；
+    - ``weekly`` / ``monthly`` / ``quarterly``：依据 ``trigger(first/last)`` 查询
+      ``extra_map`` 中该日的 ``is_first_of_week`` / ``is_last_of_month`` 等标记。
+      若 watcher 未下发标记（extra_map 缺失），回退到旧启发式
+      ``_is_rebalance_trigger_day``（day<=7 月初首周），并打 warning。
     """
 
     def on_daily_rebalance(self, trading_date, timestamp):
-        """调仓日选股 + rebalance_to_topn 调仓。"""
-        # 1) 频率触发判断
-        if not _is_rebalance_trigger_day(trading_date, frequency, day_of_period):
+        """调仓日选股 + 调仓（新路径自托管权重 / 旧路径 rebalance_to_topn）。"""
+        # 1) 频率触发判断（spec 011 P2-1：查 bar 的 trade_cal 标记，零状态）
+        if not _is_rebalance_day(trading_date, frequency, trigger, extra_map):
             return
 
         # 2) 收集全 universe 的历史 K 线（build kline_map for RebalanceEngine）
@@ -957,17 +1087,59 @@ def _attach_rebalance_method(
         if not scores:
             return
 
-        # 4) rebalance_to_topn 调仓
+        # 4) 调仓路径分派
+        if use_legacy_rebalance:
+            # 旧路径：rebalance_to_topn（回滚用）
+            try:
+                self.rebalance_to_topn(
+                    scores=scores,
+                    top_n=top_n,
+                    weight_mode=weight_mode,
+                    long_only=long_only,
+                    liquidate_unmentioned=liquidate_unmentioned,
+                )
+            except Exception:  # noqa: BLE001 - 调仓失败不阻断回测
+                pass
+            return
+
+        # 新路径：自托管权重（spec 011 迭代 4）
         try:
-            self.rebalance_to_topn(
+            target_weights, diagnosis = _compute_target_weights(
+                strategy=self,
                 scores=scores,
                 top_n=top_n,
                 weight_mode=weight_mode,
-                long_only=long_only,
+                cash_reserve=cash_reserve,
+                max_weight_per_symbol=max_weight_per_symbol,
+                max_industry_exposure=max_industry_exposure,
+                buffer_n=buffer_n,
+                min_holding_bars=min_holding_bars,
+                reject_limit_up_on_buy=reject_limit_up_on_buy,
+                reject_limit_down_on_sell=reject_limit_down_on_sell,
+                trading_date=trading_date,
+                extra_map=extra_map,
+            )
+            # 记录诊断（最后一次覆盖；result_serializer 由另一任务读取）
+            try:
+                self._rb_diagnosis = diagnosis
+            except Exception:  # noqa: BLE001
+                pass
+
+            if not target_weights:
+                # 无目标权重：若 liquidate_unmentioned=True，仍需显式清仓
+                if liquidate_unmentioned:
+                    try:
+                        self.order_target_weights({}, liquidate_unmentioned=True)
+                    except Exception:  # noqa: BLE001
+                        pass
+                return
+
+            self.order_target_weights(
+                target_weights,
                 liquidate_unmentioned=liquidate_unmentioned,
             )
         except Exception:  # noqa: BLE001 - 调仓失败不阻断回测
-            pass
+            logger.exception("on_daily_rebalance 自托管权重调仓失败")
 
     # 设置 qualname 便于异常栈定位（否则显示 _attach_rebalance_method.<locals>.on_daily_rebalance）
     on_daily_rebalance.__qualname__ = f"{strategy_cls.__name__}.on_daily_rebalance"
@@ -976,7 +1148,11 @@ def _attach_rebalance_method(
 
 
 def _is_rebalance_trigger_day(trading_date: Any, frequency: str, day_of_period: int) -> bool:
-    """判断 trading_date 是否为调仓频率的触发日。
+    """[DEPRECATED FALLBACK] 判断 trading_date 是否为调仓频率的触发日。
+
+    .. deprecated:: spec 011 P2-1
+        正式判定改由 :func:`_is_rebalance_day` 查 bar 的 trade_cal 标记（零状态）。
+        本函数仅作为 **extra_map 标记缺失时的回退启发式** 保留，不删除。
 
     启发式说明（spec 接受「每月第 1 个交易日」day<=7 首周判断）：
 
@@ -1010,6 +1186,113 @@ def _is_rebalance_trigger_day(trading_date: Any, frequency: str, day_of_period: 
     if frequency == "quarterly":
         return ts.month in (1, 4, 7, 10) and ts.day <= 7
     return False
+
+
+# (frequency, trigger) → trade_cal 标记字段名（spec 011 P2-1）
+_REBALANCE_FLAG_MAP = {
+    ("weekly", "first"): "is_first_of_week",
+    ("weekly", "last"): "is_last_of_week",
+    ("monthly", "first"): "is_first_of_month",
+    ("monthly", "last"): "is_last_of_month",
+    ("quarterly", "first"): "is_first_of_quarter",
+    ("quarterly", "last"): "is_last_of_quarter",
+}
+
+
+def _resolve_rebalance_trigger(rebalance) -> Optional[str]:
+    """编译期解析最终生效的 trigger（spec 011 P2-1）。
+
+    优先级：
+
+    1. ``rebalance.trigger`` 显式指定（first/last）；
+    2. 兼容旧 JSON：``rebalance.day_of_period`` 在场时映射
+       ``<=1 → first``，否则 → ``last``，并打 deprecation warning；
+    3. 都缺省 → 返回 None（下游规约为 "first"）。
+
+    :param rebalance: ``RebalanceModel``（可能为 None，返回 None）。
+    :return: "first" / "last" / None。
+    """
+    if rebalance is None:
+        return None
+    if rebalance.trigger is not None:
+        return rebalance.trigger
+    if rebalance.day_of_period is not None:
+        mapped = "first" if (rebalance.day_of_period or 0) <= 1 else "last"
+        logger.warning(
+            "rebalance.day_of_period=%s 已废弃（spec 011 P2-1），"
+            "编译期映射为 trigger=%r；请改用 rebalance.trigger(first/last)。",
+            rebalance.day_of_period,
+            mapped,
+        )
+        return mapped
+    return None
+
+
+def _get_bar_flag(
+    extra_map: Optional[dict[str, dict[str, dict[str, Any]]]],
+    trade_date_str: str,
+    flag_name: str,
+) -> Optional[str]:
+    """从 extra_map 按 trade_date 取 trade_cal 标记（spec 011 P2-1）。
+
+    标记是「全局」的（所有 symbol 当日相同），因此遍历任意 symbol 命中即返回。
+    值统一 ``str()`` 化（watcher 下发可能是 "1"/1/True）。
+
+    :return: 标记的字符串值；extra_map 为空 / 该日无记录 / 无该字段时返回 None。
+    """
+    if not extra_map:
+        return None
+    for _sym, day_map in extra_map.items():
+        meta = day_map.get(trade_date_str)
+        if not isinstance(meta, dict):
+            continue
+        val = meta.get(flag_name)
+        if val is not None:
+            return str(val)
+    return None
+
+
+def _is_rebalance_day(
+    trading_date: Any,
+    frequency: str,
+    trigger: Optional[str],
+    extra_map: Optional[dict[str, dict[str, dict[str, Any]]]] = None,
+) -> bool:
+    """零状态调仓日判定（spec 011 P2-1）。
+
+    - ``daily``：恒触发（忽略 trigger）；
+    - ``weekly``/``monthly``/``quarterly``：按 ``(frequency, trigger)`` 查
+      ``extra_map`` 中该日的 trade_cal 标记（``is_first_of_month`` 等），命中
+      ``"1"`` 视为触发日；
+    - extra_map 无标记（watcher 未下发）时：打 warning 并回退到旧启发式
+      :func:`_is_rebalance_trigger_day`（day<=7 月初首周），保证向后兼容。
+    """
+    if frequency == "daily":
+        return True
+
+    trig = trigger or "first"
+    flag_name = _REBALANCE_FLAG_MAP.get((frequency, trig))
+    if flag_name is None:
+        # 未覆盖的 (frequency, trigger) 组合：不触发
+        return False
+
+    # trade_date 归一化为 YYYY-MM-DD（与 data_adapter.kline_to_extra_map 一致）
+    try:
+        trade_date_str = pd.Timestamp(trading_date).strftime("%Y-%m-%d")
+    except Exception:  # noqa: BLE001
+        return False
+
+    flag_val = _get_bar_flag(extra_map, trade_date_str, flag_name)
+    if flag_val is None:
+        # 标记缺失：回退旧启发式（保守，保证不漏触发）
+        logger.warning(
+            "extra_map 缺少 trade_cal 标记 %s（trade_date=%s），"
+            "回退到旧 day<=7 启发式判定；建议确认 watcher 已下发 is_*_of_* 标记。",
+            flag_name,
+            trade_date_str,
+        )
+        return _is_rebalance_trigger_day(trading_date, frequency, 0)
+    return flag_val == "1"
 
 
 def _discover_symbols(
@@ -1086,3 +1369,305 @@ def _fetch_symbol_kline(
 
 
 __all__ = ["compile_strategy", "CompilerError"]
+
+
+# ============================================================
+# spec 011 迭代 4：自托管权重计算辅助
+# ============================================================
+
+def _meta_true(val: Any) -> bool:
+    """extra_map meta 字段布尔判定（容错：1 / '1' / 'true' / True 均视为真）。"""
+    if isinstance(val, bool):
+        return val
+    if isinstance(val, (int, float)):
+        return val != 0
+    if isinstance(val, str):
+        return val.strip().lower() in ("1", "true", "yes", "y")
+    return False
+
+
+def _safe_hold_bar(strategy: Strategy, symbol: str) -> int:
+    """安全取持仓 bar 数（异常返回 0）。"""
+    try:
+        v = strategy.hold_bar(symbol)
+        return int(v) if v is not None else 0
+    except Exception:  # noqa: BLE001
+        return 0
+
+
+def _current_price(strategy: Strategy, symbol: str) -> float:
+    """取 symbol 当根收盘价作为当前价（best effort）。"""
+    try:
+        df = strategy.get_history_df(count=1, symbol=symbol)
+        if df is not None and not getattr(df, "empty", True):
+            return float(df["close"].iloc[-1])
+    except Exception:  # noqa: BLE001
+        pass
+    return 0.0
+
+
+def _resolve_industry(
+    symbol: str,
+    trading_date_str: str,
+    extra_map: Optional[dict[str, dict[str, dict[str, Any]]]],
+) -> str:
+    """从 extra_map 当日 meta 取行业（sw_industry_l1 / industry）。缺失返回 'UNKNOWN'。"""
+    if not extra_map:
+        return "UNKNOWN"
+    sym_meta = extra_map.get(symbol) or {}
+    day_meta = sym_meta.get(trading_date_str) or {}
+    return str(
+        day_meta.get("sw_industry_l1")
+        or day_meta.get("industry")
+        or "UNKNOWN"
+    )
+
+
+def _clip_industry_exposure(
+    target_weights: dict[str, float],
+    symbols_by_industry: dict[str, list[str]],
+    max_industry_exposure: float,
+    max_iterations: int = 10,
+) -> set[str]:
+    """行业暴露上限后处理（PRD §6.2.2.2 迭代算法）。
+
+    超限行业按比例缩减，释放量转现金不重分配。返回被缩减的 symbol 集合（诊断用）。
+    """
+    clipped: set[str] = set()
+    if max_industry_exposure is None or max_industry_exposure <= 0:
+        return clipped
+
+    for _ in range(max_iterations):
+        # 重新统计各行业当前总权重
+        industry_totals: dict[str, float] = {}
+        for ind, syms in symbols_by_industry.items():
+            total = sum(
+                target_weights.get(s, 0.0) for s in syms
+            )
+            if total > 0:
+                industry_totals[ind] = total
+
+        over_industry = None
+        over_total = 0.0
+        for ind, total in industry_totals.items():
+            if total > max_industry_exposure + 1e-9 and total > over_total:
+                over_industry = ind
+                over_total = total
+
+        if over_industry is None:
+            break
+
+        # 按比例缩减该行业所有持仓
+        scale = max_industry_exposure / over_total if over_total > 0 else 0.0
+        for s in symbols_by_industry[over_industry]:
+            if s in target_weights:
+                old = target_weights[s]
+                new_w = old * scale
+                if old > 0 and new_w < old - 1e-9:
+                    clipped.add(s)
+                target_weights[s] = new_w
+    return clipped
+
+
+def _compute_target_weights(
+    strategy: Strategy,
+    scores: dict[str, float],
+    top_n: int,
+    weight_mode: str,
+    cash_reserve: float,
+    max_weight_per_symbol: Optional[float],
+    max_industry_exposure: Optional[float],
+    buffer_n: int,
+    min_holding_bars: int,
+    reject_limit_up_on_buy: bool,
+    reject_limit_down_on_sell: bool,
+    trading_date: Any,
+    extra_map: Optional[dict[str, dict[str, dict[str, Any]]]],
+) -> tuple[dict[str, float], dict[str, Any]]:
+    """spec 011 迭代 4 自托管权重计算。
+
+    步骤：
+
+    1. P0-5 score 降序排序候选；
+    2. P1-7 buffer_n：买入取 top_(n-buffer)，卖出放宽到 top_(n+buffer)；
+    3. P0-4 涨停拒买 / 跌停拒卖；
+    4. P2-4 min_holding_bars：未满持仓周期的不卖；
+    5. P1-3 cash_reserve：investable = 1 - cash_reserve；
+    6. equal / score 权重分配；
+    7. P1-4 单标的上限截断 + 行业暴露上限迭代缩减；
+    8. P0-5 诊断信息收集。
+
+    返回 ``(target_weights, diagnosis)``。
+    """
+    diagnosis: dict[str, Any] = {
+        "trading_date": str(pd.Timestamp(trading_date).date())
+        if trading_date is not None
+        else None,
+        "selected_count": 0,
+        "actually_bought": 0,
+        "rejected_by_cash": 0,
+        "rejected_by_limit_up": [],
+        "rejected_by_limit_down_kept": [],
+        "rejected_by_min_holding_kept": [],
+        "clipped_by_symbol_cap": [],
+        "clipped_by_industry_cap": [],
+    }
+
+    if not scores or top_n <= 0:
+        return {}, diagnosis
+
+    investable = max(0.0, 1.0 - max(0.0, cash_reserve))
+
+    # 1) P0-5：score 降序排序候选
+    sorted_scores = sorted(scores.items(), key=lambda x: -x[1])
+    selected = [s for s, _ in sorted_scores]
+
+    # 2) P1-7 buffer_n：买入阈值与卖出阈值
+    buy_threshold = max(top_n - buffer_n, 1) if buffer_n else top_n
+    sell_threshold = top_n + buffer_n if buffer_n else top_n
+
+    # 当前持仓
+    try:
+        current_positions = strategy.get_positions() or {}
+    except Exception:  # noqa: BLE001
+        current_positions = {}
+
+    buy_set = set(selected[:buy_threshold])
+    hold_set = {
+        s
+        for s in selected[:sell_threshold]
+        if s in current_positions and (current_positions.get(s, 0) or 0) > 0
+    }
+    target_symbols_set = buy_set | hold_set
+    # 限制到 top_n 数量（按 score 降序优先）
+    target_symbols_ordered = [
+        s for s in selected if s in target_symbols_set
+    ][:top_n]
+    diagnosis["selected_count"] = len(target_symbols_ordered)
+
+    # 3) P0-4：涨跌停拒单
+    trading_date_str = ""
+    try:
+        trading_date_str = pd.Timestamp(trading_date).strftime("%Y-%m-%d")
+    except Exception:  # noqa: BLE001
+        trading_date_str = ""
+
+    rejected_limit_up: list[str] = []
+    if reject_limit_up_on_buy and extra_map and trading_date_str:
+        filtered: list[str] = []
+        for sym in target_symbols_ordered:
+            meta = ((extra_map.get(sym) or {}).get(trading_date_str)) or {}
+            if _meta_true(meta.get("is_limit_up")):
+                rejected_limit_up.append(sym)
+                logger.info("涨停拒买: %s @ %s", sym, trading_date_str)
+                continue
+            filtered.append(sym)
+        target_symbols_ordered = filtered
+
+    diagnosis["rejected_by_limit_up"] = rejected_limit_up
+
+    if not target_symbols_ordered:
+        return {}, diagnosis
+
+    # 4) 权重分配（investable 之前算好）
+    n = len(target_symbols_ordered)
+    target_weights: dict[str, float] = {}
+    if weight_mode == "score":
+        clipped_scores = {s: max(scores.get(s, 0.0), 0.0) for s in target_symbols_ordered}
+        s_sum = sum(clipped_scores.values())
+        if s_sum > 0:
+            target_weights = {
+                s: (clipped_scores[s] / s_sum) * investable
+                for s in target_symbols_ordered
+            }
+        else:
+            w = investable / n if n > 0 else 0.0
+            target_weights = {s: w for s in target_symbols_ordered}
+    else:
+        # equal 模式（含 None）
+        w = investable / n if n > 0 else 0.0
+        target_weights = {s: w for s in target_symbols_ordered}
+
+    # 5) P0-4 跌停拒卖：持仓中不在 target_weights 的，若当日跌停则保留原权重
+    if reject_limit_down_on_sell and extra_map and trading_date_str:
+        try:
+            equity = strategy.get_portfolio_value()
+        except Exception:  # noqa: BLE001
+            equity = 0.0
+        kept_down: list[str] = []
+        for sym, qty in current_positions.items():
+            if (qty or 0) <= 0 or sym in target_weights:
+                continue
+            meta = ((extra_map.get(sym) or {}).get(trading_date_str)) or {}
+            if _meta_true(meta.get("is_limit_down")):
+                price = _current_price(strategy, sym)
+                cur_value = (qty or 0) * price
+                if equity > 0 and cur_value > 0:
+                    target_weights[sym] = cur_value / equity
+                    kept_down.append(sym)
+                    logger.info("跌停拒卖保留: %s @ %s", sym, trading_date_str)
+        diagnosis["rejected_by_limit_down_kept"] = kept_down
+
+    # 6) P2-4 min_holding_bars：未满持仓周期的不卖
+    if min_holding_bars and min_holding_bars > 0:
+        try:
+            equity = strategy.get_portfolio_value()
+        except Exception:  # noqa: BLE001
+            equity = 0.0
+        kept_holding: list[str] = []
+        for sym, qty in current_positions.items():
+            if (qty or 0) <= 0 or sym in target_weights:
+                continue
+            held = _safe_hold_bar(strategy, sym)
+            if held < min_holding_bars:
+                price = _current_price(strategy, sym)
+                cur_value = (qty or 0) * price
+                if equity > 0 and cur_value > 0:
+                    target_weights[sym] = cur_value / equity
+                    kept_holding.append(sym)
+                    logger.info(
+                        "min_holding_bars 保留（held=%d < %d）: %s",
+                        held, min_holding_bars, sym,
+                    )
+        diagnosis["rejected_by_min_holding_kept"] = kept_holding
+
+    # 7) P1-4：单标的上限截断
+    clipped_sym: list[str] = []
+    if max_weight_per_symbol is not None and max_weight_per_symbol > 0:
+        over_total = 0.0
+        under: list[str] = []
+        for s in list(target_weights.keys()):
+            if target_weights[s] > max_weight_per_symbol:
+                over_total += target_weights[s] - max_weight_per_symbol
+                target_weights[s] = max_weight_per_symbol
+                clipped_sym.append(s)
+            else:
+                under.append(s)
+        # 释放量按现有权重比例分配给未超限标的
+        if over_total > 0 and under:
+            under_sum = sum(target_weights[s] for s in under)
+            if under_sum > 0:
+                for s in under:
+                    target_weights[s] += over_total * (
+                        target_weights[s] / under_sum
+                    )
+    diagnosis["clipped_by_symbol_cap"] = clipped_sym
+
+    # 8) P1-4：行业暴露上限迭代缩减
+    clipped_ind: list[str] = []
+    if max_industry_exposure is not None and max_industry_exposure > 0 and trading_date_str:
+        symbols_by_industry: dict[str, list[str]] = {}
+        for sym in list(target_weights.keys()):
+            ind = _resolve_industry(sym, trading_date_str, extra_map)
+            symbols_by_industry.setdefault(ind, []).append(sym)
+        clipped_ind = list(
+            _clip_industry_exposure(
+                target_weights, symbols_by_industry, max_industry_exposure
+            )
+        )
+    diagnosis["clipped_by_industry_cap"] = clipped_ind
+
+    diagnosis["actually_bought"] = sum(
+        1 for v in target_weights.values() if v > 0
+    )
+    return target_weights, diagnosis

@@ -55,7 +55,7 @@
                             <button type="button" class="str-tab-btn" data-bs-toggle="tab" data-bs-target="#tab-buy" data-paradigm="signals"><i class="bi bi-arrow-up-circle"></i> 买入信号</button>
                             <button type="button" class="str-tab-btn" data-bs-toggle="tab" data-bs-target="#tab-sell" data-paradigm="signals"><i class="bi bi-arrow-down-circle"></i> 卖出信号</button>
                             <button type="button" class="str-tab-btn" data-bs-toggle="tab" data-bs-target="#tab-position" data-paradigm="signals"><i class="bi bi-wallet2"></i> 仓位管理</button>
-                            <button type="button" class="str-tab-btn" data-bs-toggle="tab" data-bs-target="#tab-exit" data-paradigm="signals"><i class="bi bi-shield-check"></i> 止损止盈</button>
+                            <button type="button" class="str-tab-btn" data-bs-toggle="tab" data-bs-target="#tab-exit" data-paradigm="both"><i class="bi bi-shield-check"></i> 止损止盈</button>
                             <button type="button" class="str-tab-btn" data-bs-toggle="tab" data-bs-target="#tab-rebalance" id="tab-btn-rebalance" data-paradigm="rebalance"><i class="bi bi-arrow-repeat"></i> 调仓</button>
                             <button type="button" class="str-tab-btn" data-bs-toggle="tab" data-bs-target="#tab-backtest" data-paradigm="both"><i class="bi bi-graph-up"></i> 回测参数</button>
                         </div>
@@ -176,12 +176,32 @@
                                             <label class="form-label">Top N</label>
                                             <input type="number" class="form-control" id="f-top-n" min="1" step="1" placeholder="选出的标的数量">
                                         </div>
-                                        <div class="col-md-4 d-flex align-items-end" id="f-universe-point-in-time-wrap" style="display:none;">
-                                            <div class="form-check form-switch">
-                                                <input class="form-check-input" type="checkbox" role="switch" id="f-universe-point-in-time" checked>
-                                                <label class="form-check-label" for="f-universe-point-in-time">Point-in-Time 成分股过滤</label>
-                                            </div>
+                                        <div class="col-md-2">
+                                            <label class="form-label">现金保留比例</label>
+                                            <input type="number" class="form-control" id="f-cash-reserve" min="0" max="0.95" step="0.05" placeholder="0~0.95">
                                         </div>
+                                        <div class="col-md-2">
+                                            <label class="form-label">换仓缓冲带 N</label>
+                                            <input type="number" class="form-control" id="f-buffer-n" min="0" max="20" step="1" placeholder="0~20">
+                                        </div>
+                                    </div>
+                                    <div class="row g-3 mt-1">
+                                        <div class="col-md-3">
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" id="f-max-weight-enable">
+                                                <label class="form-check-label" for="f-max-weight-enable">单标的权重上限</label>
+                                            </div>
+                                            <input type="number" class="form-control" id="f-max-weight" min="0" max="1" step="0.05" placeholder="0~1" disabled>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" id="f-max-industry-enable">
+                                                <label class="form-check-label" for="f-max-industry-enable">单行业暴露上限</label>
+                                            </div>
+                                            <input type="number" class="form-control" id="f-max-industry" min="0" max="1" step="0.05" placeholder="0~1" disabled>
+                                        </div>
+                                    </div>
+                                    <div class="row g-3 mt-1">
                                         <div class="col-12" id="f-stocks-wrap" style="display:none;">
                                             <label class="form-label">标的代码</label>
                                             <div class="manual-stocks-panel">
@@ -243,11 +263,26 @@
                                         </div>
                                     </div>
                                     <div class="mt-2" id="f-ranking-weights-wrap" style="display:none;">
+                                        <details class="mb-2">
+                                            <summary class="text-muted small" style="cursor:pointer;">📖 打分公式与权重说明（点开查看）</summary>
+                                            <div class="small text-muted mt-1 ps-2 border-start">
+                                                <div class="fw-semibold">打分公式（composite 模式）：</div>
+                                                <ol class="mb-1">
+                                                    <li>每个调仓日对候选池所有股票分别计算每个因子值；</li>
+                                                    <li>每个因子独立 z-score 标准化：z=(该股值-均值)/标准差；</li>
+                                                    <li>综合分=Σ(权重×z)/Σ|权重|，按维度权重绝对值归一化；</li>
+                                                    <li>综合分降序取 top_n。</li>
+                                                </ol>
+                                                <div>权重正负：<span class="text-success">正=越大越好</span>；<span class="text-danger">负=越小越好</span>；绝对值=相对重要程度。</div>
+                                            </div>
+                                        </details>
                                         <div class="d-flex justify-content-between align-items-center mb-1">
-                                            <label class="form-label mb-0">权重列表（factorKey → 权重，负=越小越好）</label>
+                                            <label class="form-label mb-0">权重列表（factorKey · 方向 · 权重绝对值）</label>
                                             <button type="button" class="btn btn-sm btn-outline-primary text-nowrap" data-add="ranking-weight">+ 增行</button>
                                         </div>
                                         <div id="f-ranking-weights" class="d-flex flex-column gap-1"></div>
+                                        <div id="f-ranking-weights-err" class="text-danger small mt-1" style="display:none;"></div>
+                                        <div id="f-ranking-weights-norm" class="text-muted small mt-1"></div>
                                     </div>
                                 </fieldset>
 
@@ -357,7 +392,7 @@
                             </div>
 
                             <!-- ============ Tab 6 止损止盈 ============ -->
-                            <div class="tab-pane fade" id="tab-exit" role="tabpanel" data-paradigm="signals">
+                            <div class="tab-pane fade" id="tab-exit" role="tabpanel" data-paradigm="both">
                                 <fieldset class="mb-3">
                                     <div class="form-check mb-2">
                                         <input class="form-check-input" type="checkbox" id="f-use-bracket">
@@ -397,8 +432,11 @@
                                                 <option value="quarterly">每季</option>
                                             </select>
                                         </div>
-                                        <div class="col-md-3"><label class="form-label">调仓日序 day_of_period</label>
-                                            <input type="number" class="form-control" id="f-reb-day" min="1" max="28" step="1" placeholder="1-28">
+                                        <div class="col-md-3" id="f-reb-trigger-col"><label class="form-label" id="f-reb-trigger-label">调仓触发 trigger</label>
+                                            <select class="form-select" id="f-reb-trigger">
+                                                <option value="first">月初 / 周一 / 季初</option>
+                                                <option value="last">月末 / 周五 / 季末</option>
+                                            </select>
                                         </div>
                                         <div class="col-md-3">
                                             <label class="form-label">换仓方式 replace_method</label>
@@ -412,6 +450,24 @@
                                             <div class="d-flex gap-2">
                                                 <div class="form-check"><input class="form-check-input" type="radio" name="f-reb-weight" id="f-reb-weight-equal" value="equal"><label class="form-check-label" for="f-reb-weight-equal">等权</label></div>
                                                 <div class="form-check"><input class="form-check-input" type="radio" name="f-reb-weight" id="f-reb-weight-score" value="score"><label class="form-check-label" for="f-reb-weight-score">按分加权</label></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="row g-3 mt-1">
+                                        <div class="col-md-3">
+                                            <label class="form-label">最小持仓周期 min_holding_bars</label>
+                                            <input type="number" class="form-control" id="f-min-holding-bars" min="0" max="250" step="1" placeholder="0~250">
+                                        </div>
+                                        <div class="col-md-3 d-flex align-items-end">
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" id="f-reject-limit-up" checked>
+                                                <label class="form-check-label" for="f-reject-limit-up">涨停拒买 reject_limit_up_on_buy</label>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-3 d-flex align-items-end">
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" id="f-reject-limit-down" checked>
+                                                <label class="form-check-label" for="f-reject-limit-down">跌停拒卖 reject_limit_down_on_sell</label>
                                             </div>
                                         </div>
                                     </div>
@@ -459,6 +515,27 @@
                                             </div>
                                             <div class="col-md-4"><label class="form-label">值</label><input type="number" class="form-control" id="f-bt-slippage-value" step="0.0001" placeholder="如 0.0002"></div>
                                         </div>
+                                    </div>
+                                </fieldset>
+
+                                <fieldset class="mb-3">
+                                    <label class="form-label">成交时机 fill_policy</label>
+                                    <select class="form-select" id="f-bt-fill-policy">
+                                        <option value="">默认（跟随范式）</option>
+                                        <option value='{"price_basis":"close","temporal":"same_cycle","bar_offset":0}'>当日收盘成交（推荐·尾盘调仓）</option>
+                                        <option value='{"price_basis":"open","temporal":"next_event","bar_offset":1}'>次日开盘成交</option>
+                                    </select>
+                                    <div class="form-text">留空时：轮动范式默认「当日收盘成交」，择时范式默认「次日开盘成交」。</div>
+                                </fieldset>
+
+                                <fieldset class="mb-3">
+                                    <div class="form-check mb-2"><input class="form-check-input" type="checkbox" id="f-bt-use-risk-config"><label class="form-check-label" for="f-bt-use-risk-config">启用风控 risk_config</label></div>
+                                    <div id="f-bt-risk-wrap" style="display:none;">
+                                        <div class="row g-3">
+                                            <div class="col-md-3"><label class="form-label">单标的最大仓位 max_position_pct</label><input type="number" class="form-control" id="f-bt-risk-max-position" step="0.01" min="0" max="1" placeholder="0~1，如 0.3"></div>
+                                            <div class="col-md-3"><label class="form-label">最大回撤熔断 max_drawdown_pct</label><input type="number" class="form-control" id="f-bt-risk-max-dd" step="0.01" min="0" max="1" placeholder="0~1，如 0.2"></div>
+                                        </div>
+                                        <div class="form-text">留空表示不启用该项风控；填值后将以 dict 形式写入 backtest_config.risk_config。</div>
                                     </div>
                                 </fieldset>
                             </div>
@@ -525,6 +602,7 @@
 }
 </script>
 
+<datalist id="factor-keys-datalist"></datalist>
 <div th:replace="~{fragments/common :: toastContainer}"></div>
 <div th:replace="~{fragments/common :: scripts}"></div>
 <script th:src="@{/js/condition-tree-builder.js}"></script>

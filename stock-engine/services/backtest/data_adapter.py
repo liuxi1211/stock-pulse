@@ -22,6 +22,25 @@ _BENCHMARK_CLOSE_COLS: tuple[str, ...] = ("close", "CLOSE", "price")
 # rebalance_engine 在调仓日按 trade_date 从 extra_map 取用，用于 TUSHARE 基本面因子补算。
 _EXTRA_FIELDS: tuple[str, ...] = ("pe_ttm", "pb", "total_mv", "roe_ttm")
 
+# spec 011：watcher 经 kline_data 下发的元数据字段（用于静态过滤/行业暴露/涨跌停拒单）。
+# 这些字段可能为字符串（如 sw_industry_l1）或布尔/数值，统一按原始类型保留，不做 float 强转。
+_META_FIELDS: tuple[str, ...] = (
+    "sw_industry_l1",      # 申万一级行业代码（P1-4 行业暴露 / P0-1 行业过滤）
+    "industry",            # 兜底：Tushare stock_basic 简化口径行业
+    "is_st",               # 当日是否 ST（P0-1 exclude_st）
+    "is_suspended",        # 当日是否停牌（P0-1 exclude_suspended）
+    "is_limit_up",         # 当日是否涨停（P0-1 exclude_limit_up / P0-4 涨停拒买）
+    "is_limit_down",       # 当日是否跌停（P0-1 exclude_limit_down / P0-4 跌停拒卖）
+    "list_date",           # 上市日期 YYYY-MM-DD（P0-1 min_list_days）
+    # spec 011 P2-1：trade_cal 预计算调仓标记（watcher 预计算后下发）
+    "is_first_of_week",
+    "is_last_of_week",
+    "is_first_of_month",
+    "is_last_of_month",
+    "is_first_of_quarter",
+    "is_last_of_quarter",
+)
+
 
 def kline_to_df(kline_data: list[dict]) -> pd.DataFrame:
     """watcher K 线 ``list[dict]`` → akquant 可用的 DataFrame。
@@ -86,26 +105,33 @@ def kline_to_df_map(kline_data: dict[str, list[dict]]) -> dict[str, pd.DataFrame
 def kline_to_extra_map(
     kline_data: dict[str, list[dict]],
     extra_fields: Optional[tuple[str, ...]] = None,
-) -> dict[str, dict[str, dict[str, float]]]:
-    """从 watcher K 线中提取基本面 extra 字段（spec 010 缺陷 B 修复）。
+    meta_fields: Optional[tuple[str, ...]] = None,
+) -> dict[str, dict[str, dict[str, Any]]]:
+    """从 watcher K 线中提取基本面 extra 字段与元数据 meta 字段（spec 010 缺陷 B + spec 011）。
 
     ``kline_to_df`` 只保留 OHLCV，基本面字段（pe_ttm/pb/total_mv/roe_ttm 等）
     被丢弃。本函数独立抽取，返回按 symbol → 日期 → 字段 的三层 map，
     供 ``RebalanceEngine._compute_one_factor`` 在调仓日按 trade_date 取用。
 
-    :param kline_data: ``{symbol: [{date, open, ..., pe_ttm, ...}, ...]}``。
-    :param extra_fields: 要提取的字段名元组，默认 :data:`_EXTRA_FIELDS`。
-    :return: ``{symbol: {trade_date_str: {pe_ttm: 12.3, pb: 1.1, ...}}}``，
-        日期统一归一化为 ``YYYY-MM-DD``。无 extra 字段的 symbol 返回空 dict。
+    - ``extra_fields``：数值型基本面字段，按 ``float()`` 强转（失败跳过）；
+    - ``meta_fields``：元数据字段（行业/ST/涨停/调仓标记等），**保留原始类型**（str/bool/int），
+      不做 float 强转。spec 011 静态过滤/行业暴露/涨跌停拒单/调仓日判定消费。
+
+    :param kline_data: ``{symbol: [{date, open, ..., pe_ttm, sw_industry_l1, ...}, ...]}``。
+    :param extra_fields: 数值型字段名元组，默认 :data:`_EXTRA_FIELDS`。
+    :param meta_fields: 元数据字段名元组，默认 :data:`_META_FIELDS`。
+    :return: ``{symbol: {trade_date_str: {pe_ttm: 12.3, sw_industry_l1: "801790.SI", ...}}}``，
+        日期统一归一化为 ``YYYY-MM-DD``。无字段的 symbol 返回空 dict。
     """
-    fields = extra_fields if extra_fields is not None else _EXTRA_FIELDS
-    out: dict[str, dict[str, dict[str, float]]] = {}
+    num_fields = extra_fields if extra_fields is not None else _EXTRA_FIELDS
+    str_fields = meta_fields if meta_fields is not None else _META_FIELDS
+    out: dict[str, dict[str, dict[str, Any]]] = {}
     if not kline_data:
         return out
 
     for symbol, rows in kline_data.items():
         sym_key = str(symbol)
-        per_day: dict[str, dict[str, float]] = {}
+        per_day: dict[str, dict[str, Any]] = {}
         if not rows:
             continue
         for row in rows:
@@ -119,14 +145,18 @@ def kline_to_extra_map(
                 day_str = pd.Timestamp(row[time_col]).strftime("%Y-%m-%d")
             except Exception:  # noqa: BLE001 - 单行日期解析失败跳过
                 continue
-            day_vals: dict[str, float] = {}
-            for fld in fields:
+            day_vals: dict[str, Any] = {}
+            # 数值型字段：float 强转
+            for fld in num_fields:
                 if fld in row and row[fld] is not None:
                     try:
                         day_vals[fld] = float(row[fld])
                     except (TypeError, ValueError):
-                        # 非数跳过（NaN 安全，下游用缺失值处理）
                         continue
+            # 元数据字段：保留原始类型（str/bool/int），仅跳过 None
+            for fld in str_fields:
+                if fld in row and row[fld] is not None:
+                    day_vals[fld] = row[fld]
             if day_vals:
                 per_day[day_str] = day_vals
         if per_day:

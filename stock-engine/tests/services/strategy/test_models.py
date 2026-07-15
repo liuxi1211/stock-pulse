@@ -111,7 +111,8 @@ def test_low_pe_value_template_parses():
     assert cfg.screen_config is not None
     # pool=csi500（可回测的宽基池，spec 010 I1：不再用被回测拒绝的 all_a_shares）
     assert cfg.screen_config.universe.pool == "csi500"
-    assert cfg.screen_config.universe.point_in_time is True
+    # spec 011 P1-1：point_in_time 已 deprecated 并从模板移除，字段保留兼容默认 None
+    assert cfg.screen_config.universe.point_in_time is None
     # factor 层（原 ranking）
     assert cfg.screen_config.factor is not None
     assert cfg.screen_config.factor.method == "single"
