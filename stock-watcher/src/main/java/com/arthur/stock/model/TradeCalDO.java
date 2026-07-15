@@ -33,21 +33,21 @@ public class TradeCalDO {
     /** 上一个交易日，格式 yyyyMMdd */
     private String pretradeDate;
 
-    /** 是否本周首个交易日（1=是，0=否） */
-    private String isFirstOfWeek;
+    /** 是否本周首个交易日（true=是，false=否） */
+    private Boolean isFirstOfWeek;
 
-    /** 是否本周末个交易日（1=是，0=否） */
-    private String isLastOfWeek;
+    /** 是否本周末个交易日（true=是，false=否） */
+    private Boolean isLastOfWeek;
 
-    /** 是否本月首个交易日（1=是，0=否） */
-    private String isFirstOfMonth;
+    /** 是否本月首个交易日（true=是，false=否） */
+    private Boolean isFirstOfMonth;
 
-    /** 是否本月末个交易日（1=是，0=否） */
-    private String isLastOfMonth;
+    /** 是否本月末个交易日（true=是，false=否） */
+    private Boolean isLastOfMonth;
 
-    /** 是否本季首个交易日（1=是，0=否） */
-    private String isFirstOfQuarter;
+    /** 是否本季首个交易日（true=是，false=否） */
+    private Boolean isFirstOfQuarter;
 
-    /** 是否本季末个交易日（1=是，0=否） */
-    private String isLastOfQuarter;
+    /** 是否本季末个交易日（true=是，false=否） */
+    private Boolean isLastOfQuarter;
 }

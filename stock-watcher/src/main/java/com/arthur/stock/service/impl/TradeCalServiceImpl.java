@@ -153,8 +153,6 @@ public class TradeCalServiceImpl implements TradeCalService {
     }
 
     private static final DateTimeFormatter CAL_DATE_FMT = DateTimeFormatter.ofPattern("yyyyMMdd");
-    private static final String FLAG_YES = "1";
-    private static final String FLAG_NO = "0";
 
     /**
      * 批量查询指定交易所、指定日期范围内（仅 is_open=1）的调仓标记，按 cal_date 建索引返回。
@@ -268,12 +266,12 @@ public class TradeCalServiceImpl implements TradeCalService {
                 int quarter = (d.getMonthValue() - 1) / 3 + 1;
                 String quarterKey = d.getYear() + "-Q" + quarter;
 
-                day.setIsFirstOfWeek(isBoundDate(weekFirst, weekKey, day.getCalDate()) ? FLAG_YES : FLAG_NO);
-                day.setIsLastOfWeek(isBoundDate(weekLast, weekKey, day.getCalDate()) ? FLAG_YES : FLAG_NO);
-                day.setIsFirstOfMonth(isBoundDate(monthFirst, monthKey, day.getCalDate()) ? FLAG_YES : FLAG_NO);
-                day.setIsLastOfMonth(isBoundDate(monthLast, monthKey, day.getCalDate()) ? FLAG_YES : FLAG_NO);
-                day.setIsFirstOfQuarter(isBoundDate(quarterFirst, quarterKey, day.getCalDate()) ? FLAG_YES : FLAG_NO);
-                day.setIsLastOfQuarter(isBoundDate(quarterLast, quarterKey, day.getCalDate()) ? FLAG_YES : FLAG_NO);
+                day.setIsFirstOfWeek(isBoundDate(weekFirst, weekKey, day.getCalDate()));
+                day.setIsLastOfWeek(isBoundDate(weekLast, weekKey, day.getCalDate()));
+                day.setIsFirstOfMonth(isBoundDate(monthFirst, monthKey, day.getCalDate()));
+                day.setIsLastOfMonth(isBoundDate(monthLast, monthKey, day.getCalDate()));
+                day.setIsFirstOfQuarter(isBoundDate(quarterFirst, quarterKey, day.getCalDate()));
+                day.setIsLastOfQuarter(isBoundDate(quarterLast, quarterKey, day.getCalDate()));
                 toUpdate.add(day);
             }
 

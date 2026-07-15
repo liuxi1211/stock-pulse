@@ -71,12 +71,12 @@ CREATE TABLE IF NOT EXISTS trade_cal (
     cal_date       VARCHAR(8)  NOT NULL COMMENT '日历日期（YYYYMMDD）',
     is_open        VARCHAR(4)  COMMENT '是否交易：0=休市，1=交易',
     pretrade_date  VARCHAR(8)  COMMENT '上一交易日（YYYYMMDD）',
-    is_first_of_week     VARCHAR(4) DEFAULT '0' COMMENT '是否本周首个交易日：1=是，0=否',
-    is_last_of_week      VARCHAR(4) DEFAULT '0' COMMENT '是否本周末个交易日：1=是，0=否',
-    is_first_of_month    VARCHAR(4) DEFAULT '0' COMMENT '是否本月首个交易日：1=是，0=否',
-    is_last_of_month     VARCHAR(4) DEFAULT '0' COMMENT '是否本月末个交易日：1=是，0=否',
-    is_first_of_quarter  VARCHAR(4) DEFAULT '0' COMMENT '是否本季首个交易日：1=是，0=否',
-    is_last_of_quarter   VARCHAR(4) DEFAULT '0' COMMENT '是否本季末个交易日：1=是，0=否',
+    is_first_of_week     TINYINT DEFAULT 0 COMMENT '是否本周首个交易日：1=是，0=否',
+    is_last_of_week      TINYINT DEFAULT 0 COMMENT '是否本周末个交易日：1=是，0=否',
+    is_first_of_month    TINYINT DEFAULT 0 COMMENT '是否本月首个交易日：1=是，0=否',
+    is_last_of_month     TINYINT DEFAULT 0 COMMENT '是否本月末个交易日：1=是，0=否',
+    is_first_of_quarter  TINYINT DEFAULT 0 COMMENT '是否本季首个交易日：1=是，0=否',
+    is_last_of_quarter   TINYINT DEFAULT 0 COMMENT '是否本季末个交易日：1=是，0=否',
     UNIQUE(exchange, cal_date)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='交易日历表';
 

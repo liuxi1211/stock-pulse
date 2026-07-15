@@ -71,12 +71,12 @@ CREATE TABLE IF NOT EXISTS trade_cal (
     cal_date        TEXT    NOT NULL,
     is_open         TEXT,
     pretrade_date   TEXT,
-    is_first_of_week     TEXT DEFAULT '0',
-    is_last_of_week      TEXT DEFAULT '0',
-    is_first_of_month    TEXT DEFAULT '0',
-    is_last_of_month     TEXT DEFAULT '0',
-    is_first_of_quarter  TEXT DEFAULT '0',
-    is_last_of_quarter   TEXT DEFAULT '0',
+    is_first_of_week     INTEGER DEFAULT 0,
+    is_last_of_week      INTEGER DEFAULT 0,
+    is_first_of_month    INTEGER DEFAULT 0,
+    is_last_of_month     INTEGER DEFAULT 0,
+    is_first_of_quarter  INTEGER DEFAULT 0,
+    is_last_of_quarter   INTEGER DEFAULT 0,
     UNIQUE(exchange, cal_date)
 );
 

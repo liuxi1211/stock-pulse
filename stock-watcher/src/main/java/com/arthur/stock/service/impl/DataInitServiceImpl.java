@@ -172,12 +172,12 @@ public class DataInitServiceImpl implements DataInitService {
         for (String column : TRADE_CAL_REBALANCE_COLUMNS) {
             if (isSqlite()) {
                 if (!sqliteColumnExists("trade_cal", column)) {
-                    jdbcTemplate.execute("ALTER TABLE trade_cal ADD COLUMN " + column + " TEXT DEFAULT '0'");
+                    jdbcTemplate.execute("ALTER TABLE trade_cal ADD COLUMN " + column + " INTEGER DEFAULT 0");
                     log.info("trade_cal: added column {} (sqlite)", column);
                 }
             } else {
                 if (!mysqlColumnExists("trade_cal", column)) {
-                    jdbcTemplate.execute("ALTER TABLE trade_cal ADD COLUMN " + column + " VARCHAR(4) DEFAULT '0'");
+                    jdbcTemplate.execute("ALTER TABLE trade_cal ADD COLUMN " + column + " TINYINT DEFAULT 0");
                     log.info("trade_cal: added column {} (mysql)", column);
                 }
             }
@@ -311,9 +311,9 @@ public class DataInitServiceImpl implements DataInitService {
             Map.entry("trade_cal", "CREATE TABLE IF NOT EXISTS trade_cal ("
                     + "id BIGINT AUTO_INCREMENT PRIMARY KEY,"
                     + "exchange VARCHAR(16),cal_date VARCHAR(8) NOT NULL,is_open VARCHAR(4),pretrade_date VARCHAR(8),"
-                    + "is_first_of_week VARCHAR(4) DEFAULT '0',is_last_of_week VARCHAR(4) DEFAULT '0',"
-                    + "is_first_of_month VARCHAR(4) DEFAULT '0',is_last_of_month VARCHAR(4) DEFAULT '0',"
-                    + "is_first_of_quarter VARCHAR(4) DEFAULT '0',is_last_of_quarter VARCHAR(4) DEFAULT '0',"
+                    + "is_first_of_week TINYINT DEFAULT 0,is_last_of_week TINYINT DEFAULT 0,"
+                    + "is_first_of_month TINYINT DEFAULT 0,is_last_of_month TINYINT DEFAULT 0,"
+                    + "is_first_of_quarter TINYINT DEFAULT 0,is_last_of_quarter TINYINT DEFAULT 0,"
                     + "UNIQUE(exchange, cal_date)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"),
             Map.entry("daily_quote", "CREATE TABLE IF NOT EXISTS daily_quote ("
                     + "ts_code VARCHAR(16) NOT NULL,trade_date VARCHAR(8) NOT NULL,"
@@ -370,9 +370,9 @@ public class DataInitServiceImpl implements DataInitService {
             Map.entry("trade_cal", "CREATE TABLE IF NOT EXISTS trade_cal ("
                     + "id INTEGER PRIMARY KEY AUTOINCREMENT,"
                     + "exchange TEXT,cal_date TEXT NOT NULL,is_open TEXT,pretrade_date TEXT,"
-                    + "is_first_of_week TEXT DEFAULT '0',is_last_of_week TEXT DEFAULT '0',"
-                    + "is_first_of_month TEXT DEFAULT '0',is_last_of_month TEXT DEFAULT '0',"
-                    + "is_first_of_quarter TEXT DEFAULT '0',is_last_of_quarter TEXT DEFAULT '0',"
+                    + "is_first_of_week INTEGER DEFAULT 0,is_last_of_week INTEGER DEFAULT 0,"
+                    + "is_first_of_month INTEGER DEFAULT 0,is_last_of_month INTEGER DEFAULT 0,"
+                    + "is_first_of_quarter INTEGER DEFAULT 0,is_last_of_quarter INTEGER DEFAULT 0,"
                     + "UNIQUE(exchange, cal_date))"),
             Map.entry("daily_quote", "CREATE TABLE IF NOT EXISTS daily_quote ("
                     + "ts_code TEXT NOT NULL,trade_date TEXT NOT NULL,"

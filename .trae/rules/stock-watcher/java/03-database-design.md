@@ -43,7 +43,54 @@ created_at            创建时间
 updated_at            更新时间
 ```
 
-### 1.3 字段类型 ✅ MUST（SQLite）
+### 1.3 字段类型 ✅ MUST（双库兼容：MySQL + SQLite）
+
+> ⚠️ **项目同时支持 MySQL 和 SQLite 两个数据库**，表结构必须同时存在于
+> `schema-mysql.sql`（MySQL）和 `schema-sqlite.sql`（SQLite）。
+> 新增/修改字段时**两份 schema 必须同步更新**，且 DataInitServiceImpl 里的
+> 建表 fallback 字符串也要同步改。
+
+#### 1.3.1 通用类型对照表
+
+| Java 类型 | MySQL 类型 | SQLite 类型 | 说明 |
+|----------|-----------|------------|------|
+| `Long` / `Integer` | `BIGINT` / `INT` | `INTEGER` | 主键用 `BIGINT AUTO_INCREMENT`（MySQL）/ `INTEGER PRIMARY KEY AUTOINCREMENT`（SQLite） |
+| `String` | `VARCHAR(N)` | `TEXT` | MySQL 可限定长度，SQLite 用 TEXT（两者都不强制长度校验） |
+| `BigDecimal` | `DECIMAL(M,N)` | `REAL` 或 `TEXT` | 金额类推荐 TEXT 存字符串避免浮点误差；普通计算可用 REAL |
+| `Boolean` | **`TINYINT`** | **`INTEGER`** | **布尔字段务必用 TINYINT/INTEGER + Boolean 实体类，不要用 VARCHAR** |
+| `LocalDate` / `String`(date) | `DATE` 或 `VARCHAR(8)` | `TEXT` | 项目惯例用字符串 `yyyyMMdd` 存日期（varchar/text） |
+| `LocalDateTime` / `String`(datetime) | `DATETIME` 或 `VARCHAR(19)` | `TEXT` | 项目惯例用字符串存时间 |
+| 枚举 Enum | `VARCHAR` | `TEXT` | 存枚举的 name/字符串值 |
+
+#### 1.3.2 Boolean 字段规范（重要！）
+
+**绝对不要用 `VARCHAR(4)` 存 `"1"`/`"0"` 表示布尔值。** 正确做法：
+
+- **数据库**：MySQL 用 `TINYINT DEFAULT 0`，SQLite 用 `INTEGER DEFAULT 0`
+- **Java 实体**：用 `private Boolean` 类型（不是 `String`）
+- **MyBatis-Plus**：自动映射 `Boolean` ↔ `TINYINT/INTEGER`，无需额外配置
+- **JSON 序列化**：Jackson 默认输出 `true`/`false`，下游消费方需能识别
+
+```sql
+-- MySQL
+ALTER TABLE trade_cal ADD COLUMN is_first_of_month TINYINT DEFAULT 0 COMMENT '是否本月首交易日：1=是，0=否';
+
+-- SQLite
+ALTER TABLE trade_cal ADD COLUMN is_first_of_month INTEGER DEFAULT 0;
+```
+
+```java
+// 实体类
+private Boolean isFirstOfMonth;  // ✅ 正确
+// private String isFirstOfMonth;  // ❌ 错误，不要用 String
+```
+
+> **历史教训**：项目早期曾错误地用 `VARCHAR(4)` + `String` 存布尔字段
+> （如 trade_cal 的 is_first_of_* 系列），导致 Java 代码类型不优雅、
+> 存浪费空间、比较易错。现已全部改造为 `TINYINT`/`INTEGER` + `Boolean`。
+> 新增布尔字段请直接走正确路线，不要再走弯路。
+
+#### 1.3.3 旧：仅 SQLite 的类型对照（保留供参考）
 
 | 数据类型 | SQLite 类型 | 说明 |
 |---------|------------|------|

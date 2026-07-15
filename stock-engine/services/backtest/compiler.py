@@ -1292,7 +1292,28 @@ def _is_rebalance_day(
             trade_date_str,
         )
         return _is_rebalance_trigger_day(trading_date, frequency, 0)
-    return flag_val == "1"
+    return _is_truthy_flag(flag_val)
+
+
+def _is_truthy_flag(val: Any) -> bool:
+    """将 trade_cal 标记值归一化为布尔值。
+
+    兼容 watcher 可能下发的多种表示：
+    - 字符串：``"1"`` / ``"0"`` / ``"true"`` / ``"false"`` / ``"True"`` / ``"False"``
+    - 数值：``1`` / ``0``
+    - 布尔：``True`` / ``False``
+
+    统一规则：值为 ``True``、``1``（整数或浮点）、``"1"``、``"true"``（大小写不敏感）
+    时返回 ``True``；否则返回 ``False``。
+    """
+    if isinstance(val, bool):
+        return val
+    if isinstance(val, (int, float)):
+        return val == 1
+    if isinstance(val, str):
+        s = val.strip().lower()
+        return s in ("1", "true", "yes", "y", "t")
+    return False
 
 
 def _discover_symbols(
