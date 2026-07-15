@@ -24,11 +24,28 @@ const ThemeManager = (function () {
         return document.documentElement.getAttribute('data-theme') || DEFAULT_THEME;
     }
 
-    function set(themeKey) {
+    function applyTheme(themeKey) {
         const idx = THEMES.findIndex(t => t.key === themeKey);
         if (idx === -1) themeKey = DEFAULT_THEME;
         document.documentElement.setAttribute('data-theme', themeKey);
-        try { localStorage.setItem(STORAGE_KEY, themeKey); } catch (e) {}
+        document.documentElement.style.colorScheme = (themeKey === 'cyber') ? 'dark' : 'light';
+        return themeKey;
+    }
+
+    function set(themeKey) {
+        themeKey = applyTheme(themeKey);
+
+        // 持久化:写入后立即回读校验,失败时输出诊断信息
+        try {
+            localStorage.setItem(STORAGE_KEY, themeKey);
+            const verify = localStorage.getItem(STORAGE_KEY);
+            if (verify !== themeKey) {
+                console.warn('[ThemeManager] localStorage 写入校验失败:期望', themeKey, '实际', verify);
+            }
+        } catch (e) {
+            console.warn('[ThemeManager] localStorage 不可用,主题无法持久化:', e);
+        }
+
         updateToggleIcon();
         window.dispatchEvent(new CustomEvent('theme:changed', { detail: { theme: themeKey } }));
     }
@@ -53,15 +70,20 @@ const ThemeManager = (function () {
         btn.setAttribute('aria-label', '切换主题,当前' + meta.name);
     }
 
-    function init() {
-        const stored = (function () {
-            try { return localStorage.getItem(STORAGE_KEY); } catch (e) { return null; }
-        })();
-        if (stored && THEMES.some(t => t.key === stored)) {
-            document.documentElement.setAttribute('data-theme', stored);
-        } else {
-            document.documentElement.setAttribute('data-theme', DEFAULT_THEME);
+    function readPersistedTheme() {
+        try {
+            const stored = localStorage.getItem(STORAGE_KEY);
+            return (stored && THEMES.some(t => t.key === stored)) ? stored : DEFAULT_THEME;
+        } catch (e) {
+            return DEFAULT_THEME;
         }
+    }
+
+    function init() {
+        // 始终强制把 data-theme 设为持久化值。
+        // 不能省略这一步:某些浏览器扩展(暗色模式/翻译插件)会在页面加载后
+        // 把 data-theme 篡改成 light/dark,必须在此纠正回来,否则 CSS 失配导致主题还原。
+        applyTheme(readPersistedTheme());
         updateToggleIcon();
 
         const btn = document.getElementById('themeToggle');
@@ -77,10 +99,27 @@ const ThemeManager = (function () {
         }
     }
 
+    // 监听 <html> data-theme 被外部(浏览器扩展等)篡改为非法值时自动纠正。
+    // 合法值仅 azure/mist/cyber;若被改成 light/dark 等则恢复为持久化主题。
+    function installGuard() {
+        const observer = new MutationObserver(function (mutations) {
+            for (const m of mutations) {
+                if (m.attributeName !== 'data-theme') continue;
+                const v = document.documentElement.getAttribute('data-theme');
+                if (!THEMES.some(t => t.key === v)) {
+                    applyTheme(readPersistedTheme());
+                    updateToggleIcon();
+                }
+            }
+        });
+        observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+    }
+
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', init);
+        document.addEventListener('DOMContentLoaded', function () { init(); installGuard(); });
     } else {
         init();
+        installGuard();
     }
 
     return { THEMES, get, set, cycle, init };
