@@ -215,6 +215,40 @@ class StrategyValidator:
         # (8) rebalance.trigger 校验 + day_of_period 兼容映射（spec 011 P2-1）
         self._validate_rebalance_trigger(tc, errors)
 
+        # (9) execution 仅轮动范式合法（spec 013 Task 2 / PRD 009 §2 P2-9）
+        self._validate_rebalance_execution(tc, errors, has_rebalance)
+
+    # ========================================================
+    # §7.1 execution 范式归属校验（spec 013 Task 2）
+    # ========================================================
+    def _validate_rebalance_execution(
+        self,
+        tc: TradingConfigModel,
+        errors: List[StrategyValidationError],
+        has_rebalance: bool,
+    ) -> None:
+        """execution 仅轮动范式合法（PRD 009 §2.2.5 P2-9）。
+
+        execution 是 :class:`RebalanceModel` 子字段，Pydantic 在解析阶段已保证它
+        只在 rebalance 在场时出现；此处做防御性校验——若 execution 在场但
+        rebalance 实际判定为非轮动范式（理论上不会发生，例如绕过 Pydantic 的
+        dict 路径），报 ``EXECUTION_REQUIRES_REBALANCE``。
+
+        设计依据：execution（分批调仓 + 冲击成本）依赖
+        ``rebalance_to_topn`` 的截面调仓语义，择时范式（signals）下没有
+        跨标的再平衡概念，execution 无意义且会误导用户。
+        """
+        rb = tc.rebalance
+        if rb is not None and rb.execution is not None and not has_rebalance:
+            code, msg = ErrorCode.EXECUTION_REQUIRES_REBALANCE
+            errors.append(
+                StrategyValidationError(
+                    path="trading_config.rebalance.execution",
+                    code=code,
+                    message=msg,
+                )
+            )
+
     # ========================================================
     # §7.1 调仓触发（spec 011 P2-1）
     # ========================================================

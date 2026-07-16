@@ -62,6 +62,7 @@
                 renderHeatmap();
                 renderTrades();
                 renderPositions();
+                renderDiagnosis();
             } else {
                 document.getElementById('metricGrid').innerHTML = '<div class="bt-empty-state"><i class="bi bi-exclamation-triangle"></i><div class="bt-empty-state-title">报告加载失败</div><div class="bt-empty-state-sub">' + e(resp.message || '') + '</div></div>';
             }
@@ -141,7 +142,8 @@
             { lbl: '最大回撤', icon: 'bi-graph-down', accent: 'var(--fall-color)', val: formatPct(m.maxDrawdownPct), cls: 'down', sub: '正数展示' },
             { lbl: '胜率', icon: 'bi-check-circle', accent: 'var(--accent-green)', val: formatRatio(m.winRate, '%'), cls: '', sub: '已平仓交易' },
             { lbl: '盈亏比', icon: 'bi-scales', accent: 'var(--accent-orange)', val: formatRatio(m.profitFactor), cls: '', sub: 'Profit Factor' },
-            { lbl: '交易笔数', icon: 'bi-arrow-left-right', accent: 'var(--accent-blue-light)', val: String(m.tradeCount != null ? m.tradeCount : (state.report.trades ? state.report.trades.length : 0)), cls: '', sub: '已完成平仓' }
+            { lbl: '交易笔数', icon: 'bi-arrow-left-right', accent: 'var(--accent-blue-light)', val: String(m.tradeCount != null ? m.tradeCount : (state.report.trades ? state.report.trades.length : 0)), cls: '', sub: '已完成平仓' },
+            { lbl: '年化换手率', icon: 'bi-arrow-repeat', accent: 'var(--accent-cyan-light)', val: formatRatio(m.annual_turnover_ratio != null ? m.annual_turnover_ratio : m.annualTurnoverRatio), cls: '', sub: 'Annual Turnover' }
         ];
 
         document.getElementById('metricGrid').innerHTML = cards.map(function (c) {
@@ -152,6 +154,91 @@
                 + '  <div class="bt-mcard-sub">' + e(c.sub) + '</div>'
                 + '</div>';
         }).join('');
+    }
+
+    // ============ spec 013 遗留#2：调仓诊断 + warmup 配置摘要 ============
+    // 字段命名：report 顶层 VO 为 camelCase（rebalanceDiagnosis/effectiveConfig），
+    //          但内部 Map key 来自 engine serializer（snake_case），故双命名兼容。
+    function pick(obj, camel, snake) {
+        if (!obj) return undefined;
+        return obj[camel] != null ? obj[camel] : obj[snake];
+    }
+
+    function renderDiagnosis() {
+        const row = document.getElementById('reportDiagnosisRow');
+        if (!row) return;
+        const r = state.report || {};
+        const diag = r.rebalanceDiagnosis || r.rebalance_diagnosis;
+        const ec = r.effectiveConfig || r.effective_config;
+        let html = '';
+
+        // ---- 调仓诊断卡片（轮动范式才有；择时范式 diag 为空 → 跳过）----
+        const selected = diag ? pick(diag, 'selectedCount', 'selected_count') : null;
+        if (diag && selected != null) {
+            const bought = pick(diag, 'actuallyBought', 'actually_bought') || 0;
+            const rejCash = pick(diag, 'rejectedByCash', 'rejected_by_cash') || 0;
+            const rejLimit = pick(diag, 'rejectedByLimitUp', 'rejected_by_limit_up') || 0;
+            const investRatio = pick(diag, 'actualInvestRatio', 'actual_invest_ratio') || 0;
+            const highlight = bought < selected ? 'bt-diag-warn' : '';
+            html += '<div class="bt-chart-card ' + highlight + '" style="margin-bottom:0;">'
+                + '<div class="bt-chart-head"><div class="bt-chart-title"><i class="bi bi-clipboard-data"></i>调仓诊断</div></div>'
+                + '<div class="bt-chart-body" style="padding:12px 16px;">'
+                + '<div>实际成交 <b>' + e(String(bought)) + '/' + e(String(selected)) + '</b> 只</div>'
+                + '<div class="bt-mcard-sub">资金不足拒单 ' + rejCash + ' 只 · 涨停拒买 ' + rejLimit + ' 只 · 实际仓位 ' + formatRatio(investRatio, '%') + '</div>'
+                + (highlight ? '<div class="bt-mcard-sub" style="color:var(--fall-color);">⚠ 实际成交少于选出，请检查资金/流动性</div>' : '')
+                + '</div></div>';
+        }
+
+        // ---- warmup 配置摘要 ----
+        if (ec) {
+            const wp = pick(ec, 'warmupPeriod', 'warmup_period');
+            const wsrc = pick(ec, 'warmupSource', 'warmup_source') || 'auto_inferred';
+            if (wp != null) {
+                const srcLabel = (wsrc === 'user_override' || wsrc === 'user-override')
+                    ? '（用户设置）'
+                    : '（基于因子窗口自动推断）';
+                html += '<div class="bt-chart-card" style="margin-top:12px; margin-bottom:0;">'
+                    + '<div class="bt-chart-body" style="padding:10px 16px;">'
+                    + '<span class="bt-mcard-lbl"><i class="bi bi-info-circle"></i> 系统建议 warmup: <b>' + e(String(wp)) + '</b>' + srcLabel + '</span>'
+                    + '</div></div>';
+            }
+        }
+
+        // ---- spec 013 P2-9：执行诊断（分批调仓 + 冲击成本）----
+        // 仅当启用 split_days>1 或 impact_cost_bps 时 engine 才输出；否则 executionDiagnosis 为空 → 跳过。
+        const ed = r.executionDiagnosis || r.execution_diagnosis;
+        if (ed) {
+            const splitDays = pick(ed, 'splitDays', 'split_days');
+            const completed = pick(ed, 'splitsCompleted', 'splits_completed');
+            const interrupted = pick(ed, 'splitsInterrupted', 'splits_interrupted');
+            const totalImpact = pick(ed, 'totalImpactCost', 'total_impact_cost');
+            const avgPart = pick(ed, 'avgParticipation', 'avg_participation');
+            if (splitDays != null || completed != null || totalImpact != null) {
+                const lines = [];
+                if (splitDays != null && splitDays > 1) {
+                    lines.push('分批 <b>' + e(String(completed != null ? completed : 0)) + '/' + e(String(splitDays)) + '</b> 天执行' +
+                        (interrupted ? ' · 打断 ' + interrupted + ' 次' : ''));
+                }
+                if (totalImpact != null && totalImpact > 0) {
+                    lines.push('累计冲击成本 ' + e(String(Number(totalImpact).toFixed(2))) +
+                        ' · 平均参与率 ' + formatRatio(avgPart, '%'));
+                }
+                if (lines.length) {
+                    html += '<div class="bt-chart-card" style="margin-top:12px; margin-bottom:0;">'
+                        + '<div class="bt-chart-head"><div class="bt-chart-title"><i class="bi bi-lightning-charge"></i>执行诊断</div></div>'
+                        + '<div class="bt-chart-body" style="padding:12px 16px;">'
+                        + lines.map(function (l) { return '<div class="bt-mcard-sub">' + l + '</div>'; }).join('')
+                        + '</div></div>';
+                }
+            }
+        }
+
+        if (html) {
+            row.innerHTML = html;
+            row.style.display = '';
+        } else {
+            row.style.display = 'none';
+        }
     }
 
     // ============ 净值 vs 基准 ============

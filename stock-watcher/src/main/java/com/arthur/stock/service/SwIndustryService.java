@@ -51,4 +51,18 @@ public interface SwIndustryService {
      * point-in-time 查询：取个股 ≤ 指定日期最新生效的一级行业代码，无则 null。
      */
     String getL1IndustryAt(String tsCode, String tradeDate);
+
+    /**
+     * 批量 point-in-time：取多只股票在区间 [startDate, endDate] 内每日生效的一级行业。
+     * <p>
+     * 实现一次性查全部历史一级成分股记录，按 ts_code + update_date forward-fill，
+     * 对区间内每个自然日取「≤ 该日最新 update_date」的 index_code。
+     *
+     * @param tsCodes   股票代码列表
+     * @param startDate 区间起始 yyyyMMdd（含），null 时退化为按 update_date 索引
+     * @param endDate   区间结束 yyyyMMdd（含）
+     * @return key=tsCode, value={trade_date(yyyyMMdd) -> index_code}；
+     *         无历史记录或区间内无生效归属的 tsCode 不在内层 map
+     */
+    Map<String, Map<String, String>> getL1IndustriesPit(List<String> tsCodes, String startDate, String endDate);
 }

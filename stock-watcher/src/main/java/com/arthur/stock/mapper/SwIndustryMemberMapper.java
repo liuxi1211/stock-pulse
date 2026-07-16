@@ -63,4 +63,23 @@ public interface SwIndustryMemberMapper extends BaseMapper<SwIndustryMemberDO> {
             + "<foreach item='c' collection='tsCodes' open='(' separator=',' close=')'>#{c}</foreach>"
             + "</script>")
     List<SwIndustryMemberDO> selectLatestL1ByTsCodes(@Param("tsCodes") List<String> tsCodes);
+
+    /**
+     * 区间批量：取多只股票的全部历史一级行业成分股记录（is_new 1/0 都要，含已剔除的）。
+     * <p>
+     * 用于 point-in-time 批量查询：调用方按 ts_code 分组 + update_date forward-fill
+     * 构造每个 trade_date 的当日归属。
+     *
+     * @param tsCodes 股票代码列表
+     * @return 全部历史一级成分股记录（按 ts_code, update_date 升序）
+     */
+    @Select("<script>"
+            + "SELECT ts_code, index_code, index_name, in_date, out_date, is_new, src, update_date "
+            + "FROM sw_industry_member "
+            + "WHERE index_code IN (SELECT index_code FROM sw_industry WHERE level = 1) "
+            + "AND ts_code IN "
+            + "<foreach item='c' collection='tsCodes' open='(' separator=',' close=')'>#{c}</foreach>"
+            + " ORDER BY ts_code, update_date ASC"
+            + "</script>")
+    List<SwIndustryMemberDO> selectAllL1HistoryByTsCodes(@Param("tsCodes") List<String> tsCodes);
 }

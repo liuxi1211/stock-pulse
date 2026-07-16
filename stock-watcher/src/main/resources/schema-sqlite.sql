@@ -262,10 +262,13 @@ CREATE TABLE IF NOT EXISTS quant_backtest_report (
     equity_curve_json   TEXT,
     benchmark_curve_json TEXT,
     daily_returns_json  TEXT,
-    trades_json         TEXT,
-    orders_json         TEXT,
-    positions_json      TEXT,
-    created_at          TEXT,
+    trades_json        TEXT,
+    orders_json        TEXT,
+    positions_json     TEXT,
+    rebalance_diagnosis_json TEXT,
+    effective_config_json TEXT,
+    execution_diagnosis_json TEXT,
+    created_at         TEXT,
     UNIQUE(backtest_id)
 );
 
@@ -303,6 +306,38 @@ CREATE TABLE IF NOT EXISTS sw_industry_member (
 );
 CREATE INDEX IF NOT EXISTS idx_sw_member_tscode ON sw_industry_member (ts_code);
 CREATE INDEX IF NOT EXISTS idx_sw_member_index ON sw_industry_member (index_code, is_new);
+
+-- 21. ST 戴帽摘帽表（tushare namechange）
+CREATE TABLE IF NOT EXISTS stock_namechange (
+    ts_code        TEXT NOT NULL,
+    name           TEXT,
+    start_date     TEXT,
+    end_date       TEXT,
+    change_reason  TEXT,
+    PRIMARY KEY (ts_code, start_date)
+);
+CREATE INDEX IF NOT EXISTS idx_namechange_tscode ON stock_namechange (ts_code);
+
+-- 22. 停复牌表（tushare suspend_d）
+CREATE TABLE IF NOT EXISTS stock_suspend_d (
+    ts_code      TEXT NOT NULL,
+    trade_date   TEXT NOT NULL,
+    susp_reason  TEXT,
+    resump_date  TEXT,
+    PRIMARY KEY (ts_code, trade_date)
+);
+CREATE INDEX IF NOT EXISTS idx_suspend_tscode_date ON stock_suspend_d (ts_code, trade_date);
+
+-- 23. 涨跌停价表（tushare stk_limit）
+CREATE TABLE IF NOT EXISTS stock_stk_limit (
+    ts_code     TEXT NOT NULL,
+    trade_date  TEXT NOT NULL,
+    pre_close   REAL,
+    up_limit    REAL,
+    down_limit  REAL,
+    PRIMARY KEY (ts_code, trade_date)
+);
+CREATE INDEX IF NOT EXISTS idx_limit_tscode_date ON stock_stk_limit (ts_code, trade_date);
 
 -- 初始管理员账号（仅当表为空时插入，默认密码: admin123）
 INSERT INTO sys_user (username, password, enabled, role)

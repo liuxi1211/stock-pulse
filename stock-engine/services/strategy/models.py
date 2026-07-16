@@ -423,6 +423,23 @@ class ExitModel(BaseModel):
     )
 
 
+class ExecutionConfig(BaseModel):
+    """分批调仓 + 冲击成本配置（PRD 009 §2 P2-9）。
+
+    - ``split_days``：分批天数（1=一次性，3=分 3 天）；冻结法——触发日算完整 plan，
+      后续 N-1 天执行增量。
+    - ``impact_cost_bps``：冲击成本(bps)，按成交量线性建模
+      ``impact = impact_cost_bps × 本笔成交额 / 当日成交额``；空=不建模。
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    split_days: int = Field(1, ge=1, le=5, description="分批天数（1=一次性）")
+    impact_cost_bps: Optional[float] = Field(
+        None, ge=0.0, description="冲击成本(bps)，按成交量线性建模；空=不建模"
+    )
+
+
 class RebalanceModel(BaseModel):
     """调仓规则 → akquant ``rebalance_to_topn``。Schema §3.3.4。
 
@@ -470,6 +487,9 @@ class RebalanceModel(BaseModel):
     )
     reject_limit_down_on_sell: bool = Field(
         True, description="跌停拒卖（当日跌停标的不卖出）"
+    )
+    execution: Optional["ExecutionConfig"] = Field(
+        None, description="分批调仓 + 冲击成本；仅轮动范式合法"
     )
 
 

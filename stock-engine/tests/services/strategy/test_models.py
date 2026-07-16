@@ -415,3 +415,41 @@ def test_factornode_transform_optional():
 
     node = FactorNode(factor="RSI")  # 不带 transform，等价现状
     assert node.transform is None
+
+
+def test_execution_config_defaults():
+    from services.strategy.models import ExecutionConfig
+    ec = ExecutionConfig()
+    assert ec.split_days == 1
+    assert ec.impact_cost_bps is None
+
+
+def test_execution_config_valid():
+    from services.strategy.models import ExecutionConfig
+    ec = ExecutionConfig(split_days=3, impact_cost_bps=10.0)
+    assert ec.split_days == 3
+    assert ec.impact_cost_bps == 10.0
+
+
+def test_execution_config_rejects_bad_split_days():
+    import pytest
+    from pydantic import ValidationError
+    from services.strategy.models import ExecutionConfig
+    with pytest.raises(ValidationError):
+        ExecutionConfig(split_days=0)
+    with pytest.raises(ValidationError):
+        ExecutionConfig(split_days=6)
+
+
+def test_execution_config_rejects_negative_impact():
+    import pytest
+    from pydantic import ValidationError
+    from services.strategy.models import ExecutionConfig
+    with pytest.raises(ValidationError):
+        ExecutionConfig(impact_cost_bps=-0.1)
+
+
+def test_rebalance_model_execution_optional():
+    from services.strategy.models import RebalanceModel
+    rb = RebalanceModel(frequency="monthly")
+    assert rb.execution is None

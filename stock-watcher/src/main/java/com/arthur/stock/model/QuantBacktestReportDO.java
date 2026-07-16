@@ -43,6 +43,15 @@ public class QuantBacktestReportDO {
     /** 持仓快照列表 JSON */
     private String positionsJson;
 
+    /** spec 011 P0-5：轮动调仓诊断 JSON（selected_count/actually_bought/rejected_by_cash/...） */
+    private String rebalanceDiagnosisJson;
+
+    /** spec 011 P2-5：实际生效配置 JSON（warmup_period 等） */
+    private String effectiveConfigJson;
+
+    /** spec 013 P2-9：执行诊断 JSON（split_days/splits_completed/splits_interrupted/total_impact_cost/avg_participation） */
+    private String executionDiagnosisJson;
+
     /** 创建时间（UTC ISO8601） */
     private String createdAt;
 }

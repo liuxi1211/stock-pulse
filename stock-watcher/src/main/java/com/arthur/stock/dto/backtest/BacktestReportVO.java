@@ -34,4 +34,13 @@ public class BacktestReportVO {
 
     /** 持仓快照列表 */
     private List<Object> positions;
+
+    /** spec 011 P0-5：轮动调仓诊断（selected_count/actually_bought/rejected_by_cash/...），可空 */
+    private Map<String, Object> rebalanceDiagnosis;
+
+    /** spec 011 P2-5：实际生效配置（warmup_period 等），可空 */
+    private Map<String, Object> effectiveConfig;
+
+    /** spec 013 P2-9：执行诊断（split_days/splits_completed/splits_interrupted/total_impact_cost/avg_participation），可空 */
+    private Map<String, Object> executionDiagnosis;
 }

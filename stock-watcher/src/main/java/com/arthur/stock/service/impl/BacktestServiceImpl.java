@@ -22,15 +22,22 @@ import com.arthur.stock.mapper.QuantBacktestMapper;
 import com.arthur.stock.mapper.QuantBacktestReportMapper;
 import com.arthur.stock.mapper.QuantStrategyMapper;
 import com.arthur.stock.mapper.QuantStrategyVersionMapper;
+import com.arthur.stock.mapper.StockBasicMapper;
 import com.arthur.stock.model.DailyBasicDO;
 import com.arthur.stock.model.DailyQuoteDO;
 import com.arthur.stock.model.QuantBacktestDO;
 import com.arthur.stock.model.QuantBacktestReportDO;
 import com.arthur.stock.model.QuantStrategyDO;
 import com.arthur.stock.model.QuantStrategyVersionDO;
+import com.arthur.stock.model.StockBasicDO;
+import com.arthur.stock.model.StockNamechangeDO;
+import com.arthur.stock.model.StockStkLimitDO;
 import com.arthur.stock.model.TradeCalDO;
 import com.arthur.stock.service.BacktestService;
 import com.arthur.stock.service.IndexWeightService;
+import com.arthur.stock.service.StockNamechangeService;
+import com.arthur.stock.service.StockSuspendDService;
+import com.arthur.stock.service.StockStkLimitService;
 import com.arthur.stock.service.SwIndustryService;
 import com.arthur.stock.service.TradeCalService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
@@ -50,6 +57,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
@@ -103,6 +111,10 @@ public class BacktestServiceImpl implements BacktestService {
     private final IndexWeightService indexWeightService;
     private final SwIndustryService swIndustryService;
     private final TradeCalService tradeCalService;
+    private final StockNamechangeService stockNamechangeService;
+    private final StockSuspendDService stockSuspendDService;
+    private final StockStkLimitService stockStkLimitService;
+    private final StockBasicMapper stockBasicMapper;
 
     public BacktestServiceImpl(QuantBacktestMapper backtestMapper,
                                QuantBacktestReportMapper reportMapper,
@@ -114,7 +126,11 @@ public class BacktestServiceImpl implements BacktestService {
                                @Qualifier("backtestExecutor") Executor backtestExecutor,
                                IndexWeightService indexWeightService,
                                SwIndustryService swIndustryService,
-                               TradeCalService tradeCalService) {
+                               TradeCalService tradeCalService,
+                               StockNamechangeService stockNamechangeService,
+                               StockSuspendDService stockSuspendDService,
+                               StockStkLimitService stockStkLimitService,
+                               StockBasicMapper stockBasicMapper) {
         this.backtestMapper = backtestMapper;
         this.reportMapper = reportMapper;
         this.strategyMapper = strategyMapper;
@@ -126,6 +142,10 @@ public class BacktestServiceImpl implements BacktestService {
         this.indexWeightService = indexWeightService;
         this.swIndustryService = swIndustryService;
         this.tradeCalService = tradeCalService;
+        this.stockNamechangeService = stockNamechangeService;
+        this.stockSuspendDService = stockSuspendDService;
+        this.stockStkLimitService = stockStkLimitService;
+        this.stockBasicMapper = stockBasicMapper;
     }
 
     // ==================== run ====================
@@ -566,15 +586,25 @@ public class BacktestServiceImpl implements BacktestService {
         String endDate = bt == null ? null : normalizeDate(bt.getString("end_date"));
 
         JSONObject kline = new JSONObject();
-        // 批量预查每只标的当前所属的申万一级行业（key=tsCode, value=index_code），避免逐 bar 查询；
+        // spec 013 遗留#3：行业归属 point-in-time（按 trade_date 取当时归属，消除跨年 lookahead bias）
+        // 批量预查每只标的在区间内每日生效的申万一级行业（key=tsCode, value={trade_date -> index_code}）；
         // 未匹配到（如未同步申万数据）的 tsCode 不在 Map 中，对应 bar 不下发 sw_industry_l1。
-        Map<String, String> swL1Map = swIndustryService.getLatestL1Industries(symbols);
+        Map<String, Map<String, String>> swL1PitMap = swIndustryService.getL1IndustriesPit(symbols, startDate, endDate);
         // 批量预查回测区间内的调仓标记（周/月/季 first/last），key=cal_date(yyyyMMdd)，
         // 供 engine 调仓日判定（spec 011 P2-1：从自然日 day_of_period 改为 trade_cal 预计算标记）。
         // 仅交易日有记录；非交易日（或区间外）的 bar 不下发标记字段，engine 侧按缺省处理。
         // 用 SSE 标准交易日历（A 股两交易所交易日基本一致）。
         Map<String, TradeCalDO> rebalanceFlags = tradeCalService.queryFlagsByRange(
                 ExchangeEnum.SSE.getCode(), startDate, endDate);
+        // 批量预查 5 个元数据字段（spec 013 遗留#1）：namechange / suspend_d / stk_limit / list_date
+        Map<String, List<StockNamechangeDO>> namechangeMap = stockNamechangeService.listByTsCodes(symbols);
+        Map<String, Set<String>> suspendSet = stockSuspendDService.listSuspendDates(symbols, startDate, endDate);
+        Map<String, Map<String, StockStkLimitDO>> limitMap = stockStkLimitService.listByRange(symbols, startDate, endDate);
+        // list_date 静态字段（stock_basic），按 ts_code 取一次
+        Map<String, String> listDateMap = stockBasicMapper.selectList(
+                new LambdaQueryWrapper<StockBasicDO>().in(StockBasicDO::getTsCode, symbols))
+                .stream().collect(Collectors.toMap(StockBasicDO::getTsCode,
+                        b -> b.getListDate() == null ? "" : b.getListDate(), (a, b) -> a));
         for (String code : symbols) {
             List<DailyQuoteDO> quotes = dailyQuoteMapper.selectList(
                     new LambdaQueryWrapper<DailyQuoteDO>()
@@ -590,9 +620,6 @@ public class BacktestServiceImpl implements BacktestService {
                     .stream()
                     .collect(Collectors.toMap(DailyBasicDO::getTradeDate, b -> b, (a, b) -> a));
 
-            // 该标的的申万一级行业归属（静态元数据，全区间每个 bar 相同；回测内不随时间变）。
-            String swL1 = swL1Map.get(code);
-
             JSONArray arr = new JSONArray(quotes.size());
             for (DailyQuoteDO q : quotes) {
                 JSONObject bar = new JSONObject();
@@ -602,11 +629,13 @@ public class BacktestServiceImpl implements BacktestService {
                 bar.put("low", toDouble(q.getLow()));
                 bar.put("close", toDouble(q.getClose()));
                 bar.put("volume", toDouble(q.getVol()));
-                // 申万一级行业归属（元数据下发，供 engine 行业暴露/静态过滤/行业轮动使用）。
-                // 注：当前下发的是「最新」归属，未做 point-in-time；历史归属切换需后续按 bar 日期
-                // 查 sw_industry_member 的 in_date/out_date 区间（依赖 engine data_adapter 处理）。
-                if (swL1 != null) {
-                    bar.put("sw_industry_l1", swL1);
+                // spec 013 遗留#3：PIT 行业归属（按 bar 的 trade_date 取当日生效的一级行业）
+                Map<String, String> perCodePit = swL1PitMap.get(code);
+                if (perCodePit != null) {
+                    String swL1Td = perCodePit.get(q.getTradeDate());
+                    if (swL1Td != null) {
+                        bar.put("sw_industry_l1", swL1Td);
+                    }
                 }
                 // 调仓标记（spec 011 P2-1）：按 bar 的 trade_date 从预查的 trade_cal 标记注入。
                 // 仅在命中交易日记录时下发；engine 侧据 is_first_of_week/..._month/..._quarter
@@ -620,9 +649,38 @@ public class BacktestServiceImpl implements BacktestService {
                     bar.put("is_first_of_quarter", calFlags.getIsFirstOfQuarter());
                     bar.put("is_last_of_quarter", calFlags.getIsLastOfQuarter());
                 }
-                // TODO: is_st / is_suspended / is_limit_up / is_limit_down / list_date 等元数据字段
-                //  当前数据源（DailyQuoteDO/DailyBasicDO）暂无对应列，待后续数据源扩展后在此一并下发。
-                //  list_date 可在 stock_basic 表中获取（StockBasicDO.listDate），后续按需联查补充。
+                // spec 013 遗留#1：5 个元数据字段逐日准确下发
+                String td = q.getTradeDate();
+                // is_st：namechange 该日生效的 name 含 "ST"
+                List<StockNamechangeDO> ncList = namechangeMap.get(code);
+                String activeName = activeNameAt(ncList, td);
+                bar.put("is_st", (activeName != null && activeName.contains("ST")) ? "1" : "0");
+                // is_suspended：当日是否在停牌集合
+                Set<String> suspDates = suspendSet.getOrDefault(code, Collections.emptySet());
+                bar.put("is_suspended", suspDates.contains(td) ? "1" : "0");
+                // is_limit_up / is_limit_down：按 stk_limit 精确判定
+                Map<String, StockStkLimitDO> codeLimit = limitMap.getOrDefault(code, Collections.emptyMap());
+                StockStkLimitDO lim = codeLimit.get(td);
+                if (lim != null) {
+                    double close = toDouble(q.getClose());
+                    Double up = lim.getUpLimit();
+                    Double down = lim.getDownLimit();
+                    if (up != null && close >= up) {
+                        bar.put("is_limit_up", "1");
+                    } else {
+                        bar.put("is_limit_up", "0");
+                    }
+                    if (down != null && close <= down) {
+                        bar.put("is_limit_down", "1");
+                    } else {
+                        bar.put("is_limit_down", "0");
+                    }
+                }
+                // list_date：stock_basic 静态字段
+                String ld = listDateMap.get(code);
+                if (ld != null && !ld.isEmpty()) {
+                    bar.put("list_date", ld);
+                }
                 // 追加基本面字段（字段名与 daily_basic 表下划线列名对齐，便于 engine 侧统一口径）
                 DailyBasicDO basic = basicMap.get(q.getTradeDate());
                 if (basic != null) {
@@ -633,6 +691,31 @@ public class BacktestServiceImpl implements BacktestService {
             kline.put(code, arr);
         }
         return kline.isEmpty() ? null : kline;
+    }
+
+    /**
+     * 取 namechange 列表中在 tradeDate 生效的最新 name（start_date<=td 且 (end_date 空或 >=td)，按 start_date 倒序首条）。
+     * <p>
+     * 用于判定某日某标的是否 ST（name 含 "ST"）。list 为 null/空或无生效记录 → null。
+     */
+    private static String activeNameAt(List<StockNamechangeDO> list, String tradeDate) {
+        if (list == null || list.isEmpty() || tradeDate == null) {
+            return null;
+        }
+        // selectByTsCodes 已按 ts_code, start_date 升序返回；倒序遍历找首条生效
+        for (int i = list.size() - 1; i >= 0; i--) {
+            StockNamechangeDO nc = list.get(i);
+            String start = nc.getStartDate();
+            String end = nc.getEndDate();
+            if (start == null || start.compareTo(tradeDate) > 0) {
+                continue;
+            }
+            boolean active = (end == null || end.isEmpty() || end.compareTo(tradeDate) >= 0);
+            if (active) {
+                return nc.getName();
+            }
+        }
+        return null;
     }
 
     /**
@@ -864,6 +947,11 @@ public class BacktestServiceImpl implements BacktestService {
         r.setTradesJson(jsonStr(result.get("trades")));
         r.setOrdersJson(jsonStr(result.get("orders")));
         r.setPositionsJson(jsonStr(result.get("positions")));
+        // spec 011 P0-5 / P2-5：调仓诊断 + 实际生效配置（warmup 等）
+        r.setRebalanceDiagnosisJson(jsonStr(result.get("rebalance_diagnosis")));
+        r.setEffectiveConfigJson(jsonStr(result.get("effective_config")));
+        // spec 013 P2-9：执行诊断（分批调仓 + 冲击成本）
+        r.setExecutionDiagnosisJson(jsonStr(result.get("execution_diagnosis")));
         r.setCreatedAt(Instant.now().toString());
         reportMapper.insert(r);
     }
@@ -993,6 +1081,11 @@ public class BacktestServiceImpl implements BacktestService {
         vo.setTrades(parseList(r.getTradesJson()));
         vo.setOrders(parseList(r.getOrdersJson()));
         vo.setPositions(parseList(r.getPositionsJson()));
+        // spec 011 P0-5 / P2-5：透传调仓诊断 + 实际生效配置
+        vo.setRebalanceDiagnosis(parseMap(r.getRebalanceDiagnosisJson()));
+        vo.setEffectiveConfig(parseMap(r.getEffectiveConfigJson()));
+        // spec 013 P2-9：透传执行诊断（分批调仓 + 冲击成本）
+        vo.setExecutionDiagnosis(parseMap(r.getExecutionDiagnosisJson()));
         return vo;
     }
 

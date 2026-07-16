@@ -268,6 +268,9 @@ CREATE TABLE IF NOT EXISTS quant_backtest_report (
     trades_json          JSON         COMMENT '交易明细列表',
     orders_json          JSON         COMMENT '订单列表',
     positions_json       JSON         COMMENT '持仓快照列表',
+    rebalance_diagnosis_json JSON     COMMENT '轮动调仓诊断（spec 011 P0-5）',
+    effective_config_json JSON        COMMENT '实际生效配置（spec 011 P2-5，warmup_period 等）',
+    execution_diagnosis_json JSON     COMMENT '执行诊断（spec 013 P2-9，分批调仓+冲击成本）',
     created_at           VARCHAR(32)  COMMENT '创建时间（UTC ISO8601）',
     UNIQUE KEY uk_backtest_report (backtest_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='回测报告全量JSON表';
@@ -306,6 +309,38 @@ CREATE TABLE IF NOT EXISTS sw_industry_member (
     INDEX idx_sw_member_tscode (ts_code),
     INDEX idx_sw_member_index (index_code, is_new)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='申万行业成分股表';
+
+-- 21. ST 戴帽摘帽表（tushare namechange）
+CREATE TABLE IF NOT EXISTS stock_namechange (
+    ts_code        VARCHAR(16) NOT NULL COMMENT '股票代码（如 000001.SZ）',
+    name           VARCHAR(64) COMMENT '股票名称',
+    start_date     VARCHAR(8)  COMMENT '生效日期（YYYYMMDD）',
+    end_date       VARCHAR(8)  COMMENT '失效日期（YYYYMMDD，为空表示当前生效）',
+    change_reason  VARCHAR(64) COMMENT '变更原因',
+    PRIMARY KEY (ts_code, start_date),
+    INDEX idx_namechange_tscode (ts_code)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='ST 戴帽摘帽表';
+
+-- 22. 停复牌表（tushare suspend_d）
+CREATE TABLE IF NOT EXISTS stock_suspend_d (
+    ts_code      VARCHAR(16)   NOT NULL COMMENT '股票代码（如 000001.SZ）',
+    trade_date   VARCHAR(8)    NOT NULL COMMENT '停牌日期（YYYYMMDD）',
+    susp_reason  VARCHAR(128)  COMMENT '停牌原因',
+    resump_date  VARCHAR(8)    COMMENT '复牌日期（YYYYMMDD）',
+    PRIMARY KEY (ts_code, trade_date),
+    INDEX idx_suspend_tscode_date (ts_code, trade_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='停复牌表';
+
+-- 23. 涨跌停价表（tushare stk_limit）
+CREATE TABLE IF NOT EXISTS stock_stk_limit (
+    ts_code     VARCHAR(16) NOT NULL COMMENT '股票代码（如 000001.SZ）',
+    trade_date  VARCHAR(8)  NOT NULL COMMENT '交易日期（YYYYMMDD）',
+    pre_close   DOUBLE      COMMENT '前收盘价',
+    up_limit    DOUBLE      COMMENT '涨停价',
+    down_limit  DOUBLE      COMMENT '跌停价',
+    PRIMARY KEY (ts_code, trade_date),
+    INDEX idx_limit_tscode_date (ts_code, trade_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='涨跌停价表';
 
 -- 初始管理员账号（仅当表为空时插入，默认密码: admin123）
 INSERT INTO sys_user (username, password, enabled, role)

@@ -46,7 +46,19 @@ public enum TushareApiEnum {
 
     /** 申万行业成分股接口（index_member_all，全量成分股进出记录） */
     INDEX_MEMBER_ALL("index_member_all",
-            "ts_code,index_code,index_name,in_date,out_date,is_new");
+            "ts_code,index_code,index_name,in_date,out_date,is_new"),
+
+    /** 股票更名历史（ST 戴帽摘帽，doc_id=160） */
+    NAMECHANGE("namechange",
+            "ts_code,name,start_date,end_date,change_reason"),
+
+    /** 停复牌信息（doc_id=161） */
+    SUSPEND_D("suspend_d",
+            "ts_code,trade_date,susp_reason,resump_date"),
+
+    /** 涨跌停价（doc_id=183） */
+    STK_LIMIT("stk_limit",
+            "ts_code,trade_date,pre_close,up_limit,down_limit");
 
     private final String apiName;
     private final String fields;

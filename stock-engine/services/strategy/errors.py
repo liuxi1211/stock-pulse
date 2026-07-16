@@ -197,3 +197,13 @@ class ErrorCode:
         "TRANSFORM_NOT_ALLOWED_OUTSIDE_SCREEN",
         "transform 仅支持 filter.conditions（选股条件），不允许出现在 trading_config（signals/exit.rules 等）",
     )
+
+    # ----- 分批调仓 + 冲击成本（PRD 009 §2 P2-9）-----
+    INVALID_EXECUTION_CONFIG = (
+        "INVALID_EXECUTION_CONFIG",
+        "execution.split_days 必须是 1~5 的整数，impact_cost_bps 必须 ≥ 0",
+    )
+    EXECUTION_REQUIRES_REBALANCE = (
+        "EXECUTION_REQUIRES_REBALANCE",
+        "execution 仅轮动范式（rebalance）支持，择时范式不可用",
+    )

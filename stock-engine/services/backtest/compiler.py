@@ -577,6 +577,8 @@ def compile_strategy(
     rb_min_holding_bars: int = 0
     rb_reject_limit_up_on_buy: bool = True
     rb_reject_limit_down_on_sell: bool = True
+    rb_split_days: int = 1
+    rb_impact_cost_bps: Optional[float] = None
 
     if has_rebalance:
         rebalance_engine = RebalanceEngine()
@@ -645,6 +647,16 @@ def compile_strategy(
         rb_reject_limit_down_on_sell = (
             rebalance.reject_limit_down_on_sell if rebalance else True
         )
+        rb_split_days = (
+            rebalance.execution.split_days
+            if (rebalance.execution is not None)
+            else 1
+        )
+        rb_impact_cost_bps = (
+            rebalance.execution.impact_cost_bps
+            if (rebalance.execution is not None)
+            else None
+        )
         # universe_symbols：watcher 传入的全池（非 manual universe 时为唯一可靠来源）
         rb_universe_symbols: Optional[list[str]] = (
             list(universe_symbols) if universe_symbols else None
@@ -703,6 +715,8 @@ def compile_strategy(
             self._rb_min_holding_bars = rb_min_holding_bars
             self._rb_reject_limit_up_on_buy = rb_reject_limit_up_on_buy
             self._rb_reject_limit_down_on_sell = rb_reject_limit_down_on_sell
+            self._rb_split_days = rb_split_days
+            self._rb_impact_cost_bps = rb_impact_cost_bps
             # P0-5 诊断容器（最后一次调仓的诊断信息；result_serializer 读取）
             self._rb_diagnosis: dict[str, Any] = {}
 
@@ -985,6 +999,8 @@ def compile_strategy(
             reject_limit_up_on_buy=rb_reject_limit_up_on_buy,
             reject_limit_down_on_sell=rb_reject_limit_down_on_sell,
             use_legacy_rebalance=_USE_LEGACY_REBALANCE,
+            split_days=rb_split_days,
+            impact_cost_bps=rb_impact_cost_bps,
         )
 
     # 重命名类（便于日志/调试）
@@ -1028,6 +1044,8 @@ def _attach_rebalance_method(
     reject_limit_up_on_buy: bool = True,
     reject_limit_down_on_sell: bool = True,
     use_legacy_rebalance: bool = False,
+    split_days: int = 1,
+    impact_cost_bps: Optional[float] = None,
 ) -> None:
     """把 ``on_daily_rebalance`` 方法挂到策略类上。
 
@@ -1053,7 +1071,29 @@ def _attach_rebalance_method(
     def on_daily_rebalance(self, trading_date, timestamp):
         """调仓日选股 + 调仓（新路径自托管权重 / 旧路径 rebalance_to_topn）。"""
         # 1) 频率触发判断（spec 011 P2-1：查 bar 的 trade_cal 标记，零状态）
-        if not _is_rebalance_day(trading_date, frequency, trigger, extra_map):
+        is_trigger = _is_rebalance_day(trading_date, frequency, trigger, extra_map)
+
+        # 分批日（非触发日但有未完成分批）：执行累计目标（PRD 009 §2.2.2 冻结法）
+        pending = getattr(self, "_pending_split", None)
+        if not is_trigger and pending is not None and not pending.exhausted:
+            target = pending.next_target()
+            _bump_exec(self, "split_day")
+            if target:
+                # 当日累计目标中，仅对「相较昨日新增/增持」的买入标的检查涨停跳过；
+                # 这里对目标权重的「正向部分」做涨停过滤（涨停标的买不进，跳过其增量）。
+                target = _filter_limit_up_today(target, extra_map, trading_date)
+                if target:
+                    price_map = build_impact_price_map(self, target, impact_cost_bps, trading_date, extra_map)
+                    kw = {"price_map": price_map} if price_map else {}
+                    try:
+                        self.order_target_weights(target, liquidate_unmentioned=False, **kw)
+                    except Exception:  # noqa: BLE001
+                        logger.exception("分批调仓累计目标下单失败")
+            if pending.exhausted:
+                self._pending_split = None
+            return
+
+        if not is_trigger:
             return
 
         # 2) 收集全 universe 的历史 K 线（build kline_map for RebalanceEngine）
@@ -1102,7 +1142,7 @@ def _attach_rebalance_method(
                 pass
             return
 
-        # 新路径：自托管权重（spec 011 迭代 4）
+        # 新路径：自托管权重（spec 011 迭代 4 + spec 013 分批/冲击成本）
         try:
             target_weights, diagnosis = _compute_target_weights(
                 strategy=self,
@@ -1125,6 +1165,10 @@ def _attach_rebalance_method(
             except Exception:  # noqa: BLE001
                 pass
 
+            # 初始化 execution 诊断（首次，且仅当启用分批或冲击成本时）
+            if getattr(self, "_exec_diagnosis", None) is None and (split_days > 1 or impact_cost_bps):
+                self._exec_diagnosis = _exec_init_diagnosis(split_days)
+
             if not target_weights:
                 # 无目标权重：若 liquidate_unmentioned=True，仍需显式清仓
                 if liquidate_unmentioned:
@@ -1134,10 +1178,39 @@ def _attach_rebalance_method(
                         pass
                 return
 
-            self.order_target_weights(
-                target_weights,
-                liquidate_unmentioned=liquidate_unmentioned,
-            )
+            # 分批配置生效（split_days > 1）：冻结法切分，触发日下第 1 份累计目标
+            if split_days > 1:
+                old = getattr(self, "_pending_split", None)
+                if old is not None and not old.exhausted:
+                    logger.info("分批被打断：原 plan 剩 %d 天未执行", old.remaining_days)
+                    _bump_exec(self, "interrupted")
+                    old.interrupt()
+                state = SplitState(plan=target_weights, total_days=split_days)
+                target = state.next_target()  # 第 1 天累计目标 = plan/N
+                self._pending_split = state
+                _bump_exec(self, "split_day")
+                if target:
+                    target = _filter_limit_up_today(target, extra_map, trading_date)
+                    if target:
+                        price_map = build_impact_price_map(self, target, impact_cost_bps, trading_date, extra_map)
+                        kw = {"price_map": price_map} if price_map else {}
+                        try:
+                            self.order_target_weights(target, liquidate_unmentioned=liquidate_unmentioned, **kw)
+                        except Exception:  # noqa: BLE001
+                            logger.exception("分批调仓首份累计目标下单失败")
+                return
+
+            # split_days == 1：现状一次性（带冲击成本 price_map）
+            price_map = build_impact_price_map(self, target_weights, impact_cost_bps, trading_date, extra_map)
+            kw = {"price_map": price_map} if price_map else {}
+            try:
+                self.order_target_weights(
+                    target_weights,
+                    liquidate_unmentioned=liquidate_unmentioned,
+                    **kw,
+                )
+            except Exception:  # noqa: BLE001 - 调仓失败不阻断回测
+                logger.exception("on_daily_rebalance 自托管权重调仓失败")
         except Exception:  # noqa: BLE001 - 调仓失败不阻断回测
             logger.exception("on_daily_rebalance 自托管权重调仓失败")
 
@@ -1390,6 +1463,199 @@ def _fetch_symbol_kline(
 
 
 __all__ = ["compile_strategy", "CompilerError"]
+
+
+# ============================================================
+# spec 013 P2-9：冲击成本 volume-linear 建模
+# ============================================================
+_PARTICIPATION_CAP = 1.0
+
+
+def compute_impact_price(price, order_value, bar_volume, impact_cost_bps, sign):
+    """冲击成本 volume-linear 建模（PRD 009 §2.2.3）。
+
+    :param price: 原成交价（fill price）。
+    :param order_value: 本笔成交额（正数）。
+    :param bar_volume: 当日成交额（= volume × close，或直接用 volume 近似）。
+    :param impact_cost_bps: 冲击成本(bps)；None 或 ≤0 → 不建模，返回原价。
+    :param sign: +1 买入加价 / -1 卖出折价。
+    :return: (adj_price, participation)；participation 为封顶后参与率。
+    """
+    if impact_cost_bps is None or impact_cost_bps <= 0:
+        return float(price), 0.0
+    if bar_volume and bar_volume > 0:
+        participation = min(order_value / bar_volume, _PARTICIPATION_CAP)
+    else:
+        participation = _PARTICIPATION_CAP
+    impact_bps = impact_cost_bps * participation
+    adj = float(price) * (1 + sign * impact_bps / 10000.0)
+    return adj, participation
+
+
+def _get_bar_close_volume(strategy, symbol, trading_date, extra_map):
+    """取 symbol 当日 close 与 volume（用于冲击成本估算）。
+
+    优先用 get_history_df 取末 bar（trading_date 对应的那根）；返回 (close, volume)，
+    任一缺失返回 (None, None)。
+    """
+    try:
+        df = strategy.get_history_df(count=1, symbol=symbol)
+    except Exception:  # noqa: BLE001
+        return None, None
+    if df is None or getattr(df, "empty", True):
+        return None, None
+    try:
+        last = df.iloc[-1]
+        close = float(last.get("close", 0.0))
+        volume = float(last.get("volume", 0.0))
+        return close, volume
+    except Exception:  # noqa: BLE001
+        return None, None
+
+
+class SplitState:
+    """分批调仓冻结状态机（PRD 009 §2.2.2 冻结法）。
+
+    触发日算完整 plan 后，按 total_days 切分；``next_target`` 返回**当日累计目标
+    权重**（第 k 天 = ``plan × k / total_days``），由调用方传给 akquant 的
+    ``order_target_weights``（目标语义，框架自算差额下单）。N 天后累计目标 = plan，
+    仓位真正建到完整 plan；每日差额非 0 → trades 分布在 N 天，与 spec §85/§93 一致。
+
+    注：早期实现误把"每日增量 plan/N"当目标传入，因 ``order_target_weights`` 是
+    target 语义（非 delta），会导致 N 天后仓位停在 plan/N。已修正为累计目标推进。
+
+    耗尽或被打断后 exhausted=True。
+    """
+
+    def __init__(self, plan: dict, total_days: int):
+        self.plan = dict(plan)
+        self.total_days = max(1, int(total_days))
+        self.current_day = 0
+        self._exhausted = self.total_days <= 1
+
+    def next_target(self):
+        """返回下一个分批日的**累计目标权重**（第 k 天 = plan × k / N）。
+
+        耗尽后返回 None。返回值直接作为 ``order_target_weights`` 的 weights 入参。
+        """
+        if self._exhausted:
+            return None
+        self.current_day += 1
+        # 累计目标：第 k 天的目标 = plan × k / N；最后一天 k=N 时 = plan（消除浮点误差）
+        if self.current_day >= self.total_days:
+            target = dict(self.plan)  # 最后一份直接用 plan，避免 0.2*3≠0.6 之类误差
+            self._exhausted = True
+        else:
+            k = self.current_day
+            n = self.total_days
+            target = {sym: w * k / n for sym, w in self.plan.items()}
+        return target
+
+    def interrupt(self):
+        """新触发日打断：作废剩余分批。"""
+        self._exhausted = True
+
+    @property
+    def exhausted(self) -> bool:
+        return self._exhausted
+
+    @property
+    def remaining_days(self) -> int:
+        return max(0, self.total_days - self.current_day)
+
+
+def _exec_init_diagnosis(split_days: int) -> dict:
+    return {
+        "split_days": split_days,
+        "splits_completed": 0,
+        "splits_interrupted": 0,
+        "total_impact_cost": 0.0,
+        "avg_participation": 0.0,
+        "_participations": [],  # 内部累计，序列化前剔除
+    }
+
+
+def _bump_exec(strategy, event: str, participation: float = 0.0, impact_cost: float = 0.0):
+    """累计 execution_diagnosis（挂在 strategy._exec_diagnosis）。"""
+    diag = getattr(strategy, "_exec_diagnosis", None)
+    if diag is None:
+        return diag
+    if event == "split_day":
+        diag["splits_completed"] += 1
+    elif event == "interrupted":
+        diag["splits_interrupted"] += 1
+    if participation:
+        diag["_participations"].append(participation)
+    if impact_cost:
+        diag["total_impact_cost"] += impact_cost
+    return diag
+
+
+def _finalize_exec_diagnosis(strategy):
+    """序列化前：计算 avg_participation、剔除内部字段。"""
+    diag = getattr(strategy, "_exec_diagnosis", None)
+    if diag is None:
+        return None
+    parts = diag.pop("_participations", [])
+    diag["avg_participation"] = (sum(parts) / len(parts)) if parts else 0.0
+    return diag
+
+
+def _trade_date_str(trading_date):
+    """trading_date → extra_map 的 trade_date key（格式 %Y-%m-%d，与 data_adapter 一致）。"""
+    try:
+        return str(pd.Timestamp(trading_date).strftime("%Y-%m-%d"))
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _filter_limit_up_today(weights, extra_map, trading_date):
+    """剔除当日涨停（is_limit_up=1）的买入标的（PRD 009 §2.2.2 分批日涨停跳过）。"""
+    if not weights or not extra_map:
+        return dict(weights)
+    td_str = _trade_date_str(trading_date)
+    if td_str is None:
+        return dict(weights)
+    out = {}
+    for sym, w in weights.items():
+        if w > 0:  # 仅买入标的检查
+            day_map = extra_map.get(sym) or {}
+            meta = day_map.get(td_str) or {}
+            if str(meta.get("is_limit_up", "0")) == "1":
+                continue  # 当日涨停，跳过
+        out[sym] = w
+    return out
+
+
+def build_impact_price_map(strategy, target_weights, impact_cost_bps, trading_date, extra_map):
+    """为目标权重构造冲击成本调整后的 price_map（PRD 009 §2.2.3）。
+
+    对每个标的：取当日 close 与 volume，按 target_weights 比例估算 order_value
+    （总权益 × 权重），算调整后价格。返回 ``{symbol: adj_price}``；
+    impact_cost_bps 为 None 或 target_weights 为空时返回空 dict。
+    """
+    if impact_cost_bps is None or not target_weights:
+        return {}
+    price_map: dict[str, float] = {}
+    try:
+        equity = strategy.get_portfolio_value()
+    except Exception:  # noqa: BLE001
+        return {}
+    for sym, w in target_weights.items():
+        try:
+            close, volume = _get_bar_close_volume(strategy, sym, trading_date, extra_map)
+            if close is None or volume is None:
+                continue
+            bar_volume_amount = volume * close  # 成交额
+            order_value = abs(equity * w)
+            adj, _ = compute_impact_price(
+                close, order_value, bar_volume_amount, impact_cost_bps,
+                sign=1 if w > 0 else -1,
+            )
+            price_map[sym] = adj
+        except Exception:  # noqa: BLE001
+            continue
+    return price_map
 
 
 # ============================================================

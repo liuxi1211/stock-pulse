@@ -901,3 +901,53 @@ def test_transform_in_trading_config_rejected():
     }
     errors = _validate(cfg)
     _assert_has_error(errors, ErrorCode.TRANSFORM_NOT_ALLOWED_OUTSIDE_SCREEN[0])
+
+
+# ============================================================
+# spec 013 Task 2：execution 范式归属校验（EXECUTION_REQUIRES_REBALANCE）
+# ============================================================
+
+def test_execution_ok_in_rotation():
+    """轮动范式（rebalance 在场）+ rebalance.execution 在场 →
+    不报 EXECUTION_REQUIRES_REBALANCE。
+
+    execution 是 RebalanceModel 的合法子字段，分批调仓 + 冲击成本仅依赖
+    rebalance_to_topn 的截面调仓语义，应正常通过。
+    """
+    cfg = _rebalance_only_config()
+    cfg["trading_config"]["rebalance"]["execution"] = {
+        "split_days": 3,
+        "impact_cost_bps": 5.0,
+    }
+    errors = _validate(cfg)
+    codes = [e.code for e in errors]
+    assert ErrorCode.EXECUTION_REQUIRES_REBALANCE[0] not in codes, (
+        f"轮动范式下 execution 应合法，但报错: {[(e.code, e.path) for e in errors]}"
+    )
+
+
+def test_execution_rejects_when_not_rebalance():
+    """execution 在场但范式判定为非轮动 →
+    EXECUTION_REQUIRES_REBALANCE。
+
+    正常 JSON 路径下 execution 嵌套在 rebalance 内、Pydantic 保证 rebalance
+    在场，故 ``rb is not None`` 与 ``has_rebalance=False`` 不可能从
+    ``model_validate`` 路径同时成立。此处直接调用内部校验方法，传入
+    has_rebalance=False，模拟「绕过 Pydantic 结构不变量」的防御性场景。
+    """
+    from services.strategy.models import TradingConfigModel, RebalanceModel, ExecutionConfig
+
+    rb = RebalanceModel(frequency="weekly", execution=ExecutionConfig(split_days=2))
+    tc = TradingConfigModel(rebalance=rb)
+    errors = []
+    StrategyValidator()._validate_rebalance_execution(tc, errors, has_rebalance=False)
+    _assert_has_error(errors, ErrorCode.EXECUTION_REQUIRES_REBALANCE[0])
+
+
+def test_execution_no_op_without_rebalance():
+    """rebalance=None 时（signals 范式或空 trading_config）→
+    不报 EXECUTION_REQUIRES_REBALANCE（无 execution 可言）。"""
+    cfg = _base_config()
+    errors = _validate(cfg)
+    codes = [e.code for e in errors]
+    assert ErrorCode.EXECUTION_REQUIRES_REBALANCE[0] not in codes

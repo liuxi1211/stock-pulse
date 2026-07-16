@@ -43,7 +43,8 @@ public class DataInitServiceImpl implements DataInitService {
     /** 固定执行顺序，确保依赖关系正确（stock_basic 先于 per-stock 步骤） */
     private static final List<InitStep> EXECUTION_ORDER = List.of(
             InitStep.STOCK_BASIC, InitStep.TRADE_CAL, InitStep.INDEX_WEIGHT, InitStep.SW_INDUSTRY,
-            InitStep.DAILY, InitStep.ADJ_FACTOR, InitStep.DIVIDEND);
+            InitStep.DAILY, InitStep.ADJ_FACTOR, InitStep.DIVIDEND,
+            InitStep.NAMECHANGE, InitStep.SUSPEND_D, InitStep.STK_LIMIT);
 
     private final JdbcTemplate jdbcTemplate;
     private final StockBasicService stockBasicService;
@@ -53,6 +54,9 @@ public class DataInitServiceImpl implements DataInitService {
     private final DailyQuoteService dailyQuoteService;
     private final AdjFactorService adjFactorService;
     private final DividendService dividendService;
+    private final StockNamechangeService stockNamechangeService;
+    private final StockSuspendDService stockSuspendDService;
+    private final StockStkLimitService stockStkLimitService;
     private final CacheManager cacheManager;
 
     private final AtomicReference<DataInitProgress> progressRef = new AtomicReference<>(
@@ -120,6 +124,9 @@ public class DataInitServiceImpl implements DataInitService {
                 case DAILY -> executeDaily(stocks);
                 case ADJ_FACTOR -> executeAdjFactor(stocks);
                 case DIVIDEND -> executeDividend(stocks);
+                case NAMECHANGE -> stockNamechangeService.fetchAndSaveAll();
+                case SUSPEND_D -> stockSuspendDService.fetchAndSaveAll();
+                case STK_LIMIT -> stockStkLimitService.fetchAndSaveAll();
             }
         }
 
@@ -357,7 +364,22 @@ public class DataInitServiceImpl implements DataInitService {
                     + "result_id BIGINT,plan_id BIGINT,lock_date VARCHAR(8),stocks_json TEXT,"
                     + "ret_5d DECIMAL(20,4),ret_10d DECIMAL(20,4),ret_20d DECIMAL(20,4),"
                     + "benchmark_ret_5d DECIMAL(20,4),benchmark_ret_10d DECIMAL(20,4),benchmark_ret_20d DECIMAL(20,4),"
-                    + "status VARCHAR(16),created_at VARCHAR(32),updated_at VARCHAR(32)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4")
+                    + "status VARCHAR(16),created_at VARCHAR(32),updated_at VARCHAR(32)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"),
+            Map.entry("stock_namechange", "CREATE TABLE IF NOT EXISTS stock_namechange ("
+                    + "ts_code VARCHAR(16) NOT NULL,name VARCHAR(64),"
+                    + "start_date VARCHAR(8),end_date VARCHAR(8),change_reason VARCHAR(64),"
+                    + "PRIMARY KEY (ts_code, start_date),"
+                    + "INDEX idx_namechange_tscode (ts_code)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"),
+            Map.entry("stock_suspend_d", "CREATE TABLE IF NOT EXISTS stock_suspend_d ("
+                    + "ts_code VARCHAR(16) NOT NULL,trade_date VARCHAR(8) NOT NULL,"
+                    + "susp_reason VARCHAR(128),resump_date VARCHAR(8),"
+                    + "PRIMARY KEY (ts_code, trade_date),"
+                    + "INDEX idx_suspend_tscode_date (ts_code, trade_date)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"),
+            Map.entry("stock_stk_limit", "CREATE TABLE IF NOT EXISTS stock_stk_limit ("
+                    + "ts_code VARCHAR(16) NOT NULL,trade_date VARCHAR(8) NOT NULL,"
+                    + "pre_close DOUBLE,up_limit DOUBLE,down_limit DOUBLE,"
+                    + "PRIMARY KEY (ts_code, trade_date),"
+                    + "INDEX idx_limit_tscode_date (ts_code, trade_date)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4")
     );
 
     private static final Map<String, String> CREATE_TABLE_SQL_SQLITE = Map.ofEntries(
@@ -416,7 +438,19 @@ public class DataInitServiceImpl implements DataInitService {
                     + "result_id INTEGER,plan_id INTEGER,lock_date VARCHAR(8),stocks_json TEXT,"
                     + "ret_5d REAL,ret_10d REAL,ret_20d REAL,"
                     + "benchmark_ret_5d REAL,benchmark_ret_10d REAL,benchmark_ret_20d REAL,"
-                    + "status VARCHAR(16),created_at VARCHAR(32),updated_at VARCHAR(32))")
+                    + "status VARCHAR(16),created_at VARCHAR(32),updated_at VARCHAR(32))"),
+            Map.entry("stock_namechange", "CREATE TABLE IF NOT EXISTS stock_namechange ("
+                    + "ts_code TEXT NOT NULL,name TEXT,"
+                    + "start_date TEXT,end_date TEXT,change_reason TEXT,"
+                    + "PRIMARY KEY (ts_code, start_date))"),
+            Map.entry("stock_suspend_d", "CREATE TABLE IF NOT EXISTS stock_suspend_d ("
+                    + "ts_code TEXT NOT NULL,trade_date TEXT NOT NULL,"
+                    + "susp_reason TEXT,resump_date TEXT,"
+                    + "PRIMARY KEY (ts_code, trade_date))"),
+            Map.entry("stock_stk_limit", "CREATE TABLE IF NOT EXISTS stock_stk_limit ("
+                    + "ts_code TEXT NOT NULL,trade_date TEXT NOT NULL,"
+                    + "pre_close REAL,up_limit REAL,down_limit REAL,"
+                    + "PRIMARY KEY (ts_code, trade_date))")
     );
 
     private Map<String, String> getCreateTableSql() {

@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -238,5 +239,72 @@ public class SwIndustryServiceImpl implements SwIndustryService {
             }
         }
         return LocalDate.now().format(DATE_FMT);
+    }
+
+    @Override
+    public Map<String, Map<String, String>> getL1IndustriesPit(List<String> tsCodes, String startDate, String endDate) {
+        if (tsCodes == null || tsCodes.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        // 1. 一次性查全部历史一级成分股记录（按 ts_code, update_date 升序）
+        List<SwIndustryMemberDO> all = swIndustryMemberMapper.selectAllL1HistoryByTsCodes(tsCodes);
+        // 2. 按 ts_code 分组（已按 update_date 升序）
+        Map<String, List<SwIndustryMemberDO>> byCode = all.stream()
+                .collect(Collectors.groupingBy(SwIndustryMemberDO::getTsCode));
+        Map<String, Map<String, String>> result = new HashMap<>();
+        if (startDate == null || endDate == null) {
+            // 无区间约束：退化为按 update_date 索引的 map（调用方应总是传区间）
+            for (Map.Entry<String, List<SwIndustryMemberDO>> e : byCode.entrySet()) {
+                Map<String, String> inner = new HashMap<>();
+                for (SwIndustryMemberDO m : e.getValue()) {
+                    inner.put(m.getUpdateDate(), m.getIndexCode());
+                }
+                if (!inner.isEmpty()) {
+                    result.put(e.getKey(), inner);
+                }
+            }
+            return result;
+        }
+        // 3. 有区间：穷举 [startDate, endDate] 的自然日，对每个 ts_code forward-fill
+        List<String> dates = enumerateDates(startDate, endDate);
+        for (Map.Entry<String, List<SwIndustryMemberDO>> e : byCode.entrySet()) {
+            List<SwIndustryMemberDO> records = e.getValue();  // update_date 升序
+            Map<String, String> inner = new HashMap<>();
+            int idx = -1;  // 当前生效记录的下标
+            for (String d : dates) {
+                // 推进 idx 到最后一个 update_date <= d 的记录
+                while (idx + 1 < records.size()) {
+                    String ud = records.get(idx + 1).getUpdateDate();
+                    if (ud != null && ud.compareTo(d) <= 0) {
+                        idx++;
+                    } else {
+                        break;
+                    }
+                }
+                if (idx >= 0) {
+                    inner.put(d, records.get(idx).getIndexCode());
+                }
+                // idx < 0：该日早于任何 update_date → 不下发（engine 静默跳过）
+            }
+            if (!inner.isEmpty()) {
+                result.put(e.getKey(), inner);
+            }
+        }
+        return result;
+    }
+
+    /** 枚举 [startDate, endDate] 区间内的自然日（yyyyMMdd），含两端；解析失败返回空。 */
+    private static List<String> enumerateDates(String startDate, String endDate) {
+        List<String> out = new ArrayList<>();
+        try {
+            LocalDate s = LocalDate.parse(startDate, DATE_FMT);
+            LocalDate e = LocalDate.parse(endDate, DATE_FMT);
+            for (LocalDate d = s; !d.isAfter(e); d = d.plusDays(1)) {
+                out.add(d.format(DATE_FMT));
+            }
+        } catch (Exception ignore) {
+            // 日期解析失败 → 返回空（不 forward-fill）
+        }
+        return out;
     }
 }

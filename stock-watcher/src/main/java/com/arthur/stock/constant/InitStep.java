@@ -14,7 +14,10 @@ public enum InitStep {
     SW_INDUSTRY("sw_industry", "申万行业分类", "sw_industry"),
     DAILY("daily", "日线行情", "daily_quote"),
     ADJ_FACTOR("adj_factor", "复权因子", "adj_factor"),
-    DIVIDEND("dividend", "分红送股", "dividend");
+    DIVIDEND("dividend", "分红送股", "dividend"),
+    NAMECHANGE("namechange", "股票更名历史(ST)", "stock_namechange"),
+    SUSPEND_D("suspend_d", "停复牌信息", "stock_suspend_d"),
+    STK_LIMIT("stk_limit", "涨跌停价", "stock_stk_limit");
 
     private final String code;
     private final String label;

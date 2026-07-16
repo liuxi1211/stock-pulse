@@ -899,6 +899,10 @@ const StrategyEditor = {
             this.setVal('f-min-holding-bars', rb.min_holding_bars != null ? rb.min_holding_bars : '');
             this.setChecked('f-reject-limit-up', rb.reject_limit_up_on_buy !== false);
             this.setChecked('f-reject-limit-down', rb.reject_limit_down_on_sell !== false);
+            // spec 013 P2-9：execution（分批调仓 + 冲击成本）
+            const exec = rb.execution || {};
+            this.setVal('f-exec-split-days', exec.split_days != null ? exec.split_days : 1);
+            this.setVal('f-exec-impact-bps', exec.impact_cost_bps != null ? exec.impact_cost_bps : '');
         } else {
             this.setVal('f-reb-trigger', 'first');
             this.checkRadio('f-reb-replace', 'full');
@@ -906,6 +910,9 @@ const StrategyEditor = {
             this.setVal('f-min-holding-bars', '');
             this.setChecked('f-reject-limit-up', true);
             this.setChecked('f-reject-limit-down', true);
+            // spec 013 P2-9：execution 默认值重置
+            this.setVal('f-exec-split-days', 1);
+            this.setVal('f-exec-impact-bps', '');
         }
         this.applyRebTriggerVisibility();
 
@@ -1185,6 +1192,13 @@ const StrategyEditor = {
         if (minHolding != null) rb.min_holding_bars = minHolding;
         rb.reject_limit_up_on_buy = this.getChecked('f-reject-limit-up');
         rb.reject_limit_down_on_sell = this.getChecked('f-reject-limit-down');
+        // spec 013 P2-9：execution（分批调仓 + 冲击成本）
+        const splitDays = this.getInt('f-exec-split-days');
+        const impactBps = this.getNum('f-exec-impact-bps');
+        if ((splitDays != null && splitDays > 1) || impactBps != null) {
+            rb.execution = { split_days: splitDays != null ? splitDays : 1 };
+            if (impactBps != null) rb.execution.impact_cost_bps = impactBps;
+        }
         return rb;
     },
 

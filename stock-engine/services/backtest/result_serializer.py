@@ -183,6 +183,9 @@ def serialize_result(
     # ---- spec 011 P2-5：effective_config ----
     effective_config_out = effective_config if effective_config is not None else {}
 
+    # ---- PRD 009 §2.2.4：execution_diagnosis（P2-9） ----
+    execution_diagnosis_out = _extract_execution_diagnosis(result)
+
     return {
         "metrics": metrics,
         "equity_curve": equity_curve,
@@ -193,6 +196,7 @@ def serialize_result(
         "positions": positions,
         "rebalance_diagnosis": rebalance_diagnosis_out,
         "effective_config": effective_config_out,
+        "execution_diagnosis": execution_diagnosis_out,
     }
 
 
@@ -217,6 +221,31 @@ def _extract_rebalance_diagnosis(result: Any) -> Optional[dict]:
         return None
     try:
         diag = getattr(strategy, "_rb_diagnosis", None)
+    except Exception:  # noqa: BLE001
+        return None
+    if not isinstance(diag, dict) or not diag:
+        return None
+    return _clean_record(diag)
+
+
+def _extract_execution_diagnosis(result: Any) -> Optional[dict]:
+    """从 ``result.strategy._exec_diagnosis`` 取分批调仓 + 冲击成本诊断（PRD 009 §2.2.4 P2-9）。
+
+    委托 :func:`services.backtest.compiler._finalize_exec_diagnosis` 归一化
+    （计算 ``avg_participation``、剔除内部 ``_participations`` 字段）。
+
+    - 无 execution 配置 / 择时范式 → ``_exec_diagnosis`` 不存在 → ``None``；
+    - ``strategy`` 为 ``None`` / 导入失败 / 异常 → ``None``。
+    """
+    try:
+        from services.backtest.compiler import _finalize_exec_diagnosis
+    except Exception:  # noqa: BLE001
+        return None
+    strategy = getattr(result, "strategy", None)
+    if strategy is None:
+        return None
+    try:
+        diag = _finalize_exec_diagnosis(strategy)
     except Exception:  # noqa: BLE001
         return None
     if not isinstance(diag, dict) or not diag:

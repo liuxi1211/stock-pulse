@@ -62,6 +62,12 @@ tushare:
       permits-per-minute: 200
     index_member_all:
       permits-per-minute: 200
+    namechange:
+      permits-per-minute: 200
+    suspend_d:
+      permits-per-minute: 200
+    stk_limit:
+      permits-per-minute: 500
 
 # ========== Auth Configuration ==========
 auth:

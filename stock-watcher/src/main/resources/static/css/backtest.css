@@ -328,6 +328,11 @@
     border-radius: var(--radius-lg); backdrop-filter: var(--blur-card);
     margin-bottom: 18px; overflow: hidden;
 }
+/* spec 013 遗留#2：调仓诊断警示态（实际成交 < 选出） */
+.backtest-page .bt-chart-card.bt-diag-warn {
+    border-color: var(--fall-color);
+    background: color-mix(in srgb, var(--fall-color) 5%, var(--bg-card));
+}
 .backtest-page .bt-chart-head {
     display: flex; justify-content: space-between; align-items: center;
     padding: 14px 18px; border-bottom: 1px solid var(--border-light); gap: 12px; flex-wrap: wrap;

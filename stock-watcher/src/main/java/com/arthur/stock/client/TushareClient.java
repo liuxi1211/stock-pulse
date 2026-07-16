@@ -19,8 +19,14 @@ import com.arthur.stock.dto.tushare.IndexMemberDTO;
 import com.arthur.stock.dto.tushare.IndexMemberQueryDTO;
 import com.arthur.stock.dto.tushare.IndexWeightDTO;
 import com.arthur.stock.dto.tushare.IndexWeightQueryDTO;
+import com.arthur.stock.dto.tushare.NamechangeDTO;
+import com.arthur.stock.dto.tushare.NamechangeQueryDTO;
 import com.arthur.stock.dto.tushare.StockBasicQueryDTO;
 import com.arthur.stock.dto.tushare.StockBasicDTO;
+import com.arthur.stock.dto.tushare.SuspendDDTO;
+import com.arthur.stock.dto.tushare.SuspendDQueryDTO;
+import com.arthur.stock.dto.tushare.StkLimitDTO;
+import com.arthur.stock.dto.tushare.StkLimitQueryDTO;
 import com.arthur.stock.dto.tushare.TradeCalQueryDTO;
 import com.arthur.stock.dto.tushare.TradeCalDTO;
 import lombok.RequiredArgsConstructor;
@@ -191,6 +197,94 @@ public class TushareClient {
             params.put("limit", String.valueOf(limit));
         }
         return query(TushareApiEnum.INDEX_MEMBER_ALL, params, IndexMemberDTO.class);
+    }
+
+    /**
+     * 股票更名历史接口（namechange，doc_id=160），支持分页。
+     *
+     * @param param  查询参数 tsCode/startDate/endDate 均可选
+     * @param offset 偏移量（null 不传）
+     * @param limit  单页条数（null 不传，建议 ≤ 5000）
+     * @return 更名记录列表
+     */
+    public List<NamechangeDTO> namechange(NamechangeQueryDTO param, Integer offset, Integer limit) {
+        JSONObject params = new JSONObject();
+        if (param.getTsCode() != null) {
+            params.put("ts_code", param.getTsCode());
+        }
+        if (param.getStartDate() != null) {
+            params.put("start_date", param.getStartDate());
+        }
+        if (param.getEndDate() != null) {
+            params.put("end_date", param.getEndDate());
+        }
+        if (offset != null) {
+            params.put("offset", String.valueOf(offset));
+        }
+        if (limit != null) {
+            params.put("limit", String.valueOf(limit));
+        }
+        return query(TushareApiEnum.NAMECHANGE, params, NamechangeDTO.class);
+    }
+
+    /**
+     * 股票停复牌信息（suspend_d，doc_id=161）。
+     * <p>
+     * 单次最大 10000 行，需分页。
+     *
+     * @param param  查询参数 tsCode/startDate/endDate 均可选
+     * @param offset 偏移量（null 不传）
+     * @param limit  单页条数（null 不传，建议 ≤ 10000）
+     * @return 停牌记录列表
+     */
+    public List<SuspendDDTO> suspendD(SuspendDQueryDTO param, Integer offset, Integer limit) {
+        JSONObject params = new JSONObject();
+        if (param.getTsCode() != null) {
+            params.put("ts_code", param.getTsCode());
+        }
+        if (param.getStartDate() != null) {
+            params.put("start_date", param.getStartDate());
+        }
+        if (param.getEndDate() != null) {
+            params.put("end_date", param.getEndDate());
+        }
+        if (offset != null) {
+            params.put("offset", String.valueOf(offset));
+        }
+        if (limit != null) {
+            params.put("limit", String.valueOf(limit));
+        }
+        return query(TushareApiEnum.SUSPEND_D, params, SuspendDDTO.class);
+    }
+
+    /**
+     * 涨跌停价（stk_limit，doc_id=183）。
+     * <p>
+     * 接口单次不限行数，但建议分页/限制（本客户端按 PAGE_SIZE 分页调用）。
+     *
+     * @param param  查询参数 tsCode/startDate/endDate 均可选
+     * @param offset 偏移量（null 不传）
+     * @param limit  单页条数（null 不传）
+     * @return 涨跌停价记录列表
+     */
+    public List<StkLimitDTO> stkLimit(StkLimitQueryDTO param, Integer offset, Integer limit) {
+        JSONObject params = new JSONObject();
+        if (param.getTsCode() != null) {
+            params.put("ts_code", param.getTsCode());
+        }
+        if (param.getStartDate() != null) {
+            params.put("start_date", param.getStartDate());
+        }
+        if (param.getEndDate() != null) {
+            params.put("end_date", param.getEndDate());
+        }
+        if (offset != null) {
+            params.put("offset", String.valueOf(offset));
+        }
+        if (limit != null) {
+            params.put("limit", String.valueOf(limit));
+        }
+        return query(TushareApiEnum.STK_LIMIT, params, StkLimitDTO.class);
     }
 
     // ==================== 通用请求方法 ====================
