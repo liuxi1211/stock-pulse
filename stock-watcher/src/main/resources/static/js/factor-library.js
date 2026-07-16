@@ -170,9 +170,10 @@ const FactorLib = (function () {
                 ? allInputs.map(i => `<span class="id ${f.inputs.includes(i) ? 'on' : ''}">${i[0].toUpperCase()}</span>`).join('')
                 : '<span style="font-size:10px;color:var(--text-muted);">基本面</span>';
             const multiBadge = f.multiOutput ? `<span class="multi-pill">multi ×${(f.outputLabels || []).length}</span>` : '';
+            const tfBadge = f.transformable ? `<span class="tf-pill" title="支持滚动窗口聚合（ma/std/pct_change/max/min）"><i class="bi bi-gear"></i> transform</span>` : '';
             const computable = sm.computable;
             return `<tr class="${state.selected === f.factorKey ? 'selected' : ''}" data-key="${e(f.factorKey)}" style="--src-bar: ${sm.color};">
-                <td><span class="src-rail"></span><span class="fkey">${e(f.factorKey)}</span>${multiBadge}
+                <td><span class="src-rail"></span><span class="fkey">${e(f.factorKey)}</span>${multiBadge}${tfBadge}
                     <div class="fname">${e(f.displayName || '')}</div></td>
                 <td><span class="src-tag">${sm.label}</span></td>
                 <td><div class="params-mini">${paramStr}</div></td>
@@ -216,6 +217,7 @@ const FactorLib = (function () {
             [f.source === SOURCE_TUSHARE ? 'tushareField' : 'akquantFunc', e(f.source === SOURCE_TUSHARE ? (f.tushareField || '—') : (f.akquantFunc || '—')), true],
             ['dataSource', e(f.dataSource || 'ohlcv'), false],
             ['multiOutput', f.multiOutput ? '是' : '否', false],
+            ['transformable', f.transformable ? '是 · 支持滚动窗口聚合' : '否', false],
             ['defaultOutputIndex', f.defaultOutputIndex || 0, true],
             ['lookbackDefault', (f.lookbackDefault || 0) + ' bars', true],
             ['lookbackHint', e(f.lookbackHint || '0'), false],
@@ -550,6 +552,7 @@ const FactorLib = (function () {
             "step": 1
         }], null, 2);
         document.querySelectorAll('#createModal .inputs-check input').forEach(c => { c.checked = (c.value === 'close'); });
+        document.getElementById('f_transformable').checked = true;
         document.getElementById('f_key_err').style.display = 'none';
         document.getElementById('createModal').classList.add('open');
     }
@@ -568,6 +571,7 @@ const FactorLib = (function () {
         document.getElementById('f_ds').value = f.dataSource || 'ohlcv';
         document.getElementById('f_params').value = (f.params && f.params.length) ? JSON.stringify(f.params, null, 2) : '[]';
         document.querySelectorAll('#createModal .inputs-check input').forEach(c => { c.checked = (f.inputs || []).includes(c.value); });
+        document.getElementById('f_transformable').checked = !!f.transformable;
         document.getElementById('f_key_err').style.display = 'none';
         document.getElementById('createModal').classList.add('open');
     }
@@ -590,6 +594,7 @@ const FactorLib = (function () {
             params, inputs,
             multiOutput: false, outputLabels: [], defaultOutputIndex: 0,
             lookbackHint: '0', lookbackDefault: 0,
+            transformable: document.getElementById('f_transformable').checked,
         };
         const func = document.getElementById('f_func').value.trim();
         if (payload.source === SOURCE_TUSHARE) payload.tushareField = func; else payload.akquantFunc = func || null;

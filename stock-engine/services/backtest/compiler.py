@@ -124,14 +124,21 @@ def _check_paradigm(config: StrategyConfigModel) -> None:
 class FactorSpec:
     """去重后的因子规格。"""
 
-    __slots__ = ("factor", "params", "output_index", "cache_key")
+    __slots__ = ("factor", "params", "output_index", "transform", "cache_key")
 
-    def __init__(self, factor: str, params: Optional[dict], output_index: Optional[int]):
+    def __init__(self, factor: str, params: Optional[dict], output_index: Optional[int],
+                 transform: Optional[dict] = None):
         self.factor = factor
         self.params = dict(params) if params else {}
         self.output_index = output_index
+        # transform 形如 {"type":"ma","window":20}（spec 012 P1-6），仅用于 warmup 推断；
+        # 带 transform 时追加后缀到 cache_key，使同因子「当日值」与「窗口聚合值」spec 不互相覆盖
+        # （trading 路径 transform 恒 None，cache_key 行为完全不变）
+        self.transform = dict(transform) if transform else None
         # cache_key 与 trading_engine._factor_cache_key 单一真相源（含 params 区分 MA5/MA20）
         self.cache_key = _factor_cache_key(factor, output_index, self.params or None)
+        if self.transform:
+            self.cache_key = f"{self.cache_key}__{self.transform.get('type')}{self.transform.get('window')}"
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, FactorSpec):
@@ -140,10 +147,13 @@ class FactorSpec:
             self.factor == other.factor
             and self.params == other.params
             and self.output_index == other.output_index
+            and self.transform == other.transform
         )
 
     def __hash__(self) -> int:
-        return hash((self.factor, tuple(sorted(self.params.items())), self.output_index))
+        tf = self.transform or {}
+        return hash((self.factor, tuple(sorted(self.params.items())), self.output_index,
+                     tf.get("type"), tf.get("window")))
 
 
 def _collect_factor_specs(
@@ -159,7 +169,7 @@ def _collect_factor_specs(
 
     # ExpressionNode 4 形态
     if isinstance(node, FactorNode):
-        spec = FactorSpec(node.factor, node.params, node.output_index)
+        spec = FactorSpec(node.factor, node.params, node.output_index, node.transform)
         if spec.cache_key not in acc:
             acc[spec.cache_key] = spec
         return
@@ -282,7 +292,15 @@ def _infer_rebalance_warmup(config: StrategyConfigModel) -> int:
         specs: dict[str, FactorSpec] = {}
         _collect_factor_specs(filter_layer.conditions, specs)
         for spec in specs.values():
-            windows.append(_infer_factor_window(spec))
+            w = _infer_factor_window(spec)
+            # transform.window 叠加：先算因子值（需 N bar 预热）再聚合 window 日序列，
+            # 故总 warmup = 因子窗口 + transform.window（spec 014 工作流 C / spec 012 Deferred#2）
+            if spec.transform and spec.transform.get("window"):
+                try:
+                    w = w + int(spec.transform["window"])
+                except (TypeError, ValueError):
+                    pass
+            windows.append(w)
 
     # factor 打分因子（4 层结构：原 ranking 平移到 factor 层）
     factor = screen.factor

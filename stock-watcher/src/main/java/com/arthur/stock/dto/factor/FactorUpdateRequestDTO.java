@@ -65,4 +65,7 @@ public class FactorUpdateRequestDTO {
 
     @Schema(description = "默认参数下的回看长度")
     private Integer lookbackDefault;
+
+    @Schema(description = "是否支持 transform 滚动窗口聚合")
+    private Boolean transformable;
 }

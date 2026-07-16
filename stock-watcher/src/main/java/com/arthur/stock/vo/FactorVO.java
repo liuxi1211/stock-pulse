@@ -62,4 +62,7 @@ public class FactorVO {
 
     /** 默认参数下的回看长度（bars） */
     private Integer lookbackDefault;
+
+    /** 是否支持 transform 滚动窗口聚合（ma/std/pct_change/max/min）；前端条件树据此决定「滚动窗口」入口可见性 */
+    private Boolean transformable;
 }

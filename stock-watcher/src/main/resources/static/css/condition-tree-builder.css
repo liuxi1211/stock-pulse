@@ -220,6 +220,77 @@
 }
 .ctb-output-field select { width: 130px; padding: 2px 4px; height: 26px; font-size: 12px; }
 
+/* spec 014 工作流 B5：transform 滚动窗口折叠行 */
+.ctb-transform-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 4px;
+    flex-wrap: wrap;
+}
+.ctb-transform-toggle {
+    padding: 2px 8px;
+    font-size: 11px;
+    border-radius: 6px;
+    border: 1px dashed var(--border-color);
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+.ctb-transform-toggle:hover {
+    border-color: var(--accent-cyan);
+    color: var(--accent-cyan);
+    border-style: solid;
+}
+.ctb-transform-row.active {
+    padding: 4px 6px;
+    border-radius: 6px;
+    background: color-mix(in srgb, var(--accent-cyan) 8%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent-cyan) 20%, transparent);
+}
+.ctb-transform-label {
+    font-size: 11px;
+    color: var(--accent-cyan);
+    white-space: nowrap;
+}
+.ctb-transform-field {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    font-size: 11px;
+    color: var(--text-muted);
+}
+.ctb-transform-field select,
+.ctb-transform-field input {
+    height: 26px;
+    font-size: 12px;
+    padding: 2px 6px !important;
+    color: var(--text-primary) !important;
+    background: var(--bg-input) !important;
+}
+.ctb-transform-field select { min-width: 130px; }
+.ctb-transform-field input { width: 70px; }
+.ctb-transform-remove {
+    flex: 0 0 auto;
+    width: 26px;
+    height: 26px;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    border-radius: 6px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+.ctb-transform-remove:hover {
+    background: color-mix(in srgb, var(--rise-color) 14%, transparent);
+    color: var(--rise-color);
+}
+
 @media (max-width: 992px) {
     .ctb-leaf-node { flex-direction: column; align-items: stretch; }
     .ctb-comparator-badge { display: flex; justify-content: center; }

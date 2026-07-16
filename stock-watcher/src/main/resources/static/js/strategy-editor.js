@@ -448,7 +448,7 @@ const StrategyEditor = {
      * exit.rules 的 targetId 在每次增删行后动态变化（按行序号），不在此静态表里。
      */
     COND_AREAS: [
-        { targetId: 'f-screen-conditions', statePath: 'screen_config.filter.conditions', allowRef: false, allowCross: false },
+        { targetId: 'f-screen-conditions', statePath: 'screen_config.filter.conditions', allowRef: false, allowCross: false, allowTransform: true },
         { targetId: 'f-buy-conditions',    statePath: 'trading_config.signals.buy',   allowRef: true,  allowCross: true },
         { targetId: 'f-sell-conditions',   statePath: 'trading_config.signals.sell',  allowRef: true,  allowCross: true },
     ],
@@ -476,7 +476,7 @@ const StrategyEditor = {
      */
     initConditionEditors() {
         this.COND_AREAS.forEach((area) => {
-            this.registerCondMeta(area.targetId, area.statePath, { allowRef: area.allowRef, allowCross: area.allowCross });
+            this.registerCondMeta(area.targetId, area.statePath, { allowRef: area.allowRef, allowCross: area.allowCross, allowTransform: area.allowTransform });
             this._condMode[area.targetId] = 'visual';
             this.applyCondModeUI(area.targetId, 'visual');
             this.mountConditionBuilder(area.targetId);
@@ -492,6 +492,7 @@ const StrategyEditor = {
             statePath: statePath,
             allowRef: !!(opts && opts.allowRef),
             allowCross: !!(opts && opts.allowCross),
+            allowTransform: !!(opts && opts.allowTransform),
         };
     },
 
@@ -559,6 +560,7 @@ const StrategyEditor = {
             categories: this.factorMeta.categories || [],
             allowRef: meta.allowRef,
             allowCross: meta.allowCross,
+            allowTransform: meta.allowTransform,
             onChange: function (newTree) {
                 self.onCondBuilderChange(targetId, newTree);
             },

@@ -135,6 +135,9 @@
 .mini-btn.disabled { opacity:.35; cursor:not-allowed; }
 .multi-pill { font-family: var(--font-mono, monospace); font-size:10px; padding:2px 6px; border-radius:4px;
     background: color-mix(in srgb, var(--accent-purple) 15%, transparent); color: var(--accent-purple); border:1px solid color-mix(in srgb, var(--accent-purple) 25%, transparent); margin-left:6px; }
+.tf-pill { font-family: var(--font-mono, monospace); font-size:10px; padding:2px 6px; border-radius:4px;
+    background: color-mix(in srgb, var(--accent-cyan) 15%, transparent); color: var(--accent-cyan); border:1px solid color-mix(in srgb, var(--accent-cyan) 25%, transparent); margin-left:6px; cursor: help; }
+.tf-pill i { margin-right: 2px; }
 .empty-row { padding:60px 20px; text-align:center; color: var(--text-muted); }
 .empty-row i { font-size:32px; opacity:.4; display:block; margin-bottom:10px; }
 

@@ -47,6 +47,11 @@ class FactorDef(BaseModel):
     defaultOutputIndex: int = Field(0, description="默认输出序列下标")
     lookbackHint: str = Field("0", description="回看长度表达式（可含参数）", examples=["timeperiod - 1"])
     lookbackDefault: int = Field(0, description="默认参数下的回看长度（bars）", examples=[4])
+    transformable: bool = Field(
+        False,
+        description="是否支持 transform 滚动窗口聚合（ma/std/pct_change/max/min）；"
+        "前端条件树据此决定是否展示「滚动窗口」配置入口",
+    )
 
 
 # ============================================================
@@ -70,6 +75,7 @@ class FactorCreateRequest(BaseModel):
     defaultOutputIndex: int = 0
     lookbackHint: str = "0"
     lookbackDefault: int = 0
+    transformable: bool = False
 
 
 class FactorUpdateRequest(BaseModel):
@@ -88,6 +94,7 @@ class FactorUpdateRequest(BaseModel):
     defaultOutputIndex: Optional[int] = None
     lookbackHint: Optional[str] = None
     lookbackDefault: Optional[int] = None
+    transformable: Optional[bool] = None
 
 
 # ============================================================

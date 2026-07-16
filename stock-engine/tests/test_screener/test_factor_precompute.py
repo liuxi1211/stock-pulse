@@ -148,3 +148,79 @@ def test_precompute_fundamental_no_transform_unchanged():
     candidates = {"S1": {"ohlcv_history": [], "fundamentals": {"PE_TTM": 15.0}}}
     result = precompute_factors(tree, candidates)
     assert result["S1"]["PE_TTM"] == 15.0
+
+
+# ============================================================
+# spec 014 工作流 D：多输出因子 + transform（spec 012 Deferred#3）
+# ============================================================
+
+def test_precompute_multi_output_transform():
+    """MACD output_index=0（DIF）+ transform ma(5)：经 output_index 降维后聚合可用。
+
+    证明 compute_single(output_index=0) 已把 MACD 降维成 DIF 单序列，
+    aggregate_series 对其末 5 个值取均值。
+    """
+    # 60 bar 单调递增 close，足够 MACD(12,26,9) 预热（lookback=slowperiod+signalperiod-2=33）
+    closes = [10.0 + i * 0.5 for i in range(60)]
+    tree = {
+        "operator": "AND",
+        "conditions": [
+            {
+                "type": "compare",
+                "left": {
+                    "factor": "MACD",
+                    "params": {"fastperiod": 12, "slowperiod": 26, "signalperiod": 9},
+                    "output_index": 0,
+                    "transform": {"type": "ma", "window": 5},
+                },
+                "comparator": "<",
+                "right": {"value": 100},
+            }
+        ],
+    }
+    candidates = {"S1": {"ohlcv_history": _flat_close_history(closes), "fundamentals": {}}}
+    result = precompute_factors(tree, candidates)
+    # key 形如 MACD(fastperiod=12,slowperiod=26,signalperiod=9)#0__ma5
+    keys = [k for k in result["S1"] if k.startswith("MACD") and k.endswith("__ma5")]
+    assert len(keys) == 1
+    val = result["S1"][keys[0]]
+    assert not math.isnan(val), "MACD 经 output_index 降维后 transform 应得到有效数值"
+
+
+def test_precompute_multi_output_transform_distinct_from_plain():
+    """多输出因子：当日值（无 transform）与窗口聚合值（有 transform）应并存不冲突。"""
+    closes = [10.0 + i * 0.5 for i in range(60)]
+    tree = {
+        "operator": "AND",
+        "conditions": [
+            {
+                "type": "compare",
+                "left": {
+                    "factor": "MACD",
+                    "params": {"fastperiod": 12, "slowperiod": 26, "signalperiod": 9},
+                    "output_index": 0,
+                },
+                "comparator": "<",
+                "right": {"value": 100},
+            },
+            {
+                "type": "compare",
+                "left": {
+                    "factor": "MACD",
+                    "params": {"fastperiod": 12, "slowperiod": 26, "signalperiod": 9},
+                    "output_index": 0,
+                    "transform": {"type": "ma", "window": 5},
+                },
+                "comparator": "<",
+                "right": {"value": 100},
+            },
+        ],
+    }
+    candidates = {"S1": {"ohlcv_history": _flat_close_history(closes), "fundamentals": {}}}
+    result = precompute_factors(tree, candidates)
+    keys = list(result["S1"].keys())
+    macd_keys = [k for k in keys if k.startswith("MACD")]
+    assert len(macd_keys) == 2, f"应有 2 个 MACD key（当日值 + 聚合值），实际 {macd_keys}"
+    # 一个带 __ma5 后缀，一个不带
+    assert any(k.endswith("__ma5") for k in macd_keys)
+    assert any(not k.endswith("__ma5") for k in macd_keys)

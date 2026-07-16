@@ -80,7 +80,8 @@
       "outputLabels": [],
       "defaultOutputIndex": 0,
       "lookbackHint": "timeperiod - 1",
-      "lookbackDefault": 4
+      "lookbackDefault": 4,
+      "transformable": false
     },
     {
       "factorKey": "EMA",
@@ -108,7 +109,8 @@
       "outputLabels": [],
       "defaultOutputIndex": 0,
       "lookbackHint": "timeperiod - 1",
-      "lookbackDefault": 11
+      "lookbackDefault": 11,
+      "transformable": false
     },
     {
       "factorKey": "WMA",
@@ -136,7 +138,8 @@
       "outputLabels": [],
       "defaultOutputIndex": 0,
       "lookbackHint": "timeperiod - 1",
-      "lookbackDefault": 29
+      "lookbackDefault": 29,
+      "transformable": false
     },
     {
       "factorKey": "DEMA",
@@ -164,7 +167,8 @@
       "outputLabels": [],
       "defaultOutputIndex": 0,
       "lookbackHint": "2 * timeperiod - 1",
-      "lookbackDefault": 59
+      "lookbackDefault": 59,
+      "transformable": false
     },
     {
       "factorKey": "TEMA",
@@ -192,7 +196,8 @@
       "outputLabels": [],
       "defaultOutputIndex": 0,
       "lookbackHint": "3 * timeperiod - 2",
-      "lookbackDefault": 88
+      "lookbackDefault": 88,
+      "transformable": false
     },
     {
       "factorKey": "TRIMA",
@@ -220,7 +225,8 @@
       "outputLabels": [],
       "defaultOutputIndex": 0,
       "lookbackHint": "timeperiod - 1",
-      "lookbackDefault": 29
+      "lookbackDefault": 29,
+      "transformable": false
     },
     {
       "factorKey": "KAMA",
@@ -248,7 +254,8 @@
       "outputLabels": [],
       "defaultOutputIndex": 0,
       "lookbackHint": "timeperiod + 10",
-      "lookbackDefault": 40
+      "lookbackDefault": 40,
+      "transformable": false
     },
     {
       "factorKey": "T3",
@@ -285,7 +292,8 @@
       "outputLabels": [],
       "defaultOutputIndex": 0,
       "lookbackHint": "6 * timeperiod - 5",
-      "lookbackDefault": 25
+      "lookbackDefault": 25,
+      "transformable": false
     },
     {
       "factorKey": "MAMA",
@@ -325,7 +333,8 @@
       ],
       "defaultOutputIndex": 0,
       "lookbackHint": "32",
-      "lookbackDefault": 32
+      "lookbackDefault": 32,
+      "transformable": false
     },
     {
       "factorKey": "BOLL",
@@ -375,7 +384,8 @@
       ],
       "defaultOutputIndex": 1,
       "lookbackHint": "timeperiod - 1",
-      "lookbackDefault": 19
+      "lookbackDefault": 19,
+      "transformable": false
     },
     {
       "factorKey": "SAR",
@@ -413,7 +423,8 @@
       "outputLabels": [],
       "defaultOutputIndex": 0,
       "lookbackHint": "1",
-      "lookbackDefault": 1
+      "lookbackDefault": 1,
+      "transformable": false
     },
     {
       "factorKey": "MACD",
@@ -463,7 +474,8 @@
       ],
       "defaultOutputIndex": 0,
       "lookbackHint": "slowperiod + signalperiod - 2",
-      "lookbackDefault": 33
+      "lookbackDefault": 33,
+      "transformable": false
     },
     {
       "factorKey": "RSI",
@@ -491,7 +503,8 @@
       "outputLabels": [],
       "defaultOutputIndex": 0,
       "lookbackHint": "timeperiod",
-      "lookbackDefault": 14
+      "lookbackDefault": 14,
+      "transformable": false
     },
     {
       "factorKey": "KDJ",
@@ -561,7 +574,8 @@
       ],
       "defaultOutputIndex": 2,
       "lookbackHint": "fastk_period + slowk_period + slowd_period - 3",
-      "lookbackDefault": 12
+      "lookbackDefault": 12,
+      "transformable": false
     },
     {
       "factorKey": "CCI",
@@ -591,7 +605,8 @@
       "outputLabels": [],
       "defaultOutputIndex": 0,
       "lookbackHint": "timeperiod - 1",
-      "lookbackDefault": 13
+      "lookbackDefault": 13,
+      "transformable": false
     },
     {
       "factorKey": "WILLR",
@@ -621,7 +636,8 @@
       "outputLabels": [],
       "defaultOutputIndex": 0,
       "lookbackHint": "timeperiod - 1",
-      "lookbackDefault": 13
+      "lookbackDefault": 13,
+      "transformable": false
     },
     {
       "factorKey": "ADX",
@@ -651,7 +667,8 @@
       "outputLabels": [],
       "defaultOutputIndex": 0,
       "lookbackHint": "2 * timeperiod - 1",
-      "lookbackDefault": 27
+      "lookbackDefault": 27,
+      "transformable": false
     },
     {
       "factorKey": "PLUS_DI",
@@ -681,7 +698,8 @@
       "outputLabels": [],
       "defaultOutputIndex": 0,
       "lookbackHint": "timeperiod",
-      "lookbackDefault": 14
+      "lookbackDefault": 14,
+      "transformable": false
     },
     {
       "factorKey": "MINUS_DI",
@@ -711,7 +729,8 @@
       "outputLabels": [],
       "defaultOutputIndex": 0,
       "lookbackHint": "timeperiod",
-      "lookbackDefault": 14
+      "lookbackDefault": 14,
+      "transformable": false
     },
     {
       "factorKey": "ROC",
@@ -739,7 +758,8 @@
       "outputLabels": [],
       "defaultOutputIndex": 0,
       "lookbackHint": "timeperiod",
-      "lookbackDefault": 10
+      "lookbackDefault": 10,
+      "transformable": false
     },
     {
       "factorKey": "MOM",
@@ -767,7 +787,8 @@
       "outputLabels": [],
       "defaultOutputIndex": 0,
       "lookbackHint": "timeperiod",
-      "lookbackDefault": 10
+      "lookbackDefault": 10,
+      "transformable": false
     },
     {
       "factorKey": "APO",
@@ -804,7 +825,8 @@
       "outputLabels": [],
       "defaultOutputIndex": 0,
       "lookbackHint": "slowperiod - 1",
-      "lookbackDefault": 25
+      "lookbackDefault": 25,
+      "transformable": false
     },
     {
       "factorKey": "PPO",
@@ -841,7 +863,8 @@
       "outputLabels": [],
       "defaultOutputIndex": 0,
       "lookbackHint": "slowperiod - 1",
-      "lookbackDefault": 25
+      "lookbackDefault": 25,
+      "transformable": false
     },
     {
       "factorKey": "TRIX",
@@ -869,7 +892,8 @@
       "outputLabels": [],
       "defaultOutputIndex": 0,
       "lookbackHint": "3 * timeperiod - 1",
-      "lookbackDefault": 89
+      "lookbackDefault": 89,
+      "transformable": false
     },
     {
       "factorKey": "ATR",
@@ -899,7 +923,8 @@
       "outputLabels": [],
       "defaultOutputIndex": 0,
       "lookbackHint": "timeperiod",
-      "lookbackDefault": 14
+      "lookbackDefault": 14,
+      "transformable": false
     },
     {
       "factorKey": "NATR",
@@ -929,7 +954,8 @@
       "outputLabels": [],
       "defaultOutputIndex": 0,
       "lookbackHint": "timeperiod",
-      "lookbackDefault": 14
+      "lookbackDefault": 14,
+      "transformable": false
     },
     {
       "factorKey": "TRANGE",
@@ -949,7 +975,8 @@
       "outputLabels": [],
       "defaultOutputIndex": 0,
       "lookbackHint": "1",
-      "lookbackDefault": 1
+      "lookbackDefault": 1,
+      "transformable": false
     },
     {
       "factorKey": "STDDEV",
@@ -986,7 +1013,8 @@
       "outputLabels": [],
       "defaultOutputIndex": 0,
       "lookbackHint": "timeperiod - 1",
-      "lookbackDefault": 4
+      "lookbackDefault": 4,
+      "transformable": false
     },
     {
       "factorKey": "OBV",
@@ -1005,7 +1033,8 @@
       "outputLabels": [],
       "defaultOutputIndex": 0,
       "lookbackHint": "0",
-      "lookbackDefault": 0
+      "lookbackDefault": 0,
+      "transformable": false
     },
     {
       "factorKey": "AD",
@@ -1026,7 +1055,8 @@
       "outputLabels": [],
       "defaultOutputIndex": 0,
       "lookbackHint": "0",
-      "lookbackDefault": 0
+      "lookbackDefault": 0,
+      "transformable": false
     },
     {
       "factorKey": "ADOSC",
@@ -1066,7 +1096,8 @@
       "outputLabels": [],
       "defaultOutputIndex": 0,
       "lookbackHint": "slowperiod - 1",
-      "lookbackDefault": 9
+      "lookbackDefault": 9,
+      "transformable": false
     },
     {
       "factorKey": "VOL_MA",
@@ -1094,7 +1125,8 @@
       "outputLabels": [],
       "defaultOutputIndex": 0,
       "lookbackHint": "timeperiod - 1",
-      "lookbackDefault": 19
+      "lookbackDefault": 19,
+      "transformable": false
     },
     {
       "factorKey": "VOL_EMA",
@@ -1122,7 +1154,8 @@
       "outputLabels": [],
       "defaultOutputIndex": 0,
       "lookbackHint": "timeperiod - 1",
-      "lookbackDefault": 19
+      "lookbackDefault": 19,
+      "transformable": false
     },
     {
       "factorKey": "OPEN",
@@ -1140,7 +1173,8 @@
       "outputLabels": [],
       "defaultOutputIndex": 0,
       "lookbackHint": "0",
-      "lookbackDefault": 0
+      "lookbackDefault": 0,
+      "transformable": true
     },
     {
       "factorKey": "HIGH",
@@ -1158,7 +1192,8 @@
       "outputLabels": [],
       "defaultOutputIndex": 0,
       "lookbackHint": "0",
-      "lookbackDefault": 0
+      "lookbackDefault": 0,
+      "transformable": true
     },
     {
       "factorKey": "LOW",
@@ -1176,7 +1211,8 @@
       "outputLabels": [],
       "defaultOutputIndex": 0,
       "lookbackHint": "0",
-      "lookbackDefault": 0
+      "lookbackDefault": 0,
+      "transformable": true
     },
     {
       "factorKey": "CLOSE",
@@ -1194,7 +1230,8 @@
       "outputLabels": [],
       "defaultOutputIndex": 0,
       "lookbackHint": "0",
-      "lookbackDefault": 0
+      "lookbackDefault": 0,
+      "transformable": true
     },
     {
       "factorKey": "VOLUME",
@@ -1212,7 +1249,8 @@
       "outputLabels": [],
       "defaultOutputIndex": 0,
       "lookbackHint": "0",
-      "lookbackDefault": 0
+      "lookbackDefault": 0,
+      "transformable": true
     },
     {
       "factorKey": "PE_TTM",
@@ -1228,7 +1266,8 @@
       "outputLabels": [],
       "defaultOutputIndex": 0,
       "lookbackHint": "0",
-      "lookbackDefault": 0
+      "lookbackDefault": 0,
+      "transformable": true
     },
     {
       "factorKey": "PB",
@@ -1244,7 +1283,8 @@
       "outputLabels": [],
       "defaultOutputIndex": 0,
       "lookbackHint": "0",
-      "lookbackDefault": 0
+      "lookbackDefault": 0,
+      "transformable": true
     },
     {
       "factorKey": "PS_TTM",
@@ -1260,7 +1300,8 @@
       "outputLabels": [],
       "defaultOutputIndex": 0,
       "lookbackHint": "0",
-      "lookbackDefault": 0
+      "lookbackDefault": 0,
+      "transformable": true
     },
     {
       "factorKey": "DV_RATIO",
@@ -1276,7 +1317,8 @@
       "outputLabels": [],
       "defaultOutputIndex": 0,
       "lookbackHint": "0",
-      "lookbackDefault": 0
+      "lookbackDefault": 0,
+      "transformable": true
     },
     {
       "factorKey": "TOTAL_MV",
@@ -1292,7 +1334,8 @@
       "outputLabels": [],
       "defaultOutputIndex": 0,
       "lookbackHint": "0",
-      "lookbackDefault": 0
+      "lookbackDefault": 0,
+      "transformable": true
     },
     {
       "factorKey": "CIRC_MV",
@@ -1308,7 +1351,8 @@
       "outputLabels": [],
       "defaultOutputIndex": 0,
       "lookbackHint": "0",
-      "lookbackDefault": 0
+      "lookbackDefault": 0,
+      "transformable": true
     },
     {
       "factorKey": "ROE_TTM",
@@ -1324,7 +1368,8 @@
       "outputLabels": [],
       "defaultOutputIndex": 0,
       "lookbackHint": "0",
-      "lookbackDefault": 0
+      "lookbackDefault": 0,
+      "transformable": false
     },
     {
       "factorKey": "ROA_TTM",
@@ -1340,7 +1385,8 @@
       "outputLabels": [],
       "defaultOutputIndex": 0,
       "lookbackHint": "0",
-      "lookbackDefault": 0
+      "lookbackDefault": 0,
+      "transformable": false
     },
     {
       "factorKey": "GROSS_MARGIN",
@@ -1356,7 +1402,8 @@
       "outputLabels": [],
       "defaultOutputIndex": 0,
       "lookbackHint": "0",
-      "lookbackDefault": 0
+      "lookbackDefault": 0,
+      "transformable": false
     },
     {
       "factorKey": "NETPROFIT_MARGIN",
@@ -1372,7 +1419,8 @@
       "outputLabels": [],
       "defaultOutputIndex": 0,
       "lookbackHint": "0",
-      "lookbackDefault": 0
+      "lookbackDefault": 0,
+      "transformable": false
     },
     {
       "factorKey": "REVENUE_YOY",
@@ -1388,7 +1436,8 @@
       "outputLabels": [],
       "defaultOutputIndex": 0,
       "lookbackHint": "0",
-      "lookbackDefault": 0
+      "lookbackDefault": 0,
+      "transformable": false
     },
     {
       "factorKey": "PROFIT_YOY",
@@ -1404,7 +1453,8 @@
       "outputLabels": [],
       "defaultOutputIndex": 0,
       "lookbackHint": "0",
-      "lookbackDefault": 0
+      "lookbackDefault": 0,
+      "transformable": false
     },
     {
       "factorKey": "EPS_YOY",
@@ -1420,7 +1470,8 @@
       "outputLabels": [],
       "defaultOutputIndex": 0,
       "lookbackHint": "0",
-      "lookbackDefault": 0
+      "lookbackDefault": 0,
+      "transformable": false
     },
     {
       "factorKey": "DEBT_TO_ASSETS",
@@ -1436,7 +1487,8 @@
       "outputLabels": [],
       "defaultOutputIndex": 0,
       "lookbackHint": "0",
-      "lookbackDefault": 0
+      "lookbackDefault": 0,
+      "transformable": false
     },
     {
       "factorKey": "CURRENT_RATIO",
@@ -1452,7 +1504,8 @@
       "outputLabels": [],
       "defaultOutputIndex": 0,
       "lookbackHint": "0",
-      "lookbackDefault": 0
+      "lookbackDefault": 0,
+      "transformable": false
     },
     {
       "factorKey": "TURNOVER_RATE",
@@ -1468,7 +1521,8 @@
       "outputLabels": [],
       "defaultOutputIndex": 0,
       "lookbackHint": "0",
-      "lookbackDefault": 0
+      "lookbackDefault": 0,
+      "transformable": true
     }
   ]
 }

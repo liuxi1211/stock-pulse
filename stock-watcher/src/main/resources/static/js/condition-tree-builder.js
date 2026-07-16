@@ -34,6 +34,15 @@ const ConditionTreeBuilder = (function () {
     const CROSS_COMPARATORS = ['cross_up', 'cross_down'];
     const OP_KINDS = { FACTOR: 'factor', VALUE: 'value', REF: 'ref' };
 
+    // spec 014 工作流 B：transform 聚合类型中文标签（value → label）
+    const TRANSFORM_TYPES = [
+        { value: 'ma', label: '均值（MA）' },
+        { value: 'std', label: '标准差（波动率）' },
+        { value: 'pct_change', label: '涨跌幅' },
+        { value: 'max', label: '最大值' },
+        { value: 'min', label: '最小值' },
+    ];
+
     const DEFAULT_REF_WHITELIST = [
         { ref: 'entry_price', label: '入场价 entry_price' },
         { ref: 'entry_price_pct', label: '入场价百分比 entry_price_pct' },
@@ -52,6 +61,8 @@ const ConditionTreeBuilder = (function () {
         const categories = Array.isArray(options.categories) ? options.categories : [];
         const allowRef = !!options.allowRef;
         const allowCross = !!options.allowCross;
+        // spec 014 工作流 B：是否允许配置 transform 滚动窗口聚合（仅 screen 条件树传 true）
+        const allowTransform = !!options.allowTransform;
         const onChangeCb = typeof options.onChange === 'function' ? options.onChange : null;
         const refWhitelist = Array.isArray(options.refWhitelist) && options.refWhitelist.length
             ? options.refWhitelist : DEFAULT_REF_WHITELIST;
@@ -103,7 +114,7 @@ const ConditionTreeBuilder = (function () {
             if (!op) return { value: 0 };
             if ('factor' in op) {
                 const def = getFactorDef(op.factor);
-                return {
+                const norm = {
                     factor: op.factor || '',
                     params: op.params || getDefaultParams(def) || {},
                     inputs: op.inputs || undefined,
@@ -111,6 +122,9 @@ const ConditionTreeBuilder = (function () {
                         ? op.output_index
                         : (def && def.defaultOutputIndex != null ? def.defaultOutputIndex : 0),
                 };
+                // spec 014 B1：透传 transform（防 refill 数据丢失）；trading 路径 UI 不显示但字段保留，后端 validator 兜底
+                if (op.transform) norm.transform = op.transform;
+                return norm;
             }
             if ('ref' in op) {
                 return { ref: op.ref || '' };
@@ -142,6 +156,39 @@ const ConditionTreeBuilder = (function () {
             const p = {};
             (def && def.params || []).forEach(x => { p[x.name] = x.defaultValue; });
             return p;
+        }
+
+        // spec 014 工作流 B3：判断当前因子是否支持 transform（区域开关 + 因子 transformable 元数据）
+        function canTransform(factorKey) {
+            if (!allowTransform) return false;
+            const def = getFactorDef(factorKey);
+            return !!(def && def.transformable);
+        }
+
+        // spec 014 工作流 B2：渲染 transform 折叠行（收起态按钮 / 展开态聚合类型+窗口+移除）
+        function renderTransformRow(tf, pathStr, side) {
+            const hasTf = tf && tf.type;
+            if (!hasTf) {
+                // 收起态：仅一个「滚动窗口」按钮
+                return `<div class="ctb-transform-row">`
+                    + `<button class="ctb-transform-toggle" type="button" data-action="toggleTransform" data-path="${pathStr}" data-side="${side}">`
+                    + `<i class="bi bi-gear"></i> 滚动窗口</button>`
+                    + `</div>`;
+            }
+            // 展开态：聚合类型下拉 + 窗口天数 + 移除
+            const t = tf.type;
+            const w = tf.window != null ? tf.window : 20;
+            const typeOpts = TRANSFORM_TYPES.map(o =>
+                `<option value="${o.value}"${o.value === t ? ' selected' : ''}>${e(o.label)}</option>`
+            ).join('');
+            return `<div class="ctb-transform-row active">`
+                + `<span class="ctb-transform-label"><i class="bi bi-gear"></i> 滚动窗口</span>`
+                + `<div class="ctb-transform-field"><label>聚合</label>`
+                + `<select class="form-select form-select-sm ctb-op-transform-type" data-field="transformType" data-path="${pathStr}" data-side="${side}">${typeOpts}</select></div>`
+                + `<div class="ctb-transform-field"><label>窗口(日)</label>`
+                + `<input type="number" min="1" max="60" step="1" class="form-control form-control-sm ctb-op-transform-window" data-field="transformWindow" data-path="${pathStr}" data-side="${side}" value="${e(String(w))}"></div>`
+                + `<button class="ctb-transform-remove" type="button" data-action="toggleTransform" data-path="${pathStr}" data-side="${side}" title="移除滚动窗口"><i class="bi bi-x-lg"></i></button>`
+                + `</div>`;
         }
 
         function buildFactorOptions(selected) {
@@ -277,6 +324,32 @@ const ConditionTreeBuilder = (function () {
                 notify();
                 return;
             }
+            // spec 014 工作流 B4：transform 滚动窗口聚合变更
+            if (field === 'toggleTransform') {
+                if (operand.transform) {
+                    delete operand.transform;
+                } else {
+                    operand.transform = { type: 'ma', window: 20 };
+                }
+                render();
+                notify();
+                return;
+            }
+            if (field === 'transformType') {
+                operand.transform = operand.transform || { type: 'ma', window: 20 };
+                operand.transform.type = value;
+                // 重渲染确保 select 选中态正确回显（某些主题/库会干扰原生 select 的显示）
+                render();
+                notify();
+                return;
+            }
+            if (field === 'transformWindow') {
+                operand.transform = operand.transform || { type: 'ma', window: 20 };
+                const n = Number(value);
+                operand.transform.window = (Number.isFinite(n) && n >= 1) ? Math.min(60, Math.max(1, Math.floor(n))) : 20;
+                notify();
+                return;
+            }
         }
 
         // ===================== 渲染 =====================
@@ -342,6 +415,7 @@ const ConditionTreeBuilder = (function () {
             let bodyHtml = '';
             let paramsHtml = '';
             let outputHtml = '';
+            let transformHtml = '';
 
             if (kind === OP_KINDS.FACTOR) {
                 bodyHtml = `<select class="form-select form-select-sm ctb-op-factor" data-field="factor" data-path="${pathStr}" data-side="${side}">${buildFactorOptions(operand.factor)}</select>`;
@@ -353,6 +427,10 @@ const ConditionTreeBuilder = (function () {
                 if (def && def.multiOutput && def.outputLabels && def.outputLabels.length) {
                     const cur = operand.output_index != null ? operand.output_index : (def.defaultOutputIndex || 0);
                     outputHtml = `<div class="ctb-output-field"><label>输出</label><select class="form-select form-select-sm ctb-op-output" data-field="output" data-path="${pathStr}" data-side="${side}">${def.outputLabels.map((label, i) => `<option value="${i}"${i === cur ? ' selected' : ''}>[${i}] ${e(label)}</option>`).join('')}</select></div>`;
+                }
+                // spec 014 工作流 B2：仅当区域开启 allowTransform 且因子声明 transformable 时显示滚动窗口控件
+                if (canTransform(operand.factor)) {
+                    transformHtml = renderTransformRow(operand.transform, pathStr, side);
                 }
             } else if (kind === OP_KINDS.REF) {
                 bodyHtml = `<select class="form-select form-select-sm ctb-op-ref" data-field="ref" data-path="${pathStr}" data-side="${side}">${buildRefOptions(operand.ref)}</select>`;
@@ -366,6 +444,7 @@ const ConditionTreeBuilder = (function () {
                     <div class="ctb-expr-head">${typeSelect}${bodyHtml}</div>
                     ${paramsHtml}
                     ${outputHtml}
+                    ${transformHtml}
                 </div>`;
         }
 
@@ -396,6 +475,11 @@ const ConditionTreeBuilder = (function () {
             else if (action === 'addLeaf') addLeaf(path);
             else if (action === 'addGroup') addGroup(path);
             else if (action === 'removeNode') removeNode(path);
+            // spec 014 工作流 B6：transform 展开/收起按钮
+            else if (action === 'toggleTransform') {
+                const side = btn.dataset.side;
+                updateLeaf(path, side, 'toggleTransform', null);
+            }
         }
 
         function onChange(ev) {
