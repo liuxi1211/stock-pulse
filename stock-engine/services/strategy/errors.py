@@ -106,6 +106,10 @@ class ErrorCode:
         "POSITION_TARGET_REQUIRED",
         "position_sizing 当前 method 需要 target 字段",
     )
+    INVALID_SELL_METHOD = (
+        "INVALID_SELL_METHOD",
+        "position_sizing.sell_method 不在白名单",
+    )
 
     # ----- 调仓触发（spec 011 P2-1）-----
     # rebalance.trigger 取值非法（非 first/last/None）。

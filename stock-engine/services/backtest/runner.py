@@ -46,6 +46,8 @@ def build_backtest_kwargs(bt_config: BacktestConfigModel) -> dict:
     """
     kwargs: dict[str, Any] = {
         # 强制 A 股规则
+        # 注：t_plus_one 故意硬编码 True（A 股 T+1 强约束），忽略 schema backtest_config.t_plus_one；
+        # 若未来支持非 A 股市场再开放为可配置。详见「策略配置项排查报告」D1。
         "t_plus_one": True,
         "lot_size": bt_config.lot_size if bt_config.lot_size else 100,
         "show_progress": False if bt_config.show_progress is None else bool(bt_config.show_progress),
@@ -113,6 +115,8 @@ def build_backtest_kwargs(bt_config: BacktestConfigModel) -> dict:
         kwargs["risk_config"] = dict(bt_config.risk_config)
 
     # strict_strategy_params（动态编译的策略构造参数固定，建议 False 避免 akquant 校验）
+    # 注：故意硬编码 False（D2）。compile_strategy 动态生成的 Strategy 子类构造参数固定，
+    # 若 True 会触发 akquant 严格参数校验误报。schema 默认 True 仅对用户自定义策略类有效。
     kwargs["strict_strategy_params"] = False
 
     return kwargs

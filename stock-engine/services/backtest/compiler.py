@@ -747,21 +747,61 @@ def compile_strategy(
             return snap
 
         def _build_position_ctx(self, symbol: str) -> PositionCtx:
-            """从 akquant 持仓接口读 ref 上下文。"""
+            """从 akquant 持仓接口读 ref 上下文。
+
+            entry_price 走 akquant ``get_position_entry_price(symbol)``（多标的可用），
+            position_pnl_pct 自算 ``(close - entry) / entry``。
+            旧实现误从 ``get_account()`` dict 取这两字段，而该 dict 不含它们 → 恒 0.0，
+            导致 bracket 与 exit.rules 盈亏条件失效（Bug #1）。
+            """
             pos = PositionCtx()
             try:
                 qty = float(self.get_position(symbol) or 0.0)
                 pos.position_qty = qty
                 if qty != 0:
-                    pos.bars_held = int(self.hold_bar() or 0)
-                    # entry_price / pnl_pct：akquant 挡位接口可能不可用，尽力取
-                    account = self.get_account()
-                    # 无统一字段时留默认 0
-                    pos.entry_price = float(account.get("entry_price", 0.0) or 0.0) if isinstance(account, dict) else None
-                    pos.position_pnl_pct = float(account.get("position_pnl_pct", 0.0) or 0.0) if isinstance(account, dict) else 0.0
+                    pos.bars_held = int((self.hold_bar(symbol) or 0))
+                    entry = self._get_position_entry_price(symbol)
+                    if entry and entry > 0:
+                        pos.entry_price = float(entry)
+                        close = self._current_close_for(symbol)
+                        if close and close > 0:
+                            pos.position_pnl_pct = (close - entry) / entry
             except Exception:  # noqa: BLE001
                 pass
             return pos
+
+        def _get_position_entry_price(self, symbol: str) -> Optional[float]:
+            """取指定 symbol 的持仓均价（多标的安全）。"""
+            ctx = getattr(self, "ctx", None)
+            getter = getattr(ctx, "get_position_entry_price", None)
+            if getter is None:
+                # 仅当前 symbol 可走 self.position
+                try:
+                    if symbol == self.symbol:
+                        return float(self.position.entry_price)
+                except Exception:  # noqa: BLE001
+                    return None
+                return None
+            try:
+                val = getter(symbol)
+                return float(val) if val else None
+            except Exception:  # noqa: BLE001
+                return None
+
+        def _current_close_for(self, symbol: str) -> Optional[float]:
+            """取指定 symbol 当前 bar 收盘价（多标的：从 get_history_df 取末值）。"""
+            try:
+                if symbol == getattr(self, "symbol", None):
+                    return float(self.close)
+            except Exception:  # noqa: BLE001
+                pass
+            try:
+                df = self.get_history_df(count=1, symbol=symbol)
+                if df is None or len(df) == 0:
+                    return None
+                return float(df["close"].iloc[-1])
+            except Exception:  # noqa: BLE001
+                return None
 
         # ------------------------------------------------------------------
         # 主回调
@@ -1121,7 +1161,13 @@ def _attach_rebalance_method(
                 watcher_client=watcher_client,
                 extra_map=extra_map,
             )
-        except Exception:  # noqa: BLE001 - 选股失败不阻断回测
+        except Exception as exc:  # noqa: BLE001
+            # Bug #5：PIT 强制失败（PIT_CONSTITUENTS_EMPTY / PIT_WATCHER_UNAVAILABLE /
+            # PIT_QUERY_FAILED）以 BacktestError 形式抛出，spec 011 P1-1 要求"失败即报错"，
+            # 必须向上抛，不能与普通选股异常一起被吞掉。
+            from services.backtest.runner import BacktestError
+            if isinstance(exc, BacktestError):
+                raise
             return
 
         if not scores:
@@ -1825,11 +1871,16 @@ def _compute_target_weights(
         for s in selected[:sell_threshold]
         if s in current_positions and (current_positions.get(s, 0) or 0) > 0
     }
-    target_symbols_set = buy_set | hold_set
-    # 限制到 top_n 数量（按 score 降序优先）
-    target_symbols_ordered = [
-        s for s in selected if s in target_symbols_set
-    ][:top_n]
+    # Bug #6：旧实现 ``[s for s in selected if s in target_symbols_set][:top_n]`` 按全局
+    # score 降序截断，会把 buffer 带内低分旧持仓挤出 → buffer_n 失效。
+    # 正确语义：buy 取 top_(n-buffer)；hold 放宽到 top_(n+buffer) 且仅含已持仓。
+    # 合并时 buy 优先，剩余名额给 hold；hold 不与 buy 竞争 top_n 主名额以外的高分新进标的。
+    buy_list = [s for s in selected[:buy_threshold] if s in buy_set]
+    hold_candidates = [
+        s for s in selected[buy_threshold:sell_threshold]
+        if s in hold_set and s not in buy_set
+    ]
+    target_symbols_ordered = (buy_list + hold_candidates)[: max(top_n, 0)]
     diagnosis["selected_count"] = len(target_symbols_ordered)
 
     # 3) P0-4：涨跌停拒单
@@ -1876,6 +1927,9 @@ def _compute_target_weights(
         target_weights = {s: w for s in target_symbols_ordered}
 
     # 5) P0-4 跌停拒卖：持仓中不在 target_weights 的，若当日跌停则保留原权重
+    # Bug W1/W2：保留权重直接加到 target_weights 会使总和 > investable（杠杆/拒单），
+    # 改为收集 kept 权重，随后对非 kept 部分按比例缩放回 investable。
+    kept_symbols: set[str] = set()
     if reject_limit_down_on_sell and extra_map and trading_date_str:
         try:
             equity = strategy.get_portfolio_value()
@@ -1891,6 +1945,7 @@ def _compute_target_weights(
                 cur_value = (qty or 0) * price
                 if equity > 0 and cur_value > 0:
                     target_weights[sym] = cur_value / equity
+                    kept_symbols.add(sym)
                     kept_down.append(sym)
                     logger.info("跌停拒卖保留: %s @ %s", sym, trading_date_str)
         diagnosis["rejected_by_limit_down_kept"] = kept_down
@@ -1911,12 +1966,28 @@ def _compute_target_weights(
                 cur_value = (qty or 0) * price
                 if equity > 0 and cur_value > 0:
                     target_weights[sym] = cur_value / equity
+                    kept_symbols.add(sym)
                     kept_holding.append(sym)
                     logger.info(
                         "min_holding_bars 保留（held=%d < %d）: %s",
                         held, min_holding_bars, sym,
                     )
         diagnosis["rejected_by_min_holding_kept"] = kept_holding
+
+    # 6.1) Bug W1/W2 归一化：kept 标的保留原权重，非 kept 部分缩放至 (investable - kept_total)
+    if kept_symbols:
+        kept_total = sum(target_weights.get(s, 0.0) for s in kept_symbols)
+        remaining_budget = investable - kept_total
+        non_kept = [s for s in target_weights if s not in kept_symbols]
+        non_kept_sum = sum(target_weights[s] for s in non_kept)
+        if non_kept and non_kept_sum > 0 and remaining_budget >= 0:
+            scale = remaining_budget / non_kept_sum
+            for s in non_kept:
+                target_weights[s] *= scale
+        elif non_kept and remaining_budget < 0:
+            # kept 已超 investable：非 kept 全部清零，避免杠杆
+            for s in non_kept:
+                target_weights[s] = 0.0
 
     # 7) P1-4：单标的上限截断
     clipped_sym: list[str] = []

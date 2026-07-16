@@ -198,6 +198,29 @@ class StrategyValidator:
                         )
                     )
 
+            # (6.1) sell_method 白名单（Bug #2：旧版无校验，非法值击穿 on_bar 崩溃）
+            sell_method = (ps.sell_method or "close_position") if ps.sell_method is not None else "close_position"
+            if sell_method not in constants.SELL_METHODS:
+                code, msg = ErrorCode.INVALID_SELL_METHOD
+                errors.append(
+                    StrategyValidationError(
+                        path="trading_config.position_sizing.sell_method",
+                        code=code,
+                        message=msg,
+                    )
+                )
+
+            # (6.2) method="sell" 用于买入分支无对应 dispatch → 击穿 on_bar，需拦截
+            if ps.method == "sell":
+                code, msg = ErrorCode.INVALID_POSITION_METHOD
+                errors.append(
+                    StrategyValidationError(
+                        path="trading_config.position_sizing.method",
+                        code=code,
+                        message="position_sizing.method 不能为 'sell'（卖出请用 sell_method 字段）",
+                    )
+                )
+
         # (7) exit.bracket.use_atr_stop=True 时 atr_multiplier 必填
         ex = tc.exit
         if ex is not None and ex.bracket is not None:
