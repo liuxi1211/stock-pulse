@@ -5,8 +5,8 @@
 - 比较器：通用比较 + 时序比较（Schema §4.4）
 - ref 允许键：对齐 Schema §4.6 取值表（含两个预留扩展）
 - broker_profile：对齐 akquant 0.2.47 的三个 A 股模板（04-backtest-run.md §3）
-- factorKey：20 个技术面 + 10 个基本面（Schema §4.5）
-- 多输出因子 output_index 映射：MACD / BOLL / KDJ
+- factorKey：37 个技术面/价格成交量 + 16 个基本面（Schema §4.5 / factors.default.json，spec 014 对齐）
+- 多输出因子 output_index 映射：MACD / BOLL / KDJ / MAMA
 - 危险字符串黑名单：自由文本字段注入防护
 """
 
@@ -61,22 +61,42 @@ BROKER_PROFILES = {
 }
 
 # ============================================================
-# 因子 factorKey 体系（对齐 Schema §4.5）
+# 因子 factorKey 体系（对齐 Schema §4.5 / factors.default.json）
 # ============================================================
-# 20 个技术面 / 价格成交量因子（走 akquant.talib 或 NumpySimpleProvider）
+# 技术面 + 价格成交量因子（走 akquant.talib 或 NumpySimpleProvider），共 37 个。
+# 与 stock-engine/data/factors.default.json 的 OVERLAP/MOMENTUM/VOLATILITY/VOLUME/STATISTIC/PRICE 类严格对齐。
 TECHNICAL_FACTOR_KEYS = {
-    # 技术面（talib）
-    "MA", "EMA", "BOLL", "SAR", "MACD", "RSI", "KDJ", "ADX",
-    "PLUS_DI", "MINUS_DI", "WILLR", "CCI", "ATR", "OBV",
-    # 价格 / 成交量（NumpySimpleProvider）
-    "CLOSE", "HIGH", "LOW", "VOLUME", "VOL_MA", "VOL_EMA",
+    # OVERLAP 趋势指标
+    "MA", "EMA", "WMA", "DEMA", "TEMA", "TRIMA", "KAMA", "T3", "MAMA",
+    "BOLL", "SAR",
+    # MOMENTUM 动量指标
+    "MACD", "RSI", "KDJ", "CCI", "WILLR", "ADX", "PLUS_DI", "MINUS_DI",
+    "ROC", "MOM", "APO", "PPO", "TRIX",
+    # VOLATILITY 波动率指标
+    "ATR", "NATR", "TRANGE",
+    # VOLUME 成交量指标
+    "OBV", "AD", "ADOSC", "VOL_MA", "VOL_EMA",
+    # STATISTIC 统计指标
+    "STDDEV",
+    # PRICE 价格 / 成交量直通（NumpySimpleProvider）
+    "OPEN", "HIGH", "LOW", "CLOSE", "VOLUME",
 }
 
-# 10 个基本面因子（走选股侧因子服务，不进 on_bar 实时路径）
+# 基本面因子（走选股侧因子服务，不进 on_bar 实时路径），共 16 个。
+# 与 factors.default.json 的 VALUATION/QUALITY/GROWTH/FINANCE 类严格对齐。
+# BREAKING（spec 014）：清理 3 个僵尸因子（factors.default.json 无定义、运行时静默 NaN）：
+#   REVENUE_GROWTH → 改用 REVENUE_YOY
+#   NET_PROFIT_GROWTH → 改用 PROFIT_YOY
+#   NORTHBOUND_NET_INFLOW → 删除（无对应字段）
 FUNDAMENTAL_FACTOR_KEYS = {
-    "PE_TTM", "PB", "TOTAL_MV", "ROE_TTM", "REVENUE_GROWTH",
-    "NET_PROFIT_GROWTH", "GROSS_MARGIN", "CURRENT_RATIO",
-    "TURNOVER_RATE", "NORTHBOUND_NET_INFLOW",
+    # VALUATION 估值因子
+    "PE_TTM", "PB", "PS_TTM", "DV_RATIO", "TOTAL_MV", "CIRC_MV", "TURNOVER_RATE",
+    # QUALITY 质量因子
+    "ROE_TTM", "ROA_TTM", "GROSS_MARGIN", "NETPROFIT_MARGIN",
+    # GROWTH 成长因子
+    "REVENUE_YOY", "PROFIT_YOY", "EPS_YOY",
+    # FINANCE 财务结构
+    "DEBT_TO_ASSETS", "CURRENT_RATIO",
 }
 
 # 全量 factorKey（技术面 + 基本面）
@@ -85,11 +105,14 @@ ALL_FACTOR_KEYS = TECHNICAL_FACTOR_KEYS | FUNDAMENTAL_FACTOR_KEYS
 # ============================================================
 # 多输出因子 output_index 映射（对齐 Schema §4.5 / akquant talib 返回顺序）
 # ============================================================
-# key=factorKey，value=按顺序的 output 标签列表；output_index 在 [0, len-1] 内
+# key=factorKey，value=按顺序的 output 标签列表；output_index 在 [0, len-1] 内。
+# 标签仅用于 len() 判断 output_index 范围，大小写不影响逻辑（下游按 index 取值）。
+# MAMA 为 spec 014 新增（双输出：MAMA 主线 + FAMA 信号线）。
 MULTI_OUTPUT_FACTORS = {
     "MACD": ["dif", "dea", "hist"],
     "BOLL": ["upper", "mid", "lower"],
     "KDJ": ["k", "d", "j"],
+    "MAMA": ["mama", "fama"],
 }
 
 # ============================================================

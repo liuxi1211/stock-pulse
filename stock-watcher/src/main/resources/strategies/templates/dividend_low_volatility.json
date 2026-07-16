@@ -1,0 +1,48 @@
+{
+  "strategy_id": null,
+  "name": "红利低波",
+  "description": "高股息率+低波动+低负债的大盘防御组合。Smart Beta 黄金组合，2022-2024 A 股唯一持续有效。防御型策略，牛市跑输属正常，适合熊市/震荡市。",
+  "category": "FUNDAMENTAL",
+  "tags": ["红利", "低波", "防御", "Smart-Beta"],
+  "screen_config": {
+    "universe": { "pool": "csi300" },
+    "factor": { "method": "composite", "weights": { "DV_RATIO": 0.6, "NATR": -0.4 } },
+    "filter": {
+      "conditions": {
+        "operator": "AND",
+        "conditions": [
+          { "type": "compare", "left": { "factor": "DV_RATIO" }, "comparator": ">", "right": { "value": 3 } },
+          { "type": "compare", "left": { "factor": "DEBT_TO_ASSETS" }, "comparator": "<", "right": { "value": 60 } },
+          { "type": "compare", "left": { "factor": "TOTAL_MV" }, "comparator": ">", "right": { "value": 10000000000 } },
+          { "type": "compare", "left": { "factor": "PROFIT_YOY" }, "comparator": ">", "right": { "value": 0 } }
+        ]
+      },
+      "exclude_st": true,
+      "exclude_suspended": true,
+      "exclude_limit_up": true,
+      "min_list_days": 750
+    },
+    "portfolio": { "top_n": 20, "max_weight_per_symbol": 0.08, "cash_reserve_pct": 0.05, "buffer_n": 2 }
+  },
+  "trading_config": {
+    "rebalance": {
+      "frequency": "quarterly",
+      "trigger": "first",
+      "weight_mode": "equal",
+      "min_holding_bars": 60,
+      "reject_limit_up_on_buy": true,
+      "reject_limit_down_on_sell": true
+    },
+    "exit": { "bracket": { "stop_loss_pct": 0.12, "take_profit_pct": 0.40 } }
+  },
+  "backtest_config": {
+    "initial_cash": 1000000,
+    "broker_profile": "cn_stock_miniqmt",
+    "t_plus_one": true,
+    "slippage": { "type": "percent", "value": 0.001 },
+    "lot_size": 100,
+    "warmup_period": 14,
+    "history_depth": 60,
+    "volume_limit_pct": 0.2
+  }
+}

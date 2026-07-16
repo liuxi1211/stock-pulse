@@ -1,0 +1,67 @@
+{
+  "strategy_id": null,
+  "name": "双均线趋势",
+  "description": "经典趋势跟踪。MA20/MA60 金叉买入（A 股老手'生命线'组合，替代 5/20 噪音大的组合），ADX>25 趋势强度确认过滤震荡市，ATR 动态止损。大行情利器，震荡市反复假信号是趋势策略天然代价。",
+  "category": "TECHNICAL",
+  "tags": ["均线", "趋势", "生命线", "ADX过滤"],
+  "screen_config": {
+    "universe": {
+      "pool": "manual",
+      "stocks": ["510300.SH"]
+    }
+  },
+  "trading_config": {
+    "signals": {
+      "buy": {
+        "operator": "AND",
+        "conditions": [
+          {
+            "type": "compare",
+            "left": {"factor": "MA", "params": {"timeperiod": 20}},
+            "comparator": "cross_up",
+            "right": {"factor": "MA", "params": {"timeperiod": 60}}
+          },
+          {
+            "type": "compare",
+            "left": {"factor": "ADX", "params": {"timeperiod": 14}},
+            "comparator": ">",
+            "right": {"value": 25}
+          }
+        ]
+      },
+      "sell": {
+        "operator": "AND",
+        "conditions": [
+          {
+            "type": "compare",
+            "left": {"factor": "MA", "params": {"timeperiod": 20}},
+            "comparator": "cross_down",
+            "right": {"factor": "MA", "params": {"timeperiod": 60}}
+          }
+        ]
+      }
+    },
+    "position_sizing": {
+      "method": "order_target_percent",
+      "target": 0.95
+    },
+    "exit": {
+      "bracket": {
+        "use_atr_stop": true,
+        "atr_period": 14,
+        "atr_multiplier": 2.5,
+        "stop_loss_pct": 0.08
+      }
+    }
+  },
+  "backtest_config": {
+    "initial_cash": 100000,
+    "broker_profile": "cn_stock_miniqmt",
+    "t_plus_one": true,
+    "slippage": {"type": "percent", "value": 0.001},
+    "lot_size": 100,
+    "warmup_period": 65,
+    "history_depth": 80,
+    "volume_limit_pct": 0.2
+  }
+}

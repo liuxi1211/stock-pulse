@@ -1,0 +1,49 @@
+{
+  "strategy_id": null,
+  "name": "多因子含动量",
+  "description": "5 因子等权分属价值/质量/成长/动量/波动五大类（PE_TTM(-) + ROE_TTM(+) + PROFIT_YOY(+) + ROC(动量,+) + NATR(-)），控单一风格暴露。机构量化黄金标准，季度调仓降换手，行业暴露上限 25%+缓冲带。",
+  "category": "FUNDAMENTAL",
+  "tags": ["多因子", "动量", "黄金标准"],
+  "screen_config": {
+    "universe": { "pool": "csi500" },
+    "factor": { "method": "composite", "weights": { "PE_TTM": -0.2, "ROE_TTM": 0.2, "PROFIT_YOY": 0.2, "ROC": 0.2, "NATR": -0.2 } },
+    "filter": {
+      "conditions": {
+        "operator": "AND",
+        "conditions": [
+          { "type": "compare", "left": { "factor": "PE_TTM" }, "comparator": ">", "right": { "value": 0 } },
+          { "type": "compare", "left": { "factor": "PE_TTM" }, "comparator": "<", "right": { "value": 35 } },
+          { "type": "compare", "left": { "factor": "ROE_TTM" }, "comparator": ">", "right": { "value": 10 } },
+          { "type": "compare", "left": { "factor": "PROFIT_YOY" }, "comparator": ">", "right": { "value": 5 } },
+          { "type": "compare", "left": { "factor": "DEBT_TO_ASSETS" }, "comparator": "<", "right": { "value": 65 } }
+        ]
+      },
+      "exclude_st": true,
+      "exclude_suspended": true,
+      "exclude_limit_up": true,
+      "min_list_days": 500
+    },
+    "portfolio": { "top_n": 25, "max_weight_per_symbol": 0.06, "cash_reserve_pct": 0.05, "max_industry_exposure": 0.25, "buffer_n": 3 }
+  },
+  "trading_config": {
+    "rebalance": {
+      "frequency": "quarterly",
+      "trigger": "first",
+      "weight_mode": "equal",
+      "reject_limit_up_on_buy": true,
+      "reject_limit_down_on_sell": true,
+      "execution": { "split_days": 2, "impact_cost_bps": 10 }
+    },
+    "exit": { "bracket": { "stop_loss_pct": 0.10, "take_profit_pct": 0.30 } }
+  },
+  "backtest_config": {
+    "initial_cash": 2000000,
+    "broker_profile": "cn_stock_miniqmt",
+    "t_plus_one": true,
+    "slippage": { "type": "percent", "value": 0.002 },
+    "lot_size": 100,
+    "warmup_period": 14,
+    "history_depth": 60,
+    "volume_limit_pct": 0.2
+  }
+}

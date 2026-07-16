@@ -1,0 +1,63 @@
+{
+  "strategy_id": null,
+  "name": "ETF 动量轮动",
+  "description": "A 股最主流玩法之一。在 7 只主流宽基 ETF 间按 20 日涨幅（动量）打分，持有最强的 2 只。永远满仓强势风格，吃每段主升浪。震荡市会有假信号，是动量策略天然代价。周度调仓。",
+  "category": "TECHNICAL",
+  "tags": ["ETF", "动量", "轮动", "主流"],
+  "screen_config": {
+    "universe": {
+      "pool": "manual",
+      "stocks": ["510300.SH", "510500.SH", "159915.SZ", "512100.SH", "588000.SH", "510050.SH", "159949.SZ"]
+    },
+    "factor": {
+      "method": "composite",
+      "weights": {"ROC": 1.0}
+    },
+    "filter": {
+      "conditions": {
+        "operator": "AND",
+        "conditions": [
+          {
+            "type": "compare",
+            "left": {"factor": "CLOSE", "transform": {"type": "pct_change", "window": 20}},
+            "comparator": ">",
+            "right": {"value": 0}
+          }
+        ]
+      },
+      "exclude_st": true,
+      "exclude_suspended": true,
+      "exclude_limit_up": true
+    },
+    "portfolio": {
+      "top_n": 2,
+      "max_weight_per_symbol": 0.5,
+      "cash_reserve_pct": 0.0
+    }
+  },
+  "trading_config": {
+    "rebalance": {
+      "frequency": "weekly",
+      "trigger": "first",
+      "weight_mode": "equal",
+      "reject_limit_up_on_buy": true,
+      "reject_limit_down_on_sell": true
+    },
+    "exit": {
+      "bracket": {
+        "stop_loss_pct": 0.08,
+        "take_profit_pct": 0.30
+      }
+    }
+  },
+  "backtest_config": {
+    "initial_cash": 100000,
+    "broker_profile": "cn_stock_miniqmt",
+    "t_plus_one": true,
+    "slippage": {"type": "percent", "value": 0.001},
+    "lot_size": 100,
+    "warmup_period": 25,
+    "history_depth": 40,
+    "volume_limit_pct": 0.3
+  }
+}

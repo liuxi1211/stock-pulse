@@ -1,0 +1,85 @@
+{
+  "strategy_id": null,
+  "name": "MACD 趋势强化",
+  "description": "MACD 全球最广泛动量指标。日线 DIF 上穿 DEA + 柱状图转正 + RSI<70 未超买三重确认，并加长周期 MACD(24/52/18) 近似周线趋势过滤，降低震荡市假信号。",
+  "category": "TECHNICAL",
+  "tags": ["MACD", "动量", "趋势过滤"],
+  "screen_config": {
+    "universe": {
+      "pool": "manual",
+      "stocks": ["510300.SH"]
+    }
+  },
+  "trading_config": {
+    "signals": {
+      "buy": {
+        "operator": "AND",
+        "conditions": [
+          {
+            "type": "compare",
+            "left": {"factor": "MACD", "params": {"fastperiod": 12, "slowperiod": 26, "signalperiod": 9}, "output_index": 0},
+            "comparator": "cross_up",
+            "right": {"factor": "MACD", "params": {"fastperiod": 12, "slowperiod": 26, "signalperiod": 9}, "output_index": 1}
+          },
+          {
+            "type": "compare",
+            "left": {"factor": "MACD", "params": {"fastperiod": 12, "slowperiod": 26, "signalperiod": 9}, "output_index": 2},
+            "comparator": ">",
+            "right": {"value": 0}
+          },
+          {
+            "type": "compare",
+            "left": {"factor": "RSI", "params": {"timeperiod": 14}},
+            "comparator": "<",
+            "right": {"value": 70}
+          },
+          {
+            "type": "compare",
+            "left": {"factor": "MACD", "params": {"fastperiod": 24, "slowperiod": 52, "signalperiod": 18}, "output_index": 2},
+            "comparator": ">",
+            "right": {"value": 0}
+          }
+        ]
+      },
+      "sell": {
+        "operator": "OR",
+        "conditions": [
+          {
+            "type": "compare",
+            "left": {"factor": "MACD", "params": {"fastperiod": 12, "slowperiod": 26, "signalperiod": 9}, "output_index": 0},
+            "comparator": "cross_down",
+            "right": {"factor": "MACD", "params": {"fastperiod": 12, "slowperiod": 26, "signalperiod": 9}, "output_index": 1}
+          },
+          {
+            "type": "compare",
+            "left": {"factor": "RSI", "params": {"timeperiod": 14}},
+            "comparator": ">",
+            "right": {"value": 80}
+          }
+        ]
+      }
+    },
+    "position_sizing": {
+      "method": "order_target_percent",
+      "target": 0.90
+    },
+    "exit": {
+      "bracket": {
+        "use_atr_stop": true,
+        "atr_period": 14,
+        "atr_multiplier": 2.5,
+        "take_profit_pct": 0.25
+      }
+    }
+  },
+  "backtest_config": {
+    "initial_cash": 100000,
+    "broker_profile": "cn_stock_miniqmt",
+    "t_plus_one": true,
+    "slippage": {"type": "percent", "value": 0.001},
+    "lot_size": 100,
+    "warmup_period": 70,
+    "history_depth": 90,
+    "volume_limit_pct": 0.2
+  }
+}

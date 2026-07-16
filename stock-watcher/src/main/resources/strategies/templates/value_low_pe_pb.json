@@ -1,0 +1,51 @@
+{
+  "strategy_id": null,
+  "name": "价值低估值",
+  "description": "低 PE+低 PB+高 ROE 的价值组合，PE 设下限>5 避免周期顶/亏损股，top30 持仓+行业暴露上限 25% 分散风险避免重仓银行地产。Fama-French 价值因子（HML），邱国鹭《投资中最简单的事》流派。价值慢变量，季度调仓。",
+  "category": "FUNDAMENTAL",
+  "tags": ["价值", "低估值", "Fama-French"],
+  "screen_config": {
+    "universe": { "pool": "csi300" },
+    "factor": { "method": "composite", "weights": { "PE_TTM": -0.4, "PB": -0.3, "ROE_TTM": 0.3 } },
+    "filter": {
+      "conditions": {
+        "operator": "AND",
+        "conditions": [
+          { "type": "compare", "left": { "factor": "PE_TTM" }, "comparator": ">", "right": { "value": 5 } },
+          { "type": "compare", "left": { "factor": "PE_TTM" }, "comparator": "<", "right": { "value": 30 } },
+          { "type": "compare", "left": { "factor": "PB" }, "comparator": ">", "right": { "value": 0 } },
+          { "type": "compare", "left": { "factor": "PB" }, "comparator": "<", "right": { "value": 3 } },
+          { "type": "compare", "left": { "factor": "ROE_TTM" }, "comparator": ">", "right": { "value": 10 } },
+          { "type": "compare", "left": { "factor": "DEBT_TO_ASSETS" }, "comparator": "<", "right": { "value": 70 } },
+          { "type": "compare", "left": { "factor": "PROFIT_YOY" }, "comparator": ">", "right": { "value": 0 } }
+        ]
+      },
+      "exclude_st": true,
+      "exclude_suspended": true,
+      "exclude_limit_up": true,
+      "min_list_days": 500
+    },
+    "portfolio": { "top_n": 30, "max_weight_per_symbol": 0.06, "cash_reserve_pct": 0.05, "max_industry_exposure": 0.25 }
+  },
+  "trading_config": {
+    "rebalance": {
+      "frequency": "quarterly",
+      "trigger": "first",
+      "weight_mode": "equal",
+      "min_holding_bars": 60,
+      "reject_limit_up_on_buy": true,
+      "reject_limit_down_on_sell": true
+    },
+    "exit": { "bracket": { "stop_loss_pct": 0.10, "take_profit_pct": 0.30 } }
+  },
+  "backtest_config": {
+    "initial_cash": 1000000,
+    "broker_profile": "cn_stock_miniqmt",
+    "t_plus_one": true,
+    "slippage": { "type": "percent", "value": 0.001 },
+    "lot_size": 100,
+    "warmup_period": 0,
+    "history_depth": 60,
+    "volume_limit_pct": 0.2
+  }
+}

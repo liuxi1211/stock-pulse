@@ -1,0 +1,49 @@
+{
+  "strategy_id": null,
+  "name": "GARP 成长",
+  "description": "合理价格买成长（Growth At a Reasonable Price）。高利润增+高收入增+PE<30+市值>100 亿，规避微盘风险（2024 新国九条后必要）。彼得·林奇 GARP 流派。",
+  "category": "FUNDAMENTAL",
+  "tags": ["成长", "GARP"],
+  "screen_config": {
+    "universe": { "pool": "csi500" },
+    "factor": { "method": "composite", "weights": { "PROFIT_YOY": 0.4, "REVENUE_YOY": 0.3, "PE_TTM": -0.3 } },
+    "filter": {
+      "conditions": {
+        "operator": "AND",
+        "conditions": [
+          { "type": "compare", "left": { "factor": "PROFIT_YOY" }, "comparator": ">", "right": { "value": 20 } },
+          { "type": "compare", "left": { "factor": "REVENUE_YOY" }, "comparator": ">", "right": { "value": 15 } },
+          { "type": "compare", "left": { "factor": "PE_TTM" }, "comparator": ">", "right": { "value": 0 } },
+          { "type": "compare", "left": { "factor": "PE_TTM" }, "comparator": "<", "right": { "value": 30 } },
+          { "type": "compare", "left": { "factor": "ROE_TTM" }, "comparator": ">", "right": { "value": 10 } },
+          { "type": "compare", "left": { "factor": "TOTAL_MV" }, "comparator": ">", "right": { "value": 10000000000 } }
+        ]
+      },
+      "exclude_st": true,
+      "exclude_suspended": true,
+      "exclude_limit_up": true,
+      "min_list_days": 250
+    },
+    "portfolio": { "top_n": 20, "max_weight_per_symbol": 0.08, "cash_reserve_pct": 0.1 }
+  },
+  "trading_config": {
+    "rebalance": {
+      "frequency": "monthly",
+      "trigger": "first",
+      "weight_mode": "equal",
+      "reject_limit_up_on_buy": true,
+      "reject_limit_down_on_sell": true
+    },
+    "exit": { "bracket": { "stop_loss_pct": 0.10, "take_profit_pct": 0.35 } }
+  },
+  "backtest_config": {
+    "initial_cash": 1000000,
+    "broker_profile": "cn_stock_miniqmt",
+    "t_plus_one": true,
+    "slippage": { "type": "percent", "value": 0.002 },
+    "lot_size": 100,
+    "warmup_period": 0,
+    "history_depth": 60,
+    "volume_limit_pct": 0.2
+  }
+}
