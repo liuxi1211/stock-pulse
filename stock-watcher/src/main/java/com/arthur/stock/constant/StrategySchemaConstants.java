@@ -1,5 +1,7 @@
 package com.arthur.stock.constant;
 
+import com.arthur.stock.dto.EnumOptionDTO;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -19,24 +21,23 @@ public final class StrategySchemaConstants {
 
     private StrategySchemaConstants() {}
 
-    /** 下单方法白名单（对齐 Schema §3.3.2 / akquant Strategy 方法名）。 */
-    public static final List<String> POSITION_SIZING_METHODS = List.of(
-            "order_target_percent",
-            "order_target_value",
-            "order_target",
-            "buy",
-            "sell",
-            "buy_all",
-            "close_position",
-            "order_target_weights"
-    );
+    /**
+     * 下单方法白名单（对齐 Schema §3.3.2 / akquant Strategy 方法名）。
+     * <p>由 {@link PositionSizingMethodEnum} 派生，watcher 侧业务代码请直接引用枚举，避免魔法值。
+     */
+    public static final List<EnumOptionDTO> POSITION_SIZING_METHODS = toOptions(PositionSizingMethodEnum.values());
 
-    /** sell_method 允许取值：close_position=默认平仓 / sell=指定数量 / signal_based=按信号。 */
-    public static final List<String> SELL_METHODS = List.of(
-            "close_position",
-            "sell",
-            "signal_based"
-    );
+    /**
+     * sell_method 允许取值（close_position=默认平仓 / sell=指定数量 / signal_based=按信号）。
+     * <p>由 {@link SellMethodEnum} 派生，watcher 侧业务代码请直接引用枚举，避免魔法值。
+     */
+    public static final List<EnumOptionDTO> SELL_METHODS = toOptions(SellMethodEnum.values());
+
+    private static List<EnumOptionDTO> toOptions(DisplayableEnum[] enums) {
+        return Arrays.stream(enums)
+                .map(e -> new EnumOptionDTO(e.getCode(), e.getLabel()))
+                .collect(java.util.stream.Collectors.toList());
+    }
 
     /** 通用比较器：screen_config + trading_config 通用。 */
     public static final List<String> SCREEN_COMPARATORS = List.of(

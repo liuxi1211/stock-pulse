@@ -5,6 +5,12 @@
   "scope": "single",
   "category": "TECHNICAL",
   "tags": ["MACD", "短线"],
+  "tunable_params": [
+    {"name": "fastperiod", "type": "int", "default": 12, "min": 3, "max": 30, "step": 1, "description": "MACD 快线周期", "bind_to": "MACD.fastperiod"},
+    {"name": "slowperiod", "type": "int", "default": 26, "min": 10, "max": 60, "step": 1, "description": "MACD 慢线周期", "bind_to": "MACD.slowperiod"},
+    {"name": "signalperiod", "type": "int", "default": 9, "min": 3, "max": 30, "step": 1, "description": "MACD 信号线周期", "bind_to": "MACD.signalperiod"},
+    {"name": "rsi_period", "type": "int", "default": 14, "min": 5, "max": 40, "step": 1, "description": "RSI 周期", "bind_to": "RSI.timeperiod"}
+  ],
   "screen_config": {
     "universe": {
       "pool": "manual",

@@ -107,7 +107,100 @@ public class BacktestClient extends AbstractEngineClient {
         }
     }
 
+    // ==================== spec 015：参数寻优（GRID / WALK-FORWARD）====================
+    // engine 侧任务为异步（submit 立即返回 task_id，前端轮询 GET /optimize/{task_id}）。
+    // watcher 仅做透传 + 信封拆解，不持久化（engine 内存态任务表；持久化由后续 optimization_result 表承接）。
+
+    /**
+     * 提交 GRID 寻优任务（engine POST /python/v1/backtest/optimize）。
+     * <p>
+     * 请求体由 watcher 侧组装（strategy_config / kline_data / param_grid / sort_by /
+     * max_workers / constraint / result_filter / top_n / user_id）。响应 data 含 task_id。
+     */
+    public JSONObject submitOptimize(Object request) {
+        return postOptimizeLike(url("/optimize"), request);
+    }
+
+    /**
+     * 提交 WALK-FORWARD 验证任务（engine POST /python/v1/backtest/walk_forward）。
+     */
+    public JSONObject submitWalkForward(Object request) {
+        return postOptimizeLike(url("/walk_forward"), request);
+    }
+
+    /**
+     * 查询寻优任务状态/结果（engine GET /python/v1/backtest/optimize/{taskId}）。
+     */
+    public JSONObject getOptimizeTask(String taskId) {
+        String taskUrl = url("/optimize/" + encodePath(taskId));
+        try {
+            return unwrapForGet(getForGet(taskUrl));
+        } catch (ResourceAccessException e) {
+            log.error("engine GET {} 不可达: {}", taskUrl, e.toString());
+            throw new BusinessException(BacktestErrorCodes.ENGINE_SERVICE_UNAVAILABLE, "回测引擎服务不可用");
+        }
+    }
+
+    /**
+     * 取消寻优任务（engine POST /python/v1/backtest/optimize/{taskId}/cancel）。
+     */
+    public JSONObject cancelOptimizeTask(String taskId) {
+        String cancelUrl = url("/optimize/" + encodePath(taskId) + "/cancel");
+        // 取消用 POST 空体；走 exchangeData 而非 runSingle（不做 read-timeout 重试，避免重复取消）
+        try {
+            return exchangeData(cancelUrl, org.springframework.http.HttpMethod.POST, new JSONObject());
+        } catch (ResourceAccessException e) {
+            log.error("engine POST {} 不可达: {}", cancelUrl, e.toString());
+            throw new BusinessException(BacktestErrorCodes.ENGINE_SERVICE_UNAVAILABLE, "回测引擎服务不可用");
+        } catch (BusinessException e) {
+            throw e;
+        }
+    }
+
+    /**
+     * 列出寻优任务（engine GET /python/v1/backtest/optimize?user_id=&task_type=）。
+     */
+    public JSONObject listOptimizeTasks(String userId, String taskType) {
+        StringBuilder sb = new StringBuilder(url("/optimize"));
+        String sep = "?";
+        if (userId != null && !userId.isBlank()) {
+            sb.append(sep).append("user_id=").append(java.net.URLEncoder.encode(userId, java.nio.charset.StandardCharsets.UTF_8));
+            sep = "&";
+        }
+        if (taskType != null && !taskType.isBlank()) {
+            sb.append(sep).append("task_type=").append(java.net.URLEncoder.encode(taskType, java.nio.charset.StandardCharsets.UTF_8));
+        }
+        String listUrl = sb.toString();
+        try {
+            return unwrapForGet(getForGet(listUrl));
+        } catch (ResourceAccessException e) {
+            log.error("engine GET {} 不可达: {}", listUrl, e.toString());
+            throw new BusinessException(BacktestErrorCodes.ENGINE_SERVICE_UNAVAILABLE, "回测引擎服务不可用");
+        }
+    }
+
     // ==================== 内部 ====================
+
+    /**
+     * 寻优类 POST 通用模板：不重试（避免重复提交长任务），连接异常直接报服务不可用。
+     */
+    private JSONObject postOptimizeLike(String postUrl, Object request) {
+        try {
+            return exchangeData(postUrl, org.springframework.http.HttpMethod.POST, request);
+        } catch (ResourceAccessException e) {
+            log.error("engine POST {} 不可达: {}", postUrl, e.toString());
+            throw new BusinessException(BacktestErrorCodes.ENGINE_SERVICE_UNAVAILABLE, "回测引擎服务不可用");
+        } catch (BusinessException e) {
+            throw e;
+        }
+    }
+
+    /**
+     * 路径段 URL 编码（taskId 形如 opt_xxx，含下划线安全，但仍兜底编码防注入）。
+     */
+    private static String encodePath(String segment) {
+        return java.net.URLEncoder.encode(segment, java.nio.charset.StandardCharsets.UTF_8);
+    }
 
     /**
      * 直接复用 RestTemplate 发 GET，避免基类 getDto 的强类型反序列化（constants 结构动态）。

@@ -64,6 +64,7 @@ public class StrategyTemplateLoader {
      */
     private static final List<String> CONFIG_KEYS = Arrays.asList(
             "strategy_id", "name", "description",
+            "tunable_params",
             "screen_config", "trading_config", "backtest_config"
     );
 

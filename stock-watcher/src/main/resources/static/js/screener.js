@@ -365,6 +365,8 @@ const Screener = (function () {
         }
         if (field === 'output') {
             operand.outputIndex = Number(value);
+            // 重渲染确保多输出因子 select 选中态正确回显（MACD 切 DEA 等场景）
+            renderTree();
             return;
         }
         if (field.indexOf('param-') === 0) {

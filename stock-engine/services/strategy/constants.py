@@ -22,6 +22,7 @@ POSITION_SIZING_METHODS = {
     "buy_all",
     "close_position",
     "order_target_weights",
+    "grid",
 }
 
 # signals（择时）范式 universe 规模上限：universe 必须 manual 且 stocks 数量 <= 此值
@@ -30,6 +31,22 @@ SIGNALS_MAX_UNIVERSE_SIZE = 10
 
 # sell_method 允许的取值（close_position=默认平仓 / sell=指定数量 / signal_based=按信号）
 SELL_METHODS = {"close_position", "sell", "signal_based"}
+
+# ============================================================
+# 网格交易常量（spec 015 FR-G1）
+# ============================================================
+GRID_MAX_GRIDS_LIMIT = 20
+GRID_TICK_SIZE = 0.01
+GRID_DEFAULT_MAX_POSITION_VALUE_PCT = 0.9
+GRID_DEFAULT_UNFILLED_RETRY_BARS = 1
+GRID_DEFAULT_RE_ENTRY_AFTER_CLEAR = False
+GRID_DEFAULT_MAX_HOLDING_BARS = 60
+GRID_QTY_LOT_SIZE = 100  # A 股最小交易单位
+
+# ============================================================
+# 可调参数类型白名单（spec 015 FR-O3）
+# ============================================================
+TUNABLE_PARAM_TYPES = {"int", "float", "bool", "choice"}
 
 # ============================================================
 # 比较器白名单（对齐 Schema §4.4）

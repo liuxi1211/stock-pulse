@@ -315,6 +315,8 @@ const ConditionTreeBuilder = (function () {
             }
             if (field === 'output') {
                 operand.output_index = Number(value);
+                // 重渲染确保 select 选中态正确回显（与 transformType 同因：部分场景下原生 select 显示不同步）
+                render();
                 notify();
                 return;
             }

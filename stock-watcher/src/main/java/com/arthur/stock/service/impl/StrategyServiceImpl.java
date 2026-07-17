@@ -3,6 +3,7 @@ package com.arthur.stock.service.impl;
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONObject;
 import com.arthur.stock.client.StrategyEngineClient;
+import com.arthur.stock.constant.PositionSizingMethodEnum;
 import com.arthur.stock.constant.StrategyErrorCodes;
 import com.arthur.stock.constant.StrategyStatusEnum;
 import com.arthur.stock.dto.PageResult;
@@ -612,7 +613,7 @@ public class StrategyServiceImpl implements StrategyService {
         trading.put("signals", signals);
 
         Map<String, Object> sizing = new LinkedHashMap<>();
-        sizing.put("method", "order_target_percent");
+        sizing.put("method", PositionSizingMethodEnum.ORDER_TARGET_PERCENT.getCode());
         sizing.put("target", 0.95);
         trading.put("position_sizing", sizing);
         root.put("trading_config", trading);

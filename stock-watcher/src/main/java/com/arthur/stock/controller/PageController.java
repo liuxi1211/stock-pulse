@@ -204,6 +204,27 @@ public class PageController {
         return "quant/backtests/compare";
     }
 
+    // ============================================================
+    //  参数寻优（spec 015 模块）页面路由
+    //  视图目录 quant/optimize/*；数据由前端 JS 调 /api/optimize 拉取。
+    // ============================================================
+
+    /**
+     * 参数寻优页（paramGrid 编辑器 + Top-N 结果表 + WF 验证 + 应用按钮）。
+     * <p>
+     * 支持 {@code ?strategyId=xxx&versionNo=N} 预选策略版本。
+     */
+    @GetMapping("/quant/optimize")
+    public String optimize(@org.springframework.web.bind.annotation.RequestParam(value = "strategyId", required = false) String strategyId,
+                           @org.springframework.web.bind.annotation.RequestParam(value = "versionNo", required = false) Integer versionNo,
+                           Model model) {
+        model.addAttribute("pageTitle", "参数寻优");
+        model.addAttribute("activeMenu", "backtest-list");
+        model.addAttribute("strategyId", strategyId);
+        model.addAttribute("versionNo", versionNo);
+        return "quant/optimize/index";
+    }
+
     // ------------------------------------------------------------
     //  枚举 / 模板下拉选项辅助：转成 [code, label] 二元组列表，
     //  Thymeleaf 侧遍历 o.code / o.label 渲染 <option>。

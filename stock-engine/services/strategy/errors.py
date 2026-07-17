@@ -211,3 +211,50 @@ class ErrorCode:
         "EXECUTION_REQUIRES_REBALANCE",
         "execution 仅轮动范式（rebalance）支持，择时范式不可用",
     )
+
+    # ----- 网格交易（spec 015 FR-G1/G2/G3）-----
+    GRID_PARADIGM_EXCLUSIVE = (
+        "GRID_PARADIGM_EXCLUSIVE",
+        "网格范式（position_sizing.method=grid）与 signals/rebalance 互斥，三者只能选一",
+    )
+    GRID_EXIT_CONFLICT = (
+        "GRID_EXIT_CONFLICT",
+        "method=grid 时 exit.bracket/exit.rules 必须为空（grid 自带止损止盈语义，避免双重平仓）",
+    )
+    GRID_RISK_REQUIRED = (
+        "GRID_RISK_REQUIRED",
+        "网格必须配置止损（stop_loss_price 或 stop_loss_pct 二选一）、max_holding_bars、max_position_value_pct",
+    )
+    GRID_PARAM_INVALID = (
+        "GRID_PARAM_INVALID",
+        "网格参数非法：qty_per_grid 需为 100 的整数倍、max_grids≤20、center>0、step.value>0",
+    )
+    GRID_INSUFFICIENT_CAPITAL = (
+        "GRID_INSUFFICIENT_CAPITAL",
+        "资金占用超限：max_grids × qty_per_grid × center 超过 initial_cash × max_position_value_pct",
+    )
+
+    # ----- 可调参数（spec 015 FR-O3）-----
+    TUNABLE_PARAM_INVALID = (
+        "TUNABLE_PARAM_INVALID",
+        "tunable_params 配置非法（name 唯一、type 合法、default 在 [min,max] 内、step>0）",
+    )
+    TUNABLE_PARAM_UNKNOWN = (
+        "TUNABLE_PARAM_UNKNOWN",
+        "param_grid 含未知参数名（必须是 tunable_params 内声明的 name）",
+    )
+    TUNABLE_PARAM_MISSING = (
+        "TUNABLE_PARAM_MISSING",
+        "策略未声明 tunable_params，GRID/WF 寻优无意义（与 param_grid 名字拼错的 "
+        "TUNABLE_PARAM_UNKNOWN 区分）",
+    )
+
+    # ----- 寻优（spec 015 FR-O1/O4）-----
+    PICKLE_IMPORT_MAIN_FORBIDDEN = (
+        "PICKLE_IMPORT_MAIN_FORBIDDEN",
+        "策略类定义在 __main__ 内无法多进程 pickle，必须落盘到 importable 模块",
+    )
+    OPTIMIZATION_INSUFFICIENT_DATA = (
+        "OPTIMIZATION_INSUFFICIENT_DATA",
+        "寻优数据长度不足（需 ≥ train_period + test_period）",
+    )

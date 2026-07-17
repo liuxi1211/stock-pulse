@@ -358,11 +358,95 @@ class SignalsModel(BaseModel):
     )
 
 
+# ============================================================
+# §3.3 可调参数 + 网格交易子模型（spec 015 第零波 / FR-O3 / FR-G1）
+# ============================================================
+
+class TunableParamModel(BaseModel):
+    """可调参数声明（spec 015 第零波 / FR-O3）。
+
+    用于 ``paramGrid`` 反推（前端可视化编辑参数空间），``name`` 必须对应
+    compiler 生成的策略 ``__init__`` 形参名。``bind_to`` 是元数据（如
+    ``ma_fast.timeperiod``），便于追溯参数绑定到的 on_bar 用法。
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(..., description="参数名（必须对应 compiler 生成的 __init__ 形参）")
+    type: Literal["int", "float", "bool", "choice"] = Field(..., description="参数类型")
+    default: Union[float, int, str, bool] = Field(..., description="默认值")
+    min: Optional[Union[float, int]] = Field(None, description="最小值（int/float 类型用）")
+    max: Optional[Union[float, int]] = Field(None, description="最大值（int/float 类型用）")
+    step: Optional[Union[float, int]] = Field(None, description="步长（>0，int/float 用）")
+    choices: Optional[List[Union[float, int, str]]] = Field(
+        None, description="候选值列表（choice 类型用）"
+    )
+    description: Optional[str] = Field(None, description="参数描述")
+    bind_to: Optional[str] = Field(
+        None, description="绑定到的 on_bar 用法元数据（如 'ma_fast.timeperiod'）"
+    )
+
+
+class GridStepModel(BaseModel):
+    """网格间距（spec 015 FR-G1）。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["percent", "absolute"] = Field(..., description="间距类型")
+    value: float = Field(
+        ..., gt=0, description="间距值（percent=0.02 表示 2%，absolute=0.2 表示 0.2 元）"
+    )
+
+
+class GridParamsModel(BaseModel):
+    """网格参数四要素 + 必填风控（spec 015 FR-G1 / FR-G2）。
+
+    ``method=grid`` 时挂在 :class:`PositionSizingModel.params` 上。一期锁定
+    ``step_mode=symmetric`` / ``qty_mode=equal`` / ``adjust_mode=forward_adjusted``
+    / ``re_entry_after_clear=False``（字段保留供二期扩展，固定值由 validator 兜底）。
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    center: Union[float, Literal["first_bar_close"]] = Field(
+        ..., description="中枢价（>0 数值或 'first_bar_close'；数值中枢前端提示前瞻偏差风险）"
+    )
+    step: GridStepModel = Field(..., description="间距")
+    qty_per_grid: int = Field(..., gt=0, description="每格股数（A 股需为 100 的整数倍）")
+    max_grids: int = Field(..., ge=1, le=20, description="单边最大格数（硬上限 20）")
+    # 必填风控（二选一止损 + 时间止损 + 总仓上限）
+    stop_loss_price: Optional[float] = Field(
+        None, description="绝对止损价（相对中枢，与 stop_loss_pct 二选一）"
+    )
+    stop_loss_pct: Optional[float] = Field(
+        None, description="相对中枢的止损百分比（0.15=跌破 15%）"
+    )
+    max_holding_bars: int = Field(..., ge=1, description="时间止损：持仓超 N 根 bar 强平")
+    max_position_value_pct: float = Field(
+        0.9, gt=0, le=1.0, description="总仓位占初始资金比例上限"
+    )
+    # 可选
+    take_profit_price: Optional[float] = Field(None, description="单边上涨止盈线")
+    re_entry_after_clear: bool = Field(
+        False, description="grid_level 归零后是否重启网格（一期固定 false）"
+    )
+    unfilled_retry_bars: int = Field(1, ge=0, description="未成交订单重试 bar 数")
+    adjust_mode: Literal["forward_adjusted"] = Field(
+        "forward_adjusted", description="复权模式（一期固定 forward_adjusted）"
+    )
+    # 预留字段位（一期不实现，固定值）
+    step_mode: Literal["symmetric"] = Field(
+        "symmetric", description="间距模式（一期固定 symmetric）"
+    )
+    qty_mode: Literal["equal"] = Field("equal", description="数量模式（一期固定 equal）")
+
+
 class PositionSizingModel(BaseModel):
     """仓位管理（统一为 akquant 下单方法名）。Schema §3.3.2。
 
     ``method`` 合法性 / ``target`` 是否必填 / sell_method 合法性均在 validator 层
     用 :data:`constants.POSITION_SIZING_METHODS` / :data:`SELL_METHODS` 校验。
+    ``method="grid"`` 时网格范式，``params`` 必须为 :class:`GridParamsModel` 结构。
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -603,6 +687,9 @@ class StrategyConfigModel(BaseModel):
     strategy_id: Optional[str] = Field(None, description="策略唯一 ID（业务层）")
     name: str = Field(..., description="展示名（注入防护在 validator 层）")
     description: Optional[str] = Field(None, description="描述")
+    tunable_params: Optional[List[TunableParamModel]] = Field(
+        None, description="可调参数列表（spec 015 / FR-O3，用于 paramGrid 反推）"
+    )
     screen_config: Optional[ScreenConfigModel] = Field(None, description="选股配置（§3.2）")
     trading_config: Optional[TradingConfigModel] = Field(
         None, description="交易配置（§3.3）；至少含 signals 或 rebalance 之一"

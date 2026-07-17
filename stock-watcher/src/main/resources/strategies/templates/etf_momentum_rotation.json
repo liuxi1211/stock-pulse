@@ -4,6 +4,9 @@
   "description": "A 股最主流玩法之一。在 7 只主流宽基 ETF 间按 20 日涨幅（动量）打分，持有最强的 2 只。永远满仓强势风格，吃每段主升浪。震荡市会有假信号，是动量策略天然代价。周度调仓。",
   "category": "TECHNICAL",
   "tags": ["ETF", "动量", "轮动", "主流"],
+  "tunable_params": [
+    {"name": "momentum_window", "type": "int", "default": 20, "min": 5, "max": 60, "step": 1, "description": "动量(涨跌幅)回看窗口", "bind_to": "ROC.window"}
+  ],
   "screen_config": {
     "universe": {
       "pool": "manual",

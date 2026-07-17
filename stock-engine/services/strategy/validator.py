@@ -36,6 +36,8 @@ from services.strategy.models import (
     ValueNode,
     PositionSizingModel,
     FactorModel,
+    TunableParamModel,
+    GridParamsModel,
 )
 
 logger = logging.getLogger(__name__)
@@ -94,10 +96,16 @@ class StrategyValidator:
         # 1. 注入防护（自由文本字段，独立于结构/条件树）
         self._validate_injection(config, errors)
 
+        # 1b. 可调参数（spec 015 / FR-O3）
+        self._validate_tunable_params(config, errors)
+
         # 2. trading_config 结构 + 条件树
         if config.trading_config is not None:
             self._validate_structure_trading(config.trading_config, errors)
             self._validate_trading_conditions_and_factors(config.trading_config, errors)
+
+        # 2b. grid 范式资金占用联动（需要 backtest_config.initial_cash，独立于 trading_config 校验）
+        self._validate_grid_capital_from_config(config, errors)
 
         # 3. screen_config 结构 + 条件树
         if config.screen_config is not None:
@@ -152,12 +160,15 @@ class StrategyValidator:
     def _validate_structure_trading(
         self, tc: TradingConfigModel, errors: List[StrategyValidationError]
     ) -> None:
-        # (1) signals 或 rebalance 至少一个在场
-        #     signals 对象存在（即便内部 buy/sell 都 None）也算"在场"
+        # (1) 范式判定：三范式（signals / rebalance / grid）至少一个在场
+        #     - signals/rebalance 是 trading_config 顶层字段
+        #     - grid 通过 position_sizing.method == "grid" 判定（不在顶层）
         has_signals = tc.signals is not None
         has_rebalance = tc.rebalance is not None
+        ps: Optional[PositionSizingModel] = tc.position_sizing
+        has_grid = ps is not None and ps.method == "grid"
 
-        if not has_signals and not has_rebalance:
+        if not (has_signals or has_rebalance or has_grid):
             code, msg = ErrorCode.MISSING_SIGNALS_OR_REBALANCE
             errors.append(
                 StrategyValidationError(path="trading_config", code=code, message=msg)
@@ -165,17 +176,39 @@ class StrategyValidator:
             # 不 return：保持非短路语义，继续收集 position_sizing/exit 等错误
             # （与改造前行为一致，test_multiple_errors_non_short_circuit 依赖此）
 
-        # (1b) signals 与 rebalance 互斥（择时范式 vs 轮动范式，二选一）
+        # (1b) 三范式互斥（signals / rebalance / grid 至多一个在场）
         # 互斥时后续 position_sizing/exit 校验无意义（配置已非法），return。
-        if has_signals and has_rebalance:
-            code, msg = ErrorCode.SIGNALS_REBALANCE_EXCLUSIVE
+        # 错误码分层（向后兼容 spec 009 测试 + spec 015 grid 新增）：
+        # - signals + rebalance（无 grid）→ SIGNALS_REBALANCE_EXCLUSIVE（spec 009 旧码）
+        # - 任意含 grid 的组合 → GRID_PARADIGM_EXCLUSIVE（spec 015 新码）
+        present = [v for v in (has_signals, has_rebalance, has_grid) if v]
+        if len(present) >= 2:
+            if has_grid:
+                code, msg = ErrorCode.GRID_PARADIGM_EXCLUSIVE
+            else:
+                code, msg = ErrorCode.SIGNALS_REBALANCE_EXCLUSIVE
             errors.append(
                 StrategyValidationError(path="trading_config", code=code, message=msg)
             )
             return
 
+        # (1c) grid 范式专属校验（exit 冲突 / GridParamsModel 业务规则 / 资金占用）
+        # signals 与 rebalance 二选一互斥的旧路径已由三范式校验覆盖。
+        if has_grid:
+            self._validate_grid_paradigm(tc, ps, errors)
+            # grid 范式不需要继续做 position_sizing 白名单/target 校验
+            # （method=grid 已在白名单；target 字段 grid 不用），但 exit / rebalance.trigger
+            # 等通用结构校验仍需继续。
+        else:
+            # signals 与 rebalance 同时在场的旧互斥（理论上由三范式拦截，这里兜底）
+            if has_signals and has_rebalance:
+                code, msg = ErrorCode.SIGNALS_REBALANCE_EXCLUSIVE
+                errors.append(
+                    StrategyValidationError(path="trading_config", code=code, message=msg)
+                )
+                return
+
         # (5) position_sizing.method 白名单
-        ps: Optional[PositionSizingModel] = tc.position_sizing
         if ps is not None:
             if ps.method not in constants.POSITION_SIZING_METHODS:
                 code, msg = ErrorCode.INVALID_POSITION_METHOD
@@ -240,6 +273,260 @@ class StrategyValidator:
 
         # (9) execution 仅轮动范式合法（spec 013 Task 2 / PRD 009 §2 P2-9）
         self._validate_rebalance_execution(tc, errors, has_rebalance)
+
+    # ========================================================
+    # §7.1 网格范式专属校验（spec 015 FR-G1/G2）
+    # ========================================================
+    def _validate_grid_paradigm(
+        self,
+        tc: TradingConfigModel,
+        ps: PositionSizingModel,
+        errors: List[StrategyValidationError],
+    ) -> None:
+        """网格范式（position_sizing.method=grid）业务规则校验。
+
+        - exit.bracket / exit.rules 必须为空（grid 自带止损止盈，避免双重平仓）
+          → ``GRID_EXIT_CONFLICT``；
+        - params 必须为 :class:`GridParamsModel` 结构（Pydantic 解析阶段保证，此处
+          仅在已是 GridParamsModel 时做业务规则兜底）；
+        - stop_loss_price 与 stop_loss_pct 二选一必填 → ``GRID_RISK_REQUIRED``；
+        - qty_per_grid 需为 100 的整数倍 → ``GRID_PARAM_INVALID``；
+        - 资金占用联动 → 委托 :meth:`_validate_grid_capital`。
+        """
+        # (a) exit 冲突
+        ex = tc.exit
+        if ex is not None and (ex.bracket is not None or ex.rules):
+            code, msg = ErrorCode.GRID_EXIT_CONFLICT
+            errors.append(
+                StrategyValidationError(
+                    path="trading_config.exit", code=code, message=msg
+                )
+            )
+
+        # (b) params 结构必须是 GridParamsModel（绕过 Pydantic 的 dict 路径兜底）
+        params = ps.params
+        if not isinstance(params, dict) and not isinstance(params, GridParamsModel):
+            # 理论上不可达（params 是 Optional[Dict]）；grid 范式必须挂 GridParamsModel dict
+            code, msg = ErrorCode.GRID_PARAM_INVALID
+            errors.append(
+                StrategyValidationError(
+                    path="trading_config.position_sizing.params",
+                    code=code,
+                    message="method=grid 时 params 必须为 GridParamsModel 结构",
+                )
+            )
+            return
+
+        # 取出已结构化的 GridParamsModel（pydantic 解析阶段已校验字段约束）
+        # 若调用方绕过模型直传 dict，这里不解析，只对已知结构做校验
+        gp: Optional[GridParamsModel] = params if isinstance(params, GridParamsModel) else None
+        if gp is None:
+            # dict 形态：尝试二次解析为 GridParamsModel 以做业务校验（不抛错，失败则跳过）
+            try:
+                gp = GridParamsModel.model_validate(params)
+            except Exception:
+                # 结构错误已由 pydantic 主路径拦截；这里不再重复报
+                return
+
+        # (c) 止损二选一
+        if gp.stop_loss_price is None and gp.stop_loss_pct is None:
+            code, msg = ErrorCode.GRID_RISK_REQUIRED
+            errors.append(
+                StrategyValidationError(
+                    path="trading_config.position_sizing.params.stop_loss_price",
+                    code=code,
+                    message=msg,
+                )
+            )
+
+        # (d) qty_per_grid 需为 100 的整数倍（A 股最小交易单位）
+        if gp.qty_per_grid % constants.GRID_QTY_LOT_SIZE != 0:
+            code, msg = ErrorCode.GRID_PARAM_INVALID
+            errors.append(
+                StrategyValidationError(
+                    path="trading_config.position_sizing.params.qty_per_grid",
+                    code=code,
+                    message=msg,
+                )
+            )
+
+        # (e) center 数值时需 > 0（pydantic Literal/Union 已拦截非法类型，兜底）
+        if isinstance(gp.center, (int, float)) and gp.center <= 0:
+            code, msg = ErrorCode.GRID_PARAM_INVALID
+            errors.append(
+                StrategyValidationError(
+                    path="trading_config.position_sizing.params.center",
+                    code=code,
+                    message=msg,
+                )
+            )
+
+        # (f) 资金占用联动（需要 backtest_config.initial_cash）
+        self._validate_grid_capital(gp, errors)
+
+    # ========================================================
+    # §7.1 网格资金占用联动（spec 015 FR-G2）
+    # ========================================================
+    def _validate_grid_capital_from_config(
+        self, config: StrategyConfigModel, errors: List[StrategyValidationError]
+    ) -> None:
+        """从顶层 config 取 initial_cash 后委托 :meth:`_validate_grid_capital`。
+
+        ``_validate_structure_trading`` 仅持有 ``TradingConfigModel``，拿不到
+        ``backtest_config.initial_cash``；资金占用校验需联动两者，故在此独立调用。
+        非 grid 范式 / params 非 GridParamsModel / backtest_config 缺失时跳过。
+        """
+        tc = config.trading_config
+        if tc is None:
+            return
+        ps = tc.position_sizing
+        if ps is None or ps.method != "grid":
+            return
+        params = ps.params
+        if params is None:
+            return
+        # params 在 pydantic 解析阶段是 Optional[Dict]；grid 范式下业务侧应已结构化
+        if isinstance(params, GridParamsModel):
+            gp = params
+        elif isinstance(params, dict):
+            try:
+                gp = GridParamsModel.model_validate(params)
+            except Exception:
+                return
+        else:
+            return
+
+        initial_cash = None
+        if config.backtest_config is not None:
+            initial_cash = config.backtest_config.initial_cash
+
+        self._validate_grid_capital(gp, errors, initial_cash)
+
+    def _validate_grid_capital(
+        self,
+        gp: GridParamsModel,
+        errors: List[StrategyValidationError],
+        initial_cash: Optional[float] = None,
+    ) -> None:
+        """网格资金占用上限校验。
+
+        ``max_grids × qty_per_grid × center`` 不得超过 ``initial_cash × max_position_value_pct``。
+        违例 → ``GRID_INSUFFICIENT_CAPITAL``。仅在 center 为数值中枢、initial_cash 可得时
+        触发（``first_bar_close`` 与缺失 backtest_config 的场景跳过——前者需运行时取首根
+        bar close 才能估算，后者无初始资金参照）。
+        """
+        # center 必须为数值（first_bar_close 在运行时才能确定，校验阶段跳过）
+        if not isinstance(gp.center, (int, float)):
+            return
+        if initial_cash is None or initial_cash <= 0:
+            return
+
+        required = gp.max_grids * gp.qty_per_grid * gp.center
+        limit = initial_cash * gp.max_position_value_pct
+        if required > limit:
+            code, msg = ErrorCode.GRID_INSUFFICIENT_CAPITAL
+            errors.append(
+                StrategyValidationError(
+                    path="trading_config.position_sizing.params.max_grids",
+                    code=code,
+                    message=msg,
+                )
+            )
+
+    # ========================================================
+    # spec 015 / FR-O3：可调参数校验
+    # ========================================================
+    def _validate_tunable_params(
+        self, config: StrategyConfigModel, errors: List[StrategyValidationError]
+    ) -> None:
+        """可调参数（tunable_params）业务规则校验。
+
+        - name 唯一（重名 → ``TUNABLE_PARAM_INVALID``）；
+        - type ∈ :data:`constants.TUNABLE_PARAM_TYPES`；
+        - int/float：default ∈ [min, max]（min/max 非 None 时），step>0；
+        - choice：default ∈ choices，choices 非空；
+        - description 自由文本做注入黑名单检查。
+        """
+        params = config.tunable_params
+        if not params:
+            return
+
+        seen_names: set = set()
+        for i, p in enumerate(params):
+            base = f"tunable_params[{i}]"
+
+            # (1) name 唯一性
+            if p.name in seen_names:
+                code, msg = ErrorCode.TUNABLE_PARAM_INVALID
+                errors.append(
+                    StrategyValidationError(
+                        path=f"{base}.name", code=code, message=msg
+                    )
+                )
+            seen_names.add(p.name)
+
+            # (2) type 白名单（pydantic Literal 已拦截，兜底）
+            if p.type not in constants.TUNABLE_PARAM_TYPES:
+                code, msg = ErrorCode.TUNABLE_PARAM_INVALID
+                errors.append(
+                    StrategyValidationError(
+                        path=f"{base}.type", code=code, message=msg
+                    )
+                )
+
+            # (3) int/float：范围 + step
+            if p.type in ("int", "float"):
+                if p.step is not None and p.step <= 0:
+                    code, msg = ErrorCode.TUNABLE_PARAM_INVALID
+                    errors.append(
+                        StrategyValidationError(
+                            path=f"{base}.step", code=code, message=msg
+                        )
+                    )
+                if p.min is not None and p.max is not None and p.min > p.max:
+                    code, msg = ErrorCode.TUNABLE_PARAM_INVALID
+                    errors.append(
+                        StrategyValidationError(
+                            path=f"{base}.min", code=code, message=msg
+                        )
+                    )
+                elif p.min is not None and isinstance(p.default, (int, float)):
+                    if p.default < p.min:
+                        code, msg = ErrorCode.TUNABLE_PARAM_INVALID
+                        errors.append(
+                            StrategyValidationError(
+                                path=f"{base}.default", code=code, message=msg
+                            )
+                        )
+                if p.max is not None and isinstance(p.default, (int, float)):
+                    if p.default > p.max:
+                        code, msg = ErrorCode.TUNABLE_PARAM_INVALID
+                        errors.append(
+                            StrategyValidationError(
+                                path=f"{base}.default", code=code, message=msg
+                            )
+                        )
+
+            # (4) choice：default ∈ choices
+            if p.type == "choice":
+                if not p.choices:
+                    code, msg = ErrorCode.TUNABLE_PARAM_INVALID
+                    errors.append(
+                        StrategyValidationError(
+                            path=f"{base}.choices", code=code, message=msg
+                        )
+                    )
+                elif p.default not in p.choices:
+                    code, msg = ErrorCode.TUNABLE_PARAM_INVALID
+                    errors.append(
+                        StrategyValidationError(
+                            path=f"{base}.default", code=code, message=msg
+                        )
+                    )
+
+            # (5) description 注入检查
+            if p.description is not None:
+                self._check_dangerous_text(p.description, f"{base}.description", errors)
 
     # ========================================================
     # §7.1 execution 范式归属校验（spec 013 Task 2）

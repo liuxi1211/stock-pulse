@@ -33,6 +33,7 @@ import numpy as np
 import pandas as pd
 from akquant import Strategy
 
+from services.backtest.grid_strategy import build_grid_strategy_class
 from services.backtest.rebalance_engine import RebalanceEngine
 from services.backtest.trading_engine import (
     BarSnapshot,
@@ -50,6 +51,7 @@ from services.strategy.models import (
     ConditionTree,
     ExitRuleModel,
     FactorNode,
+    GridParamsModel,
     OpNode,
     RebalanceModel,
     RefNode,
@@ -447,6 +449,73 @@ def _dispatch_sell(strategy: Strategy, sizing: Any, symbol: str) -> None:
 
 
 # ============================================================
+# spec 015 FR-G2 / FR-G3：grid 范式编译入口
+# ============================================================
+
+def _compile_grid_strategy(config: StrategyConfigModel) -> Type[Strategy]:
+    """网格范式编译入口（spec 015 FR-G2 / FR-G3）。
+
+    从 ``trading_config.position_sizing.params`` 取 grid 参数 dict →
+    :class:`GridParamsModel`，再调 :func:`build_grid_strategy_class`
+    生成闭包绑定的 ``GridStrategy`` 子类。
+
+    grid 范式单标的：symbol 取自 ``screen_config.universe.stocks[0]``
+    （validator 已校验 manual 池且非空）。
+
+    warmup 透传由 runner 负责（grid 不需要因子窗口，warmup=1 即可）；
+    本函数只返回策略类。
+
+    :param config: 顶层策略配置（已通过 validator）。
+    :return: ``Strategy`` 子类（``__name__ == "GridStrategy"``）。
+    :raises CompilerError: position_sizing.params 缺失 / universe 无标的。
+    """
+    tc = config.trading_config
+    if tc is None or tc.position_sizing is None:
+        raise CompilerError(
+            "BACKTEST_CONFIG_INVALID: grid 范式要求 trading_config.position_sizing 在场"
+        )
+    sizing = tc.position_sizing
+    params = sizing.params
+    if not params:
+        raise CompilerError(
+            "BACKTEST_CONFIG_INVALID: grid 范式要求 position_sizing.params 在场"
+        )
+    try:
+        grid_params = GridParamsModel.model_validate(params)
+    except Exception as exc:  # noqa: BLE001 - 结构错误统一报 CompilerError
+        raise CompilerError(
+            f"BACKTEST_GRID_PARAMS_INVALID: grid 参数校验失败 - {exc}"
+        ) from exc
+
+    # initial_cash（默认 100000）
+    initial_cash = 100000.0
+    if config.backtest_config is not None:
+        try:
+            initial_cash = float(config.backtest_config.initial_cash)
+        except (TypeError, ValueError):
+            initial_cash = 100000.0
+
+    # symbol：grid 范式单标的，取 universe.stocks[0]
+    symbol: Optional[str] = None
+    if (
+        config.screen_config is not None
+        and config.screen_config.universe is not None
+        and config.screen_config.universe.stocks
+    ):
+        symbol = str(config.screen_config.universe.stocks[0])
+    if not symbol:
+        raise CompilerError(
+            "BACKTEST_CONFIG_INVALID: grid 范式要求 screen_config.universe.stocks 非空（单标的）"
+        )
+
+    return build_grid_strategy_class(
+        grid_params=grid_params,
+        initial_cash=initial_cash,
+        symbol=symbol,
+    )
+
+
+# ============================================================
 # 编译主函数
 # ============================================================
 
@@ -479,7 +548,15 @@ def compile_strategy(
     # 1. 范式校验（占位，Phase 2 无拒绝项）
     _check_paradigm(config)
 
+    # spec 015 FR-G2：method=grid 走独立 GridStrategy 链路，不进入 signals/rebalance 主编译
     tc = config.trading_config
+    if (
+        tc is not None
+        and tc.position_sizing is not None
+        and tc.position_sizing.method == "grid"
+    ):
+        return _compile_grid_strategy(config)
+
     if tc is None:
         raise CompilerError(
             "BACKTEST_CONFIG_INVALID: trading_config 缺失"

@@ -21,6 +21,9 @@
                     <p class="bt-page-subtitle">策略分组视图 · 折叠/展开切换 · 历史回测分页 · 对比篮</p>
                 </div>
                 <div class="bt-page-actions">
+                    <a th:href="@{/quant/optimize}" class="btn-bt btn-bt-secondary btn-bt-sm" title="参数寻优（GRID + WALK-FORWARD）">
+                        <i class="bi bi-cpu"></i> 参数寻优
+                    </a>
                     <a th:href="@{/quant/backtests/compare}" class="btn-bt btn-bt-secondary btn-bt-sm" title="对比篮">
                         <i class="bi bi-bar-chart-line-fill"></i> 对比篮
                         <span id="compareCountBadge" style="margin-left:4px;padding:1px 6px;background:var(--accent-blue);color:#fff;border-radius:8px;font-family:var(--font-mono);font-size:10px;display:none;">0</span>
@@ -56,6 +59,9 @@
                     <div class="bt-empty-state-title">加载中…</div>
                 </div>
             </div>
+
+            <!-- 全局合规免责页脚（spec 015 §1.2.3） -->
+            <div th:replace="~{fragments/common :: complianceFooter}"></div>
         </main>
     </div>
 </div>

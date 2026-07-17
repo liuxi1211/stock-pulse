@@ -189,5 +189,29 @@
      ============================================================ -->
 <div th:fragment="toastContainer" id="toastContainer" class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 9999;"></div>
 
+<!-- ============================================================
+     合规免责页脚 Fragment（spec 015 PRD §1.2.3）
+     固定文案，所有量化研究类页面（回测/寻优）应引入。
+     ============================================================ -->
+<div th:fragment="complianceFooter" class="compliance-footer">
+    <i class="bi bi-shield-exclamation"></i>
+    本工具为量化研究辅助，<strong>不构成任何投资建议</strong>；历史回测结果不代表未来收益。
+</div>
+
+<style>
+    .compliance-footer {
+        margin-top: 16px;
+        padding: 10px 14px;
+        background: color-mix(in srgb, var(--accent-yellow, #ffc107) 8%, transparent);
+        border: 1px solid color-mix(in srgb, var(--accent-yellow, #ffc107) 30%, transparent);
+        border-radius: var(--radius-sm, 6px);
+        font-size: 11.5px;
+        color: var(--text-muted, #6c757d);
+        text-align: center;
+    }
+    .compliance-footer i { color: var(--accent-yellow, #ffc107); margin-right: 4px; }
+    .compliance-footer strong { color: var(--accent-yellow, #ffc107); }
+</style>
+
 </body>
 </html>

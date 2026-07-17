@@ -4,6 +4,15 @@
   "description": "MACD 全球最广泛动量指标。日线 DIF 上穿 DEA + 柱状图转正 + RSI<70 未超买三重确认，并加长周期 MACD(24/52/18) 近似周线趋势过滤，降低震荡市假信号。",
   "category": "TECHNICAL",
   "tags": ["MACD", "动量", "趋势过滤"],
+  "tunable_params": [
+    {"name": "fastperiod", "type": "int", "default": 12, "min": 3, "max": 30, "step": 1, "description": "MACD 快线周期", "bind_to": "MACD.fastperiod"},
+    {"name": "slowperiod", "type": "int", "default": 26, "min": 10, "max": 60, "step": 1, "description": "MACD 慢线周期", "bind_to": "MACD.slowperiod"},
+    {"name": "signalperiod", "type": "int", "default": 9, "min": 3, "max": 30, "step": 1, "description": "MACD 信号线周期", "bind_to": "MACD.signalperiod"},
+    {"name": "trend_fastperiod", "type": "int", "default": 24, "min": 10, "max": 40, "step": 1, "description": "趋势过滤 MACD 快线周期", "bind_to": "MACD.trend.fastperiod"},
+    {"name": "trend_slowperiod", "type": "int", "default": 52, "min": 20, "max": 80, "step": 1, "description": "趋势过滤 MACD 慢线周期", "bind_to": "MACD.trend.slowperiod"},
+    {"name": "trend_signalperiod", "type": "int", "default": 18, "min": 5, "max": 30, "step": 1, "description": "趋势过滤 MACD 信号线周期", "bind_to": "MACD.trend.signalperiod"},
+    {"name": "rsi_period", "type": "int", "default": 14, "min": 5, "max": 40, "step": 1, "description": "RSI 周期", "bind_to": "RSI.timeperiod"}
+  ],
   "screen_config": {
     "universe": {
       "pool": "manual",

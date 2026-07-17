@@ -531,6 +531,48 @@ public class BacktestServiceImpl implements BacktestService {
         }
     }
 
+    /**
+     * spec 015 FR-O1：为参数寻优装配上下文（configJson + kline_data）。
+     * <p>
+     * 复用 run() 的 configJson 加载 + 范式校验 + buildKlineData，但不落任务表、不异步执行。
+     * OptimizeController 拿到后透传给 engine {@code /optimize} / {@code /walk_forward}。
+     * 网格范式（method=grid）无 tunable_params，此处仍返回 config + kline，
+     * 由 engine validator 报 TUNABLE_PARAM_INVALID（param_grid 为空）。
+     */
+    @Override
+    public JSONObject buildOptimizeContext(String strategyId, Integer versionNo) {
+        // 1. 查策略 + 版本
+        QuantStrategyDO strategy = requireStrategy(strategyId);
+        Integer ver = versionNo != null ? versionNo : strategy.getCurrentVersion();
+        if (ver == null) {
+            throw new BusinessException(BacktestErrorCodes.BACKTEST_STRATEGY_VERSION_INVALID, "策略无可用版本");
+        }
+        QuantStrategyVersionDO version = loadVersion(strategy.getId(), ver);
+
+        // 2. 解析 configJson + 清洗废弃字段
+        JSONObject configJson = parseJsonSafely(version.getConfigJson());
+        configJson.remove("scope");
+        JSONObject tradingCfg = configJson.getJSONObject("trading_config");
+        if (tradingCfg != null) {
+            tradingCfg.remove("symbols");
+        }
+        // 范式校验沿用现有（signals/rebalance/grid 三范式 engine 侧已支持）
+        checkParadigmSupported(configJson);
+
+        // 3. 拼 kline_data（与 run() 同口径）
+        JSONObject klineData = buildKlineData(configJson);
+        if (klineData == null || klineData.isEmpty()) {
+            throw new BusinessException(BacktestErrorCodes.BACKTEST_DATA_INSUFFICIENT,
+                    "未找到策略标的的日线行情数据");
+        }
+
+        // 4. 返回上下文
+        JSONObject ctx = new JSONObject();
+        ctx.put("config", configJson);
+        ctx.put("kline_data", klineData);
+        return ctx;
+    }
+
     // ==================== 重启恢复 ====================
 
     /**
@@ -606,10 +648,22 @@ public class BacktestServiceImpl implements BacktestService {
                 .stream().collect(Collectors.toMap(StockBasicDO::getTsCode,
                         b -> b.getListDate() == null ? "" : b.getListDate(), (a, b) -> a));
         for (String code : symbols) {
-            List<DailyQuoteDO> quotes = dailyQuoteMapper.selectList(
-                    new LambdaQueryWrapper<DailyQuoteDO>()
-                            .eq(DailyQuoteDO::getTsCode, code)
-                            .orderByAsc(DailyQuoteDO::getTradeDate));
+            // spec 015 修复（老股民审查 Top2）：daily_quote 查询加 between(start_date, end_date)，
+            // 避免寻优/回测拉全历史 K 线导致 HTTP 载荷过大 + engine 多进程 pickle OOM。
+            // startDate/endDate 为空时（normalizeDate 返回 null）回退全量，保持旧行为。
+            List<DailyQuoteDO> quotes;
+            if (startDate != null && endDate != null) {
+                quotes = dailyQuoteMapper.selectList(
+                        new LambdaQueryWrapper<DailyQuoteDO>()
+                                .eq(DailyQuoteDO::getTsCode, code)
+                                .between(DailyQuoteDO::getTradeDate, startDate, endDate)
+                                .orderByAsc(DailyQuoteDO::getTradeDate));
+            } else {
+                quotes = dailyQuoteMapper.selectList(
+                        new LambdaQueryWrapper<DailyQuoteDO>()
+                                .eq(DailyQuoteDO::getTsCode, code)
+                                .orderByAsc(DailyQuoteDO::getTradeDate));
+            }
             if (quotes.isEmpty()) {
                 continue;
             }

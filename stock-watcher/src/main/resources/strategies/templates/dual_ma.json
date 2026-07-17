@@ -5,6 +5,10 @@
   "scope": "single",
   "category": "TECHNICAL",
   "tags": ["均线", "趋势"],
+  "tunable_params": [
+    {"name": "fast", "type": "int", "default": 5, "min": 2, "max": 60, "step": 1, "description": "快均线周期", "bind_to": "MA.fast.timeperiod"},
+    {"name": "slow", "type": "int", "default": 20, "min": 5, "max": 120, "step": 1, "description": "慢均线周期", "bind_to": "MA.slow.timeperiod"}
+  ],
   "screen_config": {
     "universe": {
       "pool": "manual",

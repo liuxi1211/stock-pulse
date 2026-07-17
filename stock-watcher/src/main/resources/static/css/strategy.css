@@ -1114,6 +1114,97 @@
   margin-top: 2px;
 }
 
+/* spec 015：网格配置 Tab 预估面板 */
+.strategy-page .str-grid-preview {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+}
+
+.strategy-page .str-gp-cell {
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-sm);
+  padding: 10px;
+  text-align: center;
+}
+
+.strategy-page .str-gp-val {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.strategy-page .str-gp-val.cyan {
+  color: var(--accent-cyan-light);
+}
+
+.strategy-page .str-gp-lbl {
+  font-size: 9.5px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  margin-top: 2px;
+}
+
+/* spec 015：网格档位示意图（纯 CSS，无外部依赖） */
+.strategy-page .str-grid-diagram {
+  border: 1px solid var(--bs-border-color, #dee2e6);
+  border-radius: var(--radius-sm);
+  padding: 12px 8px;
+  background: var(--bg-tertiary);
+  min-height: 60px;
+}
+
+.strategy-page .str-grid-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 4px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.strategy-page .str-grid-row.sell {
+  color: #d9534f;
+}
+
+.strategy-page .str-grid-row.buy {
+  color: #5cb85c;
+}
+
+.strategy-page .str-grid-row.center {
+  color: var(--accent-cyan-light);
+  font-weight: 700;
+  border-top: 1px dashed var(--bs-border-color, #dee2e6);
+  border-bottom: 1px dashed var(--bs-border-color, #dee2e6);
+}
+
+.strategy-page .str-grid-row .lbl {
+  width: 64px;
+  flex-shrink: 0;
+}
+
+.strategy-page .str-grid-row .px {
+  width: 72px;
+  flex-shrink: 0;
+}
+
+.strategy-page .str-grid-row .bar {
+  flex: 1;
+  height: 6px;
+  background: currentColor;
+  opacity: 0.5;
+  border-radius: 3px;
+}
+
+.strategy-page .str-grid-empty {
+  color: var(--text-muted);
+  font-size: 12px;
+  text-align: center;
+  padding: 16px 0;
+}
+
 .strategy-page .str-meta-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);

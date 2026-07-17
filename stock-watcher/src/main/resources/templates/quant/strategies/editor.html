@@ -50,11 +50,12 @@
                     <div class="str-editor-main">
                         <div class="str-editor-tabs" id="strategyTab" role="tablist">
                             <button type="button" class="str-tab-btn active" data-bs-toggle="tab" data-bs-target="#tab-basic" data-paradigm="both"><i class="bi bi-info-circle"></i> 基本信息</button>
-                            <button type="button" class="str-tab-btn" data-bs-toggle="tab" data-bs-target="#tab-pool" data-paradigm="signals"><i class="bi bi-tags"></i> 股票池</button>
+                            <button type="button" class="str-tab-btn" data-bs-toggle="tab" data-bs-target="#tab-pool" data-paradigm="signals,grid"><i class="bi bi-tags"></i> 股票池</button>
                             <button type="button" class="str-tab-btn" data-bs-toggle="tab" data-bs-target="#tab-screen" data-paradigm="rebalance"><i class="bi bi-funnel"></i> 选股配置</button>
                             <button type="button" class="str-tab-btn" data-bs-toggle="tab" data-bs-target="#tab-buy" data-paradigm="signals"><i class="bi bi-arrow-up-circle"></i> 买入信号</button>
                             <button type="button" class="str-tab-btn" data-bs-toggle="tab" data-bs-target="#tab-sell" data-paradigm="signals"><i class="bi bi-arrow-down-circle"></i> 卖出信号</button>
                             <button type="button" class="str-tab-btn" data-bs-toggle="tab" data-bs-target="#tab-position" data-paradigm="signals"><i class="bi bi-wallet2"></i> 仓位管理</button>
+                            <button type="button" class="str-tab-btn" data-bs-toggle="tab" data-bs-target="#tab-grid" data-paradigm="grid"><i class="bi bi-grid-3x3"></i> 网格配置</button>
                             <button type="button" class="str-tab-btn" data-bs-toggle="tab" data-bs-target="#tab-exit" data-paradigm="both"><i class="bi bi-shield-check"></i> 止损止盈</button>
                             <button type="button" class="str-tab-btn" data-bs-toggle="tab" data-bs-target="#tab-rebalance" id="tab-btn-rebalance" data-paradigm="rebalance"><i class="bi bi-arrow-repeat"></i> 调仓</button>
                             <button type="button" class="str-tab-btn" data-bs-toggle="tab" data-bs-target="#tab-backtest" data-paradigm="both"><i class="bi bi-graph-up"></i> 回测参数</button>
@@ -84,6 +85,9 @@
                                                 </button>
                                                 <button type="button" class="str-paradigm-btn" data-paradigm-val="rebalance">
                                                     <i class="bi bi-arrow-repeat"></i> 轮动范式（rebalance）
+                                                </button>
+                                                <button type="button" class="str-paradigm-btn" data-paradigm-val="grid">
+                                                    <i class="bi bi-grid-3x3"></i> 网格范式（grid）
                                                 </button>
                                             </div>
                                             <div class="form-text" id="f-paradigm-hint">择时范式：买卖信号 + 仓位 + 出场；仅支持手动指定股票池（≤10 只）。</div>
@@ -129,7 +133,7 @@
                             </div>
 
                             <!-- ============ Tab 2 股票池（择时范式专属） ============ -->
-                            <div class="tab-pane fade" id="tab-pool" role="tabpanel" data-paradigm="signals">
+                            <div class="tab-pane fade" id="tab-pool" role="tabpanel" data-paradigm="signals,grid">
                                 <div class="alert alert-info py-2 mb-3">
                                     <i class="bi bi-info-circle"></i>
                                     择时范式对每只标的独立判断买卖时机，仅支持<strong>手动指定</strong>少量标的（≤10 只）。
@@ -387,6 +391,128 @@
                                             <div class="str-pp-val" id="f-pp-lot">100股</div>
                                             <div class="str-pp-lbl">每手</div>
                                         </div>
+                                    </div>
+                                </fieldset>
+                            </div>
+
+                            <!-- ============ Tab 网格配置（grid 范式专属，spec 015 FR-G1/G4） ============ -->
+                            <div class="tab-pane fade" id="tab-grid" role="tabpanel" data-paradigm="grid">
+                                <fieldset class="mb-3">
+                                    <legend class="fs-6 fw-semibold mb-2">网格交易四要素 Grid Params</legend>
+                                    <div class="alert alert-info py-2 mb-3">
+                                        <i class="bi bi-info-circle"></i> 网格范式：跌买涨卖，自带触发去重 / 层数状态 / 单边风控，与 signals / rebalance 互斥。
+                                        中枢建议用「首根收盘」避免前瞻偏差；以下资金占用 / 成本预估实时联动。
+                                    </div>
+                                    <div class="row g-3">
+                                        <div class="col-md-4">
+                                            <label class="form-label">中枢价 center</label>
+                                            <input type="number" step="0.01" min="0" class="form-control" id="f-grid-center" placeholder="如 10.0">
+                                            <div class="form-text">>0 数值；或选「首根收盘」。</div>
+                                        </div>
+                                        <div class="col-md-3 d-flex align-items-end">
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" id="f-grid-center-first">
+                                                <label class="form-check-label" for="f-grid-center-first">用首根收盘（first_bar_close）</label>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-2">
+                                            <label class="form-label">间距类型</label>
+                                            <select class="form-select" id="f-grid-step-type">
+                                                <option value="percent">百分比（%）</option>
+                                                <option value="absolute">绝对值（元）</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="form-label">间距值 step</label>
+                                            <input type="number" step="0.0001" min="0" class="form-control" id="f-grid-step-value" placeholder="percent:0.02 / absolute:0.2">
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="form-label">每格数量 qty_per_grid</label>
+                                            <input type="number" step="100" min="100" class="form-control" id="f-grid-qty" placeholder="须为 100 的整数倍">
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="form-label">最大格数 max_grids</label>
+                                            <input type="number" step="1" min="1" max="20" class="form-control" id="f-grid-max-grids" placeholder="1~20">
+                                        </div>
+                                    </div>
+
+                                    <legend class="fs-6 fw-semibold mt-4 mb-2">必填风控 Risk Controls</legend>
+                                    <div class="row g-3">
+                                        <div class="col-md-3">
+                                            <label class="form-label">止损类型</label>
+                                            <select class="form-select" id="f-grid-stop-type">
+                                                <option value="pct">百分比（相对中枢）</option>
+                                                <option value="price">绝对价（相对中枢）</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="form-label">止损值</label>
+                                            <input type="number" step="0.0001" min="0" class="form-control" id="f-grid-stop-value" placeholder="pct:0.15 / price:1.5">
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="form-label">时间止损 max_holding_bars</label>
+                                            <input type="number" step="1" min="1" class="form-control" id="f-grid-max-holding" placeholder="如 60">
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="form-label">总仓上限 max_position_value_pct</label>
+                                            <input type="number" step="0.01" min="0" max="1" class="form-control" id="f-grid-max-pos-pct" placeholder="0~1，默认 0.9">
+                                        </div>
+                                    </div>
+
+                                    <legend class="fs-6 fw-semibold mt-4 mb-2">可选参数（Advanced）</legend>
+                                    <div class="row g-3">
+                                        <div class="col-md-3">
+                                            <label class="form-label">止盈价 take_profit_price</label>
+                                            <input type="number" step="0.01" class="form-control" id="f-grid-take-profit" placeholder="可选">
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="form-label">未成交重试 bar 数</label>
+                                            <input type="number" step="1" min="0" class="form-control" id="f-grid-retry-bars" placeholder="默认 1">
+                                        </div>
+                                        <div class="col-md-3 d-flex align-items-center">
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" id="f-grid-re-entry">
+                                                <label class="form-check-label" for="f-grid-re-entry">全部卖飞后重新建仓（re_entry_after_clear）</label>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="form-label">复权模式 adjust_mode</label>
+                                            <input type="text" class="form-control" value="forward_adjusted" disabled>
+                                            <div class="form-text">一期固定 forward_adjusted。</div>
+                                        </div>
+                                    </div>
+
+                                    <!-- 资金 / 成本预估（FR-G4） -->
+                                    <div class="str-grid-preview mt-4" id="f-grid-preview">
+                                        <div class="str-gp-cell">
+                                            <div class="str-gp-val" id="f-gp-occupy">¥0</div>
+                                            <div class="str-gp-lbl">资金占用（max_grids×qty×center）</div>
+                                        </div>
+                                        <div class="str-gp-cell">
+                                            <div class="str-gp-val cyan" id="f-gp-occupy-pct">0%</div>
+                                            <div class="str-gp-lbl">占初始资金比例</div>
+                                        </div>
+                                        <div class="str-gp-cell">
+                                            <div class="str-gp-val" id="f-gp-gross">¥0</div>
+                                            <div class="str-gp-lbl">每格毛收益</div>
+                                        </div>
+                                        <div class="str-gp-cell">
+                                            <div class="str-gp-val" id="f-gp-cost">¥0</div>
+                                            <div class="str-gp-lbl">每格成本（双边）</div>
+                                        </div>
+                                        <div class="str-gp-cell">
+                                            <div class="str-gp-val cyan" id="f-gp-cost-ratio">0%</div>
+                                            <div class="str-gp-lbl">成本占毛收益比</div>
+                                        </div>
+                                    </div>
+                                    <div class="alert alert-warning py-2 mt-2" id="f-grid-warn" style="display:none;">
+                                        <i class="bi bi-exclamation-triangle"></i> <span id="f-grid-warn-text"></span>
+                                    </div>
+
+                                    <!-- 网格档位示意图（FR-G4） -->
+                                    <div class="mt-3">
+                                        <label class="form-label">网格档位示意图</label>
+                                        <div id="f-grid-diagram" class="str-grid-diagram"></div>
                                     </div>
                                 </fieldset>
                             </div>

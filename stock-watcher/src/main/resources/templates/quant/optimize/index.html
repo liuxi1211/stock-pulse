@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/common :: head(${pageTitle})}"></head>
+<link rel="stylesheet" th:href="@{/css/backtest.css}">
+<style>
+    .opt-page { padding: 0; }
+    .opt-grid-layout { display: grid; grid-template-columns: 1fr; gap: 16px; }
+    .opt-card { background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 16px 18px; }
+    .opt-section-title { font-size: 14px; font-weight: 600; color: var(--text-primary); margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+    .opt-disclaimer { background: color-mix(in srgb, var(--accent-yellow) 12%, transparent); border: 1px solid color-mix(in srgb, var(--accent-yellow) 40%, transparent); color: var(--accent-yellow); padding: 8px 12px; border-radius: var(--radius-sm); font-size: 12px; margin-bottom: 12px; }
+    .opt-disclaimer i { margin-right: 6px; }
+    .opt-form-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin-bottom: 10px; }
+    .opt-form-row label { font-size: 11px; color: var(--text-muted); margin-bottom: 3px; display: block; }
+    .opt-form-row input, .opt-form-row select { background: var(--bg-tertiary); border: 1px solid var(--border-color); color: var(--text-primary); border-radius: var(--radius-sm); padding: 6px 8px; font-size: 13px; width: 100%; }
+    .opt-form-row input:focus, .opt-form-row select:focus { outline: none; border-color: var(--accent-blue); }
+    .opt-param-row { display: grid; grid-template-columns: 100px 1fr 80px; gap: 6px; align-items: center; margin-bottom: 6px; }
+    .opt-param-row .pname { font-family: var(--font-mono); font-size: 12px; color: var(--accent-cyan-light); }
+    .opt-param-row input { background: var(--bg-tertiary); border: 1px solid var(--border-color); color: var(--text-primary); border-radius: var(--radius-sm); padding: 4px 6px; font-size: 12px; }
+    .opt-param-row .phint { font-size: 10px; color: var(--text-muted); }
+    .opt-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .btn-opt { padding: 7px 14px; border-radius: var(--radius-sm); font-size: 12px; font-weight: 500; border: 1px solid transparent; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; }
+    .btn-opt-primary { background: var(--accent-blue); color: #fff; }
+    .btn-opt-primary:hover { filter: brightness(1.1); }
+    .btn-opt-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-opt-secondary { background: var(--bg-tertiary); color: var(--text-primary); border-color: var(--border-color); }
+    .btn-opt-success { background: #198754; color: #fff; }
+    .btn-opt-warn { background: #dc3545; color: #fff; }
+    .opt-status-badge { padding: 2px 8px; border-radius: 10px; font-size: 11px; font-family: var(--font-mono); }
+    .opt-status-PENDING { background: #6c757d; color: #fff; }
+    .opt-status-RUNNING { background: #0d6efd; color: #fff; }
+    .opt-status-SUCCESS { background: #198754; color: #fff; }
+    .opt-status-FAILED { background: #dc3545; color: #fff; }
+    .opt-status-CANCELLED { background: #6c757d; color: #fff; }
+    .opt-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .opt-table th { text-align: left; padding: 8px 6px; color: var(--text-muted); border-bottom: 1px solid var(--border-color); font-weight: 500; }
+    .opt-table td { padding: 8px 6px; border-bottom: 1px solid var(--border-color); }
+    .opt-table tr.top1 { background: color-mix(in srgb, var(--accent-cyan) 8%, transparent); }
+    .opt-table tr.top1 td:first-child { font-weight: 700; color: var(--accent-cyan-light); }
+    .opt-confidence { display: inline-flex; gap: 4px; flex-wrap: wrap; }
+    .opt-badge { padding: 1px 6px; border-radius: 8px; font-size: 10px; font-family: var(--font-mono); }
+    .opt-badge-pass { background: #198754; color: #fff; }
+    .opt-badge-warn { background: #ffc107; color: #000; }
+    .opt-badge-fail { background: #dc3545; color: #fff; }
+    .opt-wf-summary { font-size: 12px; color: var(--text-secondary); }
+    .opt-wf-summary span { font-family: var(--font-mono); }
+    .opt-empty { text-align: center; padding: 32px; color: var(--text-muted); font-size: 13px; }
+    .opt-task-info { font-size: 12px; color: var(--text-muted); font-family: var(--font-mono); }
+    .opt-confirm-mask { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: none; align-items: center; justify-content: center; z-index: 9999; }
+    .opt-confirm-mask.show { display: flex; }
+    .opt-confirm-box { background: var(--bg-secondary); border-radius: var(--radius-md); padding: 20px 24px; max-width: 420px; }
+</style>
+<body>
+<div class="app-container">
+    <nav th:replace="~{fragments/common :: sidebar}"></nav>
+    <div th:replace="~{fragments/common :: sidebarOverlay}"></div>
+
+    <div class="main-content">
+        <header th:replace="~{fragments/common :: topNavbar}"></header>
+
+        <main class="content-area backtest-page opt-page" id="optimizePage">
+            <!-- 页头 -->
+            <div class="bt-page-header">
+                <div>
+                    <h1 class="bt-page-title">
+                        <a th:href="@{/quant/backtests}" class="bt-icon-btn" title="返回" style="background:transparent;border:none;color:var(--text-muted);">
+                            <i class="bi bi-arrow-left"></i>
+                        </a>
+                        <span th:text="${pageTitle}">参数寻优</span>
+                    </h1>
+                    <p class="bt-page-subtitle">GRID 网格寻优 · WALK-FORWARD 滚动样本外验证 · 6 维过拟合判定</p>
+                </div>
+            </div>
+
+            <!-- 合规免责（spec 015 §1.2.3，常驻） -->
+            <div class="opt-disclaimer">
+                <i class="bi bi-shield-exclamation"></i>
+                <strong>合规声明：</strong>本工具为量化研究辅助，<strong>不构成任何投资建议</strong>；历史回测结果不代表未来收益。
+                下方「应用」按钮需您勾选「我已理解历史最优不代表未来」方可使用，且仅预填到新策略，需手动保存。
+            </div>
+
+            <div class="opt-grid-layout">
+                <!-- ① 选策略版本 -->
+                <div class="opt-card">
+                    <div class="opt-section-title"><i class="bi bi-diagram-3"></i> 选择策略版本</div>
+                    <div class="opt-form-row">
+                        <div>
+                            <label>策略 <span style="color:#dc3545">*</span></label>
+                            <select id="selStrategy"><option value="">加载中…</option></select>
+                        </div>
+                        <div>
+                            <label>版本 <span style="color:#dc3545">*</span></label>
+                            <select id="selVersion" disabled><option value="">先选策略</option></select>
+                        </div>
+                    </div>
+                    <div id="strategyInfo" style="font-size:12px;color:var(--text-muted);"></div>
+                </div>
+
+                <!-- ② paramGrid 编辑器（从 tunable_params 反推） -->
+                <div class="opt-card">
+                    <div class="opt-section-title"><i class="bi bi-table"></i> paramGrid 参数网格</div>
+                    <div id="paramGridArea">
+                        <div class="opt-empty" id="paramGridEmpty">选择策略版本后，根据 tunable_params 自动展开参数行</div>
+                    </div>
+                    <div class="opt-form-row" style="margin-top:10px;">
+                        <div>
+                            <label>排序指标 sort_by</label>
+                            <select id="selSortBy">
+                                <option value="sharpe_ratio">sharpe_ratio</option>
+                                <option value="total_return_pct">total_return_pct</option>
+                                <option value="max_drawdown_pct">max_drawdown_pct</option>
+                                <option value="sortino_ratio">sortino_ratio</option>
+                                <option value="calmar_ratio">calmar_ratio</option>
+                                <option value="win_rate">win_rate</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label>Top N</label>
+                            <input type="number" id="inpTopN" value="10" min="1" max="200">
+                        </div>
+                        <div>
+                            <label>max_workers（空=自动 cgroup）</label>
+                            <input type="number" id="inpWorkers" placeholder="自动">
+                        </div>
+                    </div>
+                    <div class="opt-form-row">
+                        <div>
+                            <label>constraint DSL（可选，如 {"left":"fast","op":"&lt;","right":"slow"}）</label>
+                            <input type="text" id="inpConstraint" placeholder='JSON 三元组，留空则不限'>
+                        </div>
+                        <div>
+                            <label>resultFilter DSL（可选，如 {"left":"max_drawdown_pct","op":"&lt;","right":20}）</label>
+                            <input type="text" id="inpResultFilter" placeholder='JSON 三元组，留空则不限'>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ③ 提交 + 资源预估 -->
+                <div class="opt-card">
+                    <div class="opt-section-title"><i class="bi bi-cpu"></i> 提交寻优</div>
+                    <div id="resourceEstimate" class="opt-task-info" style="margin-bottom:10px;">组合数：— · 预估耗时：—</div>
+                    <div class="opt-actions">
+                        <button class="btn-opt btn-opt-primary" id="btnRunGrid"><i class="bi bi-play-fill"></i> 开始 GRID 寻优</button>
+                        <button class="btn-opt btn-opt-secondary" id="btnRunWf" disabled><i class="bi bi-arrow-repeat"></i> 跑 WF 验证（需先有 Top-1）</button>
+                        <button class="btn-opt btn-opt-warn" id="btnCancel" disabled><i class="bi bi-x-circle"></i> 取消任务</button>
+                    </div>
+                    <div id="taskStatus" class="opt-task-info" style="margin-top:10px;"></div>
+                </div>
+
+                <!-- ④ Top-N 结果表 -->
+                <div class="opt-card">
+                    <div class="opt-section-title"><i class="bi bi-trophy"></i> 历史 Top-N 结果（样本内）</div>
+                    <div id="topNArea"><div class="opt-empty">尚未提交寻优任务</div></div>
+                </div>
+
+                <!-- ⑤ WF 6 维过拟合指标 + 应用按钮 -->
+                <div class="opt-card" id="wfCard" style="display:none;">
+                    <div class="opt-section-title"><i class="bi bi-shield-check"></i> WALK-FORWARD 验证 · 6 维过拟合指标</div>
+                    <div id="wfSummary" class="opt-wf-summary"></div>
+                    <div class="opt-actions" style="margin-top:12px;">
+                        <button class="btn-opt btn-opt-success" id="btnApply" disabled><i class="bi bi-check2-circle"></i> 应用历史 Top-1 参数</button>
+                        <span id="applyHint" class="opt-task-info"></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 全局合规免责页脚（spec 015 §1.2.3） -->
+            <div th:replace="~{fragments/common :: complianceFooter}"></div>
+
+            <!-- 应用二次确认弹层（spec 015 FR-O6） -->
+            <div class="opt-confirm-mask" id="applyConfirmMask">
+                <div class="opt-confirm-box">
+                    <div style="font-size:14px;font-weight:600;margin-bottom:10px;"><i class="bi bi-exclamation-triangle" style="color:var(--accent-yellow);"></i> 应用历史最优参数</div>
+                    <div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;">
+                        将跳转到「新建策略」页预填历史 Top-1 参数。<strong>您仍需手动点保存</strong>才会创建策略版本。
+                        GRID 永不直接写策略表。
+                    </div>
+                    <label class="opt-form-row" style="display:flex;align-items:center;gap:6px;margin-bottom:14px;">
+                        <input type="checkbox" id="confirmCheckbox">
+                        <span style="font-size:12px;">我已理解历史最优不代表未来</span>
+                    </label>
+                    <div class="opt-actions" style="justify-content:flex-end;">
+                        <button class="btn-opt btn-opt-secondary" id="btnConfirmCancel">取消</button>
+                        <button class="btn-opt btn-opt-success" id="btnConfirmApply" disabled>跳转预填</button>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+</div>
+
+<script th:src="@{/js/optimize.js}"></script>
+</body>
+</html>

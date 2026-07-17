@@ -119,6 +119,7 @@ def build_backtest_kwargs(bt_config: BacktestConfigModel) -> dict:
     # 若 True 会触发 akquant 严格参数校验误报。schema 默认 True 仅对用户自定义策略类有效。
     kwargs["strict_strategy_params"] = False
 
+    # 注：optimizer.run_grid_optimize 复用此函数保证 GRID 与单次回测 A 股规则一致（spec 015 FR-O1）。
     return kwargs
 
 

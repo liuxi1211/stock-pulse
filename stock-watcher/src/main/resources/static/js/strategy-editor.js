@@ -28,8 +28,8 @@ const StrategyEditor = {
     // 全局状态（StrategyConfigModel 顶层结构）。加载/新建后由深拷贝 DEFAULT_CONFIG 初始化。
     state: null,
 
-    // 策略范式：'signals'（择时，默认）| 'rebalance'（轮动）。与 #f-paradigm 控件双向绑定，
-    // 决定 Tab 显隐与 collectConfig 二选一（spec 009 Task 9/10）。
+    // 策略范式：'signals'（择时，默认）| 'rebalance'（轮动）| 'grid'（网格，spec 015）。
+    // 与 #f-paradigm 控件双向绑定，决定 Tab 显隐与 collectConfig 分支（spec 009 + 015）。
     paradigm: 'signals',
 
     // signals 范式下手动标的的软上限（超出给红色提示，最终阻断由后端校验）
@@ -129,6 +129,22 @@ const StrategyEditor = {
         // 用于在新建模式下异步拉取方案并把其 screenConfig 导入 screen_config。
         this.screenSourceId = params.get('screenSource');
 
+        // spec 015 FR-O6：参数寻优页「应用」按钮跳转携带 from=optimize + payload(base64)。
+        // payload 结构：{strategyId, versionNo, params:{fast:10, slow:30, ...}}。
+        // 编辑器读取后：加载对应策略版本 config → 用 params 覆盖 tunable_params 的 default →
+        // 顶部提示「已预填寻优参数，请检查后保存」。GRID 永不直接写策略表，需用户手动保存。
+        this._optimizeOverride = null;
+        if (params.get('from') === 'optimize' && params.get('payload')) {
+            try {
+                const decoded = JSON.parse(decodeURIComponent(escape(atob(params.get('payload')))));
+                if (decoded && decoded.params) {
+                    this._optimizeOverride = decoded;
+                }
+            } catch (e) {
+                console.warn('[StrategyEditor] optimize payload 解析失败:', e);
+            }
+        }
+
         // 异步加载白名单常量（不阻塞渲染，加载后用于下拉选项 + 因子菜单）
         this.loadConstantsAsync();
 
@@ -159,6 +175,11 @@ const StrategyEditor = {
             this.loadScreenSource(this.screenSourceId);
         }
 
+        // spec 015 FR-O6：参数寻优「应用」跳转预填（独立异步流程）
+        if (this._optimizeOverride) {
+            this.loadOptimizeOverride();
+        }
+
         this.renderFormFromState();
         this.updateJsonPreview();
         this.bindEvents();
@@ -176,6 +197,16 @@ const StrategyEditor = {
             if (el) el.addEventListener('input', () => this.updatePositionPreview());
         });
         this.updatePositionPreview();
+
+        // spec 015：网格预估实时联动（输入变化即重算）
+        ['f-grid-center', 'f-grid-center-first', 'f-grid-step-type', 'f-grid-step-value',
+         'f-grid-qty', 'f-grid-max-grids', 'f-grid-max-pos-pct', 'f-bt-cash'].forEach((id) => {
+            const el = document.getElementById(id);
+            if (!el) return;
+            const evt = (el.tagName === 'SELECT' || el.type === 'checkbox') ? 'change' : 'input';
+            el.addEventListener(evt, () => this.updateGridPreview());
+        });
+        this.updateGridPreview();
     },
 
     /**
@@ -202,6 +233,82 @@ const StrategyEditor = {
                 StockApp.toast('选股方案字段转换失败，请手动核对：' + (e && e.message ? e.message : e), 'warning');
             }
         });
+    },
+
+    /**
+     * spec 015 FR-O6：参数寻优「应用」跳转预填。
+     * <p>
+     * 寻优页 onConfirmApply 跳转到 /quant/strategies/new?from=optimize&payload=<base64>，
+     * 此处：① 拉取 payload.strategyId/versionNo 的 configJson；
+     *      ② 用 payload.params 覆盖 configJson 中对应 tunable_params 的 default；
+     *      ③ 注入 state + 重新渲染 + 顶部黄条提示「已预填寻优参数，请检查后保存」。
+     * <p>
+     * 一期不实现 tunable_params → on_bar 实参的精确回填（依赖 bind_to 元数据解析），
+     * 而是把参数覆盖到 tunable_params.default + 在顶部提示用户去对应因子 Tab 手动核对。
+     * GRID 永不直接写策略表，需用户手动点保存。
+     */
+    loadOptimizeOverride() {
+        const ov = this._optimizeOverride;
+        if (!ov || !ov.strategyId) {
+            StockApp.toast('寻优参数预填失败：缺少 strategyId', 'warning');
+            return;
+        }
+        const ver = ov.versionNo;
+        const url = '/api/strategies/' + encodeURIComponent(ov.strategyId) + '/versions/' + encodeURIComponent(ver);
+        StockApp.get(url, null, (resp) => {
+            if (!resp || resp.code !== 200 || !resp.data || !resp.data.configJson) {
+                StockApp.toast('寻优参数预填失败：策略版本加载失败', 'warning');
+                return;
+            }
+            let cfg = resp.data.configJson;
+            if (typeof cfg === 'string') { try { cfg = JSON.parse(cfg); } catch (e) { cfg = {}; } }
+
+            // 用寻优 params 覆盖 tunable_params.default（让落盘的 configJson 携带新默认值）
+            const params = ov.params || {};
+            let applied = 0;
+            if (Array.isArray(cfg.tunable_params)) {
+                cfg.tunable_params.forEach(function (tp) {
+                    if (tp && tp.name && params.hasOwnProperty(tp.name)) {
+                        tp.default = params[tp.name];
+                        applied++;
+                    }
+                });
+            }
+
+            // 注入 state（作为新建策略的初始 config，strategyId 留空让其走"另存为新策略"）
+            cfg.strategy_id = null;
+            cfg.name = (cfg.name || '策略') + '（寻优预填）';
+            this.state = cfg;
+            this.strategyId = null;
+            try {
+                this.renderFormFromState();
+                this.initParadigm();
+                this.updateJsonPreview();
+                this.showOptimizeBanner(applied, params);
+            } catch (e) {
+                StockApp.toast('寻优参数预填渲染失败：' + (e && e.message ? e.message : e), 'warning');
+            }
+        });
+    },
+
+    /**
+     * 顶部黄条提示已预填寻优参数（spec 015 合规：不出现"最优"，用"历史 Top-1"）。
+     */
+    showOptimizeBanner(applied, params) {
+        let banner = document.getElementById('f-optimize-banner');
+        if (!banner) {
+            banner = document.createElement('div');
+            banner.id = 'f-optimize-banner';
+            banner.style.cssText = 'background:color-mix(in srgb,#0d6efd 12%,transparent);border:1px solid #0d6efd;color:#0d6efd;padding:8px 12px;border-radius:6px;margin-bottom:10px;font-size:12px;';
+            const basicPane = document.getElementById('tab-basic');
+            if (basicPane) basicPane.insertBefore(banner, basicPane.firstChild);
+        }
+        const paramStr = Object.keys(params || {}).map(function (k) { return k + '=' + params[k]; }).join(', ');
+        banner.innerHTML = '<i class="bi bi-cpu"></i> <strong>已预填历史 Top-1 寻优参数</strong>（'
+            + applied + ' 项：' + paramStr + '）。'
+            + '请在各因子 Tab 核对对应参数是否已更新，确认无误后<strong>手动点保存</strong>（GRID 不自动写策略表）。'
+            + '<span style="color:#6c757d;">历史最优不代表未来。</span>';
+        StockApp.toast('已预填寻优参数，请核对后保存', 'success');
     },
 
     /**
@@ -870,6 +977,9 @@ const StrategyEditor = {
         this.applyPositionMethod(ps.method || 'order_target_percent');
         this.renderPositionWeightRows((ps.params && ps.params.weights) ? ps.params.weights : {});
 
+        // ---- Tab 网格配置（spec 015，method=grid 时填充）----
+        this.loadGrid(ps.method === 'grid' ? (ps.params || {}) : {});
+
         // ---- Tab 6 止损止盈 ----
         const ex = tc.exit || {};
         const br = ex.bracket || null;
@@ -1065,9 +1175,22 @@ const StrategyEditor = {
             }
         }
 
-        // ---- Tab 3/4/5/6/7 交易配置（按范式二选一，spec 009 Task 10）----
+        // ---- Tab 3/4/5/6/7 交易配置（按范式分支，spec 009 + 015）----
         s.trading_config = s.trading_config || {};
-        if (this.paradigm === 'rebalance') {
+        if (this.paradigm === 'grid') {
+            // spec 015：网格范式 → position_sizing.method=grid + params（四要素+风控）；
+            //          与 signals/rebalance/exit 互斥，三者必须 delete。
+            const gridParams = this.collectGrid();
+            if (gridParams) {
+                s.trading_config.position_sizing = { method: 'grid', params: gridParams };
+            } else {
+                // 未填全必填字段，保留 method=grid 占位，engine validator 会报 GRID_RISK_REQUIRED 等
+                s.trading_config.position_sizing = { method: 'grid', params: {} };
+            }
+            delete s.trading_config.signals;
+            delete s.trading_config.rebalance;
+            delete s.trading_config.exit;
+        } else if (this.paradigm === 'rebalance') {
             // 轮动范式：rebalance + exit（止损止盈，spec 011 P1-5）；不产出 signals/position_sizing
             const rb = this.collectRebalance();
             if (rb) s.trading_config.rebalance = rb; else delete s.trading_config.rebalance;
@@ -1500,7 +1623,15 @@ const StrategyEditor = {
      */
     initParadigm() {
         const tc = (this.state && this.state.trading_config) || {};
-        this.paradigm = tc.rebalance ? 'rebalance' : 'signals';
+        // spec 015：method=grid → grid 范式；rebalance 在场 → rebalance 范式；否则 signals
+        const ps = tc.position_sizing || {};
+        if (ps.method === 'grid') {
+            this.paradigm = 'grid';
+        } else if (tc.rebalance) {
+            this.paradigm = 'rebalance';
+        } else {
+            this.paradigm = 'signals';
+        }
 
         const wrap = document.getElementById('f-paradigm');
         if (wrap) {
@@ -1519,7 +1650,7 @@ const StrategyEditor = {
      * 设置范式并联动刷新（控件 → state）。
      */
     setParadigm(paradigm) {
-        if (paradigm !== 'signals' && paradigm !== 'rebalance') return;
+        if (paradigm !== 'signals' && paradigm !== 'rebalance' && paradigm !== 'grid') return;
         this.paradigm = paradigm;
         const wrap = document.getElementById('f-paradigm');
         if (wrap) {
@@ -1539,18 +1670,36 @@ const StrategyEditor = {
      */
     applyParadigm(paradigm) {
         const tabs = document.querySelectorAll('#strategyTab .str-tab-btn');
+        // spec 015 修复（评审外反馈：grid 范式下默认 tab 空白）：
+        // ``data-paradigm="both"`` 的语义是「所有范式都可见的通用 Tab」
+        // （基本信息 / 止损止盈 / 回测参数），早期实现误把 both 解析为
+        // ``['signals','rebalance']`` 不含 grid，导致切到 grid 范式时
+        // 这三个通用 Tab 全部 display:none，而默认 active 的正是「基本信息」，
+        // 整个 Tab 条与内容区都空白。
+        // 现把 both 改为「所有范式可见」（signals/rebalance/grid 均显示）。
+        // Tab 可见性 ≠ 范式互斥语义：grid 与 exit 的互斥仍由 validator 在
+        // 保存时拦截（GRID_EXIT_CONFLICT），UI 上「止损止盈」Tab 在 grid 下
+        // 仍可见，便于用户看到空表单与提示。
+        const ALL_PARADIGMS = ['signals', 'rebalance', 'grid'];
         tabs.forEach((btn) => {
             const p = btn.getAttribute('data-paradigm');
             if (!p) return;
-            const show = (p === 'both' || p === paradigm);
+            const allowed = p === 'both' ? ALL_PARADIGMS : p.split(',').map((s) => s.trim());
+            const show = allowed.includes(paradigm);
             btn.style.display = show ? '' : 'none';
             // 若当前激活的 Tab 被隐藏，切回基本信息 Tab
             if (!show && btn.classList.contains('active')) {
                 btn.classList.remove('active');
                 const basicBtn = document.querySelector('#strategyTab .str-tab-btn[data-bs-target="#tab-basic"]');
                 const basicPane = document.getElementById('tab-basic');
-                if (basicBtn) basicBtn.classList.add('active');
-                if (basicPane) { basicPane.classList.add('show', 'active'); }
+                if (basicBtn) {
+                    basicBtn.classList.add('active');
+                    basicBtn.style.display = ''; // 防御性：确保 basic 可见
+                }
+                if (basicPane) {
+                    basicPane.classList.add('show', 'active');
+                    basicPane.style.display = ''; // 防御性：确保 basic pane 可见
+                }
                 const targetSel = btn.getAttribute('data-bs-target');
                 if (targetSel) {
                     const pane = document.querySelector(targetSel);
@@ -1562,19 +1711,26 @@ const StrategyEditor = {
         // panel 显隐（display:none 保留 DOM）
         document.querySelectorAll('#strategyTabContent .tab-pane[data-paradigm]').forEach((pane) => {
             const p = pane.getAttribute('data-paradigm');
-            pane.style.display = (p === 'both' || p === paradigm) ? '' : 'none';
+            // spec 015 修复：与 Tab 按钮同口径，both = 所有范式可见（含 grid）。
+            const allowed = p === 'both' ? ALL_PARADIGMS : p.split(',').map((s) => s.trim());
+            pane.style.display = allowed.includes(paradigm) ? '' : 'none';
         });
 
         // 提示文案
         const hint = document.getElementById('f-paradigm-hint');
         if (hint) {
-            hint.textContent = paradigm === 'signals'
-                ? '择时范式：买卖信号 + 仓位 + 出场；仅支持手动指定股票池（≤10 只）。'
-                : '轮动范式：调仓规则；股票池可选 沪深300/中证500/手动（不限数量）。';
+            const hints = {
+                signals: '择时范式：买卖信号 + 仓位 + 出场；仅支持手动指定股票池（≤10 只）。',
+                rebalance: '轮动范式：调仓规则；股票池可选 沪深300/中证500/手动（不限数量）。',
+                grid: '网格范式：中枢 + 间距 + 每格数量 + 最大格数；自带触发去重 / 层数状态 / 单边风控，与 signals/rebalance/exit 互斥；仅手动单标的。',
+            };
+            hint.textContent = hints[paradigm] || hints.signals;
         }
 
-        this.applyUniverseForParadigm(paradigm);
-        this.refreshManualCountForParadigm(paradigm);
+        // spec 015：grid 范式与 signals 一样仅 manual 单标的，复用 signals 的 universe 限制
+        const universeParadigm = paradigm === 'rebalance' ? 'rebalance' : 'signals';
+        this.applyUniverseForParadigm(universeParadigm);
+        this.refreshManualCountForParadigm(universeParadigm);
         // 确保两套股票池搜索框都绑定（择时用 f-pool-stocks-search，轮动用 f-stocks-search）
         this._ensureManualStockSuggest();
         // fill_policy 范式联动：仅在控件为「默认（空）」时切换默认值，尊重用户显式选择
@@ -1582,6 +1738,11 @@ const StrategyEditor = {
         if (fpSel && fpSel.value === '') {
             const closeFp = '{"price_basis":"close","temporal":"same_cycle","bar_offset":0}';
             fpSel.value = paradigm === 'rebalance' ? closeFp : '';
+        }
+
+        // spec 015：grid 范式切到时刷新预估面板（避免显示全 0）
+        if (paradigm === 'grid') {
+            this.updateGridPreview();
         }
     },
 
@@ -1908,6 +2069,215 @@ const StrategyEditor = {
             };
             label.textContent = map[method] || 'target';
         }
+    },
+
+    // ===================== spec 015：网格范式（grid）=====================
+    // A 股费率模板默认值（与 engine broker_profile cn_stock_miniqmt 对齐），
+    // 仅用于前端成本预估展示，不影响 engine 实际撮合。
+    _GRID_FEE_DEFAULTS: {
+        commission_rate: 0.0003, min_commission: 5.0,
+        stamp_tax_rate: 0.001, transfer_fee_rate: 0.00001, slippage: 0.0002,
+    },
+
+    /**
+     * 从网格 Tab 表单收集参数（控件 → state）。
+     * 返回 GridParamsModel 形态 dict；必填缺失时仍返回部分 dict（engine validator 兜底报错）。
+     */
+    collectGrid() {
+        const p = {};
+        // center：first_bar_close 优先，否则取数值
+        const useFirst = this.getChecked('f-grid-center-first');
+        if (useFirst) {
+            p.center = 'first_bar_close';
+        } else {
+            const c = this.getNum('f-grid-center');
+            if (c != null) p.center = c;
+        }
+        // step
+        const stepType = this.getVal('f-grid-step-type') || 'percent';
+        const stepVal = this.getNum('f-grid-step-value');
+        if (stepVal != null) p.step = { type: stepType, value: stepVal };
+        // 四要素剩余
+        const qty = this.getInt('f-grid-qty');
+        if (qty != null) p.qty_per_grid = qty;
+        const mg = this.getInt('f-grid-max-grids');
+        if (mg != null) p.max_grids = mg;
+        // 必填风控：止损二选一
+        const stopType = this.getVal('f-grid-stop-type') || 'pct';
+        const stopVal = this.getNum('f-grid-stop-value');
+        if (stopVal != null) {
+            if (stopType === 'pct') p.stop_loss_pct = stopVal;
+            else p.stop_loss_price = stopVal;
+        }
+        const mh = this.getInt('f-grid-max-holding');
+        if (mh != null) p.max_holding_bars = mh;
+        const mpp = this.getNum('f-grid-max-pos-pct');
+        p.max_position_value_pct = mpp != null ? mpp : 0.9;
+        // 可选
+        const tp = this.getNum('f-grid-take-profit');
+        if (tp != null) p.take_profit_price = tp;
+        const rb = this.getInt('f-grid-retry-bars');
+        if (rb != null) p.unfilled_retry_bars = rb;
+        p.re_entry_after_clear = this.getChecked('f-grid-re-entry');
+        p.adjust_mode = 'forward_adjusted';
+        p.step_mode = 'symmetric';
+        p.qty_mode = 'equal';
+        return p;
+    },
+
+    /**
+     * 把 state 的 grid params 填回表单（state → 控件）。
+     */
+    loadGrid(params) {
+        params = params || {};
+        // center
+        if (params.center === 'first_bar_close') {
+            this.setChecked('f-grid-center-first', true);
+            this.setVal('f-grid-center', '');
+        } else {
+            this.setChecked('f-grid-center-first', false);
+            this.setVal('f-grid-center', params.center != null ? params.center : '');
+        }
+        // step
+        const step = params.step || {};
+        this.setVal('f-grid-step-type', step.type || 'percent');
+        this.setVal('f-grid-step-value', step.value != null ? step.value : '');
+        // 四要素
+        this.setVal('f-grid-qty', params.qty_per_grid != null ? params.qty_per_grid : '');
+        this.setVal('f-grid-max-grids', params.max_grids != null ? params.max_grids : '');
+        // 必填风控
+        if (params.stop_loss_pct != null) {
+            this.setVal('f-grid-stop-type', 'pct');
+            this.setVal('f-grid-stop-value', params.stop_loss_pct);
+        } else if (params.stop_loss_price != null) {
+            this.setVal('f-grid-stop-type', 'price');
+            this.setVal('f-grid-stop-value', params.stop_loss_price);
+        } else {
+            this.setVal('f-grid-stop-type', 'pct');
+            this.setVal('f-grid-stop-value', '');
+        }
+        this.setVal('f-grid-max-holding', params.max_holding_bars != null ? params.max_holding_bars : '');
+        this.setVal('f-grid-max-pos-pct', params.max_position_value_pct != null ? params.max_position_value_pct : 0.9);
+        // 可选
+        this.setVal('f-grid-take-profit', params.take_profit_price != null ? params.take_profit_price : '');
+        this.setVal('f-grid-retry-bars', params.unfilled_retry_bars != null ? params.unfilled_retry_bars : '');
+        this.setChecked('f-grid-re-entry', !!params.re_entry_after_clear);
+        this.updateGridPreview();
+    },
+
+    /**
+     * 资金占用 / 成本预估实时联动（spec 015 FR-G4）。
+     * - 资金占用 = max_grids × qty × center，占比 > 50% 警告、> 90% 强警告；
+     * - 每格毛收益 = qty × step（percent: step×center；absolute: step）；
+     * - 每格成本 = 买佣金 + 卖佣金 + 卖印花 + 双边滑点（min_commission 兜底）；
+     * - 成本占比 > 50% 强警告（网格在费用下可能负期望）。
+     */
+    updateGridPreview() {
+        const centerRaw = this.getNum('f-grid-center');
+        const useFirst = this.getChecked('f-grid-center-first');
+        // first_bar_close 时中枢未知，用 0 占位（预估降级，仅显示提示）
+        const center = useFirst ? 0 : (centerRaw || 0);
+        const qty = this.getInt('f-grid-qty') || 0;
+        const mg = this.getInt('f-grid-max-grids') || 0;
+        const stepType = this.getVal('f-grid-step-type') || 'percent';
+        const stepVal = this.getNum('f-grid-step-value') || 0;
+        const cash = this.getNum('f-bt-cash') || 100000;
+        const fee = this._GRID_FEE_DEFAULTS;
+
+        // 资金占用
+        const occupy = mg * qty * center;
+        const occupyPct = cash > 0 ? occupy / cash : 0;
+        this.setText('f-gp-occupy', '¥' + this._fmtMoney(occupy));
+        this.setText('f-gp-occupy-pct', (occupyPct * 100).toFixed(1) + '%');
+
+        // 每格毛收益
+        const stepAbs = stepType === 'percent' ? stepVal * center : stepVal;
+        const gross = qty * stepAbs;
+        this.setText('f-gp-gross', '¥' + this._fmtMoney(gross));
+
+        // 每格成本（双边）：佣金 min 兜底 + 卖印花 + 双边滑点
+        const notional = qty * center;
+        const buyComm = Math.max(notional * fee.commission_rate, fee.min_commission);
+        const sellComm = Math.max(notional * fee.commission_rate, fee.min_commission);
+        const stamp = notional * fee.stamp_tax_rate;
+        const slip = notional * fee.slippage * 2;
+        const cost = buyComm + sellComm + stamp + slip;
+        this.setText('f-gp-cost', '¥' + this._fmtMoney(cost));
+        const ratio = gross > 0 ? cost / gross : 0;
+        this.setText('f-gp-cost-ratio', (ratio * 100).toFixed(1) + '%');
+
+        // 警告
+        const warnEl = document.getElementById('f-grid-warn');
+        const warnText = document.getElementById('f-grid-warn-text');
+        let warn = '';
+        if (useFirst && center === 0) {
+            warn = '中枢用「首根收盘」，资金/成本预估需运行后才能精确计算，当前为 0 占位。';
+        } else if (center <= 0 || qty <= 0 || mg <= 0 || stepVal <= 0) {
+            warn = '请先填齐四要素（center/step/qty_per_grid/max_grids）才能预估。';
+        } else if (occupyPct > 0.9) {
+            warn = '资金占用超 90%，可能触发 GRID_INSUFFICIENT_CAPITAL 拒绝保存；建议降低 max_grids 或 qty_per_grid。';
+        } else if (occupyPct > 0.5) {
+            warn = '资金占用超 50%，震荡市不建议单票超半仓。';
+        } else if (ratio > 0.5 && gross > 0) {
+            warn = '成本占毛收益 > 50%，网格在当前费用下可能为负期望（建议加大间距或降低佣金）。';
+        }
+        if (warn && warnEl && warnText) {
+            warnText.textContent = warn;
+            warnEl.style.display = '';
+        } else if (warnEl) {
+            warnEl.style.display = 'none';
+        }
+
+        // 档位示意图
+        this.renderGridDiagram(center, stepType, stepVal, mg, useFirst);
+    },
+
+    /**
+     * 纯 CSS 渲染网格档位示意图（无外部图表库依赖）。
+     * 上面是卖档（红），中间是中枢（青），下面是买档（绿）。
+     */
+    renderGridDiagram(center, stepType, stepVal, mg, useFirst) {
+        const el = document.getElementById('f-grid-diagram');
+        if (!el) return;
+        if (useFirst || center <= 0 || stepVal <= 0 || mg <= 0) {
+            el.innerHTML = '<div class="str-grid-empty">填齐中枢 / 间距 / 最大格数后展示档位</div>';
+            return;
+        }
+        const tickFloor = (p) => Math.floor(p * 100) / 100;
+        const rows = [];
+        // 卖档（从高到低）：sell_n = center × (1 + n×step)
+        for (let n = mg; n >= 1; n--) {
+            const px = tickFloor(stepType === 'percent' ? center * (1 + n * stepVal) : center + n * stepVal);
+            rows.push({ cls: 'sell', lbl: '卖第' + n + '格', px: px });
+        }
+        rows.push({ cls: 'center', lbl: '中枢', px: tickFloor(center) });
+        // 买档（从高到低）：buy_n = center × (1 - n×step)
+        for (let n = 1; n <= mg; n++) {
+            const px = tickFloor(stepType === 'percent' ? center * (1 - n * stepVal) : center - n * stepVal);
+            rows.push({ cls: 'buy', lbl: '买第' + n + '格', px: px });
+        }
+        // 计算最大价差做 bar 归一化
+        const maxPx = rows[0].px, minPx = rows[rows.length - 1].px;
+        const span = Math.max(maxPx - minPx, 0.01);
+        el.innerHTML = rows.map((r) => {
+            const w = ((r.px - minPx) / span) * 100;
+            return '<div class="str-grid-row ' + r.cls + '">' +
+                '<span class="lbl">' + r.lbl + '</span>' +
+                '<span class="px">' + r.px.toFixed(2) + '</span>' +
+                '<span class="bar" style="width:' + Math.max(w, 3) + '%"></span>' +
+                '</div>';
+        }).join('');
+    },
+
+    _fmtMoney(v) {
+        if (!isFinite(v)) return '0';
+        // 整数部分千分位，2 位小数
+        return v.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    },
+
+    setText(id, text) {
+        const el = document.getElementById(id);
+        if (el) el.textContent = text;
     },
 
     applyFeeToggle(on) { this.toggleWrap('f-bt-fee-wrap', on); },

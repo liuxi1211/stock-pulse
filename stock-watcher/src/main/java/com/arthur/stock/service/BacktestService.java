@@ -5,6 +5,7 @@ import com.arthur.stock.dto.backtest.BacktestCompareVO;
 import com.arthur.stock.dto.backtest.BacktestReportVO;
 import com.arthur.stock.dto.backtest.BacktestRunRequestDTO;
 import com.arthur.stock.dto.backtest.BacktestTaskVO;
+import com.alibaba.fastjson2.JSONObject;
 
 import java.util.List;
 import java.util.Map;
@@ -57,4 +58,17 @@ public interface BacktestService {
 
     /** 常量代理（调 engine /constants）。 */
     Object getConstants();
+
+    /**
+     * 为参数寻优（spec 015 FR-O1）装配上下文：加载策略版本 configJson + 复用 buildKlineData
+     * 拼 K 线数据。OptimizeController 拿到后透传给 engine {@code /optimize}。
+     * <p>
+     * 与 run() 共用 configJson 加载 + 范式校验 + K 线装配逻辑，但不落 backtest 任务表、
+     * 不异步执行（engine 侧寻优任务自带异步状态机）。
+     *
+     * @param strategyId 策略 ID
+     * @param versionNo  版本号（null 取 currentVersion）
+     * @return {@code {"config": <configJson>, "kline_data": <JSONObject>}}
+     */
+    JSONObject buildOptimizeContext(String strategyId, Integer versionNo);
 }
