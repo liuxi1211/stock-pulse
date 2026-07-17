@@ -51,9 +51,10 @@
             left: -10%;
             width: 60%;
             height: 80%;
-            background: radial-gradient(ellipse, rgba(59, 130, 246, 0.15) 0%, transparent 60%);
+            background: radial-gradient(ellipse, var(--ambient-1) 0%, transparent 60%);
             border-radius: 50%;
             filter: blur(80px);
+            transition: background var(--transition-base);
         }
 
         .login-bg::after {
@@ -63,9 +64,10 @@
             right: -10%;
             width: 50%;
             height: 70%;
-            background: radial-gradient(ellipse, rgba(139, 92, 246, 0.12) 0%, transparent 60%);
+            background: radial-gradient(ellipse, var(--ambient-3) 0%, transparent 60%);
             border-radius: 50%;
             filter: blur(80px);
+            transition: background var(--transition-base);
         }
 
         .login-card-wrapper {
@@ -84,7 +86,7 @@
             border: 1px solid var(--border-color);
             border-radius: 20px;
             padding: 40px 36px;
-            box-shadow: 0 24px 64px rgba(0, 0, 0, 0.3);
+            box-shadow: var(--shadow-xl);
             animation: scaleIn 0.5s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
@@ -115,7 +117,7 @@
             font-size: 28px;
             color: white;
             margin: 0 auto 16px;
-            box-shadow: 0 8px 24px rgba(59, 130, 246, 0.3);
+            box-shadow: var(--shadow-glow-blue);
         }
 
         .login-card-title {
@@ -150,7 +152,7 @@
         .login-form .form-control:focus {
             background: var(--bg-input-hover);
             border-color: var(--accent-blue);
-            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+            box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-blue) 14%, transparent);
             color: var(--text-primary);
         }
 
@@ -222,9 +224,42 @@
                 padding: 32px 24px;
             }
         }
+
+        /* 主题切换按钮（登录页独立版本，复用 theme.js 的 #themeToggle 钩子） */
+        .login-theme-toggle {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 10;
+            width: 40px;
+            height: 40px;
+            border-radius: var(--radius-full);
+            border: 1px solid var(--border-color);
+            background: var(--bg-card);
+            backdrop-filter: var(--blur-card);
+            -webkit-backdrop-filter: var(--blur-card);
+            color: var(--text-secondary);
+            font-size: 18px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: var(--shadow-md);
+            transition: all var(--transition-fast);
+        }
+
+        .login-theme-toggle:hover {
+            color: var(--accent-blue-light);
+            border-color: var(--accent-blue);
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-glow-blue);
+        }
     </style>
 </head>
 <body>
+    <button class="login-theme-toggle" id="themeToggle" type="button" title="切换主题" aria-label="切换主题">
+        <i class="bi bi-sun"></i>
+    </button>
     <div class="login-wrapper">
         <div class="login-bg"></div>
 
@@ -262,5 +297,6 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script th:src="@{/js/theme.js?v=20260715b}"></script>
 </body>
 </html>
