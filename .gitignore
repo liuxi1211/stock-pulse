@@ -55,6 +55,10 @@ data/logs/
 # engine 运行时因子定义：种子 factors.default.json 入库，factors.json 由 engine 运行时写
 stock-engine/data/factors.json
 
+# spec 015：strategy_source_gen 运行时落盘的策略类缓存（pickle 友好），
+# 按 config_hash 命名，同 config 复用不重复写盘；保留 __init__.py 作为包标识。
+stock-engine/services/backtest/_generated/strat_*.py
+
 # 敏感配置
 application-secret.properties
 application-secret.yml
