@@ -79,27 +79,133 @@ const StrategyList = (function () {
         return hit ? hit[1] : code;
     }
 
+    /**
+     * 范式元信息：标签 + 图标 + 色系。
+     * - timing（择时/signals）：单标的趋势跟踪，蓝色系
+     * - rotation（轮动/rebalance）：多标的截面选股，紫色系
+     * - grid（网格）：区间挂单赚差价，青绿色系
+     */
+    const PARADIGM_META = {
+        timing:  { label: '择时',  icon: 'bi-graph-up-arrow',   color: 'var(--accent-blue)' },
+        rotation:{ label: '轮动',  icon: 'bi-arrow-left-right', color: 'var(--accent-purple)' },
+        grid:    { label: '网格',  icon: 'bi-grid-3x3-gap',     color: 'var(--accent-cyan)' },
+    };
+
+    /**
+     * 从模板 configJson 派生范式（signals / rebalance / grid）。
+     * 与后端 StrategyTemplateLoader.deriveScopeFromConfig 口径一致，grid 识别
+     * position_sizing.method=="grid"（spec 015）。
+     */
+    function deriveParadigm(configJson) {
+        if (!configJson) return 'timing';
+        try {
+            const cfg = typeof configJson === 'string' ? JSON.parse(configJson) : configJson;
+            const tc = cfg && cfg.trading_config;
+            if (!tc) return 'timing';
+            if (tc.position_sizing && tc.position_sizing.method === 'grid') return 'grid';
+            if (tc.rebalance) return 'rotation';
+            if (tc.signals) return 'timing';
+            return 'timing';
+        } catch (err) {
+            return 'timing';
+        }
+    }
+
+    // 模板选择器（Modal）状态
+    const picker = { modal: null, activeTab: 'all', keyword: '' };
+
+    function initTemplatePicker() {
+        const btn = document.getElementById('btnTemplatePicker');
+        const modalEl = document.getElementById('templatePickerModal');
+        if (!btn || !modalEl) return;
+        picker.modal = new bootstrap.Modal(modalEl);
+        btn.addEventListener('click', () => {
+            picker.modal.show();
+            if (!state.templates.length) loadTemplates();
+            else renderTemplateGrid();
+        });
+        // Tab 切换
+        document.getElementById('tplTabs').addEventListener('click', (ev) => {
+            const tab = ev.target.closest('.tpl-tab');
+            if (!tab) return;
+            document.querySelectorAll('#tplTabs .tpl-tab').forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+            picker.activeTab = tab.dataset.paradigm;
+            renderTemplateGrid();
+        });
+        // 搜索（输入防抖）
+        let timer = null;
+        document.getElementById('tplSearchInput').addEventListener('input', (ev) => {
+            clearTimeout(timer);
+            timer = setTimeout(() => {
+                picker.keyword = ev.target.value.trim().toLowerCase();
+                renderTemplateGrid();
+            }, 180);
+        });
+    }
+
     function loadTemplates() {
         StockApp.get('/api/strategies/templates', null, function (resp) {
-            const menu = document.getElementById('templateMenu');
-            if (!menu) return;
             if (resp.code !== 200 || !Array.isArray(resp.data)) {
-                menu.innerHTML = '<li class="dropdown-item-text text-muted small">模板加载失败</li>';
+                const grid = document.getElementById('tplGrid');
+                if (grid) grid.innerHTML = '<div class="tpl-empty"><i class="bi bi-exclamation-triangle"></i><div>模板加载失败</div></div>';
                 return;
             }
-            state.templates = resp.data;
-            if (!state.templates.length) {
-                menu.innerHTML = '<li class="dropdown-item-text text-muted small">暂无模板</li>';
-                return;
-            }
-            menu.innerHTML = state.templates.map(t => `
-                <li>
-                    <a class="dropdown-item" href="${StockApp.contextPath}/quant/strategies/new?templateId=${encodeURIComponent(t.id)}">
-                        <div class="fw-medium">${e(t.name)}</div>
-                        <div class="small text-muted text-truncate" style="max-width:240px;">${e(t.description || '')}</div>
-                    </a>
-                </li>`).join('');
+            state.templates = resp.data.map(t => {
+                t._paradigm = deriveParadigm(t.configJson);
+                return t;
+            });
+            // Tab 计数
+            const cnt = { all: state.templates.length, timing: 0, rotation: 0, grid: 0 };
+            state.templates.forEach(t => { cnt[t._paradigm] = (cnt[t._paradigm] || 0) + 1; });
+            setText('cntAll', cnt.all);
+            setText('cntTiming', cnt.timing);
+            setText('cntRotation', cnt.rotation);
+            setText('cntGrid', cnt.grid);
+            renderTemplateGrid();
         });
+    }
+
+    function renderTemplateGrid() {
+        const grid = document.getElementById('tplGrid');
+        if (!grid) return;
+        let list = state.templates;
+        if (picker.activeTab !== 'all') {
+            list = list.filter(t => t._paradigm === picker.activeTab);
+        }
+        if (picker.keyword) {
+            const kw = picker.keyword;
+            list = list.filter(t =>
+                (t.name || '').toLowerCase().includes(kw) ||
+                (t.description || '').toLowerCase().includes(kw) ||
+                (t.tags || []).some(tag => String(tag).toLowerCase().includes(kw))
+            );
+        }
+        if (!list.length) {
+            grid.innerHTML = '<div class="tpl-empty"><i class="bi bi-inbox"></i><div>没有匹配的模板</div></div>';
+            return;
+        }
+        grid.innerHTML = list.map(renderTemplateCard).join('');
+    }
+
+    function renderTemplateCard(t) {
+        const meta = PARADIGM_META[t._paradigm] || PARADIGM_META.timing;
+        const tagsHtml = (t.tags || []).slice(0, 3)
+            .map(tag => `<span class="tpl-card-tag">#${e(tag)}</span>`).join('');
+        const cat = CAT_BADGE[t.category] || { label: t.category || '—' };
+        return `
+            <a class="tpl-card" data-paradigm="${t._paradigm}"
+               style="--tpl-color:${meta.color};"
+               href="${StockApp.contextPath}/quant/strategies/new?templateId=${encodeURIComponent(t.id)}">
+                <div class="tpl-card-accent"></div>
+                <div class="tpl-card-head">
+                    <span class="tpl-card-paradigm"><i class="bi ${meta.icon}"></i>${e(meta.label)}</span>
+                    <span class="tpl-card-cat">${e(cat.label)}</span>
+                </div>
+                <div class="tpl-card-name">${e(t.name)}</div>
+                <div class="tpl-card-desc">${e(t.description || '暂无描述')}</div>
+                ${tagsHtml ? `<div class="tpl-card-tags">${tagsHtml}</div>` : ''}
+            </a>`;
     }
 
     function loadStats() {
@@ -389,7 +495,7 @@ const StrategyList = (function () {
 
     function init() {
         loadEnumOptions();
-        loadTemplates();
+        initTemplatePicker();
         loadStats();
         bindEvents();
         load();

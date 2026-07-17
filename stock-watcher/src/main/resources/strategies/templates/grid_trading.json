@@ -1,0 +1,44 @@
+{
+  "strategy_id": null,
+  "name": "网格交易",
+  "description": "震荡市利器。以首根收盘价为中心，每跌 2% 买入一格（每格 200 股，最多 5 格），每反弹 2% 卖出一格，赚区间波动差价。无需判断方向，适合长期震荡标的。单边下跌会一路套牢至止损线、单边上涨会一路卖飞，是网格策略天然代价。务必配合止损与最大格数使用。",
+  "category": "TECHNICAL",
+  "tags": ["网格", "震荡市", "区间交易", "散户最爱"],
+  "tunable_params": [
+    {"name": "step_pct", "type": "float", "default": 0.02, "min": 0.005, "max": 0.05, "step": 0.005, "description": "网格间距（相对中枢百分比）", "bind_to": "grid.step.value"},
+    {"name": "max_grids", "type": "int", "default": 5, "min": 1, "max": 10, "step": 1, "description": "单边最大格数", "bind_to": "grid.max_grids"},
+    {"name": "stop_loss_pct", "type": "float", "default": 0.12, "min": 0.05, "max": 0.20, "step": 0.01, "description": "相对中枢止损百分比", "bind_to": "grid.stop_loss_pct"}
+  ],
+  "screen_config": {
+    "universe": {
+      "pool": "manual",
+      "stocks": ["510300.SH"]
+    }
+  },
+  "trading_config": {
+    "position_sizing": {
+      "method": "grid",
+      "params": {
+        "center": "first_bar_close",
+        "step": {"type": "percent", "value": 0.02},
+        "qty_per_grid": 200,
+        "max_grids": 5,
+        "stop_loss_pct": 0.12,
+        "max_holding_bars": 120,
+        "max_position_value_pct": 0.9,
+        "re_entry_after_clear": false,
+        "unfilled_retry_bars": 1
+      }
+    }
+  },
+  "backtest_config": {
+    "initial_cash": 100000,
+    "broker_profile": "cn_stock_miniqmt",
+    "t_plus_one": true,
+    "slippage": {"type": "percent", "value": 0.001},
+    "lot_size": 100,
+    "warmup_period": 5,
+    "history_depth": 10,
+    "volume_limit_pct": 0.25
+  }
+}

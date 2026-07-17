@@ -1,0 +1,66 @@
+{
+  "strategy_id": null,
+  "name": "行业动量轮动",
+  "description": "A 股最主流玩法之一，比宽基轮动更激进、收益弹性更大。在 7 只主流行业 ETF（消费/科技/金融/医药/新能源/军工/周期）间按 20 日涨幅（动量）打分，持有最强的 2 只行业，吃行业风口轮动红利。行业切换频繁时假信号多，是动量策略天然代价。周度调仓。",
+  "category": "TECHNICAL",
+  "tags": ["行业轮动", "动量", "ETF", "主流"],
+  "tunable_params": [
+    {"name": "momentum_window", "type": "int", "default": 20, "min": 5, "max": 60, "step": 1, "description": "动量(涨跌幅)回看窗口", "bind_to": "ROC.window"}
+  ],
+  "screen_config": {
+    "universe": {
+      "pool": "manual",
+      "stocks": ["159928.SZ", "515000.SH", "512070.SH", "512010.SH", "516160.SH", "512660.SH", "515210.SH"]
+    },
+    "factor": {
+      "method": "composite",
+      "weights": {"ROC": 1.0}
+    },
+    "filter": {
+      "conditions": {
+        "operator": "AND",
+        "conditions": [
+          {
+            "type": "compare",
+            "left": {"factor": "CLOSE", "transform": {"type": "pct_change", "window": 20}},
+            "comparator": ">",
+            "right": {"value": 0}
+          }
+        ]
+      },
+      "exclude_st": true,
+      "exclude_suspended": true,
+      "exclude_limit_up": true
+    },
+    "portfolio": {
+      "top_n": 2,
+      "max_weight_per_symbol": 0.5,
+      "cash_reserve_pct": 0.0
+    }
+  },
+  "trading_config": {
+    "rebalance": {
+      "frequency": "weekly",
+      "trigger": "first",
+      "weight_mode": "equal",
+      "reject_limit_up_on_buy": true,
+      "reject_limit_down_on_sell": true
+    },
+    "exit": {
+      "bracket": {
+        "stop_loss_pct": 0.08,
+        "take_profit_pct": 0.30
+      }
+    }
+  },
+  "backtest_config": {
+    "initial_cash": 100000,
+    "broker_profile": "cn_stock_miniqmt",
+    "t_plus_one": true,
+    "slippage": {"type": "percent", "value": 0.001},
+    "lot_size": 100,
+    "warmup_period": 25,
+    "history_depth": 40,
+    "volume_limit_pct": 0.3
+  }
+}

@@ -23,16 +23,9 @@
                     <button type="button" class="btn btn-outline-secondary btn-sm" id="btnRefresh" title="刷新">
                         <i class="bi bi-arrow-clockwise"></i> 刷新
                     </button>
-                    <div class="dropdown">
-                        <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button"
-                                id="templateDropdown" data-bs-toggle="dropdown" aria-expanded="false">
-                            <i class="bi bi-file-earmark-code"></i> 从模板 <span class="caret"></span>
-                        </button>
-                        <ul class="dropdown-menu dropdown-menu-end" id="templateMenu"
-                            aria-labelledby="templateDropdown">
-                            <li class="dropdown-item-text text-muted small">加载中…</li>
-                        </ul>
-                    </div>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="btnTemplatePicker">
+                        <i class="bi bi-file-earmark-code"></i> 从模板
+                    </button>
                     <a th:href="@{/quant/strategies/new}" class="btn btn-primary btn-sm">
                         <i class="bi bi-plus-lg"></i> 新建策略
                     </a>
@@ -115,6 +108,35 @@
                 </div>
             </div>
         </main>
+    </div>
+</div>
+
+<!-- 模板选择 Modal（替代下拉框，适合大量模板）-->
+<div class="modal fade tpl-picker-modal" id="templatePickerModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-file-earmark-code me-2"></i>从模板创建策略</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="关闭"></button>
+            </div>
+            <div class="modal-body">
+                <div class="tpl-picker-toolbar">
+                    <div class="tpl-search-box">
+                        <i class="bi bi-search"></i>
+                        <input type="text" id="tplSearchInput" placeholder="搜索模板名 / 描述 / 标签..." autocomplete="off">
+                    </div>
+                    <div class="tpl-tabs" id="tplTabs">
+                        <button class="tpl-tab active" data-paradigm="all">全部 <span class="cnt" id="cntAll">0</span></button>
+                        <button class="tpl-tab" data-paradigm="timing"><i class="bi bi-graph-up-arrow"></i> 择时 <span class="cnt" id="cntTiming">0</span></button>
+                        <button class="tpl-tab" data-paradigm="rotation"><i class="bi bi-arrow-left-right"></i> 轮动 <span class="cnt" id="cntRotation">0</span></button>
+                        <button class="tpl-tab" data-paradigm="grid"><i class="bi bi-grid-3x3-gap"></i> 网格 <span class="cnt" id="cntGrid">0</span></button>
+                    </div>
+                </div>
+                <div class="tpl-grid" id="tplGrid">
+                    <div class="tpl-empty"><i class="bi bi-hourglass-split"></i><div>加载中…</div></div>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
