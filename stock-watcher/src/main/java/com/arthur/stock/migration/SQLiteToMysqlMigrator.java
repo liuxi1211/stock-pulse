@@ -19,7 +19,7 @@ import java.util.Map;
 
 /**
  * SQLite → MySQL 一次性数据迁移工具。
- * 启用方式：在 application-mysql.yml 中设置 app.migrate=true，或启动参数加 --app.migrate=true。
+ * 启用方式：启动参数加 --app.migrate=true，或在 application-secret.properties 中设置 app.migrate=true。
  * 迁移按外键依赖顺序逐表进行，每批 1000 条，源 SQLite 文件保留作为备份。
  */
 @Slf4j
