@@ -8,7 +8,7 @@
  *   - GET /api/backtest/benchmarks                基准列表 [{code, name}]
  *   - GET /api/backtest/constants-proxy           {brokerProfiles, sortMetrics, paradigmsSupported}
  *   - POST /api/backtest/run                      提交回测
- *     body: {mode, strategyId, versionNo, overrideConfig, benchmark}
+ *     body: {mode, uuid, versionNo, overrideConfig, benchmark}
  */
 (function () {
     'use strict';
@@ -25,7 +25,7 @@
         benchmarks: [],
         brokerProfiles: [],
         paradigmsSupported: [],
-        selectedStrategyId: null,
+        selectedUuid: null,
         selectedVersionNo: null,
         selectedVersion: null
     };
@@ -74,7 +74,8 @@
         }
         let html = '<option value="">请选择策略…</option>';
         state.strategies.forEach(function (s) {
-            html += '<option value="' + e(s.id) + '">' + e(s.name) + (s.id != null ? ' (S-' + e(s.id) + ')' : '') + '</option>';
+            const sid = s.uuid;
+            html += '<option value="' + e(sid) + '">' + e(s.name) + (sid != null ? ' (S-' + e(sid) + ')' : '') + '</option>';
         });
         sel.innerHTML = html;
     }
@@ -110,7 +111,7 @@
     // ============ 策略选中 → 加载版本 ============
     function onStrategyChange() {
         const sid = document.getElementById('selStrategy').value;
-        state.selectedStrategyId = sid || null;
+        state.selectedUuid = sid || null;
         state.selectedVersionNo = null;
         state.selectedVersion = null;
         const versionRow = document.getElementById('versionRow');
@@ -168,18 +169,18 @@
 
     function renderStrategySummary() {
         const summary = document.getElementById('strategySummary');
-        if (!state.selectedStrategyId || !state.selectedVersionNo) {
+        if (!state.selectedUuid || !state.selectedVersionNo) {
             summary.style.display = 'none';
             return;
         }
-        const strat = state.strategies.find(function (s) { return String(s.id) === String(state.selectedStrategyId); });
-        const name = strat ? strat.name : 'S-' + state.selectedStrategyId;
+        const strat = state.strategies.find(function (s) { return String(s.uuid) === String(state.selectedUuid); });
+        const name = strat ? strat.name : 'S-' + state.selectedUuid;
         summary.style.display = '';
         summary.innerHTML = ''
             + '<div class="bt-form-section" style="margin-bottom:0;">'
             + '  <div class="bt-form-section-title"><i class="bi bi-clipboard"></i>已选策略摘要</div>'
             + '  <div style="font-size:11.5px;color:var(--text-secondary);line-height:1.8;">'
-            + '    <div><span class="mono" style="color:var(--text-muted);">策略</span> ' + e(name) + ' <span class="mono" style="color:var(--text-muted);">S-' + e(state.selectedStrategyId) + '</span></div>'
+            + '    <div><span class="mono" style="color:var(--text-muted);">策略</span> ' + e(name) + ' <span class="mono" style="color:var(--text-muted);">S-' + e(state.selectedUuid) + '</span></div>'
             + '    <div><span class="mono" style="color:var(--text-muted);">版本</span> v' + e(state.selectedVersionNo) + '</div>'
             + '  </div>'
             + '</div>';
@@ -221,7 +222,7 @@
     }
 
     function validateStep1() {
-        if (!state.selectedStrategyId) { StockApp.toast('请选择策略', 'warning'); return false; }
+        if (!state.selectedUuid) { StockApp.toast('请选择策略', 'warning'); return false; }
         if (!state.selectedVersionNo) { StockApp.toast('请选择版本', 'warning'); return false; }
         return true;
     }
@@ -245,15 +246,15 @@
         const benchmark = document.getElementById('selBenchmark');
         const benchmarkTxt = benchmark.options[benchmark.selectedIndex] ? benchmark.options[benchmark.selectedIndex].textContent : benchmark.value;
         const profile = document.getElementById('selBrokerProfile').value;
-        const strat = state.strategies.find(function (s) { return String(s.id) === String(state.selectedStrategyId); });
-        const name = strat ? strat.name : 'S-' + state.selectedStrategyId;
+        const strat = state.strategies.find(function (s) { return String(s.uuid) === String(state.selectedUuid); });
+        const name = strat ? strat.name : 'S-' + state.selectedUuid;
         const t1 = document.getElementById('swT1').classList.contains('on');
 
         const row = function (k, v) {
             return '<div><span class="mono" style="color:var(--text-muted);display:inline-block;width:110px;">' + e(k) + '</span> ' + v + '</div>';
         };
         const html = ''
-            + row('策略', '<strong style="color:var(--text-primary);">' + e(name) + '</strong> <span class="mono" style="color:var(--text-muted);">S-' + e(state.selectedStrategyId) + '</span>')
+            + row('策略', '<strong style="color:var(--text-primary);">' + e(name) + '</strong> <span class="mono" style="color:var(--text-muted);">S-' + e(state.selectedUuid) + '</span>')
             + row('版本', 'v' + e(state.selectedVersionNo))
             + row('区间', '<span class="mono">' + e(start) + ' → ' + e(end) + '</span>')
             + row('基准', '<span class="mono">' + e(benchmarkTxt) + '</span>')
@@ -273,12 +274,12 @@
         const profile = document.getElementById('selBrokerProfile').value;
         const t1 = document.getElementById('swT1').classList.contains('on');
 
-        const strat = state.strategies.find(function (s) { return String(s.id) === String(state.selectedStrategyId); });
+        const strat = state.strategies.find(function (s) { return String(s.uuid) === String(state.selectedUuid); });
         const mode = (strat && strat.scope === 'portfolio') ? 'rebalance' : 'signals';
 
         const body = {
             mode: mode,
-            strategyId: Number(state.selectedStrategyId),
+            uuid: state.selectedUuid,
             versionNo: Number(state.selectedVersionNo),
             benchmark: benchmark,
             overrideConfig: {

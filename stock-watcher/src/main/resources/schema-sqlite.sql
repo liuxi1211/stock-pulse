@@ -209,7 +209,7 @@ CREATE INDEX IF NOT EXISTS idx_factor_snapshot_date ON factor_snapshot (trade_da
 -- 14. 策略主表（quant_strategy）
 CREATE TABLE IF NOT EXISTS quant_strategy (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
-    strategy_id     TEXT         NOT NULL UNIQUE,
+    uuid            TEXT         NOT NULL UNIQUE,
     name            VARCHAR(128) NOT NULL,
     description     VARCHAR(512),
     category        VARCHAR(32),
@@ -237,7 +237,7 @@ CREATE INDEX IF NOT EXISTS idx_strategy_version_lookup ON quant_strategy_version
 CREATE TABLE IF NOT EXISTS quant_backtest (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     task_id         TEXT        NOT NULL UNIQUE,
-    strategy_id     TEXT        NOT NULL,
+    strategy_id     INTEGER     NOT NULL,
     version_no      INTEGER     NOT NULL,
     mode            VARCHAR(16) DEFAULT 'SINGLE',
     status          VARCHAR(16) DEFAULT 'PENDING',

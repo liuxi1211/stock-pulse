@@ -19,8 +19,8 @@ public class QuantStrategyDO {
     @TableId(type = IdType.AUTO)
     private Long id;
 
-    /** 策略业务标识（UUID/业务编码，全局唯一） */
-    private String strategyId;
+    /** 策略业务标识（UUID，仅用于前端交互，防止id遍历） */
+    private String uuid;
 
     /** 策略名称 */
     private String name;

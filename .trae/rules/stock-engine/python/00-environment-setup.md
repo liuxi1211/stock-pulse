@@ -26,7 +26,7 @@ cd stock-engine
 conda run -n stock pip install -r requirements.txt
 
 # 验证安装
-conda run -n stock python -c "import fastapi,uvicorn,akquant; print('✅ 依赖 OK')"
+conda run -n stock python -c "import fastapi,uvicorn,akquant,loguru; import main; print('✅ 依赖和应用入口 OK')"
 ```
 
 > 安装新依赖后，更新 `requirements.txt`：`conda run -n stock pip freeze > requirements.txt`
@@ -35,7 +35,7 @@ conda run -n stock python -c "import fastapi,uvicorn,akquant; print('✅ 依赖 
 
 ### 方式一：使用启动脚本（推荐）
 
-项目提供了开箱即用的启动脚本，首次使用前请编辑脚本中的 `CONDA_PATH` 为你的实际路径：
+项目提供了开箱即用的启动脚本。Windows 脚本优先使用当前环境的 `CONDA_EXE`，否则自动从 `PATH` 查找 Conda：
 
 | 脚本 | 平台 | 说明 |
 |------|------|------|
@@ -59,16 +59,16 @@ chmod +x start.sh
 cd stock-engine
 
 # Windows (cmd/PowerShell)
-D:\javaApp\miniforge\Scripts\conda.exe run -n stock uvicorn main:app --host 127.0.0.1 --port 8085
+conda run --no-capture-output -n stock python -m uvicorn main:app --host 127.0.0.1 --port 8085
 
 # Windows (Git Bash)
-/d/javaApp/miniforge/Scripts/conda.exe run -n stock uvicorn main:app --host 127.0.0.1 --port 8085
+conda run --no-capture-output -n stock python -m uvicorn main:app --host 127.0.0.1 --port 8085
 
 # macOS/Linux
-~/miniforge3/bin/conda run -n stock uvicorn main:app --host 127.0.0.1 --port 8085
+~/miniforge3/bin/conda run --no-capture-output -n stock python -m uvicorn main:app --host 127.0.0.1 --port 8085
 
 # 开发模式（带 --reload 热重载）
-conda run -n stock uvicorn main:app --host 127.0.0.1 --port 8085 --reload
+conda run --no-capture-output -n stock python -m uvicorn main:app --host 127.0.0.1 --port 8085 --reload
 ```
 
 启动后验证：
@@ -102,7 +102,7 @@ python:
 
 - **`ModuleNotFoundError`**：依赖未装 → `conda run -n stock pip install -r requirements.txt`
 - **端口占用**：终止进程，并重试
-- **conda 路径不对**：修改启动脚本中的 `CONDA_PATH`
+- **找不到 Conda**：先执行 `conda init` 并重开终端，或把 Conda 加入 `PATH`
 
 ---
 

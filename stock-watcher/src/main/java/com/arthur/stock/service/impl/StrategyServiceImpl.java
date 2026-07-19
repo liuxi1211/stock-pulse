@@ -59,7 +59,7 @@ import java.util.stream.Collectors;
  *       {@link PlatformTransactionManager}（Spring Boot 自动配置）构造，无需额外 Bean 声明。</li>
  *   <li><b>乐观锁</b>：{@code expectedVersion != current_version} 抛
  *       {@link StrategyVersionConflictException}。</li>
- *   <li><b>状态机</b>：DRAFT 在配置校验通过后自动 → VERIFIED；显式状态变更走
+ *   <li><b>状态机</b>：DRAFT 在配置校验通过后自动 -> VERIFIED；显式状态变更走
  *       {@link StrategyStatusEnum#canTransitionTo} 校验。</li>
  *   <li><b>时间字段</b>：统一 {@link Instant#now()} + {@link Instant#toString()}（UTC ISO8601）。</li>
  *   <li><b>tags</b>：入库前 trim + 剔除含逗号 tag + join(",")。</li>
@@ -99,7 +99,7 @@ public class StrategyServiceImpl implements StrategyService {
     @Override
     public StrategyDTO createStrategy(StrategyCreateRequest req) {
         // 1. 主表基础字段（无事务）
-        String strategyId = UUID.randomUUID().toString().replace("-", "");
+        String uuid = UUID.randomUUID().toString().replace("-", "");
         String now = Instant.now().toString();
         String tags = normalizeTags(req.getTags());
 
@@ -127,7 +127,7 @@ public class StrategyServiceImpl implements StrategyService {
         // 4. 事务内落库：主表 + v1
         QuantStrategyDO strategy = transactionTemplate.execute(status -> {
             QuantStrategyDO s = new QuantStrategyDO();
-            s.setStrategyId(strategyId);
+            s.setUuid(uuid);
             s.setName(req.getName());
             s.setDescription(req.getDescription());
             s.setCategory(req.getCategory());
@@ -150,7 +150,7 @@ public class StrategyServiceImpl implements StrategyService {
         });
 
         // 5. 返回详情（含 config）
-        return toDetailDTO(requireStrategyByStrategyId(strategyId), configJson);
+        return toDetailDTO(requireStrategyByUuid(uuid), configJson);
     }
 
     // ==================== getStrategiesPage ====================
@@ -194,8 +194,8 @@ public class StrategyServiceImpl implements StrategyService {
     // ==================== getStrategyDetail ====================
 
     @Override
-    public StrategyDTO getStrategyDetail(String strategyId) {
-        QuantStrategyDO strategy = requireStrategyByStrategyId(strategyId);
+    public StrategyDTO getStrategyDetail(String uuid) {
+        QuantStrategyDO strategy = requireStrategyByUuid(uuid);
         String config = loadVersionConfig(strategy.getId(), strategy.getCurrentVersion());
         return toDetailDTO(strategy, config);
     }
@@ -203,8 +203,8 @@ public class StrategyServiceImpl implements StrategyService {
     // ==================== updateStrategy（元信息） ====================
 
     @Override
-    public void updateStrategy(String strategyId, StrategyUpdateRequest req) {
-        QuantStrategyDO strategy = requireStrategyByStrategyId(strategyId);
+    public void updateStrategy(String uuid, StrategyUpdateRequest req) {
+        QuantStrategyDO strategy = requireStrategyByUuid(uuid);
         if (req.getName() != null) {
             strategy.setName(req.getName());
         }
@@ -224,14 +224,14 @@ public class StrategyServiceImpl implements StrategyService {
     // ==================== updateStrategyConfig（核心：新版本） ====================
 
     @Override
-    public StrategyDTO updateStrategyConfig(String strategyId, StrategyConfigUpdateRequest req) {
+    public StrategyDTO updateStrategyConfig(String uuid, StrategyConfigUpdateRequest req) {
         // 1. 长度校验（兜底）
         checkConfigSize(req.getConfigJson());
         // 2. JSON 解析校验（兜底）
         parseConfigJson(req.getConfigJson());
 
         // 3. 查主表 + 乐观锁
-        QuantStrategyDO strategy = requireStrategyByStrategyId(strategyId);
+        QuantStrategyDO strategy = requireStrategyByUuid(uuid);
         Integer currentVersion = strategy.getCurrentVersion();
         if (req.getExpectedVersion() != null && !req.getExpectedVersion().equals(currentVersion)) {
             throw new StrategyVersionConflictException(currentVersion);
@@ -251,7 +251,7 @@ public class StrategyServiceImpl implements StrategyService {
         final String now = Instant.now().toString();
 
         transactionTemplate.executeWithoutResult(status -> {
-            // 状态机自动转换：DRAFT → VERIFIED；ACTIVE/VERIFIED 保持
+            // 状态机自动转换：DRAFT -> VERIFIED；ACTIVE/VERIFIED 保持
             String nextStatus = strategy.getStatus();
             if (StrategyStatusEnum.DRAFT.getCode().equals(strategy.getStatus())) {
                 nextStatus = StrategyStatusEnum.VERIFIED.getCode();
@@ -273,14 +273,14 @@ public class StrategyServiceImpl implements StrategyService {
         });
 
         // 6. 返回详情
-        return toDetailDTO(requireStrategyByStrategyId(strategyId), req.getConfigJson());
+        return toDetailDTO(requireStrategyByUuid(uuid), req.getConfigJson());
     }
 
     // ==================== deleteStrategy（软删） ====================
 
     @Override
-    public void deleteStrategy(String strategyId) {
-        QuantStrategyDO strategy = requireStrategyByStrategyId(strategyId);
+    public void deleteStrategy(String uuid) {
+        QuantStrategyDO strategy = requireStrategyByUuid(uuid);
         strategy.setStatus(StrategyStatusEnum.ARCHIVED.getCode());
         strategy.setUpdatedAt(Instant.now().toString());
         strategyMapper.updateById(strategy);
@@ -289,8 +289,8 @@ public class StrategyServiceImpl implements StrategyService {
     // ==================== updateStatus（状态机） ====================
 
     @Override
-    public void updateStatus(String strategyId, StrategyStatusUpdateRequest req) {
-        QuantStrategyDO strategy = requireStrategyByStrategyId(strategyId);
+    public void updateStatus(String uuid, StrategyStatusUpdateRequest req) {
+        QuantStrategyDO strategy = requireStrategyByUuid(uuid);
         StrategyStatusEnum current = StrategyStatusEnum.fromCode(strategy.getStatus());
         StrategyStatusEnum target = StrategyStatusEnum.fromCode(req.getStatus());
         if (target == null) {
@@ -310,18 +310,19 @@ public class StrategyServiceImpl implements StrategyService {
     // ==================== 版本相关 ====================
 
     @Override
-    public List<StrategyVersionDTO> listVersions(String strategyId) {
-        QuantStrategyDO strategy = requireStrategyByStrategyId(strategyId);
+    public List<StrategyVersionDTO> listVersions(String uuid) {
+        QuantStrategyDO strategy = requireStrategyByUuid(uuid);
         List<QuantStrategyVersionDO> versions = versionMapper.selectList(
                 new LambdaQueryWrapper<QuantStrategyVersionDO>()
                         .eq(QuantStrategyVersionDO::getStrategyId, strategy.getId())
                         .orderByDesc(QuantStrategyVersionDO::getVersionNo));
-        return versions.stream().map(this::toListVersionDTO).toList();
+        final String status = strategy.getStatus();
+        return versions.stream().map(v -> toListVersionDTO(v, status)).toList();
     }
 
     @Override
-    public StrategyVersionDTO getVersion(String strategyId, Integer versionNo) {
-        QuantStrategyDO strategy = requireStrategyByStrategyId(strategyId);
+    public StrategyVersionDTO getVersion(String uuid, Integer versionNo) {
+        QuantStrategyDO strategy = requireStrategyByUuid(uuid);
         QuantStrategyVersionDO v = versionMapper.selectOne(
                 new LambdaQueryWrapper<QuantStrategyVersionDO>()
                         .eq(QuantStrategyVersionDO::getStrategyId, strategy.getId())
@@ -330,20 +331,20 @@ public class StrategyServiceImpl implements StrategyService {
             throw new BusinessException(StrategyErrorCodes.STRATEGY_VERSION_NOT_FOUND,
                     "版本不存在: " + versionNo);
         }
-        return toDetailVersionDTO(v);
+        return toDetailVersionDTO(v, strategy.getStatus());
     }
 
     @Override
-    public List<StrategyDiffDTO> diffVersions(String strategyId, Integer fromVer, Integer toVer) {
-        QuantStrategyDO strategy = requireStrategyByStrategyId(strategyId);
+    public List<StrategyDiffDTO> diffVersions(String uuid, Integer fromVer, Integer toVer) {
+        QuantStrategyDO strategy = requireStrategyByUuid(uuid);
         String fromJson = loadVersionConfig(strategy.getId(), fromVer);
         String toJson = loadVersionConfig(strategy.getId(), toVer);
         return JsonDiffUtil.diff(fromJson, toJson);
     }
 
     @Override
-    public StrategyVersionDTO rollbackVersion(String strategyId, StrategyRollbackRequest req) {
-        QuantStrategyDO strategy = requireStrategyByStrategyId(strategyId);
+    public StrategyVersionDTO rollbackVersion(String uuid, StrategyRollbackRequest req) {
+        QuantStrategyDO strategy = requireStrategyByUuid(uuid);
         if (req.getTargetVersion() == null) {
             throw new BusinessException(StrategyErrorCodes.STRATEGY_VERSION_NOT_FOUND, "目标版本号不能为空");
         }
@@ -365,10 +366,10 @@ public class StrategyServiceImpl implements StrategyService {
         configReq.setConfigJson(target.getConfigJson());
         configReq.setExpectedVersion(strategy.getCurrentVersion());
         configReq.setChangelog(changelog);
-        updateStrategyConfig(strategyId, configReq);
+        updateStrategyConfig(uuid, configReq);
 
         // 返回最新版本（current_version 已更新）
-        return getVersion(strategyId, requireStrategyByStrategyId(strategyId).getCurrentVersion());
+        return getVersion(uuid, requireStrategyByUuid(uuid).getCurrentVersion());
     }
 
     // ==================== 统计与版本对比 ====================
@@ -401,14 +402,16 @@ public class StrategyServiceImpl implements StrategyService {
     }
 
     @Override
-    public com.arthur.stock.dto.strategy.StrategyVersionCompareDTO compareVersions(String strategyId, Integer fromVer, Integer toVer) {
+    public com.arthur.stock.dto.strategy.StrategyVersionCompareDTO compareVersions(String uuid, Integer fromVer, Integer toVer) {
         // 联查 quant_backtest_report 返回真实回测指标（spec 007 T5.1）。
         // 对 fromVer/toVer 各取最近一条 SUCCESS 回测的 metrics_json，提取 5 项核心指标。
         com.arthur.stock.dto.strategy.StrategyVersionCompareDTO result =
                 new com.arthur.stock.dto.strategy.StrategyVersionCompareDTO();
 
-        Map<String, Double> fromMetrics = loadLatestSuccessMetrics(strategyId, fromVer);
-        Map<String, Double> toMetrics = loadLatestSuccessMetrics(strategyId, toVer);
+        // uuid -> 主表 PK id，再查 quant_backtest（strategy_id 现在是 BIGINT 主键）
+        Long strategyPkId = requireStrategyByUuid(uuid).getId();
+        Map<String, Double> fromMetrics = loadLatestSuccessMetrics(strategyPkId, fromVer);
+        Map<String, Double> toMetrics = loadLatestSuccessMetrics(strategyPkId, toVer);
 
         // 5 项核心指标对比
         String[][] metricDefs = {
@@ -439,13 +442,15 @@ public class StrategyServiceImpl implements StrategyService {
      * 查指定策略版本的最近一条 SUCCESS 回测的 metrics。
      * 按 created_at DESC 取首条，反序列化 metrics_json 提取 5 项核心指标。
      * 无回测记录返回空 Map（前端展示"暂无回测数据"）。
+     *
+     * @param strategyPkId 策略主表 PK（quant_strategy.id）
      */
-    private Map<String, Double> loadLatestSuccessMetrics(String strategyId, Integer versionNo) {
+    private Map<String, Double> loadLatestSuccessMetrics(Long strategyPkId, Integer versionNo) {
         Map<String, Double> out = new LinkedHashMap<>();
         try {
             QuantBacktestDO bt = backtestMapper.selectOne(
                     new LambdaQueryWrapper<QuantBacktestDO>()
-                            .eq(QuantBacktestDO::getStrategyId, strategyId)
+                            .eq(QuantBacktestDO::getStrategyId, strategyPkId)
                             .eq(QuantBacktestDO::getVersionNo, versionNo)
                             .eq(QuantBacktestDO::getStatus, "SUCCESS")
                             .orderByDesc(QuantBacktestDO::getCreatedAt)
@@ -468,21 +473,21 @@ public class StrategyServiceImpl implements StrategyService {
                 }
             }
         } catch (Exception e) {
-            log.warn("加载版本回测指标失败 strategyId={} versionNo={}: {}", strategyId, versionNo, e.getMessage());
+            log.warn("加载版本回测指标失败 strategyPkId={} versionNo={}: {}", strategyPkId, versionNo, e.getMessage());
         }
         return out;
     }
 
     // ==================== 内部：加载与校验 ====================
 
-    private QuantStrategyDO requireStrategyByStrategyId(String strategyId) {
-        if (strategyId == null || strategyId.isBlank()) {
+    private QuantStrategyDO requireStrategyByUuid(String uuid) {
+        if (uuid == null || uuid.isBlank()) {
             throw new BusinessException(StrategyErrorCodes.STRATEGY_NOT_FOUND, "策略ID不能为空");
         }
         QuantStrategyDO strategy = strategyMapper.selectOne(
-                new LambdaQueryWrapper<QuantStrategyDO>().eq(QuantStrategyDO::getStrategyId, strategyId));
+                new LambdaQueryWrapper<QuantStrategyDO>().eq(QuantStrategyDO::getUuid, uuid));
         if (strategy == null) {
-            throw new BusinessException(StrategyErrorCodes.STRATEGY_NOT_FOUND, "策略不存在: " + strategyId);
+            throw new BusinessException(StrategyErrorCodes.STRATEGY_NOT_FOUND, "策略不存在: " + uuid);
         }
         return strategy;
     }
@@ -571,7 +576,7 @@ public class StrategyServiceImpl implements StrategyService {
      * <p>
      * signals 与 rebalance 范式互斥（spec 009-strategy-paradigm-exclusive），
      * 互斥约束由 engine validator 保证；此处防御性判断，signals 优先：
-     * 有 signals → single；有 rebalance → portfolio；都没有 → single。
+     * 有 signals -> single；有 rebalance -> portfolio；都没有 -> single。
      */
     private String deriveScope(String configJson) {
         if (configJson == null || configJson.isBlank()) {
@@ -648,7 +653,7 @@ public class StrategyServiceImpl implements StrategyService {
     private StrategyDTO toListDTO(QuantStrategyDO strategy) {
         StrategyDTO dto = new StrategyDTO();
         dto.setId(strategy.getId());
-        dto.setStrategyId(strategy.getStrategyId());
+        dto.setUuid(strategy.getUuid());
         dto.setName(strategy.getName());
         dto.setDescription(strategy.getDescription());
         dto.setCategory(strategy.getCategory());
@@ -668,16 +673,17 @@ public class StrategyServiceImpl implements StrategyService {
         return new ArrayList<>(Arrays.asList(tags.split(",")));
     }
 
-    private StrategyVersionDTO toListVersionDTO(QuantStrategyVersionDO v) {
+    private StrategyVersionDTO toListVersionDTO(QuantStrategyVersionDO v, String status) {
         StrategyVersionDTO dto = new StrategyVersionDTO();
         dto.setVersionNo(v.getVersionNo());
+        dto.setStatus(status);
         dto.setChangelog(v.getChangelog());
         dto.setCreatedAt(v.getCreatedAt());
         return dto;
     }
 
-    private StrategyVersionDTO toDetailVersionDTO(QuantStrategyVersionDO v) {
-        StrategyVersionDTO dto = toListVersionDTO(v);
+    private StrategyVersionDTO toDetailVersionDTO(QuantStrategyVersionDO v, String status) {
+        StrategyVersionDTO dto = toListVersionDTO(v, status);
         dto.setConfigJson(sanitizeConfigJson(v.getConfigJson()));
         return dto;
     }

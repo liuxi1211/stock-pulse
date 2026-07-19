@@ -32,6 +32,12 @@
                     </p>
                 </div>
                 <div class="str-page-actions">
+                    <div class="btn-group" id="statusActionWrap" style="display:none;">
+                        <button type="button" class="btn btn-outline-primary btn-sm dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-sliders"></i> 状态管理
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end" id="statusActionMenu"></ul>
+                    </div>
                     <a th:href="@{/quant/strategies}" class="btn btn-secondary btn-sm">取消</a>
                 </div>
             </div>
@@ -40,7 +46,7 @@
                 编辑器：左 8 Tab 表单 + 右 sticky JSON 预览 + 底部保存条（spec 004 Task 10）。
                 Tab 内具体表单控件由 Task 11 填充，本任务仅搭骨架与状态/保存逻辑。
                 Controller 注入：
-                  - strategyId  ：编辑模式有值，新建模式为 null
+                  - uuid  ：编辑模式有值，新建模式为 null
                   - templates   ：StrategyTemplateDTO 列表，供「从模板创建」
                   - categoryOptions / scopeOptions ：分类与范围下拉
             -->
@@ -730,10 +736,10 @@
     </div>
 </div>
 
-<!-- 当前 strategyId 与模板列表内联，供编辑器 JS 初始化读取 -->
+<!-- 当前 uuid 与模板列表内联，供编辑器 JS 初始化读取 -->
 <script th:inline="javascript" type="application/json" id="editorBootstrap">
 {
-    "strategyId":     [[${strategyId}]],
+    "uuid":     [[${uuid}]],
     "templates":      [[${templates}]],
     "categoryOptions":[[${categoryOptions}]],
     "scopeOptions":   [[${scopeOptions}]]

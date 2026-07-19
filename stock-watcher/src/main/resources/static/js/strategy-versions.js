@@ -29,7 +29,7 @@ const StrategyVersions = (function () {
     const e = StockApp.escapeHtml;
 
     const state = {
-        strategyId: null,
+        uuid: null,
         strategyName: '',
         currentVersion: null,
         versions: [],
@@ -43,7 +43,7 @@ const StrategyVersions = (function () {
     // ===================== 工具 =====================
 
     function apiBase() {
-        return '/api/strategies/' + encodeURIComponent(state.strategyId);
+        return '/api/strategies/' + encodeURIComponent(state.uuid);
     }
 
     // 任意值转可展示字符串：对象/数组 JSON.stringify，过长截断
@@ -137,8 +137,8 @@ const StrategyVersions = (function () {
         try { boot = JSON.parse(bootEl.textContent); }
         catch (err) { StockApp.toast('初始化数据解析失败: ' + err.message, 'danger'); return; }
 
-        state.strategyId = boot.strategyId;
-        if (!state.strategyId) {
+        state.uuid = boot.uuid;
+        if (!state.uuid) {
             StockApp.toast('缺少策略 ID', 'danger');
             return;
         }
@@ -146,7 +146,7 @@ const StrategyVersions = (function () {
         // 返回编辑按钮
         const editLink = document.querySelector('.sv-edit-link');
         if (editLink) {
-            editLink.href = StockApp.contextPath + '/quant/strategies/' + encodeURIComponent(state.strategyId) + '/edit';
+            editLink.href = StockApp.contextPath + '/quant/strategies/' + encodeURIComponent(state.uuid) + '/edit';
         }
 
         setLoading(true);

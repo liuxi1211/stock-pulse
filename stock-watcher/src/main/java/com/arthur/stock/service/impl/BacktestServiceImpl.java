@@ -159,8 +159,8 @@ public class BacktestServiceImpl implements BacktestService {
                     "第一波仅支持 SINGLE 模式，当前模式: " + mode);
         }
 
-        // 2. 查策略
-        QuantStrategyDO strategy = requireStrategy(req.getStrategyId());
+        // 2. 查策略（前端传 uuid，后端查主表拿 PK id）
+        QuantStrategyDO strategy = requireStrategyByUuid(req.getUuid());
 
         // 3. 解析版本号（未传取 currentVersion）+ 查版本快照
         Integer versionNo = req.getVersionNo() != null ? req.getVersionNo() : strategy.getCurrentVersion();
@@ -196,7 +196,7 @@ public class BacktestServiceImpl implements BacktestService {
         String overrideConfigStr = req.getOverrideConfig() == null ? null : JSON.toJSONString(req.getOverrideConfig());
         QuantBacktestDO task = new QuantBacktestDO();
         task.setTaskId(UUID.randomUUID().toString().replace("-", ""));
-        task.setStrategyId(strategy.getStrategyId());
+        task.setStrategyId(strategy.getId());
         task.setVersionNo(versionNo);
         task.setMode(mode);
         task.setStatus(BacktestStatusEnum.PENDING.getCode());
@@ -214,7 +214,9 @@ public class BacktestServiceImpl implements BacktestService {
         final JSONObject finalConfig = configJson;
         final String finalBenchmark = benchmark;
         final String finalOverrideConfig = overrideConfigStr;
-        backtestExecutor.execute(() -> executeAsync(taskId, taskUuid, finalConfig, finalBenchmark, finalOverrideConfig));
+        final Long strategyPkId = strategy.getId();
+        backtestExecutor.execute(() -> executeAsync(taskId, taskUuid, finalConfig, finalBenchmark,
+                finalOverrideConfig, strategyPkId));
 
         return toTaskVO(task);
     }
@@ -224,7 +226,7 @@ public class BacktestServiceImpl implements BacktestService {
      * 任何异常都落 FAILED + error_message 截断 1024。
      */
     private void executeAsync(Long taskId, String taskUuid, JSONObject configJson,
-                              String benchmark, String overrideConfigStr) {
+                              String benchmark, String overrideConfigStr, Long strategyPkId) {
         String startedAt = Instant.now().toString();
         try {
             // PENDING → RUNNING
@@ -251,7 +253,8 @@ public class BacktestServiceImpl implements BacktestService {
             // 拼 engine 请求体
             JSONObject engineReq = new JSONObject();
             engineReq.put("mode", BacktestModeEnum.SINGLE.getCode());
-            engineReq.put("strategyId", configJson == null ? null : configJson.get("strategyId"));
+            // engine 协议字段 strategyId：传策略主表 PK（Long），保证 engine 侧用主键索引
+            engineReq.put("strategyId", strategyPkId);
             engineReq.put("config", configJson);
             if (overrideConfigStr != null && !overrideConfigStr.isBlank()) {
                 engineReq.put("override_config", JSON.parseObject(overrideConfigStr));
@@ -292,14 +295,22 @@ public class BacktestServiceImpl implements BacktestService {
     // ==================== listTasks ====================
 
     @Override
-    public PageResult<BacktestTaskVO> listTasks(int page, int size, String strategyId, String status,
+    public PageResult<BacktestTaskVO> listTasks(int page, int size, String uuid, String status,
                                                  String startDate, String endDate) {
         int p = page < 1 ? 1 : page;
         int s = size < 1 ? 20 : size;
 
         LambdaQueryWrapper<QuantBacktestDO> qw = new LambdaQueryWrapper<>();
-        if (strategyId != null && !strategyId.isBlank()) {
-            qw.eq(QuantBacktestDO::getStrategyId, strategyId);
+        // 前端传策略 uuid，内部转主表 PK id 再查回测表
+        if (uuid != null && !uuid.isBlank()) {
+            QuantStrategyDO strategy = strategyMapper.selectOne(
+                    new LambdaQueryWrapper<QuantStrategyDO>().eq(QuantStrategyDO::getUuid, uuid));
+            if (strategy == null) {
+                // 策略不存在，记录 warn 便于排错（前端看到空列表无法定位原因）
+                log.warn("listTasks: 策略 uuid={} 不存在，返回空列表", uuid);
+                return PageResult.of(Collections.emptyList(), 0L, p, s);
+            }
+            qw.eq(QuantBacktestDO::getStrategyId, strategy.getId());
         }
         if (status != null && !status.isBlank()) {
             qw.eq(QuantBacktestDO::getStatus, status);
@@ -313,7 +324,12 @@ public class BacktestServiceImpl implements BacktestService {
         qw.orderByDesc(QuantBacktestDO::getId);
 
         Page<QuantBacktestDO> pg = backtestMapper.selectPage(new Page<>(p, s), qw);
-        List<BacktestTaskVO> list = pg.getRecords().stream().map(this::toTaskVO).toList();
+
+        // 批量预加载本页所有策略主表，避免 toTaskVO 内逐行 selectById 产生 N+1 查询
+        Map<Long, QuantStrategyDO> strategyMap = batchLoadStrategies(pg.getRecords());
+        List<BacktestTaskVO> list = pg.getRecords().stream()
+                .map(t -> toTaskVO(t, strategyMap))
+                .toList();
         return PageResult.of(list, pg.getTotal(), p, s);
     }
 
@@ -353,9 +369,16 @@ public class BacktestServiceImpl implements BacktestService {
     @Override
     public BacktestTaskVO rerunTask(String taskId, String currentUser) {
         QuantBacktestDO origin = requireTaskByUuid(taskId);
+        // origin.strategyId 是主表 PK（Long），需反查主表拿 uuid 填入请求
+        QuantStrategyDO originStrategy = strategyMapper.selectById(origin.getStrategyId());
+        if (originStrategy == null) {
+            // 原策略被物理删除（理论上 ARCHIVED 软删 PK 仍在），抛 404 避免下游报「策略ID不能为空」难以定位
+            throw new BusinessException(BacktestErrorCodes.BACKTEST_STRATEGY_VERSION_INVALID,
+                    "原策略不存在（strategyId=" + origin.getStrategyId() + "），无法重跑");
+        }
         BacktestRunRequestDTO req = new BacktestRunRequestDTO();
         req.setMode(origin.getMode());
-        req.setStrategyId(origin.getStrategyId());
+        req.setUuid(originStrategy.getUuid());
         req.setVersionNo(origin.getVersionNo());
         req.setBenchmark(origin.getBenchmark());
         if (origin.getOverrideConfig() != null && !origin.getOverrideConfig().isBlank()) {
@@ -540,9 +563,9 @@ public class BacktestServiceImpl implements BacktestService {
      * 由 engine validator 报 TUNABLE_PARAM_INVALID（param_grid 为空）。
      */
     @Override
-    public JSONObject buildOptimizeContext(String strategyId, Integer versionNo) {
+    public JSONObject buildOptimizeContext(String uuid, Integer versionNo) {
         // 1. 查策略 + 版本
-        QuantStrategyDO strategy = requireStrategy(strategyId);
+        QuantStrategyDO strategy = requireStrategyByUuid(uuid);
         Integer ver = versionNo != null ? versionNo : strategy.getCurrentVersion();
         if (ver == null) {
             throw new BusinessException(BacktestErrorCodes.BACKTEST_STRATEGY_VERSION_INVALID, "策略无可用版本");
@@ -1016,14 +1039,14 @@ public class BacktestServiceImpl implements BacktestService {
 
     // ==================== 内部：校验与解析 ====================
 
-    private QuantStrategyDO requireStrategy(String strategyId) {
-        if (strategyId == null || strategyId.isBlank()) {
+    private QuantStrategyDO requireStrategyByUuid(String uuid) {
+        if (uuid == null || uuid.isBlank()) {
             throw new BusinessException(BacktestErrorCodes.BACKTEST_STRATEGY_VERSION_INVALID, "策略ID不能为空");
         }
         QuantStrategyDO strategy = strategyMapper.selectOne(
-                new LambdaQueryWrapper<QuantStrategyDO>().eq(QuantStrategyDO::getStrategyId, strategyId));
+                new LambdaQueryWrapper<QuantStrategyDO>().eq(QuantStrategyDO::getUuid, uuid));
         if (strategy == null) {
-            throw new BusinessException(BacktestErrorCodes.BACKTEST_STRATEGY_VERSION_INVALID, "策略不存在: " + strategyId);
+            throw new BusinessException(BacktestErrorCodes.BACKTEST_STRATEGY_VERSION_INVALID, "策略不存在: " + uuid);
         }
         return strategy;
     }
@@ -1108,11 +1131,45 @@ public class BacktestServiceImpl implements BacktestService {
 
     // ==================== 内部：DTO 转换 ====================
 
+    /**
+     * 批量加载策略主表，用于列表页避免 N+1 查询。
+     * 返回 {@code strategyId(PK) -> QuantStrategyDO} 的 Map。
+     */
+    private Map<Long, QuantStrategyDO> batchLoadStrategies(List<QuantBacktestDO> tasks) {
+        if (tasks == null || tasks.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        List<Long> ids = tasks.stream()
+                .map(QuantBacktestDO::getStrategyId)
+                .filter(java.util.Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+        if (ids.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        List<QuantStrategyDO> strategies = strategyMapper.selectBatchIds(ids);
+        return strategies.stream().collect(Collectors.toMap(QuantStrategyDO::getId, s -> s, (a, b) -> a));
+    }
+
     private BacktestTaskVO toTaskVO(QuantBacktestDO t) {
+        // 单任务查询场景：直接 selectById 主表填充 uuid/name
+        Map<Long, QuantStrategyDO> strategyMap = batchLoadStrategies(Collections.singletonList(t));
+        return toTaskVO(t, strategyMap);
+    }
+
+    private BacktestTaskVO toTaskVO(QuantBacktestDO t, Map<Long, QuantStrategyDO> strategyMap) {
         BacktestTaskVO vo = new BacktestTaskVO();
         vo.setId(t.getId());
         vo.setTaskId(t.getTaskId());
         vo.setStrategyId(t.getStrategyId());
+        // JOIN 主表填充 uuid 和 name（前端展示与跳转用）
+        if (t.getStrategyId() != null && strategyMap != null) {
+            QuantStrategyDO strategy = strategyMap.get(t.getStrategyId());
+            if (strategy != null) {
+                vo.setStrategyUuid(strategy.getUuid());
+                vo.setStrategyName(strategy.getName());
+            }
+        }
         vo.setVersionNo(t.getVersionNo());
         vo.setMode(t.getMode());
         vo.setStatus(t.getStatus());

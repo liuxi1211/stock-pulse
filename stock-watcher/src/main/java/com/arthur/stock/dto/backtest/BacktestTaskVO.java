@@ -16,7 +16,14 @@ public class BacktestTaskVO {
     /** 任务唯一ID（UUID） */
     private String taskId;
 
-    private String strategyId;
+    /** 策略主表ID（内部关联用） */
+    private Long strategyId;
+
+    /** 策略UUID（前端交互用，由主表 JOIN 填充） */
+    private String strategyUuid;
+
+    /** 策略名称（前端展示用，由主表 JOIN 填充） */
+    private String strategyName;
 
     private Integer versionNo;
 

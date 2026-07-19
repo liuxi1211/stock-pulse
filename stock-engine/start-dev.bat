@@ -1,8 +1,7 @@
 @echo off
 REM stock-engine 开发模式启动脚本 (Windows) - 带热重载
-REM 使用前请确认 Conda 环境路径是否正确
+REM 自动使用当前 shell 中可用的 Conda
 
-set CONDA_PATH=D:\javaApp\miniforge\Scripts\conda.exe
 set CONDA_ENV=stock
 set HOST=127.0.0.1
 set PORT=8085
@@ -12,10 +11,15 @@ echo   Stock Engine - Python 计算服务 (DEV)
 echo ========================================
 echo.
 
-REM 检查 conda 是否存在
-if not exist "%CONDA_PATH%" (
-    echo [ERROR] Conda not found at: %CONDA_PATH%
-    echo Please edit this script and set CONDA_PATH correctly.
+REM 优先使用激活环境提供的 CONDA_EXE，否则从 PATH 查找
+if defined CONDA_EXE (
+    set "CONDA_PATH=%CONDA_EXE%"
+) else (
+    for /f "delims=" %%I in ('where conda 2^>nul') do if not defined CONDA_PATH set "CONDA_PATH=%%I"
+)
+
+if not defined CONDA_PATH (
+    echo [ERROR] Conda was not found. Add Conda to PATH or initialize it first.
     pause
     exit /b 1
 )
@@ -32,7 +36,7 @@ cd /d "%~dp0"
 echo [INFO] Starting service...
 echo.
 
-REM 启动服务（开发模式，带热重载）
-"%CONDA_PATH%" run -n %CONDA_ENV% uvicorn main:app --host %HOST% --port %PORT% --reload
+REM 启动服务（开发模式，带热重载）；直接输出启动异常
+"%CONDA_PATH%" run --no-capture-output -n %CONDA_ENV% python -m uvicorn main:app --host %HOST% --port %PORT% --reload
 
 pause

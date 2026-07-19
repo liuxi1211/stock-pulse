@@ -18,6 +18,9 @@ public class StrategyVersionDTO {
     @Schema(description = "版本号")
     private Integer versionNo;
 
+    @Schema(description = "策略状态（DRAFT/VERIFIED/ACTIVE/ARCHIVED，自主表透传）")
+    private String status;
+
     @Schema(description = "版本配置 JSON（列表接口可不返回）")
     private String configJson;
 

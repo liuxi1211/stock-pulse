@@ -209,7 +209,7 @@ CREATE TABLE IF NOT EXISTS factor_snapshot (
 -- 14. 策略主表（quant_strategy）
 CREATE TABLE IF NOT EXISTS quant_strategy (
     id              BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
-    strategy_id     VARCHAR(64)  NOT NULL UNIQUE COMMENT '策略业务标识（UUID/业务编码）',
+    uuid            VARCHAR(64)  NOT NULL UNIQUE COMMENT '策略业务标识（UUID，仅用于前端交互，防止id遍历）',
     name            VARCHAR(128) NOT NULL COMMENT '策略名称',
     description     VARCHAR(512) COMMENT '策略描述',
     category        VARCHAR(32)  COMMENT '策略分类（TECHNICAL/FUNDAMENTAL/MIXED/CUSTOM）',
@@ -239,7 +239,7 @@ CREATE TABLE IF NOT EXISTS quant_strategy_version (
 CREATE TABLE IF NOT EXISTS quant_backtest (
     id              BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
     task_id         VARCHAR(64)  NOT NULL COMMENT '任务唯一ID（UUID）',
-    strategy_id     VARCHAR(64)  NOT NULL COMMENT '策略业务ID（quant_strategy.strategy_id）',
+    strategy_id     BIGINT       NOT NULL COMMENT '策略主表ID（quant_strategy.id，内部关联用）',
     version_no      INT          NOT NULL COMMENT '策略版本号',
     mode            VARCHAR(16)  DEFAULT 'SINGLE' COMMENT '回测模式（SINGLE/GRID/WALK_FORWARD）',
     status          VARCHAR(16)  DEFAULT 'PENDING' COMMENT '任务状态（PENDING/RUNNING/SUCCESS/FAILED/CANCELLED）',

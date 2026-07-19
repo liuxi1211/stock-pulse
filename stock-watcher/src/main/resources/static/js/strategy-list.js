@@ -38,6 +38,17 @@ const StrategyList = (function () {
         portfolio: 'PORTFOLIO',
     };
 
+    // 状态流转动作配置：当前状态 -> 可触发的动作列表（label/target/confirmText）
+    const STATUS_ACTIONS = {
+        VERIFIED: [
+            { target: 'ACTIVE',  label: '激活',   icon: 'bi-rocket-takeoff', verb: '激活为 ACTIVE' },
+            { target: 'DRAFT',   label: '退回草稿', icon: 'bi-pencil',       verb: '退回草稿 DRAFT' },
+        ],
+        ACTIVE: [
+            { target: 'ARCHIVED', label: '下线', icon: 'bi-archive', verb: '下线归档 ARCHIVED' },
+        ],
+    };
+
     const state = {
         page: 1,
         size: 12,
@@ -267,7 +278,7 @@ const StrategyList = (function () {
     }
 
     function renderCard(s) {
-        const id = s.strategyId || s.id || '';
+        const id = s.uuid || '';
         const name = s.name || '未命名策略';
         const desc = s.description || '暂无描述';
         const st = STATUS_BADGE[s.status] || { cls: 'str-status-draft', label: s.status || '—' };
@@ -288,7 +299,22 @@ const StrategyList = (function () {
 
         const editHref = `${StockApp.contextPath}/quant/strategies/${encodeURIComponent(id)}/edit`;
         const verHref = `${StockApp.contextPath}/quant/strategies/${encodeURIComponent(id)}/versions`;
-        const backtestDisabled = (s.status === 'DRAFT' && hasError) || !s.lastReturnPct;
+        // DRAFT/ARCHIVED 不可回测（与后端 BacktestServiceImpl 口径一致）；去掉对 lastReturnPct 的依赖
+        const backtestDisabled = s.status === 'DRAFT' || s.status === 'ARCHIVED';
+
+        // 状态管理下拉按钮：仅 VERIFIED/ACTIVE 显示（DRAFT 需先校验，ARCHIVED 终态）
+        const actions = STATUS_ACTIONS[s.status] || [];
+        const statusBtnHtml = actions.length === 0 ? '' : `
+            <div class="dropdown str-status-dropdown">
+                <button type="button" class="str-icon-btn" title="状态管理" data-bs-toggle="dropdown" data-bs-auto-close="true" aria-expanded="false">
+                    <i class="bi bi-sliders"></i>
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end">
+                    ${actions.map(a => `
+                        <li><a class="dropdown-item" href="javascript:void(0);" data-action="status-change" data-id="${e(id)}" data-name="${e(name)}" data-target="${a.target}" data-verb="${e(a.verb)}"><i class="bi ${a.icon} me-2"></i>${e(a.label)}</a></li>
+                    `).join('')}
+                </ul>
+            </div>`;
 
         return `
             <div class="str-strategy-card${hasError ? ' has-error' : ''}" style="--card-accent: ${accent};"
@@ -331,6 +357,7 @@ const StrategyList = (function () {
                         <a class="str-icon-btn" href="${verHref}" title="版本"><i class="bi bi-clock-history"></i></a>
                         <button class="str-icon-btn${backtestDisabled ? ' disabled' : ''}" title="回测"
                                 ${backtestDisabled ? 'disabled' : `data-action="backtest" data-id="${e(id)}"`}><i class="bi bi-caret-right-fill"></i></button>
+                        ${statusBtnHtml}
                         <button class="str-icon-btn danger" title="归档" data-action="delete" data-id="${e(id)}" data-name="${e(name)}"><i class="bi bi-trash3"></i></button>
                     </div>
                 </div>
@@ -405,6 +432,39 @@ const StrategyList = (function () {
         });
     }
 
+    function confirmStatusChange(id, name, target, verb) {
+        StockApp.confirm({
+            title: '状态变更',
+            message: '确认将策略「' + name + '」「' + verb + '」？',
+            confirmText: '确认',
+            cancelText: '取消',
+            confirmClass: 'btn-primary',
+            icon: 'bi-arrow-repeat',
+        }).then(ok => {
+            if (!ok) return;
+            doStatusChange(id, target);
+        });
+    }
+
+    function doStatusChange(id, target) {
+        fetch(StockApp.contextPath + '/api/strategies/' + encodeURIComponent(id) + '/status', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: JSON.stringify({ status: target }),
+        })
+            .then(r => r.json())
+            .then(resp => {
+                if (resp.code === 200) {
+                    StockApp.toast(resp.message || '状态已更新', 'success');
+                    load();
+                    loadStats();
+                } else {
+                    StockApp.toast(resp.message || '状态变更失败', 'danger');
+                }
+            })
+            .catch(err => StockApp.toast('状态变更失败: ' + err.message, 'danger'));
+    }
+
     function doDelete(id) {
         fetch(StockApp.contextPath + '/api/strategies/' + encodeURIComponent(id), {
             method: 'DELETE',
@@ -462,7 +522,9 @@ const StrategyList = (function () {
                 if (action === 'delete') {
                     confirmDelete(btn.dataset.id, btn.dataset.name);
                 } else if (action === 'backtest') {
-                    StockApp.toast('回测中心即将开放，敬请期待', 'info');
+                    location.href = StockApp.contextPath + '/quant/backtests/new?uuid=' + encodeURIComponent(btn.dataset.id);
+                } else if (action === 'status-change') {
+                    confirmStatusChange(btn.dataset.id, btn.dataset.name, btn.dataset.target, btn.dataset.verb);
                 }
                 return;
             }

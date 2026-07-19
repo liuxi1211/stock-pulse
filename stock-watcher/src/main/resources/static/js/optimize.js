@@ -24,7 +24,7 @@
     const state = {
         strategies: [],
         versions: [],
-        selectedStrategyId: null,
+        selectedUuid: null,
         selectedVersionNo: null,
         selectedConfig: null,        // 完整 configJson
         tunableParams: [],           // config.tunable_params
@@ -38,7 +38,7 @@
     function init() {
         // URL 预选（从策略管理页跳转）
         const params = new URLSearchParams(location.search);
-        const preSid = params.get('strategyId');
+        const preSid = params.get('uuid');
         const preVer = params.get('versionNo');
 
         loadStrategies(preSid, preVer);
@@ -64,7 +64,7 @@
                 state.strategies = [];
             }
             sel.innerHTML = '<option value="">请选择策略</option>' + state.strategies.map(function (s) {
-                return '<option value="' + esc(s.strategyId) + '">' + esc(s.name) + '</option>';
+                return '<option value="' + esc(s.uuid) + '">' + esc(s.name) + '</option>';
             }).join('');
             if (preSid) {
                 sel.value = preSid;
@@ -76,7 +76,7 @@
 
     function onStrategyChange(preVer) {
         const sid = document.getElementById('selStrategy').value;
-        state.selectedStrategyId = sid;
+        state.selectedUuid = sid;
         const verSel = document.getElementById('selVersion');
         verSel.disabled = true;
         verSel.innerHTML = '<option value="">加载中…</option>';
@@ -105,9 +105,9 @@
     function onVersionChange() {
         const verNo = document.getElementById('selVersion').value;
         state.selectedVersionNo = verNo;
-        if (!verNo || !state.selectedStrategyId) return;
+        if (!verNo || !state.selectedUuid) return;
         // 拉版本详情取 configJson（含 tunable_params）
-        StockApp.get('/api/strategies/' + state.selectedStrategyId + '/versions/' + verNo, null, function (resp) {
+        StockApp.get('/api/strategies/' + state.selectedUuid + '/versions/' + verNo, null, function (resp) {
             if (resp.code === 200 && resp.data && resp.data.configJson) {
                 let cfg = resp.data.configJson;
                 if (typeof cfg === 'string') { try { cfg = JSON.parse(cfg); } catch (e) { cfg = {}; } }
@@ -208,7 +208,7 @@
 
     // ===================== 提交 GRID =====================
     function onClickRunGrid() {
-        if (!state.selectedStrategyId || !state.selectedVersionNo) {
+        if (!state.selectedUuid || !state.selectedVersionNo) {
             StockApp.toast('请先选择策略版本', 'warning'); return;
         }
         if (!state.tunableParams.length) {
@@ -219,7 +219,7 @@
             StockApp.toast('至少一个参数需填多个候选值才有寻优意义', 'warning'); return;
         }
         const body = {
-            strategyId: state.selectedStrategyId,
+            uuid: state.selectedUuid,
             versionNo: parseInt(state.selectedVersionNo, 10),
             param_grid: r.grid,
             sort_by: document.getElementById('selSortBy').value,
@@ -255,7 +255,7 @@
         const test = prompt('测试窗口（bar 数）', '30');
         if (!test) return;
         const body = {
-            strategyId: state.selectedStrategyId,
+            uuid: state.selectedUuid,
             versionNo: parseInt(state.selectedVersionNo, 10),
             param_grid: r.grid,
             train_period: parseInt(train, 10),
@@ -462,9 +462,9 @@
     function onConfirmApply() {
         // 跳转新建策略页，预填参数（通过 URL hash 携带，新建页读取后注入）
         const params = state.top1Params;
-        const sid = state.selectedStrategyId;
+        const sid = state.selectedUuid;
         const ver = state.selectedVersionNo;
-        const carry = btoa(unescape(encodeURIComponent(JSON.stringify({ strategyId: sid, versionNo: ver, params: params }))));
+        const carry = btoa(unescape(encodeURIComponent(JSON.stringify({ uuid: sid, versionNo: ver, params: params }))));
         // spec FR-O6：跳转新建策略页预填，用户手动保存；GRID 永不写策略表
         location.href = '/quant/strategies/new?from=optimize&payload=' + carry;
     }

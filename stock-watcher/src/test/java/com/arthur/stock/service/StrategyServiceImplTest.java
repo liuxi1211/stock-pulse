@@ -90,14 +90,13 @@ class StrategyServiceImplTest {
         req.setName("双均线");
         req.setDescription("desc");
         req.setCategory("TECHNICAL");
-        req.setScope("single");
         req.setTags(List.of("ma", "trend"));
 
         // mapper.selectOne 在 toDetailDTO 阶段被再次调用以回查
         when(strategyMapper.selectOne(any())).thenAnswer(inv -> {
             QuantStrategyDO s = new QuantStrategyDO();
             s.setId(1L);
-            s.setStrategyId("sid");
+            s.setUuid("sid");
             s.setName("双均线");
             s.setStatus(StrategyStatusEnum.DRAFT.getCode());
             s.setCurrentVersion(1);
@@ -145,7 +144,7 @@ class StrategyServiceImplTest {
         when(strategyMapper.selectOne(any())).thenAnswer(inv -> {
             QuantStrategyDO s = new QuantStrategyDO();
             s.setId(7L);
-            s.setStrategyId("sid");
+            s.setUuid("sid");
             s.setName("s");
             s.setStatus(StrategyStatusEnum.VERIFIED.getCode());
             s.setCurrentVersion(1);
@@ -189,8 +188,8 @@ class StrategyServiceImplTest {
                 .isInstanceOf(StrategyValidationException.class)
                 .extracting("errors").isEqualTo(errors);
 
-        verify(strategyMapper, never()).insert(any());
-        verify(versionMapper, never()).insert(any());
+        verify(strategyMapper, never()).insert(any(QuantStrategyDO.class));
+        verify(versionMapper, never()).insert(any(QuantStrategyVersionDO.class));
     }
 
     // ==================== TR-6.2 updateStrategyConfig 正常新版本 ====================
@@ -254,8 +253,8 @@ class StrategyServiceImplTest {
         assertThatThrownBy(() -> strategyService.updateStrategyConfig("sid", req))
                 .isInstanceOf(StrategyValidationException.class);
 
-        verify(versionMapper, never()).insert(any());
-        verify(strategyMapper, never()).updateById(any());
+        verify(versionMapper, never()).insert(any(QuantStrategyVersionDO.class));
+        verify(strategyMapper, never()).updateById(any(QuantStrategyDO.class));
     }
 
     // ==================== TR-6.5 deleteStrategy（软删）====================
@@ -295,7 +294,7 @@ class StrategyServiceImplTest {
                 .extracting("code")
                 .isEqualTo(StrategyErrorCodes.STRATEGY_INVALID_STATUS_TRANSITION);
 
-        verify(strategyMapper, never()).updateById(any());
+        verify(strategyMapper, never()).updateById(any(QuantStrategyDO.class));
     }
 
     /**
@@ -405,8 +404,8 @@ class StrategyServiceImplTest {
                 .extracting("currentVersion").isEqualTo(2);
 
         verify(engineClient, never()).validate(anyString());
-        verify(versionMapper, never()).insert(any());
-        verify(strategyMapper, never()).updateById(any());
+        verify(versionMapper, never()).insert(any(QuantStrategyVersionDO.class));
+        verify(strategyMapper, never()).updateById(any(QuantStrategyDO.class));
     }
 
     // ==================== TR-6.12 DRAFT 自动转 VERIFIED ====================
@@ -564,10 +563,10 @@ class StrategyServiceImplTest {
 
     // ==================== 辅助 ====================
 
-    private static QuantStrategyDO buildStrategy(Long id, String strategyId, String status, Integer currentVersion) {
+    private static QuantStrategyDO buildStrategy(Long id, String uuid, String status, Integer currentVersion) {
         QuantStrategyDO s = new QuantStrategyDO();
         s.setId(id);
-        s.setStrategyId(strategyId);
+        s.setUuid(uuid);
         s.setName("n");
         s.setStatus(status);
         s.setCurrentVersion(currentVersion);

@@ -36,4 +36,4 @@ echo "[INFO] Starting service..."
 echo ""
 
 # 启动服务
-"$CONDA_PATH" run -n "$CONDA_ENV" uvicorn main:app --host "$HOST" --port "$PORT"
+"$CONDA_PATH" run --no-capture-output -n "$CONDA_ENV" python -m uvicorn main:app --host "$HOST" --port "$PORT"

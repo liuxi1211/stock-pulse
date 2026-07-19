@@ -2,8 +2,8 @@
  * 回测中心列表页逻辑（spec 007 T4.2）。
  *
  * 数据源（统一 ApiResponse: {code, message, data}）：
- *   - GET  /api/backtest/tasks?page=1&size=100&strategyId=&status=&startDate=&endDate=
- *         → PageResult<BacktestTaskVO>（一次拉足够多，前端按 strategyId 分组）
+ *   - GET  /api/backtest/tasks?page=1&size=100&uuid=&status=&startDate=&endDate=
+ *         -> PageResult<BacktestTaskVO>（一次拉足够多，前端按 strategyUuid 分组）
  *   - GET  /api/backtest/tasks/{taskId}  轮询单任务进度
  *   - POST /api/backtest/tasks/{taskId}/rerun   一键重跑
  *   - DELETE /api/backtest/{backtestId}          删除
@@ -73,10 +73,10 @@
 
         const groups = {};
         filtered.forEach(function (t) {
-            const key = t.strategyId != null ? String(t.strategyId) : ('s_' + (t.strategyName || 'unknown'));
+            const key = t.strategyUuid != null ? String(t.strategyUuid) : ('s_' + (t.strategyName || 'unknown'));
             if (!groups[key]) {
                 groups[key] = {
-                    strategyId: t.strategyId,
+                    strategyUuid: t.strategyUuid,
                     strategyName: t.strategyName || '未命名策略',
                     versionNo: t.versionNo,
                     tasks: []
@@ -140,23 +140,23 @@
             : (g.hasRunning ? '<span class="item" style="color:var(--accent-blue-light);">运行中…</span>' : '<span class="item" style="color:var(--accent-orange);">最新：未成功</span>');
 
         return ''
-            + '<div class="bt-strat-group' + (g.defaultExpanded ? ' expanded' : '') + '" data-key="' + e(g.strategyId != null ? g.strategyId : g.strategyName) + '">'
+            + '<div class="bt-strat-group' + (g.defaultExpanded ? ' expanded' : '') + '" data-key="' + e(g.strategyUuid != null ? g.strategyUuid : g.strategyName) + '">'
             + '  <div class="bt-strat-group-head">'
             + '    <div class="bt-strat-group-title">'
             + '      <span class="arrow"><i class="bi bi-chevron-down"></i></span>'
             + '      <i class="bi bi-graph-up" style="color:var(--accent-blue);font-size:15px;"></i>'
             + '      <span>' + e(g.strategyName) + '</span>'
             + '      <span class="ver">v' + e(g.versionNo || '1') + '</span>'
-            + '      <span class="mono" style="font-size:10.5px;color:var(--text-muted);margin-left:2px;">S-' + e(g.strategyId != null ? g.strategyId : '?') + '</span>'
+            + '      <span class="mono" style="font-size:10.5px;color:var(--text-muted);margin-left:2px;">S-' + e(g.strategyUuid != null ? g.strategyUuid : '?') + '</span>'
             + '    </div>'
             + '    <div class="bt-strat-group-meta">'
             + '      <span class="item"><i class="bi bi-flask"></i>' + g.tasks.length + ' 次回测</span>'
             +       latestText
             + '    </div>'
             + '  </div>'
-            + '  <div class="bt-strat-group-body" id="body-' + e(g.strategyId != null ? g.strategyId : g.strategyName) + '">'
+            + '  <div class="bt-strat-group-body" id="body-' + e(g.strategyUuid != null ? g.strategyUuid : g.strategyName) + '">'
             +     g.tasks.map(renderRow).join('')
-            + '    <div class="bt-pager" id="pager-' + e(g.strategyId != null ? g.strategyId : g.strategyName) + '"></div>'
+            + '    <div class="bt-pager" id="pager-' + e(g.strategyUuid != null ? g.strategyUuid : g.strategyName) + '"></div>'
             + '  </div>'
             + '</div>';
     }
@@ -283,12 +283,12 @@
 
     function findGroupByKey(key) {
         const groups = Object.values(state.groups);
-        return groups.find(function (g) { return String(g.strategyId != null ? g.strategyId : g.strategyName) === key; });
+        return groups.find(function (g) { return String(g.strategyUuid != null ? g.strategyUuid : g.strategyName) === key; });
     }
 
     // ============ 分页 ============
     function renderGroupPager(g) {
-        const key = (g.strategyId != null ? g.strategyId : g.strategyName);
+        const key = (g.strategyUuid != null ? g.strategyUuid : g.strategyName);
         const body = document.getElementById('body-' + key);
         const pager = document.getElementById('pager-' + key);
         if (!body || !pager) return;

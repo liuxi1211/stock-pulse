@@ -66,16 +66,16 @@ public class BacktestController {
         return ApiResponse.success("已提交", backtestService.run(req, currentUsername()));
     }
 
-    @Operation(summary = "分页查询任务列表", description = "支持 strategyId/status/startDate/endDate 筛选")
+    @Operation(summary = "分页查询任务列表", description = "支持 uuid/status/startDate/endDate 筛选")
     @GetMapping("/tasks")
     public ApiResponse<PageResult<BacktestTaskVO>> listTasks(
             @Parameter(description = "页码，从 1 开始") @RequestParam(value = "page", defaultValue = "1") @Min(1) int page,
             @Parameter(description = "每页条数") @RequestParam(value = "size", defaultValue = "10") @Min(1) int size,
-            @Parameter(description = "策略ID") @RequestParam(value = "strategyId", required = false) String strategyId,
+            @Parameter(description = "策略UUID") @RequestParam(value = "uuid", required = false) String uuid,
             @Parameter(description = "状态") @RequestParam(value = "status", required = false) String status,
             @Parameter(description = "起始日期（含），格式同 createdAt") @RequestParam(value = "startDate", required = false) String startDate,
             @Parameter(description = "结束日期（含）") @RequestParam(value = "endDate", required = false) String endDate) {
-        return ApiResponse.success(backtestService.listTasks(page, size, strategyId, status, startDate, endDate));
+        return ApiResponse.success(backtestService.listTasks(page, size, uuid, status, startDate, endDate));
     }
 
     @Operation(summary = "按 taskId 查询单个任务")

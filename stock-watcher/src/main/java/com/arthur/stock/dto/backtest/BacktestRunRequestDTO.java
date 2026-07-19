@@ -16,8 +16,8 @@ public class BacktestRunRequestDTO {
     /** 回测模式（第一波仅 SINGLE） */
     private String mode;
 
-    /** 策略业务ID（quant_strategy.strategy_id） */
-    private String strategyId;
+    /** 策略UUID（前端传入，后端查主表拿 id） */
+    private String uuid;
 
     /** 策略版本号；为空时取策略 currentVersion */
     private Integer versionNo;

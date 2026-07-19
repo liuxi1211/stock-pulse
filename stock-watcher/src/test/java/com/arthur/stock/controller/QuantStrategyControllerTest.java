@@ -17,9 +17,11 @@ import com.arthur.stock.exception.StrategyVersionConflictException;
 import com.arthur.stock.service.StrategyService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
@@ -59,7 +61,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * TR-7.4（未登录 302 重定向）依赖 WebConfig 的完整集成测试，本切片不覆盖，在 checklist 注明。
  */
 @WebMvcTest(QuantStrategyController.class)
-@Import(GlobalExceptionHandler.class)
+@Import({GlobalExceptionHandler.class, QuantStrategyControllerTest.TestConfig.class})
 class QuantStrategyControllerTest {
 
     /** 测试用的合法 strategyId（32 位十六进制，符合 @PathVariable [0-9a-fA-F]{32}）。 */
@@ -71,11 +73,24 @@ class QuantStrategyControllerTest {
     @Autowired
     private ObjectMapper om;
 
-    @MockBean
+    @Autowired
     private StrategyService strategyService;
 
-    @MockBean
+    @Autowired
     private StrategyTemplateLoader strategyTemplateLoader;
+
+    @TestConfiguration
+    static class TestConfig {
+        @Bean
+        StrategyService strategyService() {
+            return Mockito.mock(StrategyService.class);
+        }
+
+        @Bean
+        StrategyTemplateLoader strategyTemplateLoader() {
+            return Mockito.mock(StrategyTemplateLoader.class);
+        }
+    }
 
     // ==================== TR-7.1 策略 CRUD 全流程 ====================
 
@@ -87,7 +102,6 @@ class QuantStrategyControllerTest {
         StrategyCreateRequest req = new StrategyCreateRequest();
         req.setName("双均线");
         req.setCategory("TECHNICAL");
-        req.setScope("single");
 
         StrategyDTO dto = buildDto(STRATEGY_ID, "双均线", "VERIFIED", 1);
 
@@ -98,7 +112,7 @@ class QuantStrategyControllerTest {
                         .content(om.writeValueAsString(req)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
-                .andExpect(jsonPath("$.data.strategyId").value(STRATEGY_ID))
+                .andExpect(jsonPath("$.data.uuid").value(STRATEGY_ID))
                 .andExpect(jsonPath("$.data.status").value("VERIFIED"));
 
         verify(strategyService).createStrategy(any(StrategyCreateRequest.class));
@@ -131,7 +145,7 @@ class QuantStrategyControllerTest {
         mockMvc.perform(get("/api/strategies/{id}", STRATEGY_ID))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
-                .andExpect(jsonPath("$.data.strategyId").value(STRATEGY_ID))
+                .andExpect(jsonPath("$.data.uuid").value(STRATEGY_ID))
                 .andExpect(jsonPath("$.data.currentVersion").value(1))
                 .andExpect(jsonPath("$.data.config").exists());
 
@@ -431,10 +445,10 @@ class QuantStrategyControllerTest {
     // ==================== 辅助 ====================
 
     /** 构造一个填好常用字段的 StrategyDTO。 */
-    private static StrategyDTO buildDto(String strategyId, String name, String status, int currentVersion) {
+    private static StrategyDTO buildDto(String uuid, String name, String status, int currentVersion) {
         StrategyDTO dto = new StrategyDTO();
         dto.setId(1L);
-        dto.setStrategyId(strategyId);
+        dto.setUuid(uuid);
         dto.setName(name);
         dto.setCategory("TECHNICAL");
         dto.setScope("single");

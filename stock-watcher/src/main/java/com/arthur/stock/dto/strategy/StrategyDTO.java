@@ -20,8 +20,8 @@ public class StrategyDTO {
     @Schema(description = "主键ID")
     private Long id;
 
-    @Schema(description = "策略业务标识（全局唯一）")
-    private String strategyId;
+    @Schema(description = "策略UUID（仅用于前端交互，防止id遍历）")
+    private String uuid;
 
     @Schema(description = "策略名称")
     private String name;

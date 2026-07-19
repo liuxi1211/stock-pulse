@@ -41,7 +41,7 @@ import java.util.List;
  * {@link StrategyService} 内部调用 {@code StrategyEngineClient.validate}（事务外）做配置校验，
  * 校验失败由 {@code GlobalExceptionHandler} 转 400 + errors。
  * <p>
- * <b>路径约定</b>：根 {@code /api/strategies}；动态段 {@code {id}} 为 strategyId（TEXT 业务 ID）；
+ * <b>路径约定</b>：根 {@code /api/strategies}；动态段 {@code {id}} 为 uuid（TEXT 业务 ID，仅用于前端交互）；
  * {@code {versionNo}} 为版本号（INTEGER）。模板接口的 {@code {templateId}} 是模板文件名（如 dual_ma）。
  * <p>
  * <b>认证</b>：由 {@code AuthInterceptor}（拦截 {@code /**}，排除登录/静态资源）统一覆盖，

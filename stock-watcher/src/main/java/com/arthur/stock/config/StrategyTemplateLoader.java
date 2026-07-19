@@ -61,6 +61,12 @@ public class StrategyTemplateLoader {
     /**
      * config 子树允许的字段（其余顶层键如 category/tags 不进入 configJson）。
      * 序列化时按此顺序输出，保持与统一策略 Schema 字段顺序一致。
+     * <p>
+     * 注意：此处的 {@code strategy_id} 是 <b>统一策略 Schema / engine 协议</b> 的 configJson 顶层字段名，
+     * 模板里通常为占位符或 null，由 engine 侧解析。与 watcher 主表 {@code quant_strategy.uuid}
+     * （前端交互用业务 ID）和 {@code quant_strategy.id}（主表 PK）<b>不是同一概念</b>，
+     * 不要因命名相似而混淆。watcher 调 engine 时单独用 {@code engineReq.put("strategyId", ...)}
+     * 传主表 PK，不依赖此 configJson 字段。
      */
     private static final List<String> CONFIG_KEYS = Arrays.asList(
             "strategy_id", "name", "description",

@@ -125,7 +125,7 @@ public class PageController {
     public String strategyNew(Model model) {
         model.addAttribute("pageTitle", "新建策略");
         model.addAttribute("activeMenu", "strategy-list");
-        model.addAttribute("strategyId", null);
+        model.addAttribute("uuid", null);
         model.addAttribute("templates", templateOptions());
         model.addAttribute("categoryOptions", enumOptions(StrategyCategoryEnum.values()));
         model.addAttribute("scopeOptions", enumOptions(StrategyScopeEnum.values()));
@@ -133,13 +133,13 @@ public class PageController {
     }
 
     /**
-     * 编辑已有策略编辑器页。仅注入 strategyId，详情由 JS 调 API 拉取。
+     * 编辑已有策略编辑器页。仅注入 uuid，详情由 JS 调 API 拉取。
      */
     @GetMapping("/quant/strategies/{id}/edit")
     public String strategyEdit(@PathVariable("id") String id, Model model) {
         model.addAttribute("pageTitle", "编辑策略");
         model.addAttribute("activeMenu", "strategy-list");
-        model.addAttribute("strategyId", id);
+        model.addAttribute("uuid", id);
         model.addAttribute("templates", templateOptions());
         model.addAttribute("categoryOptions", enumOptions(StrategyCategoryEnum.values()));
         model.addAttribute("scopeOptions", enumOptions(StrategyScopeEnum.values()));
@@ -147,13 +147,13 @@ public class PageController {
     }
 
     /**
-     * 策略版本时间线页。仅注入 strategyId，版本数据由 JS 调 API 拉取。
+     * 策略版本时间线页。仅注入 uuid，版本数据由 JS 调 API 拉取。
      */
     @GetMapping("/quant/strategies/{id}/versions")
     public String strategyVersions(@PathVariable("id") String id, Model model) {
         model.addAttribute("pageTitle", "版本管理");
         model.addAttribute("activeMenu", "strategy-list");
-        model.addAttribute("strategyId", id);
+        model.addAttribute("uuid", id);
         return "quant/strategies/versions";
     }
 
@@ -212,15 +212,15 @@ public class PageController {
     /**
      * 参数寻优页（paramGrid 编辑器 + Top-N 结果表 + WF 验证 + 应用按钮）。
      * <p>
-     * 支持 {@code ?strategyId=xxx&versionNo=N} 预选策略版本。
+     * 支持 {@code ?uuid=xxx&versionNo=N} 预选策略版本。
      */
     @GetMapping("/quant/optimize")
-    public String optimize(@org.springframework.web.bind.annotation.RequestParam(value = "strategyId", required = false) String strategyId,
+    public String optimize(@org.springframework.web.bind.annotation.RequestParam(value = "uuid", required = false) String uuid,
                            @org.springframework.web.bind.annotation.RequestParam(value = "versionNo", required = false) Integer versionNo,
                            Model model) {
         model.addAttribute("pageTitle", "参数寻优");
         model.addAttribute("activeMenu", "backtest-list");
-        model.addAttribute("strategyId", strategyId);
+        model.addAttribute("uuid", uuid);
         model.addAttribute("versionNo", versionNo);
         return "quant/optimize/index";
     }

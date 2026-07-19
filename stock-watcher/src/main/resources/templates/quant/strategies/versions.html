@@ -18,8 +18,8 @@
                         <span th:text="${pageTitle}">版本历史</span>
                     </h1>
                     <p class="str-page-subtitle">
-                        策略 <span class="str-mono" th:text="${strategyId}">strategyId</span> 的版本时间线 ·
-                        <a th:href="@{|/quant/strategies/${strategyId}/edit|}" style="text-decoration:none;color:inherit;">返回编辑</a>
+                        策略 <span class="str-mono" th:text="${uuid}">uuid</span> 的版本时间线 ·
+                        <a th:href="@{|/quant/strategies/${uuid}/edit|}" style="text-decoration:none;color:inherit;">返回编辑</a>
                     </p>
                 </div>
             </div>
@@ -82,7 +82,7 @@
 </div>
 
 <script th:inline="javascript" type="application/json" id="versionsBootstrap">
-{ "strategyId": [[${strategyId}]] }
+{ "uuid": [[${uuid}]] }
 </script>
 
 <div th:replace="~{fragments/common :: toastContainer}"></div>

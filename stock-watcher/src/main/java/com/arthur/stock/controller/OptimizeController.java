@@ -55,7 +55,7 @@ public class OptimizeController {
     // ==================== 任务提交 ====================
 
     @Operation(summary = "提交 GRID 寻优任务",
-            description = "异步执行，立即返回 task_id。请求体：strategyId / versionNo / param_grid / "
+            description = "异步执行，立即返回 task_id。请求体：uuid / versionNo / param_grid / "
                     + "sort_by / max_workers / constraint / result_filter / top_n。watcher 装配 config+kline_data 后透传 engine。"
                     + DISCLAIMER)
     @PostMapping("/grid")
@@ -107,7 +107,7 @@ public class OptimizeController {
     /**
      * 装配 engine 寻优请求体（spec 015 FR-O1）。
      * <p>
-     * 前端只需传 {@code strategyId/versionNo + param_grid + 排序/约束/Top-N}，
+     * 前端只需传 {@code uuid/versionNo + param_grid + 排序/约束/Top-N}，
      * watcher 通过 {@link BacktestService#buildOptimizeContext} 加载 config + kline_data，
      * 合并成 engine {@code /optimize} 请求体：
      * <pre>
@@ -126,14 +126,14 @@ public class OptimizeController {
         if (req == null) {
             throw new BusinessException(400, "请求体为空");
         }
-        String strategyId = req.getString("strategyId");
-        if (strategyId == null || strategyId.isBlank()) {
-            throw new BusinessException(400, "缺少 strategyId");
+        String uuid = req.getString("uuid");
+        if (uuid == null || uuid.isBlank()) {
+            throw new BusinessException(400, "缺少 uuid");
         }
         Integer versionNo = req.getInteger("versionNo");
 
         // 1. watcher 侧装配 config + kline_data（复用回测链路）
-        JSONObject ctx = backtestService.buildOptimizeContext(strategyId, versionNo);
+        JSONObject ctx = backtestService.buildOptimizeContext(uuid, versionNo);
 
         // 2. 组装 engine 请求体
         JSONObject engineReq = new JSONObject();

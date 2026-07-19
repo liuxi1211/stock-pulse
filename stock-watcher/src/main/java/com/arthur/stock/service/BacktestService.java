@@ -21,15 +21,15 @@ public interface BacktestService {
     /**
      * 提交回测任务。同步落 PENDING 任务后异步执行，返回任务 VO（status=PENDING）。
      *
-     * @param req         请求体（mode/strategyId/versionNo/overrideConfig/benchmark）
+     * @param req         请求体（mode/uuid/versionNo/overrideConfig/benchmark）
      * @param currentUser 创建人（来自 UserContext，异步线程不可读 ThreadLocal，故显式传入）
      */
     BacktestTaskVO run(BacktestRunRequestDTO req, String currentUser);
 
     /**
-     * 分页查询任务列表。支持 strategyId / status / 起止日期筛选。
+     * 分页查询任务列表。支持 uuid / status / 起止日期筛选。
      */
-    PageResult<BacktestTaskVO> listTasks(int page, int size, String strategyId, String status,
+    PageResult<BacktestTaskVO> listTasks(int page, int size, String uuid, String status,
                                           String startDate, String endDate);
 
     /** 按 taskId（UUID）查询任务。 */
@@ -66,9 +66,9 @@ public interface BacktestService {
      * 与 run() 共用 configJson 加载 + 范式校验 + K 线装配逻辑，但不落 backtest 任务表、
      * 不异步执行（engine 侧寻优任务自带异步状态机）。
      *
-     * @param strategyId 策略 ID
+     * @param uuid       策略 UUID
      * @param versionNo  版本号（null 取 currentVersion）
      * @return {@code {"config": <configJson>, "kline_data": <JSONObject>}}
      */
-    JSONObject buildOptimizeContext(String strategyId, Integer versionNo);
+    JSONObject buildOptimizeContext(String uuid, Integer versionNo);
 }

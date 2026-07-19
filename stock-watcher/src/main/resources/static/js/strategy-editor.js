@@ -13,7 +13,7 @@
  * 字段命名严格 snake_case 对齐 engine models.py / Schema §3-4。
  *
  * 与后端字段对齐：
- *   - StrategyDTO：config(String JSON)、currentVersion(Integer)、strategyId、category、tags
+ *   - StrategyDTO：config(String JSON)、currentVersion(Integer)、uuid、category、tags
  *   - StrategyCreateRequest：{name, description, category, scope, tags, configJson, changelog}
  *   - StrategyConfigUpdateRequest：{configJson, changelog, expectedVersion}
  *   - StrategyTemplateDTO：{configJson, ...}
@@ -21,7 +21,7 @@
 const StrategyEditor = {
     // ===================== 模式与上下文 =====================
     mode: 'new',              // new / edit / template
-    strategyId: null,         // edit 模式：URL 由 controller 注入到 #editorBootstrap.strategyId
+    uuid: null,               // edit 模式：URL 由 controller 注入到 #editorBootstrap.uuid
     templateId: null,         // template 模式：?templateId=xxx
     expectedVersion: null,    // edit 模式：乐观锁，来自 StrategyDTO.currentVersion
 
@@ -121,7 +121,7 @@ const StrategyEditor = {
                 StockApp.toast('页面引导数据解析失败（模板/分类下拉可能为空）：' + (err && err.message ? err.message : err), 'warning');
             }
         }
-        this.strategyId = boot.strategyId || null;
+        this.uuid = boot.uuid || null;
 
         const params = new URLSearchParams(location.search);
         this.templateId = params.get('templateId');
@@ -130,7 +130,7 @@ const StrategyEditor = {
         this.screenSourceId = params.get('screenSource');
 
         // spec 015 FR-O6：参数寻优页「应用」按钮跳转携带 from=optimize + payload(base64)。
-        // payload 结构：{strategyId, versionNo, params:{fast:10, slow:30, ...}}。
+        // payload 结构：{uuid, versionNo, params:{fast:10, slow:30, ...}}。
         // 编辑器读取后：加载对应策略版本 config → 用 params 覆盖 tunable_params 的 default →
         // 顶部提示「已预填寻优参数，请检查后保存」。GRID 永不直接写策略表，需用户手动保存。
         this._optimizeOverride = null;
@@ -155,9 +155,9 @@ const StrategyEditor = {
         this.populateStaticSelects(boot);
 
         try {
-            if (this.strategyId) {
+            if (this.uuid) {
                 this.mode = 'edit';
-                await this.loadStrategy(this.strategyId);
+                await this.loadStrategy(this.uuid);
             } else if (this.templateId) {
                 this.mode = 'template';
                 await this.loadTemplate(this.templateId);
@@ -239,7 +239,7 @@ const StrategyEditor = {
      * spec 015 FR-O6：参数寻优「应用」跳转预填。
      * <p>
      * 寻优页 onConfirmApply 跳转到 /quant/strategies/new?from=optimize&payload=<base64>，
-     * 此处：① 拉取 payload.strategyId/versionNo 的 configJson；
+     * 此处：① 拉取 payload.uuid/versionNo 的 configJson；
      *      ② 用 payload.params 覆盖 configJson 中对应 tunable_params 的 default；
      *      ③ 注入 state + 重新渲染 + 顶部黄条提示「已预填寻优参数，请检查后保存」。
      * <p>
@@ -249,12 +249,12 @@ const StrategyEditor = {
      */
     loadOptimizeOverride() {
         const ov = this._optimizeOverride;
-        if (!ov || !ov.strategyId) {
-            StockApp.toast('寻优参数预填失败：缺少 strategyId', 'warning');
+        if (!ov || !ov.uuid) {
+            StockApp.toast('寻优参数预填失败：缺少 uuid', 'warning');
             return;
         }
         const ver = ov.versionNo;
-        const url = '/api/strategies/' + encodeURIComponent(ov.strategyId) + '/versions/' + encodeURIComponent(ver);
+        const url = '/api/strategies/' + encodeURIComponent(ov.uuid) + '/versions/' + encodeURIComponent(ver);
         StockApp.get(url, null, (resp) => {
             if (!resp || resp.code !== 200 || !resp.data || !resp.data.configJson) {
                 StockApp.toast('寻优参数预填失败：策略版本加载失败', 'warning');
@@ -275,11 +275,11 @@ const StrategyEditor = {
                 });
             }
 
-            // 注入 state（作为新建策略的初始 config，strategyId 留空让其走"另存为新策略"）
+            // 注入 state（作为新建策略的初始 config，uuid 留空让其走"另存为新策略"）
             cfg.strategy_id = null;
             cfg.name = (cfg.name || '策略') + '（寻优预填）';
             this.state = cfg;
-            this.strategyId = null;
+            this.uuid = null;
             try {
                 this.renderFormFromState();
                 this.initParadigm();
@@ -862,7 +862,7 @@ const StrategyEditor = {
         if (metaGrid && this.mode === 'edit') {
             metaGrid.style.display = 'grid';
             const setText = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v || '—'; };
-            setText('f-meta-id', meta.strategyId);
+            setText('f-meta-id', meta.uuid);
             setText('f-meta-version', meta.currentVersion != null ? 'v' + meta.currentVersion : '—');
             setText('f-meta-created', meta.createdAt ? String(meta.createdAt).slice(0, 10) : '—');
             setText('f-meta-updated', meta.updatedAt ? String(meta.updatedAt).slice(0, 10) : '—');
@@ -883,16 +883,87 @@ const StrategyEditor = {
         const nameEl = document.getElementById('editorStrategyName');
         if (nameEl && meta.name) nameEl.textContent = meta.name;
         const subEl = document.getElementById('editorSubtitle');
-        if (subEl && meta.strategyId) {
+        if (subEl && meta.uuid) {
             const ver = meta.currentVersion != null ? 'v' + meta.currentVersion : '';
             const t = meta.updatedAt ? String(meta.updatedAt).slice(0, 16).replace('T', ' ') : '';
-            subEl.textContent = (meta.strategyId || '') + (ver ? ' · ' + ver : '') + (t ? ' · 最近保存 ' + t : '');
+            subEl.textContent = (meta.uuid || '') + (ver ? ' · ' + ver : '') + (t ? ' · 最近保存 ' + t : '');
             const backLink = document.createElement('a');
             backLink.href = StockApp.contextPath + '/quant/strategies';
             backLink.style.cssText = 'text-decoration:none;color:inherit;margin-right:8px;';
             backLink.textContent = '← 返回列表';
             subEl.insertBefore(backLink, subEl.firstChild);
         }
+        // 状态管理下拉按钮：根据 meta.status 渲染菜单项
+        this.renderStatusActions(meta.status);
+    },
+
+    /**
+     * 渲染状态管理下拉菜单项。
+     * 仅 VERIFIED/ACTIVE 显示（DRAFT 需先校验，ARCHIVED 终态）。
+     */
+    renderStatusActions(status) {
+        const wrap = document.getElementById('statusActionWrap');
+        const menu = document.getElementById('statusActionMenu');
+        if (!wrap || !menu) return;
+
+        const actions = (status === 'VERIFIED')
+            ? [
+                { target: 'ACTIVE',   label: '激活',     icon: 'bi-rocket-takeoff', verb: '激活为 ACTIVE' },
+                { target: 'DRAFT',    label: '退回草稿',  icon: 'bi-pencil',         verb: '退回草稿 DRAFT' },
+              ]
+            : (status === 'ACTIVE')
+            ? [{ target: 'ARCHIVED', label: '下线',     icon: 'bi-archive',         verb: '下线归档 ARCHIVED' }]
+            : [];
+
+        if (actions.length === 0) {
+            wrap.style.display = 'none';
+            menu.innerHTML = '';
+            return;
+        }
+        wrap.style.display = '';
+        menu.innerHTML = actions.map(a =>
+            `<li><a class="dropdown-item" href="javascript:void(0);" data-target="${a.target}" data-verb="${a.verb}"><i class="bi ${a.icon} me-2"></i>${a.label}</a></li>`
+        ).join('');
+        menu.querySelectorAll('[data-target]').forEach(el => {
+            el.addEventListener('click', () => this.confirmChangeStatus(el.dataset.target, el.dataset.verb));
+        });
+    },
+
+    /**
+     * 确认并调用后端状态变更接口。
+     */
+    confirmChangeStatus(target, verb) {
+        const sid = this.uuid;
+        if (!sid) {
+            StockApp.toast('无法获取策略ID', 'danger');
+            return;
+        }
+        const name = (this.meta && this.meta.name) || '';
+        StockApp.confirm({
+            title: '状态变更',
+            message: '确认将策略「' + name + '」「' + verb + '」？',
+            confirmText: '确认',
+            cancelText: '取消',
+            confirmClass: 'btn-primary',
+            icon: 'bi-arrow-repeat',
+        }).then(ok => {
+            if (!ok) return;
+            fetch(StockApp.contextPath + '/api/strategies/' + encodeURIComponent(sid) + '/status', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                body: JSON.stringify({ status: target }),
+            })
+                .then(r => r.json())
+                .then(resp => {
+                    if (resp.code === 200) {
+                        StockApp.toast(resp.message || '状态已更新', 'success');
+                        setTimeout(() => location.reload(), 600);
+                    } else {
+                        StockApp.toast(resp.message || '状态变更失败', 'danger');
+                    }
+                })
+                .catch(err => StockApp.toast('状态变更失败: ' + err.message, 'danger'));
+        });
     },
 
     /**
@@ -2704,7 +2775,7 @@ const StrategyEditor = {
     // ===================== 保存（两个分支） =====================
     /**
      * 保存草稿：复用 save()，但标记 _draftMode，保存成功后尝试把 status 设回 DRAFT。
-     * 新建模式因尚无 strategyId，仅提示（草稿语义由后端保存结果决定）。
+     * 新建模式因尚无 uuid，仅提示（草稿语义由后端保存结果决定）。
      */
     async saveDraft() {
         const draftBtn = document.getElementById('saveDraftBtn');
@@ -2783,7 +2854,7 @@ const StrategyEditor = {
      */
     saveEdit(configJson) {
         return new Promise((resolve, reject) => {
-            StockApp.post('/api/strategies/' + encodeURIComponent(this.strategyId) + '/config', {
+            StockApp.post('/api/strategies/' + encodeURIComponent(this.uuid) + '/config', {
                 configJson: configJson,
                 changelog: '编辑器保存',
                 expectedVersion: this.expectedVersion,
@@ -2794,11 +2865,11 @@ const StrategyEditor = {
                     // 草稿模式：尝试把 status 设回 DRAFT
                     const afterDraft = () => {
                         setTimeout(() => {
-                            location.href = StockApp.contextPath + '/quant/strategies/' + encodeURIComponent(this.strategyId) + '/versions';
+                            location.href = StockApp.contextPath + '/quant/strategies/' + encodeURIComponent(this.uuid) + '/versions';
                         }, 600);
                     };
-                    if (this._draftMode && this.strategyId) {
-                        fetch(StockApp.contextPath + '/api/strategies/' + encodeURIComponent(this.strategyId) + '/status', {
+                    if (this._draftMode && this.uuid) {
+                        fetch(StockApp.contextPath + '/api/strategies/' + encodeURIComponent(this.uuid) + '/status', {
                             method: 'PUT',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ status: 'DRAFT' }),
@@ -2842,10 +2913,10 @@ const StrategyEditor = {
                 changelog: this.mode === 'template' ? '从模板创建' : '编辑器新建',
             };
             StockApp.post('/api/strategies', body, (resp) => {
-                if (resp.code === 200 && resp.data && resp.data.strategyId) {
+                if (resp.code === 200 && resp.data && resp.data.uuid) {
                     StockApp.toast('策略已创建', 'success');
                     this.hideValidationErrorCard();
-                    const newId = resp.data.strategyId;
+                    const newId = resp.data.uuid;
                     setTimeout(() => {
                         location.href = StockApp.contextPath + '/quant/strategies/' + encodeURIComponent(newId) + '/versions';
                     }, 600);

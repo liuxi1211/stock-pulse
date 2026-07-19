@@ -6,7 +6,7 @@
  *   - GET /api/backtest/{backtestId}/report     BacktestReportVO
  *       {metrics, equityCurve{dates,values}, benchmarkCurve{dates,values}|null,
  *        dailyReturns[], trades[], orders[], positions[]}
- *   - GET /api/backtest/tasks?strategyId=&size=50  同策略其他区间（用于报告间导航）
+ *   - GET /api/backtest/tasks?uuid=&size=50  同策略其他区间（用于报告间导航）
  *   - POST /api/backtest/tasks/{taskId}/rerun   重跑
  *
  * 单位规则：
@@ -70,8 +70,8 @@
     }
 
     function loadSiblings() {
-        if (!state.basic || state.basic.strategyId == null) return;
-        StockApp.get('/api/backtest/tasks', { strategyId: state.basic.strategyId, page: 1, size: 50 }, function (resp) {
+        if (!state.basic || state.basic.strategyUuid == null) return;
+        StockApp.get('/api/backtest/tasks', { uuid: state.basic.strategyUuid, page: 1, size: 50 }, function (resp) {
             if (resp.code === 200 && resp.data) {
                 state.siblingTasks = (resp.data.list || resp.data.records || []).filter(function (t) {
                     return t.status === 'SUCCESS' && String(t.backtestId || t.id) !== String(state.backtestId);
@@ -84,7 +84,7 @@
     // ============ 渲染页头 ============
     function renderHeader() {
         const b = state.basic;
-        const stratName = b.strategyName || ('S-' + b.strategyId);
+        const stratName = b.strategyName || ('S-' + b.strategyUuid);
         const ver = b.versionNo || '?';
         const status = b.status || 'SUCCESS';
         const statusCls = 'bt-' + status.toLowerCase();
@@ -96,7 +96,7 @@
         document.getElementById('reportTitle').innerHTML = ''
             + '<span>' + e(stratName) + '</span>'
             + '<span style="font-size:14px;color:var(--text-muted);font-weight:400;">v' + e(ver) + '</span>'
-            + '<span class="mono" style="font-size:12px;color:var(--text-muted);font-weight:400;margin-left:6px;">S-' + e(b.strategyId != null ? b.strategyId : '?') + ' · BT-' + e(state.backtestId) + '</span>'
+            + '<span class="mono" style="font-size:12px;color:var(--text-muted);font-weight:400;margin-left:6px;">S-' + e(b.strategyUuid != null ? b.strategyUuid : '?') + ' · BT-' + e(state.backtestId) + '</span>'
             + '<span class="bt-status ' + statusCls + '" style="margin-left:8px;">' + e(status) + '</span>';
         document.getElementById('reportSubtitle').innerHTML = ''
             + '<span class="mono" style="color:var(--text-secondary);margin-right:8px;">' + e(start) + ' → ' + e(end) + '</span>'

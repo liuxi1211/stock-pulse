@@ -80,12 +80,13 @@ mvn spring-boot:run
 
 # 2) Python 计算服务（:8085）
 cd stock-engine
-conda activate stock
-pip install -r requirements.txt
-uvicorn main:app --host 127.0.0.1 --port 8085
+conda run -n stock python -m pip install -r requirements.txt
+conda run --no-capture-output -n stock python -m uvicorn main:app --host 127.0.0.1 --port 8085
 ```
 
 打开 http://localhost:8080 · 默认账号 `admin` / `admin123`
+
+Engine API 文档：http://127.0.0.1:8085/docs
 
 Tushare Token 配置在 `stock-watcher/src/main/resources/application-secret.properties`：
 ```properties
