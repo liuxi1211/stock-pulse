@@ -16,7 +16,11 @@ import com.arthur.stock.dto.tushare.DailyQueryDTO;
 import com.arthur.stock.dto.tushare.DailyQuoteDTO;
 import com.arthur.stock.dto.tushare.DividendDTO;
 import com.arthur.stock.dto.tushare.DividendQueryDTO;
+import com.arthur.stock.dto.tushare.ExpressDTO;
+import com.arthur.stock.dto.tushare.ExpressQueryDTO;
 import com.arthur.stock.dto.tushare.FinaIndicatorDTO;
+import com.arthur.stock.dto.tushare.ForecastDTO;
+import com.arthur.stock.dto.tushare.ForecastQueryDTO;
 import com.arthur.stock.dto.tushare.IncomeDTO;
 import com.arthur.stock.dto.tushare.IncomeQueryDTO;
 import com.arthur.stock.dto.tushare.IndexClassifyDTO;
@@ -185,6 +189,28 @@ public class TushareClient {
     public List<CashflowDTO> cashflow(CashflowQueryDTO param) {
         JSONObject params = buildCashflowParams(param);
         return query(TushareApiEnum.CASHFLOW, params, CashflowDTO.class);
+    }
+
+    /**
+     * 业绩预告接口（doc_id=45）。
+     *
+     * @param param 查询参数，tsCode / annDate / startDate / endDate / period 均可选
+     * @return 业绩预告数据列表
+     */
+    public List<ForecastDTO> forecast(ForecastQueryDTO param) {
+        JSONObject params = buildForecastParams(param);
+        return query(TushareApiEnum.FORECAST, params, ForecastDTO.class);
+    }
+
+    /**
+     * 业绩快报接口（doc_id=46）。
+     *
+     * @param param 查询参数，tsCode / annDate / startDate / endDate / period 均可选
+     * @return 业绩快报数据列表
+     */
+    public List<ExpressDTO> express(ExpressQueryDTO param) {
+        JSONObject params = buildExpressParams(param);
+        return query(TushareApiEnum.EXPRESS, params, ExpressDTO.class);
     }
 
     /**
@@ -622,6 +648,52 @@ public class TushareClient {
         }
         if (param.getCompType() != null) {
             params.put("comp_type", param.getCompType());
+        }
+        return params;
+    }
+
+    /**
+     * 构建 forecast 接口参数，非空字段才传入
+     */
+    private JSONObject buildForecastParams(ForecastQueryDTO param) {
+        JSONObject params = new JSONObject();
+        if (param.getTsCode() != null) {
+            params.put("ts_code", param.getTsCode());
+        }
+        if (param.getAnnDate() != null) {
+            params.put("ann_date", param.getAnnDate());
+        }
+        if (param.getStartDate() != null) {
+            params.put("start_date", param.getStartDate());
+        }
+        if (param.getEndDate() != null) {
+            params.put("end_date", param.getEndDate());
+        }
+        if (param.getPeriod() != null) {
+            params.put("period", param.getPeriod());
+        }
+        return params;
+    }
+
+    /**
+     * 构建 express 接口参数，非空字段才传入
+     */
+    private JSONObject buildExpressParams(ExpressQueryDTO param) {
+        JSONObject params = new JSONObject();
+        if (param.getTsCode() != null) {
+            params.put("ts_code", param.getTsCode());
+        }
+        if (param.getAnnDate() != null) {
+            params.put("ann_date", param.getAnnDate());
+        }
+        if (param.getStartDate() != null) {
+            params.put("start_date", param.getStartDate());
+        }
+        if (param.getEndDate() != null) {
+            params.put("end_date", param.getEndDate());
+        }
+        if (param.getPeriod() != null) {
+            params.put("period", param.getPeriod());
         }
         return params;
     }

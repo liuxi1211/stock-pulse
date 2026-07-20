@@ -74,6 +74,10 @@ tushare:
       permits-per-minute: 100
     cashflow:
       permits-per-minute: 100
+    forecast:
+      permits-per-minute: 100
+    express:
+      permits-per-minute: 100
 
 # ========== Auth Configuration ==========
 auth:

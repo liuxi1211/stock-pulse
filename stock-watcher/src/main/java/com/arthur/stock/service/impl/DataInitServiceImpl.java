@@ -45,7 +45,8 @@ public class DataInitServiceImpl implements DataInitService {
             InitStep.STOCK_BASIC, InitStep.TRADE_CAL, InitStep.INDEX_WEIGHT, InitStep.SW_INDUSTRY,
             InitStep.DAILY, InitStep.ADJ_FACTOR, InitStep.DIVIDEND,
             InitStep.NAMECHANGE, InitStep.SUSPEND_D, InitStep.STK_LIMIT,
-            InitStep.INCOME, InitStep.BALANCESHEET, InitStep.CASHFLOW);
+            InitStep.INCOME, InitStep.BALANCESHEET, InitStep.CASHFLOW,
+            InitStep.FORECAST, InitStep.EXPRESS);
 
     private final JdbcTemplate jdbcTemplate;
     private final StockBasicService stockBasicService;
@@ -61,6 +62,8 @@ public class DataInitServiceImpl implements DataInitService {
     private final IncomeService incomeService;
     private final BalancesheetService balancesheetService;
     private final CashflowService cashflowService;
+    private final ForecastService forecastService;
+    private final ExpressService expressService;
     private final CacheManager cacheManager;
 
     private final AtomicReference<DataInitProgress> progressRef = new AtomicReference<>(
@@ -134,6 +137,8 @@ public class DataInitServiceImpl implements DataInitService {
                 case INCOME -> executeIncome(stocks);
                 case BALANCESHEET -> executeBalancesheet(stocks);
                 case CASHFLOW -> executeCashflow(stocks);
+                case FORECAST -> executeForecast(stocks);
+                case EXPRESS -> executeExpress(stocks);
             }
         }
 
@@ -348,6 +353,38 @@ public class DataInitServiceImpl implements DataInitService {
         }
     }
 
+    private void executeForecast(List<StockBasicDTO> stocks) {
+        updateStep("拉取业绩预告数据");
+        progressRef.updateAndGet(p -> p.toBuilder().totalStocks(stocks.size()).processedStocks(0).build());
+        String startDate = LocalDate.now().minusYears(30).format(DATE_FMT);
+        String endDate = LocalDate.now().format(DATE_FMT);
+        for (int i = 0; i < stocks.size(); i++) {
+            String tsCode = stocks.get(i).getTsCode();
+            try {
+                forecastService.fetchAndSaveForecast(tsCode, startDate, endDate);
+            } catch (Exception e) {
+                log.warn("Failed to fetch forecast for {}: {}", tsCode, e.getMessage(), e);
+            }
+            reportProgress("拉取业绩预告数据", i + 1, stocks.size());
+        }
+    }
+
+    private void executeExpress(List<StockBasicDTO> stocks) {
+        updateStep("拉取业绩快报数据");
+        progressRef.updateAndGet(p -> p.toBuilder().totalStocks(stocks.size()).processedStocks(0).build());
+        String startDate = LocalDate.now().minusYears(30).format(DATE_FMT);
+        String endDate = LocalDate.now().format(DATE_FMT);
+        for (int i = 0; i < stocks.size(); i++) {
+            String tsCode = stocks.get(i).getTsCode();
+            try {
+                expressService.fetchAndSaveExpress(tsCode, startDate, endDate);
+            } catch (Exception e) {
+                log.warn("Failed to fetch express for {}: {}", tsCode, e.getMessage(), e);
+            }
+            reportProgress("拉取业绩快报数据", i + 1, stocks.size());
+        }
+    }
+
     // ==================== 辅助方法 ====================
 
     private List<StockBasicDTO> resolveStockList(List<InitStep> steps) {
@@ -510,7 +547,26 @@ public class DataInitServiceImpl implements DataInitService {
                     + "net_profit DECIMAL(20,4),minority_interest DECIMAL(20,4),"
                     + "undistributed_profit_in DECIMAL(20,4),update_flag VARCHAR(4),"
                     + "UNIQUE KEY uk_cashflow (ts_code, end_date, report_type),"
-                    + "INDEX idx_cashflow_tscode (ts_code, end_date)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4")
+                    + "INDEX idx_cashflow_tscode (ts_code, end_date)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"),
+            Map.entry("forecast", "CREATE TABLE IF NOT EXISTS forecast ("
+                    + "id BIGINT AUTO_INCREMENT PRIMARY KEY,"
+                    + "ts_code VARCHAR(16) NOT NULL,ann_date VARCHAR(8),end_date VARCHAR(8) NOT NULL,"
+                    + "type VARCHAR(16),p_change_min DECIMAL(20,4),p_change_max DECIMAL(20,4),"
+                    + "net_profit_min DECIMAL(20,4),net_profit_max DECIMAL(20,4),last_parent_net DECIMAL(20,4),"
+                    + "summary VARCHAR(1000),change_reason VARCHAR(2000),"
+                    + "UNIQUE KEY uk_forecast (ts_code, end_date, ann_date),"
+                    + "INDEX idx_forecast_tscode (ts_code, end_date)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"),
+            Map.entry("express", "CREATE TABLE IF NOT EXISTS express ("
+                    + "id BIGINT AUTO_INCREMENT PRIMARY KEY,"
+                    + "ts_code VARCHAR(16) NOT NULL,ann_date VARCHAR(8),end_date VARCHAR(8) NOT NULL,"
+                    + "revenue DECIMAL(20,4),operate_profit DECIMAL(20,4),total_profit DECIMAL(20,4),"
+                    + "n_income DECIMAL(20,4),total_assets DECIMAL(20,4),"
+                    + "total_hldr_eqy_exc_min_int DECIMAL(20,4),basic_eps DECIMAL(20,4),diluted_eps DECIMAL(20,4),"
+                    + "growth_yield DECIMAL(20,4),or_growth_yield DECIMAL(20,4),"
+                    + "yst_net_profit DECIMAL(20,4),bm_net_profit DECIMAL(20,4),bm_growth_sales DECIMAL(20,4),"
+                    + "update_flag VARCHAR(4),"
+                    + "UNIQUE KEY uk_express (ts_code, end_date),"
+                    + "INDEX idx_express_tscode (ts_code, end_date)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4")
     );
 
     private static final Map<String, String> CREATE_TABLE_SQL_SQLITE = Map.ofEntries(
@@ -635,7 +691,24 @@ public class DataInitServiceImpl implements DataInitService {
                     + "loss_fair_valu REAL,fin_exp REAL,loss_inv REAL,dec_def_inc_tax_assets REAL,"
                     + "inc_def_inc_tax_liab REAL,dec_inv REAL,dec_oper_rece REAL,inc_oper_payable REAL,"
                     + "net_profit REAL,minority_interest REAL,undistributed_profit_in REAL,update_flag TEXT,"
-                    + "UNIQUE (ts_code, end_date, report_type))")
+                    + "UNIQUE (ts_code, end_date, report_type))"),
+            Map.entry("forecast", "CREATE TABLE IF NOT EXISTS forecast ("
+                    + "id INTEGER PRIMARY KEY AUTOINCREMENT,"
+                    + "ts_code TEXT NOT NULL,ann_date TEXT,end_date TEXT NOT NULL,"
+                    + "type TEXT,p_change_min REAL,p_change_max REAL,"
+                    + "net_profit_min REAL,net_profit_max REAL,last_parent_net REAL,"
+                    + "summary TEXT,change_reason TEXT,"
+                    + "UNIQUE (ts_code, end_date, ann_date))"),
+            Map.entry("express", "CREATE TABLE IF NOT EXISTS express ("
+                    + "id INTEGER PRIMARY KEY AUTOINCREMENT,"
+                    + "ts_code TEXT NOT NULL,ann_date TEXT,end_date TEXT NOT NULL,"
+                    + "revenue REAL,operate_profit REAL,total_profit REAL,"
+                    + "n_income REAL,total_assets REAL,"
+                    + "total_hldr_eqy_exc_min_int REAL,basic_eps REAL,diluted_eps REAL,"
+                    + "growth_yield REAL,or_growth_yield REAL,"
+                    + "yst_net_profit REAL,bm_net_profit REAL,bm_growth_sales REAL,"
+                    + "update_flag TEXT,"
+                    + "UNIQUE (ts_code, end_date))")
     );
 
     private Map<String, String> getCreateTableSql() {

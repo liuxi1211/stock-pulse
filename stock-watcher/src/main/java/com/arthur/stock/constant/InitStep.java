@@ -20,7 +20,9 @@ public enum InitStep {
     STK_LIMIT("stk_limit", "涨跌停价", "stock_stk_limit"),
     INCOME("income", "利润表", "income"),
     BALANCESHEET("balancesheet", "资产负债表", "balancesheet"),
-    CASHFLOW("cashflow", "现金流量表", "cashflow");
+    CASHFLOW("cashflow", "现金流量表", "cashflow"),
+    FORECAST("forecast", "业绩预告", "forecast"),
+    EXPRESS("express", "业绩快报", "express");
 
     private final String code;
     private final String label;

@@ -3,6 +3,8 @@ package com.arthur.stock.task;
 import com.arthur.stock.service.BalancesheetService;
 import com.arthur.stock.service.BasicDataService;
 import com.arthur.stock.service.CashflowService;
+import com.arthur.stock.service.ExpressService;
+import com.arthur.stock.service.ForecastService;
 import com.arthur.stock.service.IncomeService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -20,6 +22,8 @@ import java.time.format.DateTimeFormatter;
  *   <li>每周日 17:30 拉取最近 2 年 income（利润表，错峰避免限流）；</li>
  *   <li>每周日 18:00 拉取最近 2 年 balancesheet（资产负债表）；</li>
  *   <li>每周日 18:30 拉取最近 2 年 cashflow（现金流量表）。</li>
+ *   <li>每周日 19:00 拉取最近 2 年 forecast（业绩预告）；</li>
+ *   <li>每周日 19:30 拉取最近 2 年 express（业绩快报）。</li>
  * </ul>
  * <p>
  * daily_basic 在 DailyUpdateTask（16:00）之后执行，确保 trade_date 当日数据已就绪。
@@ -35,6 +39,8 @@ public class BasicDataTask {
     private final IncomeService incomeService;
     private final BalancesheetService balancesheetService;
     private final CashflowService cashflowService;
+    private final ForecastService forecastService;
+    private final ExpressService expressService;
 
     /** 每日 16:10 拉取当日 daily_basic */
     @Scheduled(cron = "0 10 16 * * MON-FRI")
@@ -102,6 +108,34 @@ public class BasicDataTask {
             log.info("===== BasicDataTask cashflow done, saved={} =====", n);
         } catch (Exception e) {
             log.error("BasicDataTask cashflow 失败", e);
+        }
+    }
+
+    /** 每周日 19:00 拉取最近 2 年业绩预告 forecast（doc_id=45） */
+    @Scheduled(cron = "0 0 19 * * SUN")
+    public void fetchForecast() {
+        String endPeriod = LocalDate.now().format(DATE_FMT);
+        String startPeriod = LocalDate.now().minusYears(2).format(DATE_FMT);
+        log.info("===== BasicDataTask forecast start, [{}~{}] =====", startPeriod, endPeriod);
+        try {
+            int n = forecastService.fetchAndSaveAllByRange(startPeriod, endPeriod);
+            log.info("===== BasicDataTask forecast done, saved={} =====", n);
+        } catch (Exception e) {
+            log.error("BasicDataTask forecast 失败", e);
+        }
+    }
+
+    /** 每周日 19:30 拉取最近 2 年业绩快报 express（doc_id=46） */
+    @Scheduled(cron = "0 30 19 * * SUN")
+    public void fetchExpress() {
+        String endPeriod = LocalDate.now().format(DATE_FMT);
+        String startPeriod = LocalDate.now().minusYears(2).format(DATE_FMT);
+        log.info("===== BasicDataTask express start, [{}~{}] =====", startPeriod, endPeriod);
+        try {
+            int n = expressService.fetchAndSaveAllByRange(startPeriod, endPeriod);
+            log.info("===== BasicDataTask express done, saved={} =====", n);
+        } catch (Exception e) {
+            log.error("BasicDataTask express 失败", e);
         }
     }
 }

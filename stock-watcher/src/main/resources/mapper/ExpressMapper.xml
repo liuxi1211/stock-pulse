@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.arthur.stock.mapper.ExpressMapper">
+
+    <resultMap id="expressMap" type="com.arthur.stock.model.ExpressDO">
+        <id column="id" property="id"/>
+        <result column="ts_code" property="tsCode"/>
+        <result column="ann_date" property="annDate"/>
+        <result column="end_date" property="endDate"/>
+        <result column="revenue" property="revenue"/>
+        <result column="operate_profit" property="operateProfit"/>
+        <result column="total_profit" property="totalProfit"/>
+        <result column="n_income" property="nIncome"/>
+        <result column="total_assets" property="totalAssets"/>
+        <result column="total_hldr_eqy_exc_min_int" property="totalHldrEqyExcMinInt"/>
+        <result column="basic_eps" property="basicEps"/>
+        <result column="diluted_eps" property="dilutedEps"/>
+        <result column="growth_yield" property="growthYield"/>
+        <result column="or_growth_yield" property="orGrowthYield"/>
+        <result column="yst_net_profit" property="ystNetProfit"/>
+        <result column="bm_net_profit" property="bmNetProfit"/>
+        <result column="bm_growth_sales" property="bmGrowthSales"/>
+        <result column="update_flag" property="updateFlag"/>
+    </resultMap>
+
+    <insert id="insertBatch">
+        INSERT INTO express (ts_code, ann_date, end_date,
+                             revenue, operate_profit, total_profit, n_income,
+                             total_assets, total_hldr_eqy_exc_min_int, basic_eps, diluted_eps,
+                             growth_yield, or_growth_yield, yst_net_profit, bm_net_profit, bm_growth_sales,
+                             update_flag) VALUES
+        <foreach collection="list" item="i" separator=",">
+            (#{i.tsCode}, #{i.annDate}, #{i.endDate},
+             #{i.revenue}, #{i.operateProfit}, #{i.totalProfit}, #{i.nIncome},
+             #{i.totalAssets}, #{i.totalHldrEqyExcMinInt}, #{i.basicEps}, #{i.dilutedEps},
+             #{i.growthYield}, #{i.orGrowthYield}, #{i.ystNetProfit}, #{i.bmNetProfit}, #{i.bmGrowthSales},
+             #{i.updateFlag})
+        </foreach>
+    </insert>
+
+    <delete id="deleteBatchByKeys">
+        DELETE FROM express WHERE
+        <foreach collection="list" item="i" separator=" OR ">
+            (ts_code = #{i.tsCode} AND end_date = #{i.endDate})
+        </foreach>
+    </delete>
+
+    <select id="selectLatestAnnouncedBefore" resultMap="expressMap">
+        SELECT * FROM express
+        WHERE ts_code = #{tsCode}
+          AND ann_date IS NOT NULL
+          AND ann_date != ''
+          AND ann_date &lt;= #{tradeDate}
+        ORDER BY end_date DESC
+        LIMIT 1
+    </select>
+
+</mapper>

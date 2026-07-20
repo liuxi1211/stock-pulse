@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.arthur.stock.mapper.ForecastMapper">
+
+    <resultMap id="forecastMap" type="com.arthur.stock.model.ForecastDO">
+        <id column="id" property="id"/>
+        <result column="ts_code" property="tsCode"/>
+        <result column="ann_date" property="annDate"/>
+        <result column="end_date" property="endDate"/>
+        <result column="type" property="type"/>
+        <result column="p_change_min" property="pChangeMin"/>
+        <result column="p_change_max" property="pChangeMax"/>
+        <result column="net_profit_min" property="netProfitMin"/>
+        <result column="net_profit_max" property="netProfitMax"/>
+        <result column="last_parent_net" property="lastParentNet"/>
+        <result column="summary" property="summary"/>
+        <result column="change_reason" property="changeReason"/>
+    </resultMap>
+
+    <insert id="insertBatch">
+        INSERT INTO forecast (ts_code, ann_date, end_date, type,
+                              p_change_min, p_change_max, net_profit_min, net_profit_max,
+                              last_parent_net, summary, change_reason) VALUES
+        <foreach collection="list" item="i" separator=",">
+            (#{i.tsCode}, #{i.annDate}, #{i.endDate}, #{i.type},
+             #{i.pChangeMin}, #{i.pChangeMax}, #{i.netProfitMin}, #{i.netProfitMax},
+             #{i.lastParentNet}, #{i.summary}, #{i.changeReason})
+        </foreach>
+    </insert>
+
+    <delete id="deleteBatchByKeys">
+        DELETE FROM forecast WHERE
+        <foreach collection="list" item="i" separator=" OR ">
+            (ts_code = #{i.tsCode} AND end_date = #{i.endDate} AND ann_date = #{i.annDate})
+        </foreach>
+    </delete>
+
+    <select id="selectLatestAnnouncedBefore" resultMap="forecastMap">
+        SELECT * FROM forecast
+        WHERE ts_code = #{tsCode}
+          AND ann_date IS NOT NULL
+          AND ann_date != ''
+          AND ann_date &lt;= #{tradeDate}
+        ORDER BY end_date DESC, ann_date DESC
+        LIMIT 1
+    </select>
+
+</mapper>

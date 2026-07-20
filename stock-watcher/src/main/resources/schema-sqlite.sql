@@ -521,6 +521,48 @@ CREATE TABLE IF NOT EXISTS cashflow (
 );
 CREATE INDEX IF NOT EXISTS idx_cashflow_tscode ON cashflow (ts_code, end_date);
 
+-- 27. 业绩预告（tushare forecast，doc_id=45，保留多次预告历史）
+CREATE TABLE IF NOT EXISTS forecast (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts_code           TEXT    NOT NULL,
+    ann_date          TEXT,
+    end_date          TEXT    NOT NULL,
+    type              TEXT,
+    p_change_min      REAL,
+    p_change_max      REAL,
+    net_profit_min    REAL,
+    net_profit_max    REAL,
+    last_parent_net  REAL,
+    summary           TEXT,
+    change_reason     TEXT,
+    UNIQUE (ts_code, end_date, ann_date)
+);
+CREATE INDEX IF NOT EXISTS idx_forecast_tscode ON forecast (ts_code, end_date);
+
+-- 28. 业绩快报（tushare express，doc_id=46，一个报告期一条快报）
+CREATE TABLE IF NOT EXISTS express (
+    id                              INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts_code                         TEXT    NOT NULL,
+    ann_date                        TEXT,
+    end_date                        TEXT    NOT NULL,
+    revenue                         REAL,
+    operate_profit                  REAL,
+    total_profit                    REAL,
+    n_income                        REAL,
+    total_assets                    REAL,
+    total_hldr_eqy_exc_min_int      REAL,
+    basic_eps                       REAL,
+    diluted_eps                     REAL,
+    growth_yield                    REAL,
+    or_growth_yield                 REAL,
+    yst_net_profit                  REAL,
+    bm_net_profit                   REAL,
+    bm_growth_sales                 REAL,
+    update_flag                     TEXT,
+    UNIQUE (ts_code, end_date)
+);
+CREATE INDEX IF NOT EXISTS idx_express_tscode ON express (ts_code, end_date);
+
 -- 初始管理员账号（仅当表为空时插入，默认密码: admin123）
 INSERT INTO sys_user (username, password, enabled, role)
 SELECT 'admin', '$2a$10$pfuIlLGBbNZqO5xXa9oRKeEFABc4FIxs2SVY46UUG1xpA7o9tGn9u', 1, 'ADMIN'

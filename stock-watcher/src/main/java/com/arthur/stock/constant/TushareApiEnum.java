@@ -99,7 +99,18 @@ public enum TushareApiEnum {
                     + "prov_depr_assets,depr_fa_coga_dpba,amort_intang,amort_lt_deferred_exp,loss_disp_fa,"
                     + "loss_scr_fa,loss_fair_valu,fin_exp,loss_inv,dec_def_inc_tax_assets,inc_def_inc_tax_liab,"
                     + "dec_inv,dec_oper_rece,inc_oper_payable,net_profit,minority_interest,undistributed_profit_in,"
-                    + "update_flag");
+                    + "update_flag"),
+
+    /** 业绩预告（doc_id=45） */
+    FORECAST("forecast",
+            "ts_code,ann_date,end_date,type,p_change_min,p_change_max,"
+                    + "net_profit_min,net_profit_max,last_parent_net,summary,change_reason"),
+
+    /** 业绩快报（doc_id=46） */
+    EXPRESS("express",
+            "ts_code,ann_date,end_date,revenue,operate_profit,total_profit,n_income,"
+                    + "total_assets,total_hldr_eqy_exc_min_int,basic_eps,diluted_eps,"
+                    + "growth_yield,or_growth_yield,yst_net_profit,bm_net_profit,bm_growth_sales,update_flag");
 
     private final String apiName;
     private final String fields;

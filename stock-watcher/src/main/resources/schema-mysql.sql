@@ -524,6 +524,48 @@ CREATE TABLE IF NOT EXISTS cashflow (
     INDEX idx_cashflow_tscode (ts_code, end_date)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='现金流量表';
 
+-- 27. 业绩预告（tushare forecast，doc_id=45，保留多次预告历史）
+CREATE TABLE IF NOT EXISTS forecast (
+    id                BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
+    ts_code           VARCHAR(16) NOT NULL COMMENT '股票代码',
+    ann_date          VARCHAR(8)  COMMENT '公告日期（YYYYMMDD）',
+    end_date          VARCHAR(8)  NOT NULL COMMENT '报告期（YYYYMMDD）',
+    type              VARCHAR(16) COMMENT '业绩预告类型：预增/预减/扭亏/续盈/续亏/略增/略减/不确定',
+    p_change_min      DECIMAL(20,4) COMMENT '预告净利润变动幅度下限（%）',
+    p_change_max      DECIMAL(20,4) COMMENT '预告净利润变动幅度上限（%）',
+    net_profit_min    DECIMAL(20,4) COMMENT '预告净利润下限（万元）',
+    net_profit_max    DECIMAL(20,4) COMMENT '预告净利润上限（万元）',
+    last_parent_net  DECIMAL(20,4) COMMENT '上年同期归属母公司净利润',
+    summary           VARCHAR(1000) COMMENT '业绩预告内容',
+    change_reason     VARCHAR(2000) COMMENT '业绩变动原因',
+    UNIQUE KEY uk_forecast (ts_code, end_date, ann_date),
+    INDEX idx_forecast_tscode (ts_code, end_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='业绩预告表';
+
+-- 28. 业绩快报（tushare express，doc_id=46，一个报告期一条快报）
+CREATE TABLE IF NOT EXISTS express (
+    id                              BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
+    ts_code                         VARCHAR(16) NOT NULL COMMENT '股票代码',
+    ann_date                         VARCHAR(8)  COMMENT '公告日期（YYYYMMDD）',
+    end_date                         VARCHAR(8)  NOT NULL COMMENT '报告期（YYYYMMDD）',
+    revenue                          DECIMAL(20,4) COMMENT '营业收入',
+    operate_profit                   DECIMAL(20,4) COMMENT '营业利润',
+    total_profit                     DECIMAL(20,4) COMMENT '利润总额',
+    n_income                         DECIMAL(20,4) COMMENT '净利润',
+    total_assets                     DECIMAL(20,4) COMMENT '总资产',
+    total_hldr_eqy_exc_min_int      DECIMAL(20,4) COMMENT '股东权益合计-不含少数股东权益',
+    basic_eps                        DECIMAL(20,4) COMMENT '每股收益（摊薄）',
+    diluted_eps                      DECIMAL(20,4) COMMENT '每股收益（摊薄）（稀释）',
+    growth_yield                     DECIMAL(20,4) COMMENT '净利润增长率（%）',
+    or_growth_yield                  DECIMAL(20,4) COMMENT '营业收入增长率（%）',
+    yst_net_profit                   DECIMAL(20,4) COMMENT '上年三季度净利润',
+    bm_net_profit                    DECIMAL(20,4) COMMENT '上年全年净利润',
+    bm_growth_sales                  DECIMAL(20,4) COMMENT '上年全年营业收入增长率（%）',
+    update_flag                      VARCHAR(4)  COMMENT '更新标识',
+    UNIQUE KEY uk_express (ts_code, end_date),
+    INDEX idx_express_tscode (ts_code, end_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='业绩快报表';
+
 -- 初始管理员账号（仅当表为空时插入，默认密码: admin123）
 INSERT INTO sys_user (username, password, enabled, role)
 SELECT 'admin', '$2a$10$pfuIlLGBbNZqO5xXa9oRKeEFABc4FIxs2SVY46UUG1xpA7o9tGn9u', 1, 'ADMIN'
