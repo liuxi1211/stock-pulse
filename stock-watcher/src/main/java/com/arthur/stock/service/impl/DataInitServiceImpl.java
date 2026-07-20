@@ -44,7 +44,8 @@ public class DataInitServiceImpl implements DataInitService {
     private static final List<InitStep> EXECUTION_ORDER = List.of(
             InitStep.STOCK_BASIC, InitStep.TRADE_CAL, InitStep.INDEX_WEIGHT, InitStep.SW_INDUSTRY,
             InitStep.DAILY, InitStep.ADJ_FACTOR, InitStep.DIVIDEND,
-            InitStep.NAMECHANGE, InitStep.SUSPEND_D, InitStep.STK_LIMIT);
+            InitStep.NAMECHANGE, InitStep.SUSPEND_D, InitStep.STK_LIMIT,
+            InitStep.INCOME, InitStep.BALANCESHEET, InitStep.CASHFLOW);
 
     private final JdbcTemplate jdbcTemplate;
     private final StockBasicService stockBasicService;
@@ -57,6 +58,9 @@ public class DataInitServiceImpl implements DataInitService {
     private final StockNamechangeService stockNamechangeService;
     private final StockSuspendDService stockSuspendDService;
     private final StockStkLimitService stockStkLimitService;
+    private final IncomeService incomeService;
+    private final BalancesheetService balancesheetService;
+    private final CashflowService cashflowService;
     private final CacheManager cacheManager;
 
     private final AtomicReference<DataInitProgress> progressRef = new AtomicReference<>(
@@ -127,6 +131,9 @@ public class DataInitServiceImpl implements DataInitService {
                 case NAMECHANGE -> stockNamechangeService.fetchAndSaveAll();
                 case SUSPEND_D -> stockSuspendDService.fetchAndSaveAll();
                 case STK_LIMIT -> stockStkLimitService.fetchAndSaveAll();
+                case INCOME -> executeIncome(stocks);
+                case BALANCESHEET -> executeBalancesheet(stocks);
+                case CASHFLOW -> executeCashflow(stocks);
             }
         }
 
@@ -293,6 +300,54 @@ public class DataInitServiceImpl implements DataInitService {
         }
     }
 
+    private void executeIncome(List<StockBasicDTO> stocks) {
+        updateStep("拉取利润表数据");
+        progressRef.updateAndGet(p -> p.toBuilder().totalStocks(stocks.size()).processedStocks(0).build());
+        String startDate = LocalDate.now().minusYears(30).format(DATE_FMT);
+        String endDate = LocalDate.now().format(DATE_FMT);
+        for (int i = 0; i < stocks.size(); i++) {
+            String tsCode = stocks.get(i).getTsCode();
+            try {
+                incomeService.fetchAndSaveIncome(tsCode, startDate, endDate);
+            } catch (Exception e) {
+                log.warn("Failed to fetch income for {}: {}", tsCode, e.getMessage(), e);
+            }
+            reportProgress("拉取利润表数据", i + 1, stocks.size());
+        }
+    }
+
+    private void executeBalancesheet(List<StockBasicDTO> stocks) {
+        updateStep("拉取资产负债表数据");
+        progressRef.updateAndGet(p -> p.toBuilder().totalStocks(stocks.size()).processedStocks(0).build());
+        String startDate = LocalDate.now().minusYears(30).format(DATE_FMT);
+        String endDate = LocalDate.now().format(DATE_FMT);
+        for (int i = 0; i < stocks.size(); i++) {
+            String tsCode = stocks.get(i).getTsCode();
+            try {
+                balancesheetService.fetchAndSaveBalancesheet(tsCode, startDate, endDate);
+            } catch (Exception e) {
+                log.warn("Failed to fetch balancesheet for {}: {}", tsCode, e.getMessage(), e);
+            }
+            reportProgress("拉取资产负债表数据", i + 1, stocks.size());
+        }
+    }
+
+    private void executeCashflow(List<StockBasicDTO> stocks) {
+        updateStep("拉取现金流量表数据");
+        progressRef.updateAndGet(p -> p.toBuilder().totalStocks(stocks.size()).processedStocks(0).build());
+        String startDate = LocalDate.now().minusYears(30).format(DATE_FMT);
+        String endDate = LocalDate.now().format(DATE_FMT);
+        for (int i = 0; i < stocks.size(); i++) {
+            String tsCode = stocks.get(i).getTsCode();
+            try {
+                cashflowService.fetchAndSaveCashflow(tsCode, startDate, endDate);
+            } catch (Exception e) {
+                log.warn("Failed to fetch cashflow for {}: {}", tsCode, e.getMessage(), e);
+            }
+            reportProgress("拉取现金流量表数据", i + 1, stocks.size());
+        }
+    }
+
     // ==================== 辅助方法 ====================
 
     private List<StockBasicDTO> resolveStockList(List<InitStep> steps) {
@@ -379,7 +434,83 @@ public class DataInitServiceImpl implements DataInitService {
                     + "ts_code VARCHAR(16) NOT NULL,trade_date VARCHAR(8) NOT NULL,"
                     + "pre_close DOUBLE,up_limit DOUBLE,down_limit DOUBLE,"
                     + "PRIMARY KEY (ts_code, trade_date),"
-                    + "INDEX idx_limit_tscode_date (ts_code, trade_date)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4")
+                    + "INDEX idx_limit_tscode_date (ts_code, trade_date)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"),
+            Map.entry("income", "CREATE TABLE IF NOT EXISTS income ("
+                    + "id BIGINT AUTO_INCREMENT PRIMARY KEY,"
+                    + "ts_code VARCHAR(16) NOT NULL,ann_date VARCHAR(8),f_ann_date VARCHAR(8),"
+                    + "end_date VARCHAR(8) NOT NULL,report_type VARCHAR(4),comp_type VARCHAR(4),"
+                    + "basic_eps DECIMAL(20,4),diluted_eps DECIMAL(20,4),total_revenue DECIMAL(20,4),"
+                    + "revenue DECIMAL(20,4),total_cogs DECIMAL(20,4),operate_cost DECIMAL(20,4),"
+                    + "operate_profit DECIMAL(20,4),non_oper_income DECIMAL(20,4),non_oper_exp DECIMAL(20,4),"
+                    + "total_profit DECIMAL(20,4),n_income DECIMAL(20,4),n_income_attr_p DECIMAL(20,4),"
+                    + "minority_interest DECIMAL(20,4),adjust_profit DECIMAL(20,4),income_tax DECIMAL(20,4),"
+                    + "n_income_yoy DECIMAL(20,4),dt_profit_yoy DECIMAL(20,4),sell_exp DECIMAL(20,4),"
+                    + "admin_exp DECIMAL(20,4),financial_exp DECIMAL(20,4),rd_exp DECIMAL(20,4),"
+                    + "impair_end_invest DECIMAL(20,4),impair_end_oper DECIMAL(20,4),"
+                    + "invest_income DECIMAL(20,4),invest_income_inc DECIMAL(20,4),invest_income_dec DECIMAL(20,4),"
+                    + "fairvalue_change_income DECIMAL(20,4),exchange_gain DECIMAL(20,4),"
+                    + "asset_dispose_income DECIMAL(20,4),other_income DECIMAL(20,4),operate_n_income DECIMAL(20,4),"
+                    + "credit_impair_loss DECIMAL(20,4),asset_impair_loss DECIMAL(20,4),"
+                    + "bbit DECIMAL(20,4),bbit_yoy DECIMAL(20,4),operate_profit_income_yoy DECIMAL(20,4),"
+                    + "update_flag VARCHAR(4),"
+                    + "UNIQUE KEY uk_income (ts_code, end_date, report_type),"
+                    + "INDEX idx_income_tscode (ts_code, end_date)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"),
+            Map.entry("balancesheet", "CREATE TABLE IF NOT EXISTS balancesheet ("
+                    + "id BIGINT AUTO_INCREMENT PRIMARY KEY,"
+                    + "ts_code VARCHAR(16) NOT NULL,ann_date VARCHAR(8),f_ann_date VARCHAR(8),"
+                    + "end_date VARCHAR(8) NOT NULL,report_type VARCHAR(4),comp_type VARCHAR(4),"
+                    + "monetary_funds DECIMAL(20,4),accounts_rece DECIMAL(20,4),notes_rece DECIMAL(20,4),"
+                    + "accounts_rece_fin DECIMAL(20,4),other_rece DECIMAL(20,4),prepayment DECIMAL(20,4),"
+                    + "dividends_rece DECIMAL(20,4),int_rece DECIMAL(20,4),inventories DECIMAL(20,4),"
+                    + "non_current_assets_in_1_yr DECIMAL(20,4),other_current_assets DECIMAL(20,4),"
+                    + "total_current_assets DECIMAL(20,4),equity_joint_cap DECIMAL(20,4),"
+                    + "lt_receivable DECIMAL(20,4),eqt_invest DECIMAL(20,4),inv_real_estate DECIMAL(20,4),"
+                    + "fix_assets_nca DECIMAL(20,4),cip DECIMAL(20,4),construction_materials DECIMAL(20,4),"
+                    + "intang_assets DECIMAL(20,4),goodwill DECIMAL(20,4),lt_amort_deferred_exp DECIMAL(20,4),"
+                    + "defer_tax_assets DECIMAL(20,4),other_non_current_assets DECIMAL(20,4),"
+                    + "total_non_current_assets DECIMAL(20,4),total_assets DECIMAL(20,4),"
+                    + "lt_borr DECIMAL(20,4),notes_payable DECIMAL(20,4),accounts_payable DECIMAL(20,4),"
+                    + "accounts_payable_fin DECIMAL(20,4),prepayment_receivables DECIMAL(20,4),"
+                    + "wage_payable DECIMAL(20,4),taxes_surcharges DECIMAL(20,4),other_payable DECIMAL(20,4),"
+                    + "non_current_liab_in_1_yr DECIMAL(20,4),other_current_liab DECIMAL(20,4),"
+                    + "total_current_liab DECIMAL(20,4),long_term_borr DECIMAL(20,4),ppayable_bonds DECIMAL(20,4),"
+                    + "long_term_payable DECIMAL(20,4),specific_payable DECIMAL(20,4),estimated_liab DECIMAL(20,4),"
+                    + "defer_tax_liab DECIMAL(20,4),defer_inc_non_curr_liab DECIMAL(20,4),"
+                    + "other_non_current_liab DECIMAL(20,4),total_non_current_liab DECIMAL(20,4),"
+                    + "total_liab DECIMAL(20,4),share_capital DECIMAL(20,4),capital_reserve DECIMAL(20,4),"
+                    + "treasury_stock DECIMAL(20,4),specific_reserves DECIMAL(20,4),surplus_reserve DECIMAL(20,4),"
+                    + "general_risk_reserve DECIMAL(20,4),undistributed_profit DECIMAL(20,4),"
+                    + "equity_parent_company DECIMAL(20,4),minority_interest DECIMAL(20,4),"
+                    + "total_equity DECIMAL(20,4),total_liab_equity DECIMAL(20,4),"
+                    + "accounts_rece_decr DECIMAL(20,4),accounts_rece_fin_decr DECIMAL(20,4),"
+                    + "minority_interest_inc DECIMAL(20,4),minority_interest_dec DECIMAL(20,4),"
+                    + "update_flag VARCHAR(4),"
+                    + "UNIQUE KEY uk_balancesheet (ts_code, end_date, report_type),"
+                    + "INDEX idx_balancesheet_tscode (ts_code, end_date)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"),
+            Map.entry("cashflow", "CREATE TABLE IF NOT EXISTS cashflow ("
+                    + "id BIGINT AUTO_INCREMENT PRIMARY KEY,"
+                    + "ts_code VARCHAR(16) NOT NULL,ann_date VARCHAR(8),f_ann_date VARCHAR(8),"
+                    + "end_date VARCHAR(8) NOT NULL,report_type VARCHAR(4),comp_type VARCHAR(4),"
+                    + "n_cashflow_act DECIMAL(20,4),n_cashflow_inv_act DECIMAL(20,4),"
+                    + "n_cash_flows_fnc_act DECIMAL(20,4),free_cashflow DECIMAL(20,4),"
+                    + "c_fr_sale_sg DECIMAL(20,4),c_fr_oth_sg DECIMAL(20,4),c_paid_goods_s DECIMAL(20,4),"
+                    + "c_paid_to_for_empl DECIMAL(20,4),c_paid_for_taxes DECIMAL(20,4),c_paid_oth_op_f DECIMAL(20,4),"
+                    + "c_paid_invest DECIMAL(20,4),c_paid_invest_f DECIMAL(20,4),"
+                    + "c_pay_acq_const_fiolta DECIMAL(20,4),c_pay_acq_int_long_loan DECIMAL(20,4),"
+                    + "disp_fix_assets_oth DECIMAL(20,4),n_invest_loss DECIMAL(20,4),"
+                    + "c_fr_fnc_loan DECIMAL(20,4),c_fr_fnc_oth DECIMAL(20,4),proceeds_long_loan DECIMAL(20,4),"
+                    + "c_paid_fin_fees DECIMAL(20,4),c_pay_dist_dpcp_int_exp DECIMAL(20,4),"
+                    + "end_bal_cash DECIMAL(20,4),beg_bal_cash DECIMAL(20,4),n_cash_equ DECIMAL(20,4),"
+                    + "n_increase_incl_child DECIMAL(20,4),prov_depr_assets DECIMAL(20,4),"
+                    + "depr_fa_coga_dpba DECIMAL(20,4),amort_intang DECIMAL(20,4),"
+                    + "amort_lt_deferred_exp DECIMAL(20,4),loss_disp_fa DECIMAL(20,4),loss_scr_fa DECIMAL(20,4),"
+                    + "loss_fair_valu DECIMAL(20,4),fin_exp DECIMAL(20,4),loss_inv DECIMAL(20,4),"
+                    + "dec_def_inc_tax_assets DECIMAL(20,4),inc_def_inc_tax_liab DECIMAL(20,4),"
+                    + "dec_inv DECIMAL(20,4),dec_oper_rece DECIMAL(20,4),inc_oper_payable DECIMAL(20,4),"
+                    + "net_profit DECIMAL(20,4),minority_interest DECIMAL(20,4),"
+                    + "undistributed_profit_in DECIMAL(20,4),update_flag VARCHAR(4),"
+                    + "UNIQUE KEY uk_cashflow (ts_code, end_date, report_type),"
+                    + "INDEX idx_cashflow_tscode (ts_code, end_date)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4")
     );
 
     private static final Map<String, String> CREATE_TABLE_SQL_SQLITE = Map.ofEntries(
@@ -450,7 +581,61 @@ public class DataInitServiceImpl implements DataInitService {
             Map.entry("stock_stk_limit", "CREATE TABLE IF NOT EXISTS stock_stk_limit ("
                     + "ts_code TEXT NOT NULL,trade_date TEXT NOT NULL,"
                     + "pre_close REAL,up_limit REAL,down_limit REAL,"
-                    + "PRIMARY KEY (ts_code, trade_date))")
+                    + "PRIMARY KEY (ts_code, trade_date))"),
+            Map.entry("income", "CREATE TABLE IF NOT EXISTS income ("
+                    + "id INTEGER PRIMARY KEY AUTOINCREMENT,"
+                    + "ts_code TEXT NOT NULL,ann_date TEXT,f_ann_date TEXT,"
+                    + "end_date TEXT NOT NULL,report_type TEXT,comp_type TEXT,"
+                    + "basic_eps REAL,diluted_eps REAL,total_revenue REAL,revenue REAL,"
+                    + "total_cogs REAL,operate_cost REAL,operate_profit REAL,non_oper_income REAL,non_oper_exp REAL,"
+                    + "total_profit REAL,n_income REAL,n_income_attr_p REAL,minority_interest REAL,"
+                    + "adjust_profit REAL,income_tax REAL,n_income_yoy REAL,dt_profit_yoy REAL,"
+                    + "sell_exp REAL,admin_exp REAL,financial_exp REAL,rd_exp REAL,"
+                    + "impair_end_invest REAL,impair_end_oper REAL,invest_income REAL,"
+                    + "invest_income_inc REAL,invest_income_dec REAL,fairvalue_change_income REAL,"
+                    + "exchange_gain REAL,asset_dispose_income REAL,other_income REAL,operate_n_income REAL,"
+                    + "credit_impair_loss REAL,asset_impair_loss REAL,bbit REAL,bbit_yoy REAL,"
+                    + "operate_profit_income_yoy REAL,update_flag TEXT,"
+                    + "UNIQUE (ts_code, end_date, report_type))"),
+            Map.entry("balancesheet", "CREATE TABLE IF NOT EXISTS balancesheet ("
+                    + "id INTEGER PRIMARY KEY AUTOINCREMENT,"
+                    + "ts_code TEXT NOT NULL,ann_date TEXT,f_ann_date TEXT,"
+                    + "end_date TEXT NOT NULL,report_type TEXT,comp_type TEXT,"
+                    + "monetary_funds REAL,accounts_rece REAL,notes_rece REAL,accounts_rece_fin REAL,"
+                    + "other_rece REAL,prepayment REAL,dividends_rece REAL,int_rece REAL,inventories REAL,"
+                    + "non_current_assets_in_1_yr REAL,other_current_assets REAL,total_current_assets REAL,"
+                    + "equity_joint_cap REAL,lt_receivable REAL,eqt_invest REAL,inv_real_estate REAL,"
+                    + "fix_assets_nca REAL,cip REAL,construction_materials REAL,intang_assets REAL,goodwill REAL,"
+                    + "lt_amort_deferred_exp REAL,defer_tax_assets REAL,other_non_current_assets REAL,"
+                    + "total_non_current_assets REAL,total_assets REAL,lt_borr REAL,notes_payable REAL,"
+                    + "accounts_payable REAL,accounts_payable_fin REAL,prepayment_receivables REAL,"
+                    + "wage_payable REAL,taxes_surcharges REAL,other_payable REAL,"
+                    + "non_current_liab_in_1_yr REAL,other_current_liab REAL,total_current_liab REAL,"
+                    + "long_term_borr REAL,ppayable_bonds REAL,long_term_payable REAL,specific_payable REAL,"
+                    + "estimated_liab REAL,defer_tax_liab REAL,defer_inc_non_curr_liab REAL,"
+                    + "other_non_current_liab REAL,total_non_current_liab REAL,total_liab REAL,"
+                    + "share_capital REAL,capital_reserve REAL,treasury_stock REAL,specific_reserves REAL,"
+                    + "surplus_reserve REAL,general_risk_reserve REAL,undistributed_profit REAL,"
+                    + "equity_parent_company REAL,minority_interest REAL,total_equity REAL,total_liab_equity REAL,"
+                    + "accounts_rece_decr REAL,accounts_rece_fin_decr REAL,minority_interest_inc REAL,"
+                    + "minority_interest_dec REAL,update_flag TEXT,"
+                    + "UNIQUE (ts_code, end_date, report_type))"),
+            Map.entry("cashflow", "CREATE TABLE IF NOT EXISTS cashflow ("
+                    + "id INTEGER PRIMARY KEY AUTOINCREMENT,"
+                    + "ts_code TEXT NOT NULL,ann_date TEXT,f_ann_date TEXT,"
+                    + "end_date TEXT NOT NULL,report_type TEXT,comp_type TEXT,"
+                    + "n_cashflow_act REAL,n_cashflow_inv_act REAL,n_cash_flows_fnc_act REAL,free_cashflow REAL,"
+                    + "c_fr_sale_sg REAL,c_fr_oth_sg REAL,c_paid_goods_s REAL,c_paid_to_for_empl REAL,"
+                    + "c_paid_for_taxes REAL,c_paid_oth_op_f REAL,c_paid_invest REAL,c_paid_invest_f REAL,"
+                    + "c_pay_acq_const_fiolta REAL,c_pay_acq_int_long_loan REAL,disp_fix_assets_oth REAL,"
+                    + "n_invest_loss REAL,c_fr_fnc_loan REAL,c_fr_fnc_oth REAL,proceeds_long_loan REAL,"
+                    + "c_paid_fin_fees REAL,c_pay_dist_dpcp_int_exp REAL,end_bal_cash REAL,beg_bal_cash REAL,"
+                    + "n_cash_equ REAL,n_increase_incl_child REAL,prov_depr_assets REAL,depr_fa_coga_dpba REAL,"
+                    + "amort_intang REAL,amort_lt_deferred_exp REAL,loss_disp_fa REAL,loss_scr_fa REAL,"
+                    + "loss_fair_valu REAL,fin_exp REAL,loss_inv REAL,dec_def_inc_tax_assets REAL,"
+                    + "inc_def_inc_tax_liab REAL,dec_inv REAL,dec_oper_rece REAL,inc_oper_payable REAL,"
+                    + "net_profit REAL,minority_interest REAL,undistributed_profit_in REAL,update_flag TEXT,"
+                    + "UNIQUE (ts_code, end_date, report_type))")
     );
 
     private Map<String, String> getCreateTableSql() {

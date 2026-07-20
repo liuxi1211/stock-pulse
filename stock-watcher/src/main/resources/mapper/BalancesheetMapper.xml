@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.arthur.stock.mapper.BalancesheetMapper">
+
+    <resultMap id="balancesheetMap" type="com.arthur.stock.model.BalancesheetDO">
+        <id column="id" property="id"/>
+        <result column="ts_code" property="tsCode"/>
+        <result column="ann_date" property="annDate"/>
+        <result column="f_ann_date" property="fAnnDate"/>
+        <result column="end_date" property="endDate"/>
+        <result column="report_type" property="reportType"/>
+        <result column="comp_type" property="compType"/>
+        <result column="monetary_funds" property="monetaryFunds"/>
+        <result column="accounts_rece" property="accountsRece"/>
+        <result column="notes_rece" property="notesRece"/>
+        <result column="accounts_rece_fin" property="accountsReceFin"/>
+        <result column="other_rece" property="otherRece"/>
+        <result column="prepayment" property="prepayment"/>
+        <result column="dividends_rece" property="dividendsRece"/>
+        <result column="int_rece" property="intRece"/>
+        <result column="inventories" property="inventories"/>
+        <result column="non_current_assets_in_1_yr" property="nonCurrentAssetsIn1Yr"/>
+        <result column="other_current_assets" property="otherCurrentAssets"/>
+        <result column="total_current_assets" property="totalCurrentAssets"/>
+        <result column="equity_joint_cap" property="equityJointCap"/>
+        <result column="lt_receivable" property="ltReceivable"/>
+        <result column="eqt_invest" property="eqtInvest"/>
+        <result column="inv_real_estate" property="invRealEstate"/>
+        <result column="fix_assets_nca" property="fixAssetsNca"/>
+        <result column="cip" property="cip"/>
+        <result column="construction_materials" property="constructionMaterials"/>
+        <result column="intang_assets" property="intangAssets"/>
+        <result column="goodwill" property="goodwill"/>
+        <result column="lt_amort_deferred_exp" property="ltAmortDeferredExp"/>
+        <result column="defer_tax_assets" property="deferTaxAssets"/>
+        <result column="other_non_current_assets" property="otherNonCurrentAssets"/>
+        <result column="total_non_current_assets" property="totalNonCurrentAssets"/>
+        <result column="total_assets" property="totalAssets"/>
+        <result column="lt_borr" property="ltBorr"/>
+        <result column="notes_payable" property="notesPayable"/>
+        <result column="accounts_payable" property="accountsPayable"/>
+        <result column="accounts_payable_fin" property="accountsPayableFin"/>
+        <result column="prepayment_receivables" property="prepaymentReceivables"/>
+        <result column="wage_payable" property="wagePayable"/>
+        <result column="taxes_surcharges" property="taxesSurcharges"/>
+        <result column="other_payable" property="otherPayable"/>
+        <result column="non_current_liab_in_1_yr" property="nonCurrentLiabIn1Yr"/>
+        <result column="other_current_liab" property="otherCurrentLiab"/>
+        <result column="total_current_liab" property="totalCurrentLiab"/>
+        <result column="long_term_borr" property="longTermBorr"/>
+        <result column="ppayable_bonds" property="ppayableBonds"/>
+        <result column="long_term_payable" property="longTermPayable"/>
+        <result column="specific_payable" property="specificPayable"/>
+        <result column="estimated_liab" property="estimatedLiab"/>
+        <result column="defer_tax_liab" property="deferTaxLiab"/>
+        <result column="defer_inc_non_curr_liab" property="deferIncNonCurrLiab"/>
+        <result column="other_non_current_liab" property="otherNonCurrentLiab"/>
+        <result column="total_non_current_liab" property="totalNonCurrentLiab"/>
+        <result column="total_liab" property="totalLiab"/>
+        <result column="share_capital" property="shareCapital"/>
+        <result column="capital_reserve" property="capitalReserve"/>
+        <result column="treasury_stock" property="treasuryStock"/>
+        <result column="specific_reserves" property="specificReserves"/>
+        <result column="surplus_reserve" property="surplusReserve"/>
+        <result column="general_risk_reserve" property="generalRiskReserve"/>
+        <result column="undistributed_profit" property="undistributedProfit"/>
+        <result column="equity_parent_company" property="equityParentCompany"/>
+        <result column="minority_interest" property="minorityInterest"/>
+        <result column="total_equity" property="totalEquity"/>
+        <result column="total_liab_equity" property="totalLiabEquity"/>
+        <result column="accounts_rece_decr" property="accountsReceDecr"/>
+        <result column="accounts_rece_fin_decr" property="accountsReceFinDecr"/>
+        <result column="minority_interest_inc" property="minorityInterestInc"/>
+        <result column="minority_interest_dec" property="minorityInterestDec"/>
+        <result column="update_flag" property="updateFlag"/>
+    </resultMap>
+
+    <insert id="insertBatch">
+        INSERT INTO balancesheet (ts_code, ann_date, f_ann_date, end_date, report_type, comp_type,
+            monetary_funds, accounts_rece, notes_rece, accounts_rece_fin, other_rece, prepayment,
+            dividends_rece, int_rece, inventories, non_current_assets_in_1_yr, other_current_assets,
+            total_current_assets, equity_joint_cap, lt_receivable, eqt_invest, inv_real_estate, fix_assets_nca,
+            cip, construction_materials, intang_assets, goodwill, lt_amort_deferred_exp, defer_tax_assets,
+            other_non_current_assets, total_non_current_assets, total_assets, lt_borr, notes_payable,
+            accounts_payable, accounts_payable_fin, prepayment_receivables, wage_payable, taxes_surcharges,
+            other_payable, non_current_liab_in_1_yr, other_current_liab, total_current_liab, long_term_borr,
+            ppayable_bonds, long_term_payable, specific_payable, estimated_liab, defer_tax_liab,
+            defer_inc_non_curr_liab, other_non_current_liab, total_non_current_liab, total_liab, share_capital,
+            capital_reserve, treasury_stock, specific_reserves, surplus_reserve, general_risk_reserve,
+            undistributed_profit, equity_parent_company, minority_interest, total_equity, total_liab_equity,
+            accounts_rece_decr, accounts_rece_fin_decr, minority_interest_inc, minority_interest_dec, update_flag
+        ) VALUES
+        <foreach collection="list" item="i" separator=",">
+            (#{i.tsCode}, #{i.annDate}, #{i.fAnnDate}, #{i.endDate}, #{i.reportType}, #{i.compType},
+             #{i.monetaryFunds}, #{i.accountsRece}, #{i.notesRece}, #{i.accountsReceFin}, #{i.otherRece}, #{i.prepayment},
+             #{i.dividendsRece}, #{i.intRece}, #{i.inventories}, #{i.nonCurrentAssetsIn1Yr}, #{i.otherCurrentAssets},
+             #{i.totalCurrentAssets}, #{i.equityJointCap}, #{i.ltReceivable}, #{i.eqtInvest}, #{i.invRealEstate}, #{i.fixAssetsNca},
+             #{i.cip}, #{i.constructionMaterials}, #{i.intangAssets}, #{i.goodwill}, #{i.ltAmortDeferredExp}, #{i.deferTaxAssets},
+             #{i.otherNonCurrentAssets}, #{i.totalNonCurrentAssets}, #{i.totalAssets}, #{i.ltBorr}, #{i.notesPayable},
+             #{i.accountsPayable}, #{i.accountsPayableFin}, #{i.prepaymentReceivables}, #{i.wagePayable}, #{i.taxesSurcharges},
+             #{i.otherPayable}, #{i.nonCurrentLiabIn1Yr}, #{i.otherCurrentLiab}, #{i.totalCurrentLiab}, #{i.longTermBorr},
+             #{i.ppayableBonds}, #{i.longTermPayable}, #{i.specificPayable}, #{i.estimatedLiab}, #{i.deferTaxLiab},
+             #{i.deferIncNonCurrLiab}, #{i.otherNonCurrentLiab}, #{i.totalNonCurrentLiab}, #{i.totalLiab}, #{i.shareCapital},
+             #{i.capitalReserve}, #{i.treasuryStock}, #{i.specificReserves}, #{i.surplusReserve}, #{i.generalRiskReserve},
+             #{i.undistributedProfit}, #{i.equityParentCompany}, #{i.minorityInterest}, #{i.totalEquity}, #{i.totalLiabEquity},
+             #{i.accountsReceDecr}, #{i.accountsReceFinDecr}, #{i.minorityInterestInc}, #{i.minorityInterestDec}, #{i.updateFlag}
+            )
+        </foreach>
+    </insert>
+
+    <delete id="deleteBatchByKeys">
+        DELETE FROM balancesheet WHERE (ts_code, end_date, report_type) IN
+        <foreach collection="list" item="i" open="(" separator="," close=")">
+            (#{i.tsCode}, #{i.endDate}, #{i.reportType})
+        </foreach>
+    </delete>
+
+    <select id="selectLatestAnnouncedBefore" resultMap="balancesheetMap">
+        SELECT * FROM balancesheet
+        WHERE ts_code = #{tsCode}
+          AND ann_date IS NOT NULL
+          AND ann_date != ''
+          AND ann_date &lt;= #{tradeDate}
+          AND report_type = '1'
+        ORDER BY end_date DESC
+        LIMIT 1
+    </select>
+
+</mapper>

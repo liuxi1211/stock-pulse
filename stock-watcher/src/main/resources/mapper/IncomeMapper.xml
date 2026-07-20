@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.arthur.stock.mapper.IncomeMapper">
+
+    <resultMap id="incomeMap" type="com.arthur.stock.model.IncomeDO">
+        <id column="id" property="id"/>
+        <result column="ts_code" property="tsCode"/>
+        <result column="ann_date" property="annDate"/>
+        <result column="f_ann_date" property="fAnnDate"/>
+        <result column="end_date" property="endDate"/>
+        <result column="report_type" property="reportType"/>
+        <result column="comp_type" property="compType"/>
+        <result column="basic_eps" property="basicEps"/>
+        <result column="diluted_eps" property="dilutedEps"/>
+        <result column="total_revenue" property="totalRevenue"/>
+        <result column="revenue" property="revenue"/>
+        <result column="total_cogs" property="totalCogs"/>
+        <result column="operate_cost" property="operateCost"/>
+        <result column="operate_profit" property="operateProfit"/>
+        <result column="non_oper_income" property="nonOperIncome"/>
+        <result column="non_oper_exp" property="nonOperExp"/>
+        <result column="total_profit" property="totalProfit"/>
+        <result column="n_income" property="nIncome"/>
+        <result column="n_income_attr_p" property="nIncomeAttrP"/>
+        <result column="minority_interest" property="minorityInterest"/>
+        <result column="adjust_profit" property="adjustProfit"/>
+        <result column="income_tax" property="incomeTax"/>
+        <result column="n_income_yoy" property="nIncomeYoy"/>
+        <result column="dt_profit_yoy" property="dtProfitYoy"/>
+        <result column="sell_exp" property="sellExp"/>
+        <result column="admin_exp" property="adminExp"/>
+        <result column="financial_exp" property="financialExp"/>
+        <result column="rd_exp" property="rdExp"/>
+        <result column="impair_end_invest" property="impairEndInvest"/>
+        <result column="impair_end_oper" property="impairEndOper"/>
+        <result column="invest_income" property="investIncome"/>
+        <result column="invest_income_inc" property="investIncomeInc"/>
+        <result column="invest_income_dec" property="investIncomeDec"/>
+        <result column="fairvalue_change_income" property="fairvalueChangeIncome"/>
+        <result column="exchange_gain" property="exchangeGain"/>
+        <result column="asset_dispose_income" property="assetDisposeIncome"/>
+        <result column="other_income" property="otherIncome"/>
+        <result column="operate_n_income" property="operateNIncome"/>
+        <result column="credit_impair_loss" property="creditImpairLoss"/>
+        <result column="asset_impair_loss" property="assetImpairLoss"/>
+        <result column="bbit" property="bbit"/>
+        <result column="bbit_yoy" property="bbitYoy"/>
+        <result column="operate_profit_income_yoy" property="operateProfitIncomeYoy"/>
+        <result column="update_flag" property="updateFlag"/>
+    </resultMap>
+
+    <insert id="insertBatch">
+        INSERT INTO income (ts_code, ann_date, f_ann_date, end_date, report_type, comp_type,
+                            basic_eps, diluted_eps, total_revenue, revenue, total_cogs, operate_cost,
+                            operate_profit, non_oper_income, non_oper_exp, total_profit, n_income, n_income_attr_p,
+                            minority_interest, adjust_profit, income_tax, n_income_yoy, dt_profit_yoy,
+                            sell_exp, admin_exp, financial_exp, rd_exp, impair_end_invest, impair_end_oper,
+                            invest_income, invest_income_inc, invest_income_dec, fairvalue_change_income,
+                            exchange_gain, asset_dispose_income, other_income, operate_n_income,
+                            credit_impair_loss, asset_impair_loss, bbit, bbit_yoy, operate_profit_income_yoy,
+                            update_flag) VALUES
+        <foreach collection="list" item="i" separator=",">
+            (#{i.tsCode}, #{i.annDate}, #{i.fAnnDate}, #{i.endDate}, #{i.reportType}, #{i.compType},
+             #{i.basicEps}, #{i.dilutedEps}, #{i.totalRevenue}, #{i.revenue}, #{i.totalCogs}, #{i.operateCost},
+             #{i.operateProfit}, #{i.nonOperIncome}, #{i.nonOperExp}, #{i.totalProfit}, #{i.nIncome}, #{i.nIncomeAttrP},
+             #{i.minorityInterest}, #{i.adjustProfit}, #{i.incomeTax}, #{i.nIncomeYoy}, #{i.dtProfitYoy},
+             #{i.sellExp}, #{i.adminExp}, #{i.financialExp}, #{i.rdExp}, #{i.impairEndInvest}, #{i.impairEndOper},
+             #{i.investIncome}, #{i.investIncomeInc}, #{i.investIncomeDec}, #{i.fairvalueChangeIncome},
+             #{i.exchangeGain}, #{i.assetDisposeIncome}, #{i.otherIncome}, #{i.operateNIncome},
+             #{i.creditImpairLoss}, #{i.assetImpairLoss}, #{i.bbit}, #{i.bbitYoy}, #{i.operateProfitIncomeYoy},
+             #{i.updateFlag})
+        </foreach>
+    </insert>
+
+    <delete id="deleteBatchByKeys">
+        DELETE FROM income WHERE (ts_code, end_date, report_type) IN
+        <foreach collection="list" item="i" open="(" separator="," close=")">
+            (#{i.tsCode}, #{i.endDate}, #{i.reportType})
+        </foreach>
+    </delete>
+
+    <select id="selectLatestAnnouncedBefore" resultMap="incomeMap">
+        SELECT * FROM income
+        WHERE ts_code = #{tsCode}
+          AND ann_date IS NOT NULL
+          AND ann_date != ''
+          AND ann_date &lt;= #{tradeDate}
+          AND report_type = '1'
+        ORDER BY end_date DESC
+        LIMIT 1
+    </select>
+
+</mapper>

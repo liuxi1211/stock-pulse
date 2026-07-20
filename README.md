@@ -67,26 +67,55 @@
 ## 🚀 快速开始
 
 ### 环境要求
-- JDK 21+ · Maven 3.6+
-- Python 3.12+（推荐 Conda）
+- JDK 21+ · Node.js 16+
+- Conda（Miniforge / Miniconda / Anaconda，用于 stock-engine 的 `stock` 环境）
+- MySQL 8+（或用 sqlite profile）
 - Tushare Pro 账号 + Token
+
+> Maven 无需全局安装，项目自带 `mvnw` / `mvnw.cmd` Wrapper。详细启动手册见 [.trae/rules/startup.md](./.trae/rules/startup.md)。
+
+### 首次搭建
+
+```bash
+# 1. 创建 conda env 并装 engine 依赖
+conda create -n stock python=3.12 -y
+node stock-engine/run.js install
+
+# 2. 配置 watcher secret
+cd stock-watcher/src/main/resources
+cp application-secret.properties.template application-secret.properties
+#   编辑 application-secret.properties，填 tushare.token / db.url / db.username / db.password
+
+# 3. 全栈环境自检
+cd ../../..
+node run.js check-env
+```
 
 ### 启动
 
 ```bash
-# 1) Java 业务服务（:8080）
-cd stock-watcher
-mvn spring-boot:run
+# 一键全栈启动（engine -> watcher，后台运行 + 日志）
+node run.js start
 
-# 2) Python 计算服务（:8085）
-cd stock-engine
-conda run -n stock python -m pip install -r requirements.txt
-conda run --no-capture-output -n stock python -m uvicorn main:app --host 127.0.0.1 --port 8085
+# 或开发模式（两个服务都开热重载）
+node run.js start-dev
+
+# 或单独启动
+node run.js start-engine
+node run.js start-watcher
+
+# 查看状态 / 停止 / 看日志
+node run.js status
+node run.js stop
+node run.js logs watcher     # tail watcher 日志
+node run.js logs engine      # tail engine 日志
 ```
 
 打开 http://localhost:8080 · 默认账号 `admin` / `admin123`
 
 Engine API 文档：http://127.0.0.1:8085/docs
+
+> ⚠️ 不要再用 `mvn spring-boot:run` 或 `conda run -n stock python -m uvicorn ...` 直接跑（绕过 run.js 会丢失端口检测 / 日志归档 / 健康探活）。端口冲突排查见 [startup.md](./.trae/rules/startup.md#端口配置与冲突排查)。
 
 Tushare Token 配置在 `stock-watcher/src/main/resources/application-secret.properties`：
 ```properties

@@ -17,7 +17,10 @@ public enum InitStep {
     DIVIDEND("dividend", "分红送股", "dividend"),
     NAMECHANGE("namechange", "股票更名历史(ST)", "stock_namechange"),
     SUSPEND_D("suspend_d", "停复牌信息", "stock_suspend_d"),
-    STK_LIMIT("stk_limit", "涨跌停价", "stock_stk_limit");
+    STK_LIMIT("stk_limit", "涨跌停价", "stock_stk_limit"),
+    INCOME("income", "利润表", "income"),
+    BALANCESHEET("balancesheet", "资产负债表", "balancesheet"),
+    CASHFLOW("cashflow", "现金流量表", "cashflow");
 
     private final String code;
     private final String label;

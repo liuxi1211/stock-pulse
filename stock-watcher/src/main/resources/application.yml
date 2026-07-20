@@ -68,6 +68,12 @@ tushare:
       permits-per-minute: 200
     stk_limit:
       permits-per-minute: 500
+    income:
+      permits-per-minute: 100
+    balancesheet:
+      permits-per-minute: 100
+    cashflow:
+      permits-per-minute: 100
 
 # ========== Auth Configuration ==========
 auth:

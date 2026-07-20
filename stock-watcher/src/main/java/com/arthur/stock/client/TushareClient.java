@@ -7,12 +7,18 @@ import com.arthur.stock.constant.TushareApiEnum;
 import com.arthur.stock.config.TushareConfig;
 import com.arthur.stock.dto.tushare.AdjFactorDTO;
 import com.arthur.stock.dto.tushare.AdjFactorQueryDTO;
+import com.arthur.stock.dto.tushare.BalancesheetDTO;
+import com.arthur.stock.dto.tushare.BalancesheetQueryDTO;
+import com.arthur.stock.dto.tushare.CashflowDTO;
+import com.arthur.stock.dto.tushare.CashflowQueryDTO;
 import com.arthur.stock.dto.tushare.DailyBasicDTO;
 import com.arthur.stock.dto.tushare.DailyQueryDTO;
 import com.arthur.stock.dto.tushare.DailyQuoteDTO;
 import com.arthur.stock.dto.tushare.DividendDTO;
 import com.arthur.stock.dto.tushare.DividendQueryDTO;
 import com.arthur.stock.dto.tushare.FinaIndicatorDTO;
+import com.arthur.stock.dto.tushare.IncomeDTO;
+import com.arthur.stock.dto.tushare.IncomeQueryDTO;
 import com.arthur.stock.dto.tushare.IndexClassifyDTO;
 import com.arthur.stock.dto.tushare.IndexClassifyQueryDTO;
 import com.arthur.stock.dto.tushare.IndexMemberDTO;
@@ -146,6 +152,39 @@ public class TushareClient {
             params.put("end_date", endDate);
         }
         return query(TushareApiEnum.FINA_INDICATOR, params, FinaIndicatorDTO.class);
+    }
+
+    /**
+     * 利润表接口（doc_id=33）。
+     *
+     * @param param 查询参数，tsCode / startDate / endDate / reportType / compType 均可选
+     * @return 利润表数据列表
+     */
+    public List<IncomeDTO> income(IncomeQueryDTO param) {
+        JSONObject params = buildIncomeParams(param);
+        return query(TushareApiEnum.INCOME, params, IncomeDTO.class);
+    }
+
+    /**
+     * 资产负债表接口（doc_id=36）。
+     *
+     * @param param 查询参数，tsCode / startDate / endDate / reportType / compType 均可选
+     * @return 资产负债表数据列表
+     */
+    public List<BalancesheetDTO> balancesheet(BalancesheetQueryDTO param) {
+        JSONObject params = buildBalancesheetParams(param);
+        return query(TushareApiEnum.BALANCESHEET, params, BalancesheetDTO.class);
+    }
+
+    /**
+     * 现金流量表接口（doc_id=44）。
+     *
+     * @param param 查询参数，tsCode / startDate / endDate / reportType / compType 均可选
+     * @return 现金流量表数据列表
+     */
+    public List<CashflowDTO> cashflow(CashflowQueryDTO param) {
+        JSONObject params = buildCashflowParams(param);
+        return query(TushareApiEnum.CASHFLOW, params, CashflowDTO.class);
     }
 
     /**
@@ -505,6 +544,84 @@ public class TushareClient {
         }
         if (param.getSrc() != null) {
             params.put("src", param.getSrc());
+        }
+        return params;
+    }
+
+    /**
+     * 构建 income 接口参数，非空字段才传入
+     */
+    private JSONObject buildIncomeParams(IncomeQueryDTO param) {
+        JSONObject params = new JSONObject();
+        if (param.getTsCode() != null) {
+            params.put("ts_code", param.getTsCode());
+        }
+        if (param.getAnnDate() != null) {
+            params.put("ann_date", param.getAnnDate());
+        }
+        if (param.getStartDate() != null) {
+            params.put("start_date", param.getStartDate());
+        }
+        if (param.getEndDate() != null) {
+            params.put("end_date", param.getEndDate());
+        }
+        if (param.getReportType() != null) {
+            params.put("report_type", param.getReportType());
+        }
+        if (param.getCompType() != null) {
+            params.put("comp_type", param.getCompType());
+        }
+        return params;
+    }
+
+    /**
+     * 构建 balancesheet 接口参数，非空字段才传入
+     */
+    private JSONObject buildBalancesheetParams(BalancesheetQueryDTO param) {
+        JSONObject params = new JSONObject();
+        if (param.getTsCode() != null) {
+            params.put("ts_code", param.getTsCode());
+        }
+        if (param.getAnnDate() != null) {
+            params.put("ann_date", param.getAnnDate());
+        }
+        if (param.getStartDate() != null) {
+            params.put("start_date", param.getStartDate());
+        }
+        if (param.getEndDate() != null) {
+            params.put("end_date", param.getEndDate());
+        }
+        if (param.getReportType() != null) {
+            params.put("report_type", param.getReportType());
+        }
+        if (param.getCompType() != null) {
+            params.put("comp_type", param.getCompType());
+        }
+        return params;
+    }
+
+    /**
+     * 构建 cashflow 接口参数，非空字段才传入
+     */
+    private JSONObject buildCashflowParams(CashflowQueryDTO param) {
+        JSONObject params = new JSONObject();
+        if (param.getTsCode() != null) {
+            params.put("ts_code", param.getTsCode());
+        }
+        if (param.getAnnDate() != null) {
+            params.put("ann_date", param.getAnnDate());
+        }
+        if (param.getStartDate() != null) {
+            params.put("start_date", param.getStartDate());
+        }
+        if (param.getEndDate() != null) {
+            params.put("end_date", param.getEndDate());
+        }
+        if (param.getReportType() != null) {
+            params.put("report_type", param.getReportType());
+        }
+        if (param.getCompType() != null) {
+            params.put("comp_type", param.getCompType());
         }
         return params;
     }

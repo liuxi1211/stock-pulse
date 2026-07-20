@@ -6,11 +6,41 @@
 
 ---
 
+## 零、启动服务（先看这里）
+
+> ⭐ **AI 启动项目的唯一入口**：[`.trae/rules/startup.md`](./.trae/rules/startup.md)
+
+```bash
+# 全栈一键启动（engine -> watcher，后台运行 + 日志）
+node run.js start
+
+# 其他常用：
+node run.js start-dev              # 两个服务都开热重载
+node run.js start-engine           # 仅启动 engine
+node run.js start-watcher          # 仅启动 watcher
+node run.js status                # 查看端口 / PID / 健康探活
+node run.js stop                  # 停止两个服务
+node run.js check-env             # 环境自检
+node run.js logs watcher|engine   # tail 日志
+```
+
+| 服务 | 端口 | 启动脚本 | 改端口的位置 |
+|---|---|---|---|
+| stock-engine | 8085 | `stock-engine/run.js` | `stock-engine/.env` 的 `PORT` |
+| stock-watcher | 8080 | `stock-watcher/run.js` | `stock-watcher/src/main/resources/application.yml` 的 `server.port` |
+
+> ⚠️ **禁止**用 `mvn spring-boot:run` 或 `conda run -n stock python -m uvicorn ...` 直接跑（绕过 run.js 会丢失端口检测/日志归档/健康探活）。**禁止**新建 .bat/.sh 启动脚本（run.js 已跨平台）。端口冲突排查、首次搭建、常见报错速查 -> [startup.md](./.trae/rules/startup.md)。
+
+> 💡 **AI 工作流提示**：并不是每次任务都要启动服务。**Java 改代码后大部分时候只需要验证编译**，用 `node stock-watcher/run.js compile-dev`（增量编译，最快），通过后再考虑 `start`/`start-dev` 启动验证。详见 [startup.md](./.trae/rules/startup.md)。
+
+---
+
 ## 一、权威文档定位（先看这里）
 
 | 做什么 / 找什么                          | 去哪里                                                                                                 |
 |------------------------------------|-----------------------------------------------------------------------------------------------------|
-| 产品方向 / 功能模块 / 路线图 / 技术栈 / API / 页面 | [`README.md`](./README.md) — **最高权威，冲突以此为准**                                                        |
+| **启动服务 / 端口冲突 / 环境前置** | [`.trae/rules/startup.md`](./.trae/rules/startup.md) - ⭐ 一键启动 `node run.js start` |
+| 产品方向 / 功能模块 / 路线图 / 技术栈 / API / 页面 | [`README.md`](./README.md) - **最高权威，冲突以此为准**                                                        |
 | 改数据库 / 写 SQL(**勿凭记忆**)             | [`stock-watcher/src/main/resources/schema.sql`](./stock-watcher/src/main/resources/schema.sql)      |
 ---
 
@@ -51,6 +81,7 @@
 | **akquant 滑点用裸 float** | `slippage` **一律用 dict** `{"type":"percent","value":0.0002}`。裸 `0.2` 会被当 **20%** 滑点。 | [`09-pitfalls-conventions.md`](./.trae/rules/akquant/09-pitfalls-conventions.md) |
 | **akquant broker_profile 漏 T+1** | `broker_profile` 三个模板**都不含 `t_plus_one`**，必须单独传 `t_plus_one=True`。 | [`09-pitfalls-conventions.md`](./.trae/rules/akquant/09-pitfalls-conventions.md) |
 | **魔法值散落** | 常量必须抽到常量类（全大写）；有 code+label 语义的必须定义成 `DisplayableEnum` 枚举，通过 `GET /constants` + `StockApp.loadConstants` 下发前端。 | [`08-constants-usage.md`](./.trae/rules/stock-watcher/java/08-constants-usage.md) |
+| **启动绕过 run.js** | **禁止**用 `mvn spring-boot:run` / `conda run -n stock python -m uvicorn ...` / `.bat` / `.sh` 直接启动服务。所有启动一律走 `node run.js start`（全栈）或子项目 `run.js`。端口冲突排查、首次搭建见 [`startup.md`](./.trae/rules/startup.md)。 | [`startup.md`](./.trae/rules/startup.md) |
 
 ---
 
@@ -99,10 +130,10 @@
 
 ### 4.3 业务指南（`business/`）
 
-| 场景 | 文档 | 内容要点 |
-|-----|------|---------|
-| 认证、权限相关 | `01-auth.md` | 认证相关 |
-| **对接 Tushare 新接口** | `02-tushare-integration-guide.md` | ⭐ 完整指南：步骤概览→定义DTO→注册枚举→TushareClient方法→配置限流→数据库层→Service层→Controller层→接入初始化流程→接入定时任务→配置Mapper扫描→测试验证；Checklist；参考实现对照 |
+| 场景 | 文档                                  | 内容要点 |
+|-----|-------------------------------------|---------|
+| 认证、权限相关 | `01-auth.md`                        | 认证相关 |
+| **对接 Tushare 新接口** | `02-tushare-integration-guide.md`、 `03-tushare-interface-summary.md` | ⭐ 完整指南：步骤概览→定义DTO→注册枚举→TushareClient方法→配置限流→数据库层→Service层→Controller层→接入初始化流程→接入定时任务→配置Mapper扫描→测试验证；Checklist；参考实现对照 |
 
 ---
 
@@ -114,7 +145,7 @@
 
 | 场景 | 文档 | 内容要点 |
 |-----|------|---------|
-| **搭 Python 环境、启动 engine** | `00-environment-setup.md` | ⭐ 必看：环境约定（conda/stock环境/Python3.12）；环境搭建（创建环境/安装依赖）；启动服务（启动脚本/手动启动）；与Java联调；环境变量；常见问题；本机配置参考 |
+| **启动 engine / Python 环境搭建** | [`startup.md`](./.trae/rules/startup.md) | ⭐ 必看：全栈一键启动 / 端口冲突排查 / 环境前置 / 常见报错速查（旧的 `00-environment-setup.md` 已合并到 startup.md） |
 | 写 Python 代码、代码风格 | `01-python-coding-style.md` | 命名规范（模块/类/函数/变量/常量/私有成员）；代码格式（缩进/行宽/空行/导入）；注释与文档字符串；类型注解；异常处理（自定义异常/抛出与捕获）；日志规范；文件结构 |
 | FastAPI 开发、API 设计 | `02-fastapi-best-practices.md` | 应用架构（分层/入口main.py）；路由设计（APIRouter/URL命名/HTTP方法）；请求与响应（Pydantic模型/统一响应格式/状态码）；依赖注入；异常处理；配置管理；异步编程；API文档 |
 | Pandas 性能优化 | `03-pandas-performance.md` | Pandas 性能优化 |
@@ -148,6 +179,7 @@
 
 ```
 .trae/rules/
+├── startup.md                         # ⭐ 项目启动手册（一键启动 / 端口冲突 / 环境前置 / 常见报错）
 ├── general/                          # 通用规范
 │   ├── 01-development-workflow.md
 │   ├── 02-git-commit.md
@@ -175,9 +207,9 @@
 │   └── business/                     # 业务指南
 │       ├── 01-auth.md
 │       └── 02-tushare-integration-guide.md
+│       └── 03-tushare-interface-summary.md
 ├── stock-engine/
 │   └── python/                       # Python 计算服务规范
-│       ├── 00-environment-setup.md
 │       ├── 01-python-coding-style.md
 │       ├── 02-fastapi-best-practices.md
 │       ├── 03-pandas-performance.md

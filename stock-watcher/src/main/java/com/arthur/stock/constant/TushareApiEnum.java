@@ -58,7 +58,48 @@ public enum TushareApiEnum {
 
     /** 涨跌停价（doc_id=183） */
     STK_LIMIT("stk_limit",
-            "ts_code,trade_date,pre_close,up_limit,down_limit");
+            "ts_code,trade_date,pre_close,up_limit,down_limit"),
+
+    /** 利润表（doc_id=33） */
+    INCOME("income",
+            "ts_code,ann_date,f_ann_date,end_date,report_type,comp_type,basic_eps,diluted_eps,"
+                    + "total_revenue,revenue,total_cogs,operate_cost,operate_profit,non_oper_income,non_oper_exp,"
+                    + "total_profit,n_income,n_income_attr_p,minority_interest,adjust_profit,income_tax,"
+                    + "n_income_yoy,dt_profit_yoy,sell_exp,admin_exp,financial_exp,rd_exp,impair_end_invest,"
+                    + "impair_end_oper,invest_income,invest_income_inc,invest_income_dec,fairvalue_change_income,"
+                    + "exchange_gain,asset_dispose_income,other_income,operate_n_income,credit_impair_loss,"
+                    + "asset_impair_loss,bbit,bbit_yoy,operate_profit_income_yoy,update_flag"),
+
+    /** 资产负债表（doc_id=36） */
+    BALANCESHEET("balancesheet",
+            "ts_code,ann_date,f_ann_date,end_date,report_type,comp_type,monetary_funds,accounts_rece,"
+                    + "notes_rece,accounts_rece_fin,other_rece,prepayment,dividends_rece,int_rece,inventories,"
+                    + "non_current_assets_in_1_yr,other_current_assets,total_current_assets,equity_joint_cap,"
+                    + "lt_receivable,eqt_invest,inv_real_estate,fix_assets_nca,cip,construction_materials,intang_assets,"
+                    + "goodwill,lt_amort_deferred_exp,defer_tax_assets,other_non_current_assets,total_non_current_assets,"
+                    + "total_assets,lt_borr,notes_payable,accounts_payable,accounts_payable_fin,prepayment_receivables,"
+                    + "wage_payable,taxes_surcharges,other_payable,non_current_liab_in_1_yr,other_current_liab,"
+                    + "total_current_liab,long_term_borr,ppayable_bonds,long_term_payable,specific_payable,"
+                    + "estimated_liab,defer_tax_liab,defer_inc_non_curr_liab,other_non_current_liab,"
+                    + "total_non_current_liab,total_liab,share_capital,capital_reserve,treasury_stock,"
+                    + "specific_reserves,surplus_reserve,general_risk_reserve,undistributed_profit,"
+                    + "equity_parent_company,minority_interest,total_equity,total_liab_equity,"
+                    + "accounts_rece_decr,accounts_rece_fin_decr,minority_interest_inc,minority_interest_dec,"
+                    + "update_flag"),
+
+    /** 现金流量表（doc_id=44） */
+    CASHFLOW("cashflow",
+            "ts_code,ann_date,f_ann_date,end_date,report_type,comp_type,"
+                    + "n_cashflow_act,n_cashflow_inv_act,n_cash_flows_fnc_act,free_cashflow,"
+                    + "c_fr_sale_sg,c_fr_oth_sg,c_paid_goods_s,c_paid_to_for_empl,c_paid_for_taxes,"
+                    + "c_paid_oth_op_f,c_fr_fnc_loan,c_fr_fnc_oth,c_paid_invest,c_paid_invest_f,"
+                    + "c_paid_fin_fees,c_pay_dist_dpcp_int_exp,c_pay_acq_const_fiolta,c_pay_acq_int_long_loan,"
+                    + "proceeds_long_loan,n_invest_loss,disp_fix_assets_oth,"
+                    + "end_bal_cash,beg_bal_cash,n_cash_equ,n_increase_incl_child,"
+                    + "prov_depr_assets,depr_fa_coga_dpba,amort_intang,amort_lt_deferred_exp,loss_disp_fa,"
+                    + "loss_scr_fa,loss_fair_valu,fin_exp,loss_inv,dec_def_inc_tax_assets,inc_def_inc_tax_liab,"
+                    + "dec_inv,dec_oper_rece,inc_oper_payable,net_profit,minority_interest,undistributed_profit_in,"
+                    + "update_flag");
 
     private final String apiName;
     private final String fields;
