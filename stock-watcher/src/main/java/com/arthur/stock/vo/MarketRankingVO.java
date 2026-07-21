@@ -8,7 +8,7 @@ import lombok.NoArgsConstructor;
 import java.util.List;
 
 /**
- * 市场排行视图对象，包含涨幅、跌幅、成交额排行
+ * 市场排行视图对象，包含涨幅、跌幅、成交额、换手率排行
  */
 @Data
 @Builder
@@ -27,4 +27,7 @@ public class MarketRankingVO {
 
     /** 成交额排行 TOP 10 */
     private List<StockRankVO> topAmount;
+
+    /** 换手率排行 TOP 10 */
+    private List<StockRankVO> topTurnover;
 }

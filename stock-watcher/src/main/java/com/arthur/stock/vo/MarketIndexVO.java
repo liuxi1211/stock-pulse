@@ -31,9 +31,12 @@ public class MarketIndexVO {
     /** 涨跌幅（%） */
     private BigDecimal changePercent;
 
-    /** 成交量（手） */
+    /** 成交量（万手，来自 index_daily.vol） */
     private Long volume;
 
     /** 成交额 */
     private String turnover;
+
+    /** 数据日期（YYYY-MM-DD） */
+    private String tradeDate;
 }

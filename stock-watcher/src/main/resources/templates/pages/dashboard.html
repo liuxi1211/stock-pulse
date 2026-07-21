@@ -34,25 +34,104 @@
             </div>
 
             <!-- Row 1: Market Index Cards -->
-            <div class="row g-4 mb-4">
+            <!-- 空数据兜底: index_daily 无数据时展示 4 个占位卡片 -->
+            <div class="row g-4 mb-4" th:if="${#lists.isEmpty(indices)}">
+                <div class="col-6 col-lg-3 animate-in delay-1">
+                    <div class="stat-card card-glow h-100">
+                        <div class="stat-label">上证指数</div>
+                        <div class="stat-value text-muted">--</div>
+                        <div class="stat-change"><span class="text-muted" style="font-size: 12px;">暂无数据</span></div>
+                    </div>
+                </div>
+                <div class="col-6 col-lg-3 animate-in delay-1">
+                    <div class="stat-card card-glow h-100">
+                        <div class="stat-label">深证成指</div>
+                        <div class="stat-value text-muted">--</div>
+                        <div class="stat-change"><span class="text-muted" style="font-size: 12px;">暂无数据</span></div>
+                    </div>
+                </div>
+                <div class="col-6 col-lg-3 animate-in delay-1">
+                    <div class="stat-card card-glow h-100">
+                        <div class="stat-label">创业板指</div>
+                        <div class="stat-value text-muted">--</div>
+                        <div class="stat-change"><span class="text-muted" style="font-size: 12px;">暂无数据</span></div>
+                    </div>
+                </div>
+                <div class="col-6 col-lg-3 animate-in delay-1">
+                    <div class="stat-card card-glow h-100">
+                        <div class="stat-label">科创50</div>
+                        <div class="stat-value text-muted">--</div>
+                        <div class="stat-change"><span class="text-muted" style="font-size: 12px;">暂无数据</span></div>
+                    </div>
+                </div>
+            </div>
+            <!-- 有数据: 服务端渲染真实指数行情 -->
+            <div class="row g-4 mb-4" th:unless="${#lists.isEmpty(indices)}">
                 <div class="col-6 col-lg-3 animate-in delay-1" th:each="idx, iterStat : ${indices}">
                     <div class="stat-card card-glow h-100">
                         <div class="stat-label" th:text="${idx.name}">上证指数</div>
                         <div class="stat-value"
-                             th:class="${idx.changePercent >= 0} ? 'rise' : 'fall'"
-                             th:text="${idx.currentPoint}">3368.07</div>
+                             th:class="${idx.changePercent != null and idx.changePercent.doubleValue() >= 0} ? 'stock-up' : 'stock-down'"
+                             th:text="${idx.currentPoint != null ? #numbers.formatDecimal(idx.currentPoint, 1, 2) : '--'}">3368.07</div>
                         <div class="stat-change">
-                            <span th:class="${idx.changePercent >= 0} ? 'rise' : 'fall'">
-                                <i class="bi" th:class="${idx.changePercent >= 0} ? 'bi-triangle-fill' : 'bi-triangle-fill'" style="font-size: 9px;" th:style="${idx.changePercent >= 0} ? 'font-size: 9px;' : 'font-size: 9px; transform: rotate(180deg);'"></i>
-                                <span th:text="${idx.changePercent >= 0 ? '+' : ''} + ${#numbers.formatDecimal(idx.changePercent, 1, 2)} + '%'">+0.37%</span>
+                            <span th:class="${idx.changePercent != null and idx.changePercent.doubleValue() >= 0} ? 'stock-up' : 'stock-down'">
+                                <i class="bi bi-triangle-fill" style="font-size: 9px;"
+                                   th:style="${idx.changePercent != null and idx.changePercent.doubleValue() >= 0} ? 'font-size: 9px;' : 'font-size: 9px; transform: rotate(180deg);'"></i>
+                                <span th:if="${idx.changeAmount != null}"
+                                      th:text="${(idx.changePercent.doubleValue() >= 0 ? '+' : '') + #numbers.formatDecimal(idx.changeAmount, 1, 2)}">+12.34</span>
+                                <span th:text="${idx.changePercent != null ? ((idx.changePercent.doubleValue() >= 0 ? '+' : '') + #numbers.formatDecimal(idx.changePercent, 1, 2) + '%') : '--'}">+0.37%</span>
                             </span>
-                            <span class="text-muted" style="font-size: 11px; margin-left: 8px;">
+                            <span class="text-muted" style="font-size: 11px; margin-left: 8px;" th:if="${idx.turnover != null}">
                                 <span th:text="'成交额 ' + ${idx.turnover}">4560亿</span>
                             </span>
+                        </div>
+                        <div class="text-muted" style="font-size: 11px; margin-top: 2px;" th:if="${idx.tradeDate != null}">
+                            <span th:text="'截至 ' + ${idx.tradeDate}"></span>
                         </div>
                     </div>
                 </div>
             </div>
+
+            <!-- Row 1.5: Market Temperature (涨跌家数) -->
+            <div class="row g-4 mb-4">
+                <div class="col-12 animate-in delay-1">
+                    <div class="card card-glow">
+                        <div class="card-header">
+                            <h6 class="card-title">
+                                <span class="card-title-icon">
+                                    <i class="bi bi-thermometer-half"></i>
+                                </span>
+                                市场温度
+                            </h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row g-3 text-center" id="temperatureContainer">
+                                <div class="col-6 col-md">
+                                    <div class="text-muted small mb-1">涨家数</div>
+                                    <div class="fs-4 fw-bold stock-up" id="tempUpCount">--</div>
+                                </div>
+                                <div class="col-6 col-md">
+                                    <div class="text-muted small mb-1">跌家数</div>
+                                    <div class="fs-4 fw-bold stock-down" id="tempDownCount">--</div>
+                                </div>
+                                <div class="col-6 col-md">
+                                    <div class="text-muted small mb-1">平家数</div>
+                                    <div class="fs-4 fw-bold text-muted" id="tempFlatCount">--</div>
+                                </div>
+                                <div class="col-6 col-md">
+                                    <div class="text-muted small mb-1">涨停数</div>
+                                    <div class="fs-4 fw-bold stock-up" id="tempLimitUp">--</div>
+                                </div>
+                                <div class="col-6 col-md">
+                                    <div class="text-muted small mb-1">跌停数</div>
+                                    <div class="fs-4 fw-bold stock-down" id="tempLimitDown">--</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
 
             <!-- Row 2: K-Line + Watchlist -->
             <div class="row g-4 mb-4">
@@ -74,7 +153,7 @@
                             </div>
                         </div>
                         <div class="card-body">
-                            <div class="d-flex align-items-center gap-2 mb-3">
+                            <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
                                 <div class="input-group" style="max-width: 220px;">
                                     <span class="input-group-text"><i class="bi bi-search"></i></span>
                                     <input type="text" class="form-control" id="klineSearchInput"
@@ -85,8 +164,23 @@
                                 </button>
                                 <div class="btn-group btn-group-sm flex-wrap gap-1" id="klineStockBtns">
                                 </div>
+                                <!-- 主图指标切换: MA / BOLL -->
+                                <div class="btn-group btn-group-sm ms-auto" id="mainIndicatorBtns">
+                                    <button type="button" class="btn btn-secondary active" onclick="switchMainIndicator('ma', this)">MA</button>
+                                    <button type="button" class="btn btn-secondary" onclick="switchMainIndicator('boll', this)">BOLL</button>
+                                </div>
                             </div>
                             <div id="klineChart" class="chart-container"></div>
+                            <!-- 副图指标切换: MACD / KDJ / RSI / 无 -->
+                            <div class="d-flex align-items-center gap-2 mt-2">
+                                <div class="btn-group btn-group-sm" id="subIndicatorBtns">
+                                    <button type="button" class="btn btn-secondary" onclick="switchSubIndicator('none', this)">无</button>
+                                    <button type="button" class="btn btn-secondary active" onclick="switchSubIndicator('macd', this)">MACD</button>
+                                    <button type="button" class="btn btn-secondary" onclick="switchSubIndicator('kdj', this)">KDJ</button>
+                                    <button type="button" class="btn btn-secondary" onclick="switchSubIndicator('rsi', this)">RSI</button>
+                                </div>
+                            </div>
+                            <div id="subIndicatorChart" style="width: 100%; height: 160px; position: relative; display: none;"></div>
                         </div>
                     </div>
                 </div>
@@ -131,22 +225,45 @@
                 </div>
             </div>
 
-            <!-- Row 3: Market Rankings -->
+            <!-- Row 3: Market Rankings (Tabs) + Sector Overview -->
             <div class="row g-4 mb-4">
-                <div class="col-lg-4 animate-in delay-4">
+                <!-- 排行榜: Tab 切换(涨幅/跌幅/成交额/换手率) -->
+                <div class="col-lg-8 animate-in delay-4">
                     <div class="card card-glow h-100">
                         <div class="card-header">
                             <h6 class="card-title">
-                                <span class="card-title-icon rise">
-                                    <i class="bi bi-arrow-up-circle-fill"></i>
+                                <span class="card-title-icon">
+                                    <i class="bi bi-bar-chart-fill"></i>
                                 </span>
-                                涨幅排行
+                                市场排行
                             </h6>
+                            <ul class="nav nav-pills nav-sm" id="rankingTabs">
+                                <li class="nav-item">
+                                    <a class="nav-link active" href="javascript:;" data-tab="gainers">涨幅榜</a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link" href="javascript:;" data-tab="losers">跌幅榜</a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link" href="javascript:;" data-tab="amount">成交额榜</a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link" href="javascript:;" data-tab="turnover">换手率榜</a>
+                                </li>
+                            </ul>
                         </div>
                         <div class="card-body p-0">
                             <div class="table-responsive">
                                 <table class="table table-hover mb-0 align-middle">
-                                    <tbody id="topGainersBody">
+                                    <thead id="rankingHead">
+                                        <tr>
+                                            <th class="text-center" style="width: 50px;">排名</th>
+                                            <th>名称</th>
+                                            <th class="text-end">最新价</th>
+                                            <th class="text-end">涨跌幅</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="rankingBody">
                                         <tr>
                                             <td colspan="4" class="text-center text-muted py-4">
                                                 <div class="spinner-border spinner-border-sm me-1"></div>加载中...
@@ -158,52 +275,26 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- 板块概览: 涨幅前5 / 跌幅前5 -->
                 <div class="col-lg-4 animate-in delay-5">
                     <div class="card card-glow h-100">
                         <div class="card-header">
                             <h6 class="card-title">
-                                <span class="card-title-icon fall">
-                                    <i class="bi bi-arrow-down-circle-fill"></i>
+                                <span class="card-title-icon purple">
+                                    <i class="bi bi-layers-fill"></i>
                                 </span>
-                                跌幅排行
+                                今日板块概览
                             </h6>
-                        </div>
-                        <div class="card-body p-0">
-                            <div class="table-responsive">
-                                <table class="table table-hover mb-0 align-middle">
-                                    <tbody id="topLosersBody">
-                                        <tr>
-                                            <td colspan="4" class="text-center text-muted py-4">
-                                                <div class="spinner-border spinner-border-sm me-1"></div>加载中...
-                                            </td>
-                                        </tr>
-                                    </tbody>
-                                </table>
+                            <div class="card-actions">
+                                <a href="/page/sector" class="btn btn-secondary btn-sm">
+                                    查看全部 <i class="bi bi-box-arrow-up-right ms-1"></i>
+                                </a>
                             </div>
                         </div>
-                    </div>
-                </div>
-                <div class="col-lg-4 animate-in delay-6">
-                    <div class="card card-glow h-100">
-                        <div class="card-header">
-                            <h6 class="card-title">
-                                <span class="card-title-icon purple">
-                                    <i class="bi bi-bar-chart-fill"></i>
-                                </span>
-                                成交额排行
-                            </h6>
-                        </div>
-                        <div class="card-body p-0">
-                            <div class="table-responsive">
-                                <table class="table table-hover mb-0 align-middle">
-                                    <tbody id="topAmountBody">
-                                        <tr>
-                                            <td colspan="4" class="text-center text-muted py-4">
-                                                <div class="spinner-border spinner-border-sm me-1"></div>加载中...
-                                            </td>
-                                        </tr>
-                                    </tbody>
-                                </table>
+                        <div class="card-body" id="sectorOverviewContainer">
+                            <div class="text-center text-muted py-4">
+                                <div class="spinner-border spinner-border-sm me-1"></div>加载中...
                             </div>
                         </div>
                     </div>

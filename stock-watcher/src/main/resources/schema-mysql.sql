@@ -566,6 +566,23 @@ CREATE TABLE IF NOT EXISTS express (
     INDEX idx_express_tscode (ts_code, end_date)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='业绩快报表';
 
+-- 29. 指数日线行情表（tushare index_daily：大盘指数/行业指数日线 OHLCV）
+CREATE TABLE IF NOT EXISTS index_daily (
+    ts_code    VARCHAR(20)   NOT NULL COMMENT '指数代码（如 000001.SH）',
+    trade_date VARCHAR(8)    NOT NULL COMMENT '交易日期（YYYYMMDD）',
+    close      DECIMAL(20,4) COMMENT '收盘价',
+    open       DECIMAL(20,4) COMMENT '开盘价',
+    high       DECIMAL(20,4) COMMENT '最高价',
+    low        DECIMAL(20,4) COMMENT '最低价',
+    pre_close  DECIMAL(20,4) COMMENT '昨收价',
+    `change`   DECIMAL(20,4) COMMENT '涨跌额',
+    pct_chg    DECIMAL(20,4) COMMENT '涨跌幅（%）',
+    vol        DECIMAL(20,4) COMMENT '成交量（万手）',
+    amount     DECIMAL(20,4) COMMENT '成交额（亿元）',
+    PRIMARY KEY (ts_code, trade_date),
+    INDEX idx_index_daily_date (trade_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='指数日线行情表';
+
 -- 初始管理员账号（仅当表为空时插入，默认密码: admin123）
 INSERT INTO sys_user (username, password, enabled, role)
 SELECT 'admin', '$2a$10$pfuIlLGBbNZqO5xXa9oRKeEFABc4FIxs2SVY46UUG1xpA7o9tGn9u', 1, 'ADMIN'

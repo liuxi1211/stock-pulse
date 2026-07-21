@@ -17,6 +17,16 @@
         <result column="amount" property="amount"/>
     </resultMap>
 
+    <!-- 换手率排行结果映射：直接映射 StockRankVO 字段 -->
+    <resultMap id="stockRankMap" type="com.arthur.stock.vo.StockRankVO">
+        <result column="code" property="code"/>
+        <result column="name" property="name"/>
+        <result column="close" property="close"/>
+        <result column="pct_chg" property="pctChg"/>
+        <result column="turnover_rate" property="turnoverRate"/>
+        <result column="amount" property="amount"/>
+    </resultMap>
+
     <insert id="insertBatch">
         INSERT INTO daily_quote (ts_code, trade_date, open, high, low, close, pre_close,
                                  change_amt, pct_chg, vol, amount) VALUES
@@ -60,6 +70,114 @@
         SELECT * FROM daily_quote WHERE trade_date = #{tradeDate}
         AND ts_code IN (SELECT ts_code FROM stock_basic WHERE list_status = 'L')
         ORDER BY amount DESC LIMIT #{limit}
+    </select>
+
+    <!-- 换手率排行 TOP N：JOIN daily_basic 取换手率、JOIN stock_basic 取股票名称 -->
+    <select id="selectTopTurnover" resultMap="stockRankMap">
+        SELECT sb.symbol AS code, sb.name, dq.close, dq.pct_chg,
+               db.turnover_rate AS turnover_rate, dq.amount
+        FROM daily_quote dq
+        JOIN daily_basic db ON dq.ts_code = db.ts_code AND dq.trade_date = db.trade_date
+        JOIN stock_basic sb ON dq.ts_code = sb.ts_code
+        WHERE dq.trade_date = #{tradeDate}
+        AND sb.list_status = 'L'
+        ORDER BY db.turnover_rate DESC
+        LIMIT #{limit}
+    </select>
+
+    <!-- 上涨家数：pct_chg > 0 且为上市股票 -->
+    <select id="countUpByTradeDate" resultType="int">
+        SELECT COUNT(*) FROM daily_quote dq
+        JOIN stock_basic sb ON dq.ts_code = sb.ts_code
+        WHERE dq.trade_date = #{tradeDate}
+        AND sb.list_status = 'L'
+        AND dq.pct_chg &gt; 0
+    </select>
+
+    <!-- 下跌家数：pct_chg < 0 且为上市股票 -->
+    <select id="countDownByTradeDate" resultType="int">
+        SELECT COUNT(*) FROM daily_quote dq
+        JOIN stock_basic sb ON dq.ts_code = sb.ts_code
+        WHERE dq.trade_date = #{tradeDate}
+        AND sb.list_status = 'L'
+        AND dq.pct_chg &lt; 0
+    </select>
+
+    <!-- 平盘家数：pct_chg = 0 且为上市股票 -->
+    <select id="countFlatByTradeDate" resultType="int">
+        SELECT COUNT(*) FROM daily_quote dq
+        JOIN stock_basic sb ON dq.ts_code = sb.ts_code
+        WHERE dq.trade_date = #{tradeDate}
+        AND sb.list_status = 'L'
+        AND dq.pct_chg = 0
+    </select>
+
+    <!--
+        涨停家数：按板块阈值
+          主板（market = '主板'） pct_chg >= 9.9 且 非 ST
+          北交所（market = '北交所'） pct_chg >= 29.9 且 非 ST
+          创业板/科创板（market IN ('创业板','科创板')） pct_chg >= 19.9 且 非 ST
+          ST 股票（name LIKE 'ST%'） pct_chg >= 4.9
+    -->
+    <select id="countLimitUpByTradeDate" resultType="int">
+        SELECT COUNT(*) FROM daily_quote dq
+        JOIN stock_basic sb ON dq.ts_code = sb.ts_code
+        WHERE dq.trade_date = #{tradeDate}
+        AND sb.list_status = 'L'
+        AND (
+            (sb.market = '主板' AND sb.name NOT LIKE 'ST%' AND dq.pct_chg &gt;= 9.9)
+            OR (sb.market = '北交所' AND sb.name NOT LIKE 'ST%' AND dq.pct_chg &gt;= 29.9)
+            OR (sb.market IN ('创业板','科创板') AND sb.name NOT LIKE 'ST%' AND dq.pct_chg &gt;= 19.9)
+            OR (sb.name LIKE 'ST%' AND dq.pct_chg &gt;= 4.9)
+        )
+    </select>
+
+    <!--
+        跌停家数：按板块阈值
+          主板（market = '主板'） pct_chg <= -9.9 且 非 ST
+          北交所（market = '北交所'） pct_chg <= -29.9 且 非 ST
+          创业板/科创板（market IN ('创业板','科创板')） pct_chg <= -19.9 且 非 ST
+          ST 股票（name LIKE 'ST%'） pct_chg <= -4.9
+    -->
+    <select id="countLimitDownByTradeDate" resultType="int">
+        SELECT COUNT(*) FROM daily_quote dq
+        JOIN stock_basic sb ON dq.ts_code = sb.ts_code
+        WHERE dq.trade_date = #{tradeDate}
+        AND sb.list_status = 'L'
+        AND (
+            (sb.market = '主板' AND sb.name NOT LIKE 'ST%' AND dq.pct_chg &lt;= -9.9)
+            OR (sb.market = '北交所' AND sb.name NOT LIKE 'ST%' AND dq.pct_chg &lt;= -29.9)
+            OR (sb.market IN ('创业板','科创板') AND sb.name NOT LIKE 'ST%' AND dq.pct_chg &lt;= -19.9)
+            OR (sb.name LIKE 'ST%' AND dq.pct_chg &lt;= -4.9)
+        )
+    </select>
+
+    <!--
+        市场温度单 SQL 聚合：一次扫描 daily_quote 统计涨/跌/平/涨停/跌停家数。
+        阈值规则与 countLimitUp/DownByTradeDate 一致（主板 ±10%、北交所 ±30%、创业板/科创板 ±20%、ST ±5%）。
+        返回单行 Map，键：up_count / down_count / flat_count / limit_up_count / limit_down_count
+    -->
+    <select id="selectMarketTemperature" resultType="map">
+        SELECT
+            SUM(CASE WHEN dq.pct_chg &gt; 0 THEN 1 ELSE 0 END) AS up_count,
+            SUM(CASE WHEN dq.pct_chg &lt; 0 THEN 1 ELSE 0 END) AS down_count,
+            SUM(CASE WHEN dq.pct_chg = 0 THEN 1 ELSE 0 END) AS flat_count,
+            SUM(CASE WHEN
+                (sb.market = '主板' AND sb.name NOT LIKE 'ST%' AND dq.pct_chg &gt;= 9.9)
+                OR (sb.market = '北交所' AND sb.name NOT LIKE 'ST%' AND dq.pct_chg &gt;= 29.9)
+                OR (sb.market IN ('创业板','科创板') AND sb.name NOT LIKE 'ST%' AND dq.pct_chg &gt;= 19.9)
+                OR (sb.name LIKE 'ST%' AND dq.pct_chg &gt;= 4.9)
+            THEN 1 ELSE 0 END) AS limit_up_count,
+            SUM(CASE WHEN
+                (sb.market = '主板' AND sb.name NOT LIKE 'ST%' AND dq.pct_chg &lt;= -9.9)
+                OR (sb.market = '北交所' AND sb.name NOT LIKE 'ST%' AND dq.pct_chg &lt;= -29.9)
+                OR (sb.market IN ('创业板','科创板') AND sb.name NOT LIKE 'ST%' AND dq.pct_chg &lt;= -19.9)
+                OR (sb.name LIKE 'ST%' AND dq.pct_chg &lt;= -4.9)
+            THEN 1 ELSE 0 END) AS limit_down_count
+        FROM daily_quote dq
+        JOIN stock_basic sb ON dq.ts_code = sb.ts_code
+        WHERE dq.trade_date = #{tradeDate}
+        AND sb.list_status = 'L'
     </select>
 
     <!-- 批量取多只股票在 [startDate, endDate] 的 OHLCV（按 ts_code、trade_date 升序） -->

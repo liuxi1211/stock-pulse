@@ -1095,6 +1095,10 @@
 .rise { color: var(--rise-light); }
 .fall { color: var(--fall-light); }
 
+/* Stock price color aliases (red=up, green=down, A股惯例) */
+.stock-up { color: var(--rise-light); }
+.stock-down { color: var(--fall-light); }
+
 .bg-rise { background: var(--rise-bg); }
 .bg-fall { background: var(--fall-bg); }
 

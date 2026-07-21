@@ -110,7 +110,11 @@ public enum TushareApiEnum {
     EXPRESS("express",
             "ts_code,ann_date,end_date,revenue,operate_profit,total_profit,n_income,"
                     + "total_assets,total_hldr_eqy_exc_min_int,basic_eps,diluted_eps,"
-                    + "growth_yield,or_growth_yield,yst_net_profit,bm_net_profit,bm_growth_sales,update_flag");
+                    + "growth_yield,or_growth_yield,yst_net_profit,bm_net_profit,bm_growth_sales,update_flag"),
+
+    /** 指数日线行情接口（大盘指数/行业指数日线 OHLCV） */
+    INDEX_DAILY("index_daily",
+            "ts_code,trade_date,close,open,high,low,pre_close,change,pct_chg,vol,amount");
 
     private final String apiName;
     private final String fields;

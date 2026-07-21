@@ -1,6 +1,7 @@
 package com.arthur.stock.mapper;
 
 import com.arthur.stock.model.DailyQuoteDO;
+import com.arthur.stock.vo.StockRankVO;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -28,6 +29,53 @@ public interface DailyQuoteMapper extends BaseMapper<DailyQuoteDO> {
     List<DailyQuoteDO> selectTopLosers(@Param("tradeDate") String tradeDate, @Param("limit") int limit);
 
     List<DailyQuoteDO> selectTopAmount(@Param("tradeDate") String tradeDate, @Param("limit") int limit);
+
+    /**
+     * 换手率排行 TOP N（JOIN daily_basic + stock_basic）。
+     * <p>
+     * 直接返回 StockRankVO（含 turnoverRate），避免再走 N+1 名称补齐。
+     */
+    List<StockRankVO> selectTopTurnover(@Param("tradeDate") String tradeDate, @Param("limit") int limit);
+
+    /**
+     * 统计指定交易日的上涨家数（pct_chg &gt; 0，仅上市股票）。
+     */
+    int countUpByTradeDate(@Param("tradeDate") String tradeDate);
+
+    /**
+     * 统计指定交易日的下跌家数（pct_chg &lt; 0，仅上市股票）。
+     */
+    int countDownByTradeDate(@Param("tradeDate") String tradeDate);
+
+    /**
+     * 统计指定交易日的平盘家数（pct_chg = 0，仅上市股票）。
+     */
+    int countFlatByTradeDate(@Param("tradeDate") String tradeDate);
+
+    /**
+     * 统计指定交易日的涨停家数（按板块区分涨跌停阈值；ST 股票按 4.9% 阈值）。
+     */
+    int countLimitUpByTradeDate(@Param("tradeDate") String tradeDate);
+
+    /**
+     * 统计指定交易日的跌停家数（按板块区分涨跌停阈值；ST 股票按 4.9% 阈值）。
+     */
+    int countLimitDownByTradeDate(@Param("tradeDate") String tradeDate);
+
+    /**
+     * 市场温度单 SQL 聚合：一次扫描统计涨/跌/平/涨停/跌停家数。
+     * <p>
+     * 等价于 {@link #countUpByTradeDate} / {@link #countDownByTradeDate} /
+     * {@link #countFlatByTradeDate} / {@link #countLimitUpByTradeDate} /
+     * {@link #countLimitDownByTradeDate} 五次查询的合并，避免 5 次全表扫描。
+     * <p>
+     * 阈值规则：主板 ±10%、北交所 ±30%、创业板/科创板 ±20%、ST ±5%。
+     *
+     * @param tradeDate 交易日 yyyyMMdd
+     * @return 单行 Map，键：up_count / down_count / flat_count / limit_up_count / limit_down_count；
+     *         无数据时各键值为 null
+     */
+    Map<String, Object> selectMarketTemperature(@Param("tradeDate") String tradeDate);
 
     /**
      * 批量取多只股票在 [startDate, endDate] 的 OHLCV（按 ts_code、trade_date 升序）。

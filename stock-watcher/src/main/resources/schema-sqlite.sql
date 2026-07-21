@@ -563,6 +563,23 @@ CREATE TABLE IF NOT EXISTS express (
 );
 CREATE INDEX IF NOT EXISTS idx_express_tscode ON express (ts_code, end_date);
 
+-- 29. 指数日线行情表（tushare index_daily：大盘指数/行业指数日线 OHLCV）
+CREATE TABLE IF NOT EXISTS index_daily (
+    ts_code     TEXT    NOT NULL,
+    trade_date  TEXT    NOT NULL,
+    close       REAL,
+    open        REAL,
+    high        REAL,
+    low         REAL,
+    pre_close   REAL,
+    change      REAL,
+    pct_chg     REAL,
+    vol         REAL,
+    amount      REAL,
+    PRIMARY KEY (ts_code, trade_date)
+);
+CREATE INDEX IF NOT EXISTS idx_index_daily_date ON index_daily (trade_date);
+
 -- 初始管理员账号（仅当表为空时插入，默认密码: admin123）
 INSERT INTO sys_user (username, password, enabled, role)
 SELECT 'admin', '$2a$10$pfuIlLGBbNZqO5xXa9oRKeEFABc4FIxs2SVY46UUG1xpA7o9tGn9u', 1, 'ADMIN'

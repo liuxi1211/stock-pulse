@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.arthur.stock.mapper.IndexDailyMapper">
+
+    <resultMap id="indexDailyMap" type="com.arthur.stock.model.IndexDailyDO">
+        <result column="ts_code" property="tsCode"/>
+        <result column="trade_date" property="tradeDate"/>
+        <result column="close" property="close"/>
+        <result column="open" property="open"/>
+        <result column="high" property="high"/>
+        <result column="low" property="low"/>
+        <result column="pre_close" property="preClose"/>
+        <result column="change" property="changeValue"/>
+        <result column="pct_chg" property="pctChg"/>
+        <result column="vol" property="vol"/>
+        <result column="amount" property="amount"/>
+    </resultMap>
+
+    <!-- 批量插入；change 列在 MySQL 中为保留字，统一用反引号转义（SQLite 兼容） -->
+    <insert id="insertBatch">
+        INSERT INTO index_daily (ts_code, trade_date, close, open, high, low, pre_close,
+                                 `change`, pct_chg, vol, amount) VALUES
+        <foreach collection="list" item="item" separator=",">
+            (#{item.tsCode}, #{item.tradeDate}, #{item.close}, #{item.open}, #{item.high}, #{item.low},
+             #{item.preClose}, #{item.changeValue}, #{item.pctChg}, #{item.vol}, #{item.amount})
+        </foreach>
+    </insert>
+
+    <delete id="deleteBatchByKeys">
+        DELETE FROM index_daily WHERE (ts_code, trade_date) IN
+        <foreach collection="list" item="item" open="(" separator="," close=")">
+            (#{item.tsCode}, #{item.tradeDate})
+        </foreach>
+    </delete>
+
+    <!-- 取表中最新的 trade_date -->
+    <select id="selectLatestTradeDate" resultType="string">
+        SELECT MAX(trade_date) FROM index_daily
+    </select>
+
+    <!-- 按多指数代码 + 交易日查询 -->
+    <select id="selectByCodesAndTradeDate" resultMap="indexDailyMap">
+        SELECT * FROM index_daily
+        WHERE trade_date = #{tradeDate}
+        AND ts_code IN
+        <foreach collection="codes" item="c" open="(" separator="," close=")">
+            #{c}
+        </foreach>
+    </select>
+
+    <!-- 取给定指数代码的最新交易日数据（每个 ts_code 取 MAX(trade_date)） -->
+    <select id="selectLatestByCodes" resultMap="indexDailyMap">
+        SELECT * FROM index_daily
+        WHERE ts_code IN
+        <foreach collection="codes" item="c" open="(" separator="," close=")">
+            #{c}
+        </foreach>
+        AND trade_date = (SELECT MAX(trade_date) FROM index_daily
+                          WHERE ts_code IN
+                          <foreach collection="codes" item="c" open="(" separator="," close=")">
+                              #{c}
+                          </foreach>)
+    </select>
+
+    <!-- 取单个指数的近 N 个交易日行情（按 trade_date DESC） -->
+    <select id="selectByCodeOrderByTradeDate" resultMap="indexDailyMap">
+        SELECT * FROM index_daily
+        WHERE ts_code = #{tsCode}
+        ORDER BY trade_date DESC
+        LIMIT #{limit}
+    </select>
+
+</mapper>

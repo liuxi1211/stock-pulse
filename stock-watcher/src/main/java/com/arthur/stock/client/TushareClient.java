@@ -29,6 +29,7 @@ import com.arthur.stock.dto.tushare.IndexMemberDTO;
 import com.arthur.stock.dto.tushare.IndexMemberQueryDTO;
 import com.arthur.stock.dto.tushare.IndexWeightDTO;
 import com.arthur.stock.dto.tushare.IndexWeightQueryDTO;
+import com.arthur.stock.model.IndexDailyDO;
 import com.arthur.stock.dto.tushare.NamechangeDTO;
 import com.arthur.stock.dto.tushare.NamechangeQueryDTO;
 import com.arthur.stock.dto.tushare.StockBasicQueryDTO;
@@ -350,6 +351,30 @@ public class TushareClient {
             params.put("limit", String.valueOf(limit));
         }
         return query(TushareApiEnum.STK_LIMIT, params, StkLimitDTO.class);
+    }
+
+    /**
+     * 指数日线行情接口（index_daily）。
+     * <p>
+     * 直接解析为 {@link IndexDailyDO}（字段一一对应，DO 上带 {@code @JSONField} 映射）。
+     *
+     * @param tsCode    指数代码（如 000001.SH）
+     * @param startDate 起始交易日 yyyyMMdd（可空）
+     * @param endDate   结束交易日 yyyyMMdd（可空）
+     * @return 指数日线行情列表
+     */
+    public List<IndexDailyDO> fetchIndexDaily(String tsCode, String startDate, String endDate) {
+        JSONObject params = new JSONObject();
+        if (tsCode != null) {
+            params.put("ts_code", tsCode);
+        }
+        if (startDate != null) {
+            params.put("start_date", startDate);
+        }
+        if (endDate != null) {
+            params.put("end_date", endDate);
+        }
+        return query(TushareApiEnum.INDEX_DAILY, params, IndexDailyDO.class);
     }
 
     // ==================== 通用请求方法 ====================

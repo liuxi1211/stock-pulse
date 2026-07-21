@@ -4,6 +4,7 @@ import com.arthur.stock.dto.ApiResponse;
 import com.arthur.stock.service.MarketService;
 import com.arthur.stock.vo.MarketIndexVO;
 import com.arthur.stock.vo.MarketRankingVO;
+import com.arthur.stock.vo.MarketTemperatureVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -25,9 +26,16 @@ public class MarketController {
         return ApiResponse.success(marketService.getMarketIndices());
     }
 
-    @Operation(summary = "获取市场涨跌排行", description = "获取涨幅榜、跌幅榜、换手率榜等市场排名数据")
+    @Operation(summary = "获取市场涨跌排行", description = "获取涨幅榜、跌幅榜、成交额榜、换手率榜等市场排名数据")
     @GetMapping("/ranking")
     public ApiResponse<MarketRankingVO> getMarketRanking() {
         return ApiResponse.success(marketService.getMarketRanking());
+    }
+
+    @Operation(summary = "获取市场温度", description = "获取市场涨/跌/平家数与涨停/跌停数；tradeDate 不传则取最新交易日")
+    @GetMapping("/temperature")
+    public ApiResponse<MarketTemperatureVO> getMarketTemperature(
+            @RequestParam(required = false) String tradeDate) {
+        return ApiResponse.success(marketService.getMarketTemperature(tradeDate));
     }
 }

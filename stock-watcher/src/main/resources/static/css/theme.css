@@ -123,6 +123,21 @@
     --chart-tooltip-text: #1E293B;
     --chart-crosshair: rgba(79, 70, 229, 0.50);
     --chart-crosshair-label: rgba(79, 70, 229, 0.90);
+
+    /* Indicator tokens(技术指标颜色 · azure 蓝色调) */
+    --macd-dif: #4F46E5;
+    --macd-dea: #EA580C;
+    --macd-hist-up: #DC2626;
+    --macd-hist-down: #059669;
+    --kdj-k: #3730A3;
+    --kdj-d: #EA580C;
+    --kdj-j: #6366F1;
+    --rsi-6: #4F46E5;
+    --rsi-12: #EA580C;
+    --rsi-24: #6366F1;
+    --boll-upper: #EA580C;
+    --boll-mid: #3730A3;
+    --boll-lower: #6366F1;
 }
 
 /* ============================================================
@@ -213,6 +228,21 @@
     --chart-tooltip-text: #16302E;
     --chart-crosshair: rgba(14, 165, 164, 0.50);
     --chart-crosshair-label: rgba(14, 165, 164, 0.90);
+
+    /* Indicator tokens(技术指标颜色 · mist 青瓷低饱和) */
+    --macd-dif: #0E7C7B;
+    --macd-dea: #C2682E;
+    --macd-hist-up: #D0413B;
+    --macd-hist-down: #2E8B57;
+    --kdj-k: #0E7C7B;
+    --kdj-d: #C2682E;
+    --kdj-j: #5B7C8B;
+    --rsi-6: #0E7C7B;
+    --rsi-12: #C2682E;
+    --rsi-24: #5B7C8B;
+    --boll-upper: #C2682E;
+    --boll-mid: #0E7C7B;
+    --boll-lower: #5B7C8B;
 }
 
 /* ============================================================
@@ -303,6 +333,21 @@
     --chart-tooltip-text: #E6F1FF;
     --chart-crosshair: rgba(0, 229, 255, 0.55);
     --chart-crosshair-label: rgba(0, 229, 255, 0.85);
+
+    /* Indicator tokens(技术指标颜色 · cyber 霓虹高饱和) */
+    --macd-dif: #00E5FF;
+    --macd-dea: #FF2D92;
+    --macd-hist-up: #FF2D55;
+    --macd-hist-down: #00FF9C;
+    --kdj-k: #00E5FF;
+    --kdj-d: #FF8A00;
+    --kdj-j: #FF2D92;
+    --rsi-6: #00E5FF;
+    --rsi-12: #FF8A00;
+    --rsi-24: #FF2D92;
+    --boll-upper: #FF8A00;
+    --boll-mid: #00E5FF;
+    --boll-lower: #FF2D92;
 }
 
 /* ============================================================

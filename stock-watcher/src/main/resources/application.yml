@@ -78,6 +78,8 @@ tushare:
       permits-per-minute: 100
     express:
       permits-per-minute: 100
+    index_daily:
+      permits-per-minute: 500
 
 # ========== Auth Configuration ==========
 auth:

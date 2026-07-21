@@ -128,6 +128,29 @@ const ChartsTheme = (function () {
                 ma10: readVar('--accent-orange') || '#f97316',
                 ma20: readVar('--accent-purple') || '#a855f7',
             },
+            indicatorColors: {
+                macd: {
+                    dif: readVar('--macd-dif') || '#4F46E5',
+                    dea: readVar('--macd-dea') || '#EA580C',
+                    histUp: readVar('--macd-hist-up') || '#DC2626',
+                    histDown: readVar('--macd-hist-down') || '#059669',
+                },
+                kdj: {
+                    k: readVar('--kdj-k') || '#3730A3',
+                    d: readVar('--kdj-d') || '#EA580C',
+                    j: readVar('--kdj-j') || '#6366F1',
+                },
+                rsi: {
+                    rsi6: readVar('--rsi-6') || '#4F46E5',
+                    rsi12: readVar('--rsi-12') || '#EA580C',
+                    rsi24: readVar('--rsi-24') || '#6366F1',
+                },
+                boll: {
+                    upper: readVar('--boll-upper') || '#EA580C',
+                    mid: readVar('--boll-mid') || '#3730A3',
+                    lower: readVar('--boll-lower') || '#6366F1',
+                },
+            },
             legendColor: readVar('--chart-text') || '#94a3b8',
             legendLabelColor: readVar('--chart-axis') || '#64748b',
         };
