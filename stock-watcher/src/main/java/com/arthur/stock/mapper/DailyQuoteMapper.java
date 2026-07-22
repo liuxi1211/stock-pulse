@@ -1,6 +1,7 @@
 package com.arthur.stock.mapper;
 
 import com.arthur.stock.model.DailyQuoteDO;
+import com.arthur.stock.vo.StockListDTO;
 import com.arthur.stock.vo.StockRankVO;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import org.apache.ibatis.annotations.Mapper;
@@ -97,4 +98,31 @@ public interface DailyQuoteMapper extends BaseMapper<DailyQuoteDO> {
      * 全市场 distinct trade_date 升序，作为简化交易日历。替换旧 {@code selectList(null)} 全表加载。
      */
     List<String> selectDistinctTradeDatesAsc();
+
+    /**
+     * 行情中心股票列表：JOIN daily_basic + stock_basic + sw_industry_member 一次查询取 13 列。
+     * <p>
+     * 支持 industryCode（申万一级行业 index_code）/market（沪市/深市 按代码后缀，创业板/科创板/北交所 按
+     * stock_basic.market）过滤；sortClause 由 Service 层按白名单拼装后以 ${} 注入；分页用 LIMIT/OFFSET。
+     *
+     * @param tradeDate    交易日 yyyyMMdd
+     * @param industryCode 申万一级行业 index_code（可空）
+     * @param market       市场过滤值（可空）
+     * @param sortClause   已校验的 ORDER BY 片段（Service 白名单拼装，防注入）
+     * @param size         每页条数
+     * @param offset       偏移量
+     */
+    List<StockListDTO> selectStockList(@Param("tradeDate") String tradeDate,
+                                       @Param("industryCode") String industryCode,
+                                       @Param("market") String market,
+                                       @Param("sortClause") String sortClause,
+                                       @Param("size") int size,
+                                       @Param("offset") int offset);
+
+    /**
+     * 行情中心股票列表总数（与 {@link #selectStockList} 同 FROM/WHERE，不含排序分页）。
+     */
+    long selectStockListCount(@Param("tradeDate") String tradeDate,
+                              @Param("industryCode") String industryCode,
+                              @Param("market") String market);
 }

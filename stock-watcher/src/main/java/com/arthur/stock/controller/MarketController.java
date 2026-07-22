@@ -1,10 +1,13 @@
 package com.arthur.stock.controller;
 
 import com.arthur.stock.dto.ApiResponse;
+import com.arthur.stock.dto.PageResult;
+import com.arthur.stock.dto.StockListQueryDTO;
 import com.arthur.stock.service.MarketService;
 import com.arthur.stock.vo.MarketIndexVO;
 import com.arthur.stock.vo.MarketRankingVO;
 import com.arthur.stock.vo.MarketTemperatureVO;
+import com.arthur.stock.vo.StockListDTO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -37,5 +40,13 @@ public class MarketController {
     public ApiResponse<MarketTemperatureVO> getMarketTemperature(
             @RequestParam(required = false) String tradeDate) {
         return ApiResponse.success(marketService.getMarketTemperature(tradeDate));
+    }
+
+    @Operation(summary = "获取全市场股票列表",
+            description = "行情中心股票列表：JOIN daily_quote + daily_basic + stock_basic + sw_industry_member，"
+                    + "返回 13 列。支持 rankType 预设排序、industryCode 行业过滤、market 市场过滤、sortBy/order 覆盖排序、page/size 分页（size 上限 500）。")
+    @GetMapping("/stock-list")
+    public ApiResponse<PageResult<StockListDTO>> getStockList(StockListQueryDTO query) {
+        return ApiResponse.success(marketService.getStockList(query));
     }
 }

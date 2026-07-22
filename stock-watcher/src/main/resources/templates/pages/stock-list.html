@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
 <head th:replace="~{fragments/common :: head(${pageTitle})}"></head>
 <body>
@@ -11,90 +11,79 @@
         <header th:replace="~{fragments/common :: topNavbar}"></header>
 
         <main class="content-area">
+            <!-- Page Header -->
             <div class="page-header">
                 <div>
                     <h1 class="page-title">行情中心</h1>
-                    <p class="text-muted mb-0" style="font-size: 13px; margin-top: 4px;">搜索股票，查看实时行情数据</p>
+                    <p class="text-muted mb-0" style="font-size: 13px; margin-top: 4px;">实时行情榜单，支持按涨幅/换手率/成交额等维度排序筛选</p>
                 </div>
                 <div class="page-actions">
-                    <button class="btn btn-secondary btn-sm" onclick="searchStocks(1)">
+                    <!-- 行情中心内搜索框（SearchSuggest，跳转个股详情） -->
+                    <div class="input-group input-group-sm" style="width: 260px;">
+                        <span class="input-group-text"><i class="bi bi-search"></i></span>
+                        <input type="text" class="form-control" id="stockListSearchInput"
+                               placeholder="输入股票代码/名称/拼音首字母"
+                               autocomplete="off">
+                    </div>
+                    <button class="btn btn-secondary btn-sm" id="refreshBtn">
                         <i class="bi bi-arrow-clockwise"></i> 刷新
                     </button>
-                    <button class="btn btn-primary btn-sm" onclick="exportData()">
+                    <button class="btn btn-primary btn-sm" id="exportBtn">
                         <i class="bi bi-download"></i> 导出
                     </button>
                 </div>
             </div>
 
-            <div class="animate-in delay-1 mb-4">
+            <!-- Main card: rank tabs + filters + table -->
+            <div class="animate-in delay-1">
                 <div class="card card-glow">
+                    <!-- Card header: title + 6 rank tabs -->
                     <div class="card-header">
                         <h6 class="card-title">
                             <span class="card-title-icon">
-                                <i class="bi bi-funnel"></i>
+                                <i class="bi bi-bar-chart-fill"></i>
                             </span>
-                            筛选条件
-                        </h6>
-                    </div>
-                    <div class="card-body">
-                        <form class="row g-3 align-items-end" id="searchForm" onsubmit="return false;">
-                            <div class="col-md-4">
-                                <label class="form-label">关键词</label>
-                                <input type="text" class="form-control" id="searchKeyword"
-                                       placeholder="股票代码或名称">
-                            </div>
-                            <div class="col-md-2">
-                                <label class="form-label">每页条数</label>
-                                <select class="form-select" id="pageSizeSelect">
-                                    <option value="5">5</option>
-                                    <option value="10" selected>10</option>
-                                    <option value="20">20</option>
-                                </select>
-                            </div>
-                            <div class="col-auto">
-                                <button class="btn btn-primary" onclick="searchStocks(1)">
-                                    <i class="bi bi-search"></i>搜索
-                                </button>
-                                <button class="btn btn-outline-secondary" onclick="resetSearch()">
-                                    <i class="bi bi-arrow-counterclockwise"></i>重置
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            </div>
-
-            <div class="animate-in delay-2">
-                <div class="card card-glow">
-                    <div class="card-header">
-                        <h6 class="card-title">
-                            <span class="card-title-icon purple">
-                                <i class="bi bi-table"></i>
-                            </span>
-                            股票列表
+                            <span id="rankTitle">行情榜单</span>
                         </h6>
                         <div class="card-actions">
                             <small class="text-muted" id="pageInfo">共 0 条</small>
                         </div>
+                        <ul class="nav nav-pills nav-sm" id="rankTabs">
+                            <!-- tabs rendered by stock-list.js -->
+                        </ul>
                     </div>
+
+                    <!-- Filter bar: industry + market + data date -->
+                    <div class="card-body pb-2">
+                        <form class="row g-2 align-items-end" onsubmit="return false;">
+                            <div class="col-md-3 col-6">
+                                <label class="form-label small mb-1">行业</label>
+                                <select class="form-select form-select-sm" id="industrySelect">
+                                    <option value="">全部行业</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3 col-6">
+                                <label class="form-label small mb-1">市场</label>
+                                <select class="form-select form-select-sm" id="marketSelect">
+                                    <option value="">全部市场</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6 text-md-end text-muted small" id="dataDate">
+                                数据日期 -
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Table -->
                     <div class="card-body p-0">
                         <div class="table-responsive">
-                            <table class="table table-hover table-striped mb-0 align-middle">
-                                <thead>
-                                    <tr>
-                                        <th>代码</th>
-                                        <th>名称</th>
-                                        <th>市场</th>
-                                        <th class="text-end">最新价</th>
-                                        <th class="text-end">涨跌额</th>
-                                        <th class="text-end">涨跌幅</th>
-                                        <th class="text-end">成交量</th>
-                                        <th class="text-center">操作</th>
-                                    </tr>
+                            <table class="table table-hover table-striped table-sm mb-0 align-middle">
+                                <thead id="stockListHead">
+                                    <!-- headers rendered by stock-list.js -->
                                 </thead>
                                 <tbody id="stockListBody">
                                     <tr>
-                                        <td colspan="8" class="text-center text-muted py-4">
+                                        <td colspan="14" class="text-center text-muted py-4">
                                             <div class="spinner-border spinner-border-sm me-1"></div>加载中...
                                         </td>
                                     </tr>
@@ -102,6 +91,8 @@
                             </table>
                         </div>
                     </div>
+
+                    <!-- Pagination -->
                     <div class="card-footer">
                         <small class="text-muted" id="pageInfoFooter">共 0 条</small>
                         <nav>
@@ -117,81 +108,6 @@
 <div th:replace="~{fragments/common :: toastContainer}"></div>
 
 <div th:replace="~{fragments/common :: scripts}"></div>
-<script>
-    function searchStocks(page) {
-        const keyword = document.getElementById('searchKeyword').value;
-        const size = document.getElementById('pageSizeSelect').value;
-
-        StockApp.get('/search', {keyword, page, size}, function(resp) {
-            if (resp.code !== 200) return;
-            const result = resp.data;
-            renderTable(result.list);
-            renderPagination(result);
-            const totalText = `共 ${result.total} 条`;
-            document.getElementById('pageInfo').textContent = totalText;
-            document.getElementById('pageInfoFooter').textContent = totalText;
-        });
-    }
-
-    function renderTable(list) {
-        const tbody = document.getElementById('stockListBody');
-        if (!list.length) {
-            tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4">无数据</td></tr>';
-            return;
-        }
-        tbody.innerHTML = list.map(s => {
-            const e = StockApp.escapeHtml;
-            const upDown = s.changePercent >= 0 ? 'text-rise' : 'text-fall';
-            const sign = s.changeAmount >= 0 ? '+' : '';
-            return `
-            <tr>
-                <td><code>${e(s.code)}</code></td>
-                <td class="fw-medium">${e(s.name)}</td>
-                <td><span class="badge badge-secondary">${e(s.market)}</span></td>
-                <td class="text-end">${e(s.currentPrice)}</td>
-                <td class="text-end ${upDown}">${sign}${e(s.changeAmount)}</td>
-                <td class="text-end ${upDown}">${s.changePercent >= 0 ? '+' : ''}${e(s.changePercent)}%</td>
-                <td class="text-end">${(s.volume / 10000).toFixed(1)}万</td>
-                <td class="text-center">
-                    <button class="btn btn-sm btn-outline-primary btn-icon" onclick="StockApp.addWatchlist('${e(s.code)}', this)">
-                        <i class="bi bi-star"></i>
-                    </button>
-                </td>
-            </tr>`;
-        }).join('');
-    }
-
-    function renderPagination(result) {
-        const ul = document.getElementById('pagination');
-        const totalPages = Math.ceil(result.total / result.size);
-        if (totalPages <= 1) { ul.innerHTML = ''; return; }
-
-        let html = '';
-        html += `<li class="page-item ${result.page <= 1 ? 'disabled' : ''}">
-                    <a class="page-link" href="#" onclick="searchStocks(${result.page - 1})">上一页</a>
-                 </li>`;
-        for (let i = 1; i <= totalPages; i++) {
-            html += `<li class="page-item ${i === result.page ? 'active' : ''}">
-                        <a class="page-link" href="#" onclick="searchStocks(${i})">${i}</a>
-                     </li>`;
-        }
-        html += `<li class="page-item ${result.page >= totalPages ? 'disabled' : ''}">
-                    <a class="page-link" href="#" onclick="searchStocks(${result.page + 1})">下一页</a>
-                 </li>`;
-        ul.innerHTML = html;
-    }
-
-    function resetSearch() {
-        document.getElementById('searchKeyword').value = '';
-        document.getElementById('pageSizeSelect').value = '10';
-        searchStocks(1);
-    }
-
-    function exportData() {
-        StockApp.showToast('导出功能开发中...', 'info');
-    }
-
-    searchStocks(1);
-</script>
+<script th:src="@{/js/stock-list.js}"></script>
 </body>
 </html>

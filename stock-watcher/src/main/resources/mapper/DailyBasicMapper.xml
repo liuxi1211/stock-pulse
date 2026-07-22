@@ -58,4 +58,19 @@
         ORDER BY trade_date ASC
     </select>
 
+    <!-- 取最新交易日：SELECT MAX(trade_date) FROM daily_basic -->
+    <select id="selectLatestTradeDate" resultType="string">
+        SELECT MAX(trade_date) FROM daily_basic
+    </select>
+
+    <!-- 批量取多只股票在某交易日的基本面数据 -->
+    <select id="selectByCodesAndDate" resultMap="dailyBasicMap">
+        SELECT * FROM daily_basic
+        WHERE trade_date = #{tradeDate}
+        AND ts_code IN
+        <foreach collection="tsCodes" item="c" open="(" separator="," close=")">
+            #{c}
+        </foreach>
+    </select>
+
 </mapper>

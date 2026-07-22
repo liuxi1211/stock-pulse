@@ -1,4 +1,4 @@
-﻿/**
+/**
  * SearchSuggest - 通用搜索提示组件
  * 可绑定到任意 <input> 元素，输入时显示匹配建议下拉列表
  *
@@ -106,12 +106,16 @@ class SearchSuggest {
     }
 
     _renderItems() {
-        this.dropdown.innerHTML = this._items.map((item, i) =>
-            `<div class="search-suggest-item" data-index="${i}">` +
-            `<span class="search-suggest-code">${StockApp.escapeHtml(item.code)}</span>` +
-            `<span class="search-suggest-name">${StockApp.escapeHtml(item.name)}</span>` +
-            `</div>`
-        ).join('');
+        this.dropdown.innerHTML = this._items.map((item, i) => {
+            const industry = item.industryName
+                ? `<span class="search-suggest-industry">· ${StockApp.escapeHtml(item.industryName)}</span>`
+                : '';
+            return `<div class="search-suggest-item" data-index="${i}">` +
+                `<span class="search-suggest-code">${StockApp.escapeHtml(item.code)}</span>` +
+                `<span class="search-suggest-name">${StockApp.escapeHtml(item.name)}</span>` +
+                industry +
+                `</div>`;
+        }).join('');
 
         this.dropdown.querySelectorAll('.search-suggest-item').forEach(el => {
             el.addEventListener('click', () => {

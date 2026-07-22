@@ -22,4 +22,7 @@ public class SuggestItemVO {
 
     /** tsCode（带交易所后缀，如 000001.SZ，选股方案 stocks 口径） */
     private String tsCode;
+
+    /** 申万一级行业名称（无匹配时为 null） */
+    private String industryName;
 }

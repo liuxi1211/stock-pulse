@@ -30,4 +30,25 @@ public interface DailyBasicMapper extends BaseMapper<DailyBasicDO> {
     List<DailyBasicDO> selectByCodeAndDateRange(@Param("tsCode") String tsCode,
                                                 @Param("startDate") String startDate,
                                                 @Param("endDate") String endDate);
+
+    /**
+     * 取 daily_basic 表中最新的交易日（SELECT MAX(trade_date)）。
+     * <p>
+     * 用于行情中心等场景与 daily_quote 对齐取最新有基本面数据的交易日。
+     *
+     * @return 最新交易日 yyyyMMdd；表为空时返回 null
+     */
+    String selectLatestTradeDate();
+
+    /**
+     * 批量取多只股票在某交易日的基本面数据（估值/换手率/市值）。
+     * <p>
+     * 主要供 MarketService 等场景 JOIN daily_quote 后补齐 total_mv/pe_ttm/turnover_rate 等字段。
+     *
+     * @param tsCodes   股票代码列表
+     * @param tradeDate 交易日 yyyyMMdd
+     * @return 命中记录（无序）；tsCodes 为空时返回空列表
+     */
+    List<DailyBasicDO> selectByCodesAndDate(@Param("tsCodes") List<String> tsCodes,
+                                             @Param("tradeDate") String tradeDate);
 }

@@ -10,6 +10,7 @@ import com.arthur.stock.mapper.SwIndustryMemberMapper;
 import com.arthur.stock.model.SwIndustryDO;
 import com.arthur.stock.model.SwIndustryMemberDO;
 import com.arthur.stock.service.SwIndustryService;
+import com.arthur.stock.vo.SwIndustryVO;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -150,8 +151,21 @@ public class SwIndustryServiceImpl implements SwIndustryService {
         return m == null ? null : m.getIndexCode();
     }
 
-    // ==================== 内部方法 ====================
+    @Override
+    public List<SwIndustryVO> listByLevel(int level) {
+        List<SwIndustryDO> rows = swIndustryMapper.selectByLevel(level);
+        if (rows == null || rows.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return rows.stream()
+                .map(d -> SwIndustryVO.builder()
+                        .industryCode(d.getIndexCode())
+                        .industryName(d.getIndexName())
+                        .build())
+                .collect(Collectors.toList());
+    }
 
+    // ==================== 内部方法 ====================
     private SwIndustryDO toClassifyEntity(IndexClassifyDTO dto, String src) {
         if (dto == null || dto.getIndexCode() == null) {
             return null;

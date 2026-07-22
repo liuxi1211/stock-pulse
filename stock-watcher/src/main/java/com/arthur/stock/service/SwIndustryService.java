@@ -3,6 +3,8 @@ package com.arthur.stock.service;
 import java.util.List;
 import java.util.Map;
 
+import com.arthur.stock.vo.SwIndustryVO;
+
 /**
  * 申万行业分类服务。
  * <p>
@@ -10,6 +12,15 @@ import java.util.Map;
  * 并落库，提供实时选股（最新一级行业）与回测（point-in-time 一级行业）两类查询。
  */
 public interface SwIndustryService {
+
+    /**
+     * 按层级查询行业列表（level=1 返回 28 个申万一级行业）。
+     *
+     * @param level 行业层级（1/2/3）
+     * @return 该层级所有行业的代码与名称
+     */
+    List<SwIndustryVO> listByLevel(int level);
+
 
     /**
      * 拉取申万行业分类（index_classify）并落库（幂等：按 src 先删后插）。

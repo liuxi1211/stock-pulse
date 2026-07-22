@@ -27,6 +27,24 @@
         <result column="amount" property="amount"/>
     </resultMap>
 
+    <!-- 行情中心股票列表结果映射：14 列（含振幅 amplitude，用于展示与排序） -->
+    <resultMap id="stockListMap" type="com.arthur.stock.vo.StockListDTO">
+        <result column="ts_code" property="tsCode"/>
+        <result column="name" property="name"/>
+        <result column="close" property="close"/>
+        <result column="pct_chg" property="pctChg"/>
+        <result column="change_value" property="change"/>
+        <result column="vol" property="vol"/>
+        <result column="amount" property="amount"/>
+        <result column="total_mv" property="totalMv"/>
+        <result column="pe_ttm" property="peTtm"/>
+        <result column="pb" property="pb"/>
+        <result column="turnover_rate" property="turnoverRate"/>
+        <result column="volume_ratio" property="volumeRatio"/>
+        <result column="industry_name" property="industryName"/>
+        <result column="amplitude" property="amplitude"/>
+    </resultMap>
+
     <insert id="insertBatch">
         INSERT INTO daily_quote (ts_code, trade_date, open, high, low, close, pre_close,
                                  change_amt, pct_chg, vol, amount) VALUES
@@ -204,6 +222,76 @@
     <!-- 全市场 distinct trade_date 升序（替换旧 selectList(null) 全表加载） -->
     <select id="selectDistinctTradeDatesAsc" resultType="string">
         SELECT DISTINCT trade_date FROM daily_quote ORDER BY trade_date ASC
+    </select>
+
+    <!--
+        行情中心股票列表共享 FROM + JOIN + WHERE 片段：
+          daily_quote 为基准表，JOIN stock_basic 取名称/板块并限定 list_status='L'（仅上市股票）；
+          LEFT JOIN daily_basic 补齐估值/换手率/市值；
+          LEFT JOIN sw_industry_member（is_new=1）再 LEFT JOIN sw_industry（level=1）取申万一级行业名。
+        market 过滤为混合语义：沪市/深市 按代码后缀，创业板/科创板/北交所 按 stock_basic.market。
+    -->
+    <sql id="stockListFromWhere">
+        FROM daily_quote dq
+        JOIN stock_basic sb ON dq.ts_code = sb.ts_code
+        LEFT JOIN daily_basic db ON dq.ts_code = db.ts_code AND dq.trade_date = db.trade_date
+        LEFT JOIN sw_industry_member sim
+            ON dq.ts_code = sim.ts_code
+            AND sim.is_new = '1'
+        LEFT JOIN sw_industry si
+            ON sim.index_code = si.index_code
+            AND si.level = 1
+        WHERE dq.trade_date = #{tradeDate}
+        AND sb.list_status = 'L'
+        <if test="industryCode != null and industryCode != ''">
+            AND si.index_code = #{industryCode}
+        </if>
+        <if test="market != null and market != ''">
+            <choose>
+                <when test="market == '沪市'">
+                    AND dq.ts_code LIKE '%.SH'
+                </when>
+                <when test="market == '深市'">
+                    AND dq.ts_code LIKE '%.SZ'
+                </when>
+                <otherwise>
+                    AND sb.market = #{market}
+                </otherwise>
+            </choose>
+        </if>
+    </sql>
+
+    <!--
+        行情中心股票列表：13 列 + amplitude（振幅，仅用于排序）。
+        change_value = close - pre_close（涨跌额）；amplitude = (high-low)/pre_close*100，NULLIF 防除零。
+        sortClause 由 Service 白名单拼装后以 ${} 注入（非预编译，故必须经严格校验）。
+        分页用 LIMIT/OFFSET（MySQL/SQLite 均支持）。
+    -->
+    <select id="selectStockList" resultMap="stockListMap">
+        SELECT
+            dq.ts_code AS ts_code,
+            sb.name AS name,
+            dq.close AS close,
+            dq.pct_chg AS pct_chg,
+            (dq.close - dq.pre_close) AS change_value,
+            dq.vol AS vol,
+            dq.amount AS amount,
+            db.total_mv AS total_mv,
+            db.pe_ttm AS pe_ttm,
+            db.pb AS pb,
+            db.turnover_rate AS turnover_rate,
+            db.volume_ratio AS volume_ratio,
+            si.index_name AS industry_name,
+            (dq.high - dq.low) / NULLIF(dq.pre_close, 0) * 100 AS amplitude
+        <include refid="stockListFromWhere"/>
+        ORDER BY ${sortClause}
+        LIMIT #{size} OFFSET #{offset}
+    </select>
+
+    <!-- 行情中心股票列表总数（同 FROM/WHERE，不含排序分页） -->
+    <select id="selectStockListCount" resultType="long">
+        SELECT COUNT(*)
+        <include refid="stockListFromWhere"/>
     </select>
 
 </mapper>

@@ -344,11 +344,44 @@
     flex: 1;
 }
 
+.search-suggest-industry {
+    color: var(--text-muted);
+    font-size: 12px;
+    white-space: nowrap;
+}
+
 .search-suggest-empty {
     padding: 16px;
     font-size: 12px;
     color: var(--text-muted);
     text-align: center;
+}
+
+/* ========== Sortable table columns (行情中心) ========== */
+.sortable-col {
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+}
+
+.sortable-col:hover {
+    background: color-mix(in srgb, var(--accent-blue) 5%, transparent);
+}
+
+.sortable-col .sort-icon {
+    font-size: 11px;
+    display: inline-block;
+    min-width: 10px;
+}
+
+/* Stock code link in tables */
+.stock-code-link {
+    color: var(--accent-blue-light);
+    text-decoration: none;
+}
+
+.stock-code-link:hover {
+    text-decoration: underline;
 }
 
 /* ========== Switch Toggle 开关 ========== */
