@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.arthur.stock.mapper.TopInstMapper">
+
+    <resultMap id="topInstMap" type="com.arthur.stock.model.TopInstDO">
+        <result column="trade_date" property="tradeDate"/>
+        <result column="ts_code"    property="tsCode"/>
+        <result column="exalter"    property="exalter"/>
+        <result column="side"       property="side"/>
+        <result column="buy"        property="buy"/>
+        <result column="buy_rate"   property="buyRate"/>
+        <result column="sell"       property="sell"/>
+        <result column="sell_rate"  property="sellRate"/>
+        <result column="net_buy"    property="netBuy"/>
+    </resultMap>
+
+    <insert id="insertBatch">
+        INSERT INTO top_inst (trade_date, ts_code, exalter, side, buy, buy_rate, sell, sell_rate, net_buy) VALUES
+        <foreach collection="list" item="i" separator=",">
+            (#{i.tradeDate}, #{i.tsCode}, #{i.exalter}, #{i.side}, #{i.buy}, #{i.buyRate}, #{i.sell}, #{i.sellRate}, #{i.netBuy})
+        </foreach>
+    </insert>
+
+    <delete id="deleteBatchByKeys">
+        DELETE FROM top_inst WHERE (trade_date, ts_code, exalter, side) IN
+        <foreach collection="list" item="i" open="(" separator="," close=")">
+            (#{i.tradeDate}, #{i.tsCode}, #{i.exalter}, #{i.side})
+        </foreach>
+    </delete>
+
+    <select id="selectByTradeDateAndCode" resultMap="topInstMap">
+        SELECT * FROM top_inst
+        WHERE trade_date = #{tradeDate} AND ts_code = #{tsCode}
+        ORDER BY side, net_buy DESC
+    </select>
+
+    <select id="selectNotableByTradeDate" resultMap="topInstMap">
+        SELECT * FROM top_inst WHERE trade_date = #{tradeDate}
+        AND (
+        <foreach collection="keywords" item="kw" separator=" OR ">
+            exalter LIKE CONCAT('%', #{kw}, '%')
+        </foreach>
+        )
+        ORDER BY net_buy DESC
+    </select>
+
+</mapper>

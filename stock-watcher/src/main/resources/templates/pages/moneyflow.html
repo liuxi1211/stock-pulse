@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/common :: head(${pageTitle})}">
+    <link th:href="@{/css/moneyflow.css?v=20260722}" rel="stylesheet">
+</head>
+<body>
+<div class="app-container">
+    <nav th:replace="~{fragments/common :: sidebar}"></nav>
+    <div th:replace="~{fragments/common :: sidebarOverlay}"></div>
+    <div class="main-content">
+        <header th:replace="~{fragments/common :: topNavbar}"></header>
+        <main class="content-area">
+            <!-- Page Header -->
+            <div class="page-header">
+                <div>
+                    <h1 class="page-title">资金流向</h1>
+                    <p class="text-muted mb-0" style="font-size: 13px; margin-top: 4px;">主力资金动向追踪</p>
+                </div>
+                <div class="page-actions">
+                    <div class="mf-date-group">
+                        <i class="bi bi-calendar3"></i>
+                        <input type="date" class="form-control form-control-sm" id="mfDate">
+                    </div>
+                    <button class="btn btn-primary btn-sm" id="mfRefreshBtn">
+                        <i class="bi bi-arrow-clockwise"></i> 刷新
+                    </button>
+                </div>
+            </div>
+
+            <!-- Tab Navigation -->
+            <ul class="nav nav-tabs moneyflow-tabs mb-3" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-stock" type="button" role="tab">
+                        <i class="bi bi-graph-up me-1"></i>个股资金
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-hsgt" type="button" role="tab">
+                        <i class="bi bi-box-arrow-in-down me-1"></i>北向资金
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-toplist" type="button" role="tab">
+                        <i class="bi bi-trophy me-1"></i>龙虎榜
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-blocktrade" type="button" role="tab">
+                        <i class="bi bi-bag-check me-1"></i>大宗交易
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-margin" type="button" role="tab">
+                        <i class="bi bi-bank me-1"></i>融资融券
+                    </button>
+                </li>
+            </ul>
+
+            <!-- Tab Content -->
+            <div class="tab-content">
+
+                <!-- Tab A: 个股资金 -->
+                <div class="tab-pane fade show active" id="tab-stock" role="tabpanel">
+                    <div class="mf-grid mf-grid-stack">
+                        <!-- Chart -->
+                        <div class="mf-chart-card">
+                            <div class="mf-card-head">
+                                <span class="mf-card-title"><i class="bi bi-bar-chart-line me-1"></i>主力资金净流入排行</span>
+                                <span class="mf-hint">单位：万元</span>
+                            </div>
+                            <div class="mf-card-body">
+                                <div id="stockFlowChart" class="mf-chart mf-chart-bar"></div>
+                            </div>
+                        </div>
+                        <!-- Table -->
+                        <div class="mf-table-card">
+                            <div class="mf-card-head">
+                                <span class="mf-card-title"><i class="bi bi-table me-1"></i>个股资金明细</span>
+                                <span class="mf-hint">点击行查看详情</span>
+                            </div>
+                            <div class="mf-table-wrap">
+                                <table class="table table-hover mf-table mb-0" id="stockFlowTable">
+                                    <thead>
+                                        <tr>
+                                            <th>#</th>
+                                            <th>代码</th>
+                                            <th>名称</th>
+                                            <th class="text-end">最新价</th>
+                                            <th class="text-end">涨跌幅</th>
+                                            <th class="text-end">主力净流入</th>
+                                            <th class="text-end">超大单</th>
+                                            <th class="text-end">大单</th>
+                                            <th class="text-end">中单</th>
+                                            <th class="text-end">小单</th>
+                                            <th>操作</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="stockFlowBody">
+                                        <tr><td colspan="11" class="text-center text-muted py-4">加载中...</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab B: 北向资金 -->
+                <div class="tab-pane fade" id="tab-hsgt" role="tabpanel">
+                    <!-- 固定提示 -->
+                    <div class="alert mf-hsgt-notice mb-3" role="alert">
+                        <i class="bi bi-info-circle me-1"></i>
+                        本 Tab 基于 hk_hold 沪深股通持股明细，仅展示持股比例变化，不含净买入数据
+                    </div>
+
+                    <!-- 子导航：沪股通/深股通/北向合计 -->
+                    <ul class="nav nav-pills mf-sub-nav mb-2" role="tablist">
+                        <li class="nav-item">
+                            <button class="nav-link active" data-mf-channel="sh" type="button">沪股通</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-mf-channel="sz" type="button">深股通</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-mf-channel="all" type="button">北向合计</button>
+                        </li>
+                    </ul>
+
+                    <!-- 时间范围 -->
+                    <div class="mf-range-group mb-3">
+                        <div class="btn-group btn-group-sm" role="group">
+                            <button type="button" class="btn btn-outline-secondary mf-range-btn active" data-range="7">7日</button>
+                            <button type="button" class="btn btn-outline-secondary mf-range-btn" data-range="30">30日</button>
+                            <button type="button" class="btn btn-outline-secondary mf-range-btn" data-range="90">90日</button>
+                        </div>
+                    </div>
+
+                    <div class="mf-grid mf-grid-stack">
+                        <!-- 持股比例图 -->
+                        <div class="mf-chart-card">
+                            <div class="mf-card-head">
+                                <span class="mf-card-title"><i class="bi bi-graph-up me-1"></i>沪深股通持股比例变化</span>
+                                <span class="mf-hint">单位：%</span>
+                            </div>
+                            <div class="mf-card-body">
+                                <div id="hsgtRatioChart" class="mf-chart mf-chart-line"></div>
+                            </div>
+                        </div>
+                        <!-- Top 持股明细 -->
+                        <div class="mf-table-card">
+                            <div class="mf-card-head">
+                                <span class="mf-card-title"><i class="bi bi-list-ol me-1"></i>持股比例 Top 明细</span>
+                                <span class="mf-hint">按持股比例降序</span>
+                            </div>
+                            <div class="mf-table-wrap" id="hsgtTopHoldings">
+                                <table class="table table-hover mf-table mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th>#</th>
+                                            <th>代码</th>
+                                            <th>名称</th>
+                                            <th>沪深股通</th>
+                                            <th class="text-end">持股量</th>
+                                            <th class="text-end">持股比例</th>
+                                            <th>操作</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="hsgtHoldingsBody">
+                                        <tr><td colspan="7" class="text-center text-muted py-4">加载中...</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab C: 龙虎榜 -->
+                <div class="tab-pane fade" id="tab-toplist" role="tabpanel">
+                    <div class="mf-two-col">
+                        <!-- 左：龙虎榜列表 -->
+                        <div class="mf-two-col-main mf-table-card">
+                            <div class="mf-card-head">
+                                <span class="mf-card-title"><i class="bi bi-trophy me-1"></i>龙虎榜明细</span>
+                                <span class="mf-hint">当日上榜个股</span>
+                            </div>
+                            <div class="mf-table-wrap" id="toplistTable">
+                                <table class="table table-hover mf-table mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th>#</th>
+                                            <th>代码</th>
+                                            <th>名称</th>
+                                            <th class="text-end">收盘价</th>
+                                            <th class="text-end">涨跌幅</th>
+                                            <th>上榜原因</th>
+                                            <th class="text-end">净买入额</th>
+                                            <th class="text-end">买入额</th>
+                                            <th class="text-end">卖出额</th>
+                                            <th>操作</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="toplistBody">
+                                        <tr><td colspan="10" class="text-center text-muted py-4">加载中...</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <!-- 右：营业部/知名席位卡片 -->
+                        <div class="mf-two-col-side" id="notableCard">
+                            <div class="card card-glow h-100">
+                                <div class="card-header">
+                                    <i class="bi bi-star me-1"></i>知名席位/营业部
+                                </div>
+                                <div class="card-body">
+                                    <p class="text-muted small mb-0">点击龙虎榜行查看上榜营业部详情</p>
+                                    <div id="notableContent"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab D: 大宗交易 -->
+                <div class="tab-pane fade" id="tab-blocktrade" role="tabpanel">
+                    <div class="mf-grid mf-grid-stack">
+                        <!-- 溢价率图 -->
+                        <div class="mf-chart-card">
+                            <div class="mf-card-head">
+                                <span class="mf-card-title"><i class="bi bi-graph-up me-1"></i>大宗交易溢价率分布</span>
+                                <span class="mf-hint">折价/溢价区间统计</span>
+                            </div>
+                            <div class="mf-card-body">
+                                <div id="blockTradePremiumChart" class="mf-chart mf-chart-bar"></div>
+                            </div>
+                        </div>
+                        <!-- 大宗交易明细 -->
+                        <div class="mf-table-card">
+                            <div class="mf-card-head">
+                                <span class="mf-card-title"><i class="bi bi-bag-check me-1"></i>大宗交易明细</span>
+                                <span class="mf-hint">单位：万元</span>
+                            </div>
+                            <div class="mf-table-wrap" id="blockTradeTable">
+                                <table class="table table-hover mf-table mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th>#</th>
+                                            <th>代码</th>
+                                            <th>名称</th>
+                                            <th class="text-end">成交价</th>
+                                            <th class="text-end">收盘价</th>
+                                            <th class="text-end">溢价率</th>
+                                            <th class="text-end">成交量</th>
+                                            <th class="text-end">成交额</th>
+                                            <th>买方</th>
+                                            <th>卖方</th>
+                                            <th>操作</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="blockTradeBody">
+                                        <tr><td colspan="11" class="text-center text-muted py-4">加载中...</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab E: 融资融券 -->
+                <div class="tab-pane fade" id="tab-margin" role="tabpanel">
+                    <!-- 子导航：沪市/深市/两市合计 -->
+                    <ul class="nav nav-pills mf-sub-nav mb-2" role="tablist">
+                        <li class="nav-item">
+                            <button class="nav-link active" data-mf-market="sh" type="button">沪市</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-mf-market="sz" type="button">深市</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-mf-market="all" type="button">两市合计</button>
+                        </li>
+                    </ul>
+
+                    <!-- 时间范围 -->
+                    <div class="mf-range-group mb-3">
+                        <div class="btn-group btn-group-sm" role="group">
+                            <button type="button" class="btn btn-outline-secondary mf-range-btn active" data-range="7">7日</button>
+                            <button type="button" class="btn btn-outline-secondary mf-range-btn" data-range="30">30日</button>
+                            <button type="button" class="btn btn-outline-secondary mf-range-btn" data-range="90">90日</button>
+                        </div>
+                    </div>
+
+                    <div class="mf-grid mf-grid-stack">
+                        <!-- 融资融券趋势图 -->
+                        <div class="mf-chart-card">
+                            <div class="mf-card-head">
+                                <span class="mf-card-title"><i class="bi bi-graph-up me-1"></i>融资融券余额趋势</span>
+                                <span class="mf-hint">单位：亿元</span>
+                            </div>
+                            <div class="mf-card-body">
+                                <div id="marginTrendChart" class="mf-chart mf-chart-line"></div>
+                            </div>
+                        </div>
+                        <!-- 融资融券明细 -->
+                        <div class="mf-table-card">
+                            <div class="mf-card-head">
+                                <span class="mf-card-title"><i class="bi bi-bank me-1"></i>融资融券明细</span>
+                                <span class="mf-hint">单位：万元</span>
+                            </div>
+                            <div class="mf-table-wrap" id="marginDetailTable">
+                                <table class="table table-hover mf-table mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th>#</th>
+                                            <th>代码</th>
+                                            <th>名称</th>
+                                            <th class="text-end">融资余额</th>
+                                            <th class="text-end">融资买入</th>
+                                            <th class="text-end">融资偿还</th>
+                                            <th class="text-end">融券余额</th>
+                                            <th class="text-end">融券卖出</th>
+                                            <th class="text-end">融资融券余额</th>
+                                            <th>操作</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="marginDetailBody">
+                                        <tr><td colspan="10" class="text-center text-muted py-4">加载中...</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </main>
+    </div>
+</div>
+<div th:replace="~{fragments/common :: toastContainer}"></div>
+<div th:replace="~{fragments/common :: scripts}"></div>
+<script th:src="@{/js/moneyflow.js?v=20260722}"></script>
+</body>
+</html>

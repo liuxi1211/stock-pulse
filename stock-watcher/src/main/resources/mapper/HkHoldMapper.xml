@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.arthur.stock.mapper.HkHoldMapper">
+
+    <resultMap id="hkHoldMap" type="com.arthur.stock.model.HkHoldDO">
+        <result column="trade_date" property="tradeDate"/>
+        <result column="code" property="code"/>
+        <result column="name" property="name"/>
+        <result column="vol" property="vol"/>
+        <result column="ratio" property="ratio"/>
+        <result column="ts_code" property="tsCode"/>
+        <result column="exchange_id" property="exchangeId"/>
+    </resultMap>
+
+    <insert id="insertBatch">
+        INSERT INTO hk_hold (trade_date, code, name, vol, ratio, ts_code, exchange_id) VALUES
+        <foreach collection="list" item="i" separator=",">
+            (#{i.tradeDate}, #{i.code}, #{i.name}, #{i.vol}, #{i.ratio}, #{i.tsCode}, #{i.exchangeId})
+        </foreach>
+    </insert>
+
+    <delete id="deleteBatchByKeys">
+        DELETE FROM hk_hold WHERE (trade_date, code) IN
+        <foreach collection="list" item="i" open="(" separator="," close=")">
+            (#{i.tradeDate}, #{i.code})
+        </foreach>
+    </delete>
+
+    <!-- 持股占比趋势：按 trade_date + exchange_id 汇总 SUM(ratio) -->
+    <select id="selectRatioTrend" resultType="com.arthur.stock.dto.HkHoldTrendVO">
+        SELECT trade_date AS tradeDate, SUM(ratio) AS ratio, exchange_id AS exchangeId
+        FROM hk_hold
+        WHERE 1=1
+        <if test="startDate != null and startDate != ''">
+            AND trade_date &gt;= #{startDate}
+        </if>
+        <if test="endDate != null and endDate != ''">
+            AND trade_date &lt;= #{endDate}
+        </if>
+        <if test="exchangeId != null and exchangeId != ''">
+            AND exchange_id = #{exchangeId}
+        </if>
+        GROUP BY trade_date, exchange_id
+        ORDER BY trade_date ASC
+    </select>
+
+    <!-- 某交易日持股数量 Top-N -->
+    <select id="selectTopHoldings" resultMap="hkHoldMap">
+        SELECT * FROM hk_hold
+        WHERE trade_date = #{tradeDate}
+        <if test="exchangeId != null and exchangeId != ''">
+            AND exchange_id = #{exchangeId}
+        </if>
+        ORDER BY vol DESC
+        LIMIT #{limit}
+    </select>
+
+    <!-- 某股票在指定交易日区间内的持股明细 -->
+    <select id="selectByCodeAndDateRange" resultMap="hkHoldMap">
+        SELECT * FROM hk_hold
+        WHERE ts_code = #{tsCode}
+        <if test="startDate != null and startDate != ''">
+            AND trade_date &gt;= #{startDate}
+        </if>
+        <if test="endDate != null and endDate != ''">
+            AND trade_date &lt;= #{endDate}
+        </if>
+        ORDER BY trade_date ASC
+    </select>
+
+    <!-- 取最新交易日：SELECT MAX(trade_date) FROM hk_hold -->
+    <select id="selectLatestTradeDate" resultType="string">
+        SELECT MAX(trade_date) FROM hk_hold
+    </select>
+
+</mapper>

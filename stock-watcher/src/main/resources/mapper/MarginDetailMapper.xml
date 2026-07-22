@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.arthur.stock.mapper.MarginDetailMapper">
+
+    <resultMap id="marginDetailMap" type="com.arthur.stock.model.MarginDetailDO">
+        <result column="trade_date" property="tradeDate"/>
+        <result column="ts_code" property="tsCode"/>
+        <result column="name" property="name"/>
+        <result column="rzye" property="rzye"/>
+        <result column="rqye" property="rqye"/>
+        <result column="rzmre" property="rzmre"/>
+        <result column="rzche" property="rzche"/>
+        <result column="rqmcl" property="rqmcl"/>
+        <result column="rzrqye" property="rzrqye"/>
+    </resultMap>
+
+    <insert id="insertBatch">
+        INSERT INTO margin_detail (trade_date, ts_code, name, rzye, rqye, rzmre, rzche, rqmcl, rzrqye) VALUES
+        <foreach collection="list" item="i" separator=",">
+            (#{i.tradeDate}, #{i.tsCode}, #{i.name}, #{i.rzye}, #{i.rqye}, #{i.rzmre}, #{i.rzche}, #{i.rqmcl}, #{i.rzrqye})
+        </foreach>
+    </insert>
+
+    <delete id="deleteBatchByKeys">
+        DELETE FROM margin_detail WHERE (trade_date, ts_code) IN
+        <foreach collection="list" item="i" open="(" separator="," close=")">
+            (#{i.tradeDate}, #{i.tsCode})
+        </foreach>
+    </delete>
+
+    <select id="selectTopByTradeDate" resultMap="marginDetailMap">
+        SELECT * FROM margin_detail
+        WHERE trade_date = #{tradeDate}
+        ORDER BY
+        <choose>
+            <when test="sortBy == 'rzye'">rzye</when>
+            <when test="sortBy == 'rqye'">rqye</when>
+            <when test="sortBy == 'rzmre'">rzmre</when>
+            <otherwise>rzrqye</otherwise>
+        </choose>
+        <choose>
+            <when test="order == 'asc'">ASC</when>
+            <otherwise>DESC</otherwise>
+        </choose>
+        LIMIT #{limit}
+    </select>
+
+    <select id="selectLatestTradeDate" resultType="string">
+        SELECT MAX(trade_date) FROM margin_detail
+    </select>
+
+</mapper>

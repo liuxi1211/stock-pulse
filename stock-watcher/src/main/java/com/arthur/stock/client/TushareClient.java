@@ -9,6 +9,7 @@ import com.arthur.stock.dto.tushare.AdjFactorDTO;
 import com.arthur.stock.dto.tushare.AdjFactorQueryDTO;
 import com.arthur.stock.dto.tushare.BalancesheetDTO;
 import com.arthur.stock.dto.tushare.BalancesheetQueryDTO;
+import com.arthur.stock.dto.tushare.BlockTradeDTO;
 import com.arthur.stock.dto.tushare.CashflowDTO;
 import com.arthur.stock.dto.tushare.CashflowQueryDTO;
 import com.arthur.stock.dto.tushare.DailyBasicDTO;
@@ -21,6 +22,7 @@ import com.arthur.stock.dto.tushare.ExpressQueryDTO;
 import com.arthur.stock.dto.tushare.FinaIndicatorDTO;
 import com.arthur.stock.dto.tushare.ForecastDTO;
 import com.arthur.stock.dto.tushare.ForecastQueryDTO;
+import com.arthur.stock.dto.tushare.HkHoldDTO;
 import com.arthur.stock.dto.tushare.IncomeDTO;
 import com.arthur.stock.dto.tushare.IncomeQueryDTO;
 import com.arthur.stock.dto.tushare.IndexClassifyDTO;
@@ -29,6 +31,9 @@ import com.arthur.stock.dto.tushare.IndexMemberDTO;
 import com.arthur.stock.dto.tushare.IndexMemberQueryDTO;
 import com.arthur.stock.dto.tushare.IndexWeightDTO;
 import com.arthur.stock.dto.tushare.IndexWeightQueryDTO;
+import com.arthur.stock.dto.tushare.MarginDTO;
+import com.arthur.stock.dto.tushare.MarginDetailDTO;
+import com.arthur.stock.dto.tushare.MoneyflowDTO;
 import com.arthur.stock.model.IndexDailyDO;
 import com.arthur.stock.dto.tushare.NamechangeDTO;
 import com.arthur.stock.dto.tushare.NamechangeQueryDTO;
@@ -38,6 +43,8 @@ import com.arthur.stock.dto.tushare.SuspendDDTO;
 import com.arthur.stock.dto.tushare.SuspendDQueryDTO;
 import com.arthur.stock.dto.tushare.StkLimitDTO;
 import com.arthur.stock.dto.tushare.StkLimitQueryDTO;
+import com.arthur.stock.dto.tushare.TopInstDTO;
+import com.arthur.stock.dto.tushare.TopListDTO;
 import com.arthur.stock.dto.tushare.TradeCalQueryDTO;
 import com.arthur.stock.dto.tushare.TradeCalDTO;
 import lombok.RequiredArgsConstructor;
@@ -375,6 +382,132 @@ public class TushareClient {
             params.put("end_date", endDate);
         }
         return query(TushareApiEnum.INDEX_DAILY, params, IndexDailyDO.class);
+    }
+
+    /**
+     * 个股资金流向接口（moneyflow）。
+     *
+     * @param tradeDate 交易日期 yyyyMMdd
+     * @param tsCode    股票代码
+     * @return 个股资金流向列表
+     */
+    public List<MoneyflowDTO> moneyflow(String tradeDate, String tsCode) {
+        JSONObject params = new JSONObject();
+        if (tradeDate != null) {
+            params.put("trade_date", tradeDate);
+        }
+        if (tsCode != null) {
+            params.put("ts_code", tsCode);
+        }
+        return query(TushareApiEnum.MONEYFLOW, params, MoneyflowDTO.class);
+    }
+
+    /**
+     * 沪深港通持股明细接口（hk_hold）。
+     *
+     * @param tradeDate 交易日期 yyyyMMdd
+     * @param tsCode    股票代码
+     * @return 沪深港通持股明细列表
+     */
+    public List<HkHoldDTO> hkHold(String tradeDate, String tsCode) {
+        JSONObject params = new JSONObject();
+        if (tradeDate != null) {
+            params.put("trade_date", tradeDate);
+        }
+        if (tsCode != null) {
+            params.put("ts_code", tsCode);
+        }
+        return query(TushareApiEnum.HK_HOLD, params, HkHoldDTO.class);
+    }
+
+    /**
+     * 龙虎榜个股明细接口（top_list）。
+     *
+     * @param tradeDate 交易日期 yyyyMMdd
+     * @param tsCode    股票代码
+     * @return 龙虎榜个股明细列表
+     */
+    public List<TopListDTO> topList(String tradeDate, String tsCode) {
+        JSONObject params = new JSONObject();
+        if (tradeDate != null) {
+            params.put("trade_date", tradeDate);
+        }
+        if (tsCode != null) {
+            params.put("ts_code", tsCode);
+        }
+        return query(TushareApiEnum.TOP_LIST, params, TopListDTO.class);
+    }
+
+    /**
+     * 龙虎榜营业部席位明细接口（top_inst）。
+     *
+     * @param tradeDate 交易日期 yyyyMMdd
+     * @param tsCode    股票代码
+     * @return 龙虎榜营业部席位明细列表
+     */
+    public List<TopInstDTO> topInst(String tradeDate, String tsCode) {
+        JSONObject params = new JSONObject();
+        if (tradeDate != null) {
+            params.put("trade_date", tradeDate);
+        }
+        if (tsCode != null) {
+            params.put("ts_code", tsCode);
+        }
+        return query(TushareApiEnum.TOP_INST, params, TopInstDTO.class);
+    }
+
+    /**
+     * 大宗交易接口（block_trade）。
+     *
+     * @param tradeDate 交易日期 yyyyMMdd
+     * @param tsCode    股票代码
+     * @return 大宗交易列表
+     */
+    public List<BlockTradeDTO> blockTrade(String tradeDate, String tsCode) {
+        JSONObject params = new JSONObject();
+        if (tradeDate != null) {
+            params.put("trade_date", tradeDate);
+        }
+        if (tsCode != null) {
+            params.put("ts_code", tsCode);
+        }
+        return query(TushareApiEnum.BLOCK_TRADE, params, BlockTradeDTO.class);
+    }
+
+    /**
+     * 融资融券汇总接口（margin）。
+     *
+     * @param tradeDate  交易日期 yyyyMMdd
+     * @param exchangeId 交易所代码（SSE/SZSE）
+     * @return 融资融券汇总列表
+     */
+    public List<MarginDTO> margin(String tradeDate, String exchangeId) {
+        JSONObject params = new JSONObject();
+        if (tradeDate != null) {
+            params.put("trade_date", tradeDate);
+        }
+        if (exchangeId != null) {
+            params.put("exchange_id", exchangeId);
+        }
+        return query(TushareApiEnum.MARGIN, params, MarginDTO.class);
+    }
+
+    /**
+     * 融资融券个股明细接口（margin_detail）。
+     *
+     * @param tradeDate 交易日期 yyyyMMdd
+     * @param tsCode    股票代码
+     * @return 融资融券个股明细列表
+     */
+    public List<MarginDetailDTO> marginDetail(String tradeDate, String tsCode) {
+        JSONObject params = new JSONObject();
+        if (tradeDate != null) {
+            params.put("trade_date", tradeDate);
+        }
+        if (tsCode != null) {
+            params.put("ts_code", tsCode);
+        }
+        return query(TushareApiEnum.MARGIN_DETAIL, params, MarginDetailDTO.class);
     }
 
     // ==================== 通用请求方法 ====================

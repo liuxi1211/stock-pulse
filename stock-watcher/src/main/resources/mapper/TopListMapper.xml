@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.arthur.stock.mapper.TopListMapper">
+
+    <resultMap id="topListMap" type="com.arthur.stock.model.TopListDO">
+        <result column="trade_date"     property="tradeDate"/>
+        <result column="ts_code"        property="tsCode"/>
+        <result column="name"           property="name"/>
+        <result column="close"          property="close"/>
+        <result column="pct_change"     property="pctChange"/>
+        <result column="turnover_rate"  property="turnoverRate"/>
+        <result column="amount"         property="amount"/>
+        <result column="l_buy"          property="lBuy"/>
+        <result column="l_sell"         property="lSell"/>
+        <result column="l_buy_amount"   property="lBuyAmount"/>
+        <result column="l_sell_amount"  property="lSellAmount"/>
+        <result column="net_amount"      property="netAmount"/>
+        <result column="b_amount"       property="bAmount"/>
+        <result column="s_amount"       property="sAmount"/>
+        <result column="reason"         property="reason"/>
+    </resultMap>
+
+    <insert id="insertBatch">
+        INSERT INTO top_list (trade_date, ts_code, name, close, pct_change, turnover_rate, amount,
+                              l_buy, l_sell, l_buy_amount, l_sell_amount, net_amount, b_amount, s_amount, reason) VALUES
+        <foreach collection="list" item="i" separator=",">
+            (#{i.tradeDate}, #{i.tsCode}, #{i.name}, #{i.close}, #{i.pctChange}, #{i.turnoverRate}, #{i.amount},
+             #{i.lBuy}, #{i.lSell}, #{i.lBuyAmount}, #{i.lSellAmount}, #{i.netAmount}, #{i.bAmount}, #{i.sAmount}, #{i.reason})
+        </foreach>
+    </insert>
+
+    <delete id="deleteBatchByKeys">
+        DELETE FROM top_list WHERE (trade_date, ts_code, reason) IN
+        <foreach collection="list" item="i" open="(" separator="," close=")">
+            (#{i.tradeDate}, #{i.tsCode}, #{i.reason})
+        </foreach>
+    </delete>
+
+    <select id="selectByTradeDate" resultMap="topListMap">
+        SELECT * FROM top_list WHERE trade_date = #{tradeDate} ORDER BY net_amount DESC
+    </select>
+
+    <select id="selectLatestTradeDate" resultType="string">
+        SELECT MAX(trade_date) FROM top_list
+    </select>
+
+</mapper>

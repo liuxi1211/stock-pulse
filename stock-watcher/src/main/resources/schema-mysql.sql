@@ -599,6 +599,126 @@ CREATE TABLE IF NOT EXISTS index_daily (
     INDEX idx_index_daily_date (trade_date)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='指数日线行情表';
 
+-- 30. 个股资金流向表（tushare moneyflow：个股资金流向）
+CREATE TABLE IF NOT EXISTS stock_moneyflow (
+    ts_code          VARCHAR(16)   NOT NULL COMMENT '股票代码',
+    trade_date       VARCHAR(8)    NOT NULL COMMENT '交易日期（YYYYMMDD）',
+    buy_sm_amount    DECIMAL(20,4) COMMENT '小单买入金额（万元）',
+    sell_sm_amount   DECIMAL(20,4) COMMENT '小单卖出金额（万元）',
+    buy_sm_vol       DECIMAL(20,4) COMMENT '小单买入量（万手）',
+    sell_sm_vol      DECIMAL(20,4) COMMENT '小单卖出量（万手）',
+    buy_md_amount    DECIMAL(20,4) COMMENT '中单买入金额（万元）',
+    sell_md_amount   DECIMAL(20,4) COMMENT '中单卖出金额（万元）',
+    buy_md_vol       DECIMAL(20,4) COMMENT '中单买入量（万手）',
+    sell_md_vol      DECIMAL(20,4) COMMENT '中单卖出量（万手）',
+    buy_lg_amount    DECIMAL(20,4) COMMENT '大单买入金额（万元）',
+    sell_lg_amount   DECIMAL(20,4) COMMENT '大单卖出金额（万元）',
+    buy_lg_vol       DECIMAL(20,4) COMMENT '大单买入量（万手）',
+    sell_lg_vol      DECIMAL(20,4) COMMENT '大单卖出量（万手）',
+    buy_elg_amount   DECIMAL(20,4) COMMENT '特大单买入金额（万元）',
+    sell_elg_amount  DECIMAL(20,4) COMMENT '特大单卖出金额（万元）',
+    buy_elg_vol      DECIMAL(20,4) COMMENT '特大单买入量（万手）',
+    sell_elg_vol     DECIMAL(20,4) COMMENT '特大单卖出量（万手）',
+    net_mf_amount    DECIMAL(20,4) COMMENT '净流入额（万元）',
+    net_mf_vol       DECIMAL(20,4) COMMENT '净流入量（万手）',
+    PRIMARY KEY (ts_code, trade_date),
+    INDEX idx_stock_moneyflow_date (trade_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='个股资金流向表';
+
+-- 31. 沪深港通持股明细表（tushare hk_hold：沪深港通持股明细）
+CREATE TABLE IF NOT EXISTS hk_hold (
+    trade_date   VARCHAR(8)    NOT NULL COMMENT '交易日期（YYYYMMDD）',
+    code         VARCHAR(16)   NOT NULL COMMENT '持股代码',
+    name         VARCHAR(20)   COMMENT '持股名称',
+    vol          DECIMAL(20,4) COMMENT '持股数量（万股）',
+    ratio        DECIMAL(20,4) COMMENT '持股占比（%）',
+    ts_code      VARCHAR(16)   COMMENT '股票代码',
+    exchange_id  VARCHAR(4)    COMMENT '交易所代码（SH/SZ）',
+    PRIMARY KEY (trade_date, code),
+    INDEX idx_hk_hold_date (trade_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='沪深港通持股明细表';
+
+-- 32. 龙虎榜个股明细表（tushare top_list：龙虎榜个股明细）
+CREATE TABLE IF NOT EXISTS top_list (
+    trade_date     VARCHAR(8)    NOT NULL COMMENT '交易日期（YYYYMMDD）',
+    ts_code        VARCHAR(16)   NOT NULL COMMENT '股票代码',
+    name           VARCHAR(20)   COMMENT '股票名称',
+    close          DECIMAL(20,4) COMMENT '收盘价',
+    pct_change     DECIMAL(20,4) COMMENT '涨跌幅（%）',
+    turnover_rate  DECIMAL(20,4) COMMENT '换手率（%）',
+    amount         DECIMAL(20,4) COMMENT '成交额（万元）',
+    l_buy          DECIMAL(20,4) COMMENT '龙虎榜买入额（万元）',
+    l_sell         DECIMAL(20,4) COMMENT '龙虎榜卖出额（万元）',
+    l_buy_amount   DECIMAL(20,4) COMMENT '龙虎榜买入净额（万元）',
+    l_sell_amount  DECIMAL(20,4) COMMENT '龙虎榜卖出净额（万元）',
+    net_amount     DECIMAL(20,4) COMMENT '净额（万元）',
+    b_amount       DECIMAL(20,4) COMMENT '机构买入额（万元）',
+    s_amount       DECIMAL(20,4) COMMENT '机构卖出额（万元）',
+    reason         VARCHAR(100) NOT NULL COMMENT '上榜原因',
+    PRIMARY KEY (trade_date, ts_code, reason),
+    INDEX idx_top_list_date (trade_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='龙虎榜个股明细表';
+
+-- 33. 龙虎榜营业部席位明细表（tushare top_inst：龙虎榜营业部席位明细）
+CREATE TABLE IF NOT EXISTS top_inst (
+    trade_date  VARCHAR(8)    NOT NULL COMMENT '交易日期（YYYYMMDD）',
+    ts_code     VARCHAR(16)   NOT NULL COMMENT '股票代码',
+    exalter     VARCHAR(200)  NOT NULL COMMENT '营业部名称',
+    side        VARCHAR(4)    NOT NULL COMMENT '买卖方向（Buy/Sell）',
+    buy         DECIMAL(20,4) COMMENT '买入额（万元）',
+    buy_rate    DECIMAL(20,4) COMMENT '买入占比（%）',
+    sell        DECIMAL(20,4) COMMENT '卖出额（万元）',
+    sell_rate   DECIMAL(20,4) COMMENT '卖出占比（%）',
+    net_buy     DECIMAL(20,4) COMMENT '净买入额（万元）',
+    PRIMARY KEY (trade_date, ts_code, exalter, side),
+    INDEX idx_top_inst_date (trade_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='龙虎榜营业部席位明细表';
+
+-- 34. 大宗交易表（tushare block_trade：大宗交易）
+CREATE TABLE IF NOT EXISTS block_trade (
+    trade_date   VARCHAR(8)    NOT NULL COMMENT '交易日期（YYYYMMDD）',
+    ts_code      VARCHAR(16)   NOT NULL COMMENT '股票代码',
+    name         VARCHAR(20)   COMMENT '股票名称',
+    price        DECIMAL(20,4) COMMENT '成交价',
+    vol          DECIMAL(20,4) COMMENT '成交量（万股）',
+    amount       DECIMAL(20,4) COMMENT '成交额（万元）',
+    buyer        VARCHAR(16)   NOT NULL COMMENT '买方营业部代码',
+    seller       VARCHAR(16)   NOT NULL COMMENT '卖方营业部代码',
+    buyer_name   VARCHAR(200)  COMMENT '买方营业部名称',
+    seller_name  VARCHAR(200)  COMMENT '卖方营业部名称',
+    PRIMARY KEY (trade_date, ts_code, buyer, seller),
+    INDEX idx_block_trade_date (trade_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='大宗交易表';
+
+-- 35. 融资融券汇总表（tushare margin：融资融券汇总）
+CREATE TABLE IF NOT EXISTS margin (
+    exchange_id  VARCHAR(4)    NOT NULL COMMENT '交易所代码（SSE/SZSE）',
+    trade_date   VARCHAR(8)    NOT NULL COMMENT '交易日期（YYYYMMDD）',
+    rzye         DECIMAL(20,4) COMMENT '融资余额（万元）',
+    rzmre        DECIMAL(20,4) COMMENT '融资买入额（万元）',
+    rzche        DECIMAL(20,4) COMMENT '融资偿还额（万元）',
+    rqye         DECIMAL(20,4) COMMENT '融券余额（万元）',
+    rqmcl        DECIMAL(20,4) COMMENT '融券卖出量（万股）',
+    rzrqye       DECIMAL(20,4) COMMENT '融资融券余额（万元）',
+    PRIMARY KEY (exchange_id, trade_date),
+    INDEX idx_margin_date (trade_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='融资融券汇总表';
+
+-- 36. 融资融券个股明细表（tushare margin_detail：融资融券个股明细）
+CREATE TABLE IF NOT EXISTS margin_detail (
+    trade_date  VARCHAR(8)    NOT NULL COMMENT '交易日期（YYYYMMDD）',
+    ts_code     VARCHAR(16)   NOT NULL COMMENT '股票代码',
+    name        VARCHAR(20)   COMMENT '股票名称',
+    rzye        DECIMAL(20,4) COMMENT '融资余额（万元）',
+    rqye        DECIMAL(20,4) COMMENT '融券余额（万元）',
+    rzmre       DECIMAL(20,4) COMMENT '融资买入额（万元）',
+    rzche       DECIMAL(20,4) COMMENT '融资偿还额（万元）',
+    rqmcl       DECIMAL(20,4) COMMENT '融券卖出量（万股）',
+    rzrqye      DECIMAL(20,4) COMMENT '融资融券余额（万元）',
+    PRIMARY KEY (trade_date, ts_code),
+    INDEX idx_margin_detail_date (trade_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='融资融券个股明细表';
+
 -- 初始管理员账号（仅当表为空时插入，默认密码: admin123）
 INSERT INTO sys_user (username, password, enabled, role)
 SELECT 'admin', '$2a$10$pfuIlLGBbNZqO5xXa9oRKeEFABc4FIxs2SVY46UUG1xpA7o9tGn9u', 1, 'ADMIN'

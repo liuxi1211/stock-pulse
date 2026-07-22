@@ -596,6 +596,126 @@ CREATE TABLE IF NOT EXISTS index_daily (
 );
 CREATE INDEX IF NOT EXISTS idx_index_daily_date ON index_daily (trade_date);
 
+-- 30. 个股资金流向表（tushare moneyflow：个股资金流向）
+CREATE TABLE IF NOT EXISTS stock_moneyflow (
+    ts_code          TEXT    NOT NULL,
+    trade_date       TEXT    NOT NULL,
+    buy_sm_amount    REAL,
+    sell_sm_amount   REAL,
+    buy_sm_vol       REAL,
+    sell_sm_vol      REAL,
+    buy_md_amount    REAL,
+    sell_md_amount   REAL,
+    buy_md_vol       REAL,
+    sell_md_vol      REAL,
+    buy_lg_amount    REAL,
+    sell_lg_amount   REAL,
+    buy_lg_vol       REAL,
+    sell_lg_vol      REAL,
+    buy_elg_amount   REAL,
+    sell_elg_amount  REAL,
+    buy_elg_vol      REAL,
+    sell_elg_vol     REAL,
+    net_mf_amount    REAL,
+    net_mf_vol       REAL,
+    PRIMARY KEY (ts_code, trade_date)
+);
+CREATE INDEX IF NOT EXISTS idx_stock_moneyflow_date ON stock_moneyflow (trade_date);
+
+-- 31. 沪深港通持股明细表（tushare hk_hold：沪深港通持股明细）
+CREATE TABLE IF NOT EXISTS hk_hold (
+    trade_date   TEXT    NOT NULL,
+    code         TEXT    NOT NULL,
+    name         TEXT,
+    vol          REAL,
+    ratio        REAL,
+    ts_code      TEXT,
+    exchange_id  TEXT,
+    PRIMARY KEY (trade_date, code)
+);
+CREATE INDEX IF NOT EXISTS idx_hk_hold_date ON hk_hold (trade_date);
+
+-- 32. 龙虎榜个股明细表（tushare top_list：龙虎榜个股明细）
+CREATE TABLE IF NOT EXISTS top_list (
+    trade_date     TEXT    NOT NULL,
+    ts_code        TEXT    NOT NULL,
+    name           TEXT,
+    close          REAL,
+    pct_change     REAL,
+    turnover_rate  REAL,
+    amount         REAL,
+    l_buy          REAL,
+    l_sell         REAL,
+    l_buy_amount   REAL,
+    l_sell_amount  REAL,
+    net_amount     REAL,
+    b_amount       REAL,
+    s_amount       REAL,
+    reason         TEXT    NOT NULL,
+    PRIMARY KEY (trade_date, ts_code, reason)
+);
+CREATE INDEX IF NOT EXISTS idx_top_list_date ON top_list (trade_date);
+
+-- 33. 龙虎榜营业部席位明细表（tushare top_inst：龙虎榜营业部席位明细）
+CREATE TABLE IF NOT EXISTS top_inst (
+    trade_date  TEXT    NOT NULL,
+    ts_code     TEXT    NOT NULL,
+    exalter     TEXT    NOT NULL,
+    side        TEXT    NOT NULL,
+    buy         REAL,
+    buy_rate    REAL,
+    sell        REAL,
+    sell_rate   REAL,
+    net_buy     REAL,
+    PRIMARY KEY (trade_date, ts_code, exalter, side)
+);
+CREATE INDEX IF NOT EXISTS idx_top_inst_date ON top_inst (trade_date);
+
+-- 34. 大宗交易表（tushare block_trade：大宗交易）
+CREATE TABLE IF NOT EXISTS block_trade (
+    trade_date   TEXT    NOT NULL,
+    ts_code      TEXT    NOT NULL,
+    name         TEXT,
+    price        REAL,
+    vol          REAL,
+    amount       REAL,
+    buyer        TEXT    NOT NULL,
+    seller       TEXT    NOT NULL,
+    buyer_name   TEXT,
+    seller_name  TEXT,
+    PRIMARY KEY (trade_date, ts_code, buyer, seller)
+);
+CREATE INDEX IF NOT EXISTS idx_block_trade_date ON block_trade (trade_date);
+
+-- 35. 融资融券汇总表（tushare margin：融资融券汇总）
+CREATE TABLE IF NOT EXISTS margin (
+    exchange_id  TEXT    NOT NULL,
+    trade_date   TEXT    NOT NULL,
+    rzye         REAL,
+    rzmre        REAL,
+    rzche        REAL,
+    rqye         REAL,
+    rqmcl        REAL,
+    rzrqye       REAL,
+    PRIMARY KEY (exchange_id, trade_date)
+);
+CREATE INDEX IF NOT EXISTS idx_margin_date ON margin (trade_date);
+
+-- 36. 融资融券个股明细表（tushare margin_detail：融资融券个股明细）
+CREATE TABLE IF NOT EXISTS margin_detail (
+    trade_date  TEXT    NOT NULL,
+    ts_code     TEXT    NOT NULL,
+    name        TEXT,
+    rzye        REAL,
+    rqye        REAL,
+    rzmre       REAL,
+    rzche       REAL,
+    rqmcl       REAL,
+    rzrqye      REAL,
+    PRIMARY KEY (trade_date, ts_code)
+);
+CREATE INDEX IF NOT EXISTS idx_margin_detail_date ON margin_detail (trade_date);
+
 -- 初始管理员账号（仅当表为空时插入，默认密码: admin123）
 INSERT INTO sys_user (username, password, enabled, role)
 SELECT 'admin', '$2a$10$pfuIlLGBbNZqO5xXa9oRKeEFABc4FIxs2SVY46UUG1xpA7o9tGn9u', 1, 'ADMIN'

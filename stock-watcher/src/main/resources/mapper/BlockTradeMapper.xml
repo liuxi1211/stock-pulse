@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.arthur.stock.mapper.BlockTradeMapper">
+
+    <resultMap id="blockTradeMap" type="com.arthur.stock.model.BlockTradeDO">
+        <result column="trade_date" property="tradeDate"/>
+        <result column="ts_code" property="tsCode"/>
+        <result column="name" property="name"/>
+        <result column="price" property="price"/>
+        <result column="vol" property="vol"/>
+        <result column="amount" property="amount"/>
+        <result column="buyer" property="buyer"/>
+        <result column="seller" property="seller"/>
+        <result column="buyer_name" property="buyerName"/>
+        <result column="seller_name" property="sellerName"/>
+    </resultMap>
+
+    <resultMap id="blockTradeWithCloseMap" type="com.arthur.stock.dto.BlockTradeWithCloseVO">
+        <result column="trade_date" property="tradeDate"/>
+        <result column="ts_code" property="tsCode"/>
+        <result column="name" property="name"/>
+        <result column="price" property="price"/>
+        <result column="vol" property="vol"/>
+        <result column="amount" property="amount"/>
+        <result column="buyer" property="buyer"/>
+        <result column="seller" property="seller"/>
+        <result column="buyer_name" property="buyerName"/>
+        <result column="seller_name" property="sellerName"/>
+        <result column="close_price" property="closePrice"/>
+    </resultMap>
+
+    <insert id="insertBatch">
+        INSERT INTO block_trade (trade_date, ts_code, name, price, vol, amount,
+                                 buyer, seller, buyer_name, seller_name) VALUES
+        <foreach collection="list" item="i" separator=",">
+            (#{i.tradeDate}, #{i.tsCode}, #{i.name}, #{i.price}, #{i.vol}, #{i.amount},
+             #{i.buyer}, #{i.seller}, #{i.buyerName}, #{i.sellerName})
+        </foreach>
+    </insert>
+
+    <delete id="deleteBatchByKeys">
+        DELETE FROM block_trade WHERE (trade_date, ts_code, buyer, seller) IN
+        <foreach collection="list" item="i" open="(" separator="," close=")">
+            (#{i.tradeDate}, #{i.tsCode}, #{i.buyer}, #{i.seller})
+        </foreach>
+    </delete>
+
+    <select id="selectPage" resultMap="blockTradeWithCloseMap">
+        SELECT b.trade_date, b.ts_code, b.name, b.price, b.vol, b.amount,
+               b.buyer, b.seller, b.buyer_name, b.seller_name,
+               d.close AS close_price
+        FROM block_trade b
+        LEFT JOIN daily_quote d ON b.ts_code = d.ts_code AND b.trade_date = d.trade_date
+        WHERE b.trade_date = #{tradeDate}
+        ORDER BY
+        <choose>
+            <when test="sortBy == 'amount'">b.amount</when>
+            <when test="sortBy == 'price'">b.price</when>
+            <when test="sortBy == 'vol'">b.vol</when>
+            <otherwise>b.amount</otherwise>
+        </choose>
+        <choose>
+            <when test="order == 'asc'">ASC</when>
+            <otherwise>DESC</otherwise>
+        </choose>
+        LIMIT #{offset}, #{limit}
+    </select>
+
+    <select id="countByTradeDate" resultType="int">
+        SELECT COUNT(*) FROM block_trade WHERE trade_date = #{tradeDate}
+    </select>
+
+    <select id="selectAllWithCloseByTradeDate" resultMap="blockTradeWithCloseMap">
+        SELECT b.trade_date, b.ts_code, b.name, b.price, b.vol, b.amount,
+               b.buyer, b.seller, b.buyer_name, b.seller_name,
+               d.close AS close_price
+        FROM block_trade b
+        LEFT JOIN daily_quote d ON b.ts_code = d.ts_code AND b.trade_date = d.trade_date
+        WHERE b.trade_date = #{tradeDate}
+    </select>
+
+    <select id="selectLatestTradeDate" resultType="string">
+        SELECT MAX(trade_date) FROM block_trade
+    </select>
+
+</mapper>

@@ -114,7 +114,40 @@ public enum TushareApiEnum {
 
     /** 指数日线行情接口（大盘指数/行业指数日线 OHLCV） */
     INDEX_DAILY("index_daily",
-            "ts_code,trade_date,close,open,high,low,pre_close,change,pct_chg,vol,amount");
+            "ts_code,trade_date,close,open,high,low,pre_close,change,pct_chg,vol,amount"),
+
+    /** 个股资金流向 */
+    MONEYFLOW("moneyflow",
+            "ts_code,trade_date,buy_sm_amount,sell_sm_amount,buy_sm_vol,sell_sm_vol,"
+                    + "buy_md_amount,sell_md_amount,buy_md_vol,sell_md_vol,"
+                    + "buy_lg_amount,sell_lg_amount,buy_lg_vol,sell_lg_vol,"
+                    + "buy_elg_amount,sell_elg_amount,buy_elg_vol,sell_elg_vol,"
+                    + "net_mf_amount,net_mf_vol"),
+
+    /** 沪深港通持股明细 */
+    HK_HOLD("hk_hold",
+            "trade_date,code,name,vol,ratio,ts_code,exchange_id"),
+
+    /** 龙虎榜个股明细 */
+    TOP_LIST("top_list",
+            "trade_date,ts_code,name,close,pct_change,turnover_rate,amount,"
+                    + "l_buy,l_sell,l_buy_amount,l_sell_amount,net_amount,b_amount,s_amount,reason"),
+
+    /** 龙虎榜营业部席位明细 */
+    TOP_INST("top_inst",
+            "trade_date,ts_code,exalter,side,buy,buy_rate,sell,sell_rate,net_buy"),
+
+    /** 大宗交易 */
+    BLOCK_TRADE("block_trade",
+            "trade_date,ts_code,name,price,vol,amount,buyer,seller,buyer_name,seller_name"),
+
+    /** 融资融券汇总 */
+    MARGIN("margin",
+            "exchange_id,trade_date,rzye,rzmre,rzche,rqye,rqmcl,rzrqye"),
+
+    /** 融资融券个股明细 */
+    MARGIN_DETAIL("margin_detail",
+            "trade_date,ts_code,name,rzye,rqye,rzmre,rzche,rqmcl,rzrqye");
 
     private final String apiName;
     private final String fields;

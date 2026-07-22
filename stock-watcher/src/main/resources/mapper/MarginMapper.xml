@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.arthur.stock.mapper.MarginMapper">
+
+    <resultMap id="marginMap" type="com.arthur.stock.model.MarginDO">
+        <result column="exchange_id" property="exchangeId"/>
+        <result column="trade_date" property="tradeDate"/>
+        <result column="rzye" property="rzye"/>
+        <result column="rzmre" property="rzmre"/>
+        <result column="rzche" property="rzche"/>
+        <result column="rqye" property="rqye"/>
+        <result column="rqmcl" property="rqmcl"/>
+        <result column="rzrqye" property="rzrqye"/>
+    </resultMap>
+
+    <insert id="insertBatch">
+        INSERT INTO margin (exchange_id, trade_date, rzye, rzmre, rzche, rqye, rqmcl, rzrqye) VALUES
+        <foreach collection="list" item="i" separator=",">
+            (#{i.exchangeId}, #{i.tradeDate}, #{i.rzye}, #{i.rzmre}, #{i.rzche}, #{i.rqye}, #{i.rqmcl}, #{i.rzrqye})
+        </foreach>
+    </insert>
+
+    <delete id="deleteBatchByKeys">
+        DELETE FROM margin WHERE (exchange_id, trade_date) IN
+        <foreach collection="list" item="i" open="(" separator="," close=")">
+            (#{i.exchangeId}, #{i.tradeDate})
+        </foreach>
+    </delete>
+
+    <select id="selectTrend" resultMap="marginMap">
+        SELECT * FROM margin
+        WHERE 1=1
+        <if test="startDate != null and startDate != ''">
+            AND trade_date &gt;= #{startDate}
+        </if>
+        <if test="endDate != null and endDate != ''">
+            AND trade_date &lt;= #{endDate}
+        </if>
+        <if test="exchangeId != null and exchangeId != '' and exchangeId != 'ALL'">
+            AND exchange_id = #{exchangeId}
+        </if>
+        ORDER BY trade_date ASC
+    </select>
+
+    <select id="selectLatestTradeDate" resultType="string">
+        SELECT MAX(trade_date) FROM margin
+    </select>
+
+</mapper>

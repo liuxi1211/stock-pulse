@@ -69,6 +69,16 @@ public class PageController {
     }
 
     /**
+     * 资金流向页面
+     */
+    @GetMapping("/page/moneyflow")
+    public String moneyflow(Model model) {
+        model.addAttribute("pageTitle", "资金流向");
+        model.addAttribute("activeMenu", "moneyflow");
+        return "pages/moneyflow";
+    }
+
+    /**
      * 系统设置页面
      */
     @GetMapping("/page/settings")
