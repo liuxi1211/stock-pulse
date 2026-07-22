@@ -275,12 +275,10 @@ public class TradeCalServiceImpl implements TradeCalService {
                 toUpdate.add(day);
             }
 
-            // 单条 update 跨方言通用；分批降低单次事务体积
+            // 批量 update（CASE WHEN 构造，跨方言通用）；分批降低单次 SQL 体积
             int updated = 0;
             for (List<TradeCalDO> batch : Lists.partition(toUpdate, BATCH_SIZE)) {
-                for (TradeCalDO day : batch) {
-                    updated += tradeCalMapper.updateRebalanceFlags(day);
-                }
+                updated += tradeCalMapper.updateRebalanceFlagsBatch(batch);
             }
             totalUpdated += updated;
             totalProcessed += openDays.size();

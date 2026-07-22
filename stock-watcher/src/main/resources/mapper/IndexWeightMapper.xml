@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.arthur.stock.mapper.IndexWeightMapper">
+
+    <insert id="insertBatch">
+        INSERT INTO index_weight (ts_code, trade_date, con_code, weight) VALUES
+        <foreach collection="list" item="item" separator=",">
+            (#{item.tsCode}, #{item.tradeDate}, #{item.conCode}, #{item.weight})
+        </foreach>
+    </insert>
+
+</mapper>

@@ -7,6 +7,7 @@ import com.arthur.stock.mapper.StockSuspendDMapper;
 import com.arthur.stock.model.StockSuspendDDO;
 import com.arthur.stock.service.StockSuspendDService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.google.common.collect.Lists;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -18,6 +19,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * 股票停复牌服务实现。
@@ -32,6 +34,9 @@ public class StockSuspendDServiceImpl implements StockSuspendDService {
 
     /** suspend_d 单次分页大小（Tushare 上限 10000） */
     private static final int PAGE_SIZE = 10000;
+
+    /** 批量写入批次大小 */
+    private static final int BATCH_SIZE = 500;
 
     private final TushareClient tushareClient;
     private final StockSuspendDMapper stockSuspendDMapper;
@@ -88,23 +93,20 @@ public class StockSuspendDServiceImpl implements StockSuspendDService {
     // ==================== 内部方法 ====================
 
     /**
-     * 按业务键 (ts_code, trade_date) 单条先删后插，保证幂等。
+     * 按业务键 (ts_code, trade_date) 批量先删后插，保证幂等。
      */
     private int persistByBizKey(List<SuspendDDTO> rows) {
         if (rows.isEmpty()) {
             return 0;
         }
+        List<StockSuspendDDO> entities = rows.stream()
+                .map(this::toEntity)
+                .filter(e -> e != null)
+                .collect(Collectors.toList());
         int count = 0;
-        for (SuspendDDTO dto : rows) {
-            StockSuspendDDO entity = toEntity(dto);
-            if (entity == null) {
-                continue;
-            }
-            stockSuspendDMapper.delete(new LambdaQueryWrapper<StockSuspendDDO>()
-                    .eq(StockSuspendDDO::getTsCode, entity.getTsCode())
-                    .eq(StockSuspendDDO::getTradeDate, entity.getTradeDate()));
-            stockSuspendDMapper.insert(entity);
-            count++;
+        for (List<StockSuspendDDO> batch : Lists.partition(entities, BATCH_SIZE)) {
+            stockSuspendDMapper.deleteBatchByKeys(batch);
+            count += stockSuspendDMapper.insertBatch(batch);
         }
         return count;
     }

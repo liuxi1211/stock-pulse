@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.arthur.stock.mapper.StockSuspendDMapper">
+
+    <insert id="insertBatch">
+        INSERT INTO stock_suspend_d (ts_code, trade_date, susp_reason, resump_date) VALUES
+        <foreach collection="list" item="item" separator=",">
+            (#{item.tsCode}, #{item.tradeDate}, #{item.suspReason}, #{item.resumpDate})
+        </foreach>
+    </insert>
+
+    <delete id="deleteBatchByKeys">
+        DELETE FROM stock_suspend_d WHERE (ts_code, trade_date) IN
+        <foreach collection="list" item="item" open="(" separator="," close=")">
+            (#{item.tsCode}, #{item.tradeDate})
+        </foreach>
+    </delete>
+
+</mapper>

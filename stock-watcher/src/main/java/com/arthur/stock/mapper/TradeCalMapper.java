@@ -43,4 +43,9 @@ public interface TradeCalMapper extends BaseMapper<TradeCalDO> {
      * 单条更新，供 Service 层循环/批量调用，跨 MySQL/SQLite 通用。
      */
     int updateRebalanceFlags(TradeCalDO entity);
+
+    /**
+     * 批量更新 6 个调仓标记字段（CASE WHEN 构造，跨 MySQL/SQLite 通用）。
+     */
+    int updateRebalanceFlagsBatch(@Param("list") List<TradeCalDO> list);
 }

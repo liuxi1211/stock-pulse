@@ -7,6 +7,7 @@ import com.arthur.stock.mapper.StockNamechangeMapper;
 import com.arthur.stock.model.StockNamechangeDO;
 import com.arthur.stock.service.StockNamechangeService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.google.common.collect.Lists;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -36,6 +37,9 @@ public class StockNamechangeServiceImpl implements StockNamechangeService {
 
     /** namechange 单次分页大小（Tushare 上限 5000） */
     private static final int PAGE_SIZE = 5000;
+
+    /** 批量写入批次大小 */
+    private static final int BATCH_SIZE = 500;
 
     private final TushareClient tushareClient;
     private final StockNamechangeMapper stockNamechangeMapper;
@@ -96,40 +100,36 @@ public class StockNamechangeServiceImpl implements StockNamechangeService {
                 .map(NamechangeDTO::getTsCode)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
-        for (String code : codes) {
-            stockNamechangeMapper.delete(new LambdaQueryWrapper<StockNamechangeDO>()
-                    .eq(StockNamechangeDO::getTsCode, code));
-        }
+        // 按 ts_code 批量删除（单条 IN 语句）
+        stockNamechangeMapper.delete(new LambdaQueryWrapper<StockNamechangeDO>()
+                .in(StockNamechangeDO::getTsCode, codes));
+
+        List<StockNamechangeDO> entities = rows.stream()
+                .map(this::toEntity)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
         int count = 0;
-        for (NamechangeDTO dto : rows) {
-            StockNamechangeDO entity = toEntity(dto);
-            if (entity == null) {
-                continue;
-            }
-            stockNamechangeMapper.insert(entity);
-            count++;
+        for (List<StockNamechangeDO> batch : Lists.partition(entities, BATCH_SIZE)) {
+            count += stockNamechangeMapper.insertBatch(batch);
         }
         return count;
     }
 
     /**
-     * 增量落库：按业务键 (ts_code, start_date) 单条先删后插，避免误删历史。
+     * 增量落库：按业务键 (ts_code, start_date) 批量先删后插，避免误删历史。
      */
     private int persistByBizKey(List<NamechangeDTO> rows) {
         if (rows.isEmpty()) {
             return 0;
         }
+        List<StockNamechangeDO> entities = rows.stream()
+                .map(this::toEntity)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
         int count = 0;
-        for (NamechangeDTO dto : rows) {
-            StockNamechangeDO entity = toEntity(dto);
-            if (entity == null) {
-                continue;
-            }
-            stockNamechangeMapper.delete(new LambdaQueryWrapper<StockNamechangeDO>()
-                    .eq(StockNamechangeDO::getTsCode, entity.getTsCode())
-                    .eq(StockNamechangeDO::getStartDate, entity.getStartDate()));
-            stockNamechangeMapper.insert(entity);
-            count++;
+        for (List<StockNamechangeDO> batch : Lists.partition(entities, BATCH_SIZE)) {
+            stockNamechangeMapper.deleteBatchByKeys(batch);
+            count += stockNamechangeMapper.insertBatch(batch);
         }
         return count;
     }

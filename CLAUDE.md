@@ -82,6 +82,7 @@ node run.js logs watcher|engine   # tail 日志
 | **akquant broker_profile 漏 T+1** | `broker_profile` 三个模板**都不含 `t_plus_one`**，必须单独传 `t_plus_one=True`。 | [`09-pitfalls-conventions.md`](./.trae/rules/akquant/09-pitfalls-conventions.md) |
 | **魔法值散落** | 常量必须抽到常量类（全大写）；有 code+label 语义的必须定义成 `DisplayableEnum` 枚举，通过 `GET /constants` + `StockApp.loadConstants` 下发前端。 | [`08-constants-usage.md`](./.trae/rules/stock-watcher/java/08-constants-usage.md) |
 | **启动绕过 run.js** | **禁止**用 `mvn spring-boot:run` / `conda run -n stock python -m uvicorn ...` / `.bat` / `.sh` 直接启动服务。所有启动一律走 `node run.js start`（全栈）或子项目 `run.js`。端口冲突排查、首次搭建见 [`startup.md`](./.trae/rules/startup.md)。 | [`startup.md`](./.trae/rules/startup.md) |
+| **循环内单条 SQL** | 循环体内包含 INSERT/UPDATE/DELETE 且循环次数 >3 时，必须改造为批量 SQL（`insertBatch`/`deleteBatchByKeys`/CASE WHEN 批量 UPDATE）。单条操作仅限 ≤3 次或 <10 条数据。 | [`03-database-design.md` §3.2](./.trae/rules/stock-watcher/java/03-database-design.md) |
 
 ---
 

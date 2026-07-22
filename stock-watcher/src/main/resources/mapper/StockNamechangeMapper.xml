@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.arthur.stock.mapper.StockNamechangeMapper">
+
+    <insert id="insertBatch">
+        INSERT INTO stock_namechange (ts_code, name, start_date, end_date, change_reason) VALUES
+        <foreach collection="list" item="item" separator=",">
+            (#{item.tsCode}, #{item.name}, #{item.startDate}, #{item.endDate}, #{item.changeReason})
+        </foreach>
+    </insert>
+
+    <delete id="deleteBatchByKeys">
+        DELETE FROM stock_namechange WHERE (ts_code, start_date) IN
+        <foreach collection="list" item="item" open="(" separator="," close=")">
+            (#{item.tsCode}, #{item.startDate})
+        </foreach>
+    </delete>
+
+</mapper>

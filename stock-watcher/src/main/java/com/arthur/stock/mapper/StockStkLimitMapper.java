@@ -17,6 +17,16 @@ import java.util.List;
 public interface StockStkLimitMapper extends BaseMapper<StockStkLimitDO> {
 
     /**
+     * 批量插入涨跌停价记录。
+     */
+    int insertBatch(@Param("list") List<StockStkLimitDO> list);
+
+    /**
+     * 按 (ts_code, trade_date) 批量删除。
+     */
+    int deleteBatchByKeys(@Param("list") List<StockStkLimitDO> list);
+
+    /**
      * 区间批量：取多只股票在 [startDate, endDate] 的涨跌停价（供 buildKlineData 精确判定）。
      *
      * @param tsCodes   股票代码列表

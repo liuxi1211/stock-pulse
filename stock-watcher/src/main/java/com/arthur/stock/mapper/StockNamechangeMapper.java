@@ -17,6 +17,16 @@ import java.util.List;
 public interface StockNamechangeMapper extends BaseMapper<StockNamechangeDO> {
 
     /**
+     * 批量插入更名记录。
+     */
+    int insertBatch(@Param("list") List<StockNamechangeDO> list);
+
+    /**
+     * 按 (ts_code, start_date) 批量删除。
+     */
+    int deleteBatchByKeys(@Param("list") List<StockNamechangeDO> list);
+
+    /**
      * point-in-time 查询：取该股票在 tradeDate 生效的最新 name。
      * <p>
      * 条件：start_date <= trade_date 且 (end_date 为空 或 end_date >= trade_date)，按 start_date 倒序取首条。

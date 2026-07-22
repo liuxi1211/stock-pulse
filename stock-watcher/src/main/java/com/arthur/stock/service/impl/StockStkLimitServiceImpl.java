@@ -7,6 +7,7 @@ import com.arthur.stock.mapper.StockStkLimitMapper;
 import com.arthur.stock.model.StockStkLimitDO;
 import com.arthur.stock.service.StockStkLimitService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.google.common.collect.Lists;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -16,6 +17,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * 涨跌停价服务实现。
@@ -30,6 +32,9 @@ public class StockStkLimitServiceImpl implements StockStkLimitService {
 
     /** stk_limit 分页大小（接口不限行数，分页更稳） */
     private static final int PAGE_SIZE = 10000;
+
+    /** 批量写入批次大小 */
+    private static final int BATCH_SIZE = 500;
 
     private final TushareClient tushareClient;
     private final StockStkLimitMapper stockStkLimitMapper;
@@ -87,23 +92,20 @@ public class StockStkLimitServiceImpl implements StockStkLimitService {
     // ==================== 内部方法 ====================
 
     /**
-     * 按业务键 (ts_code, trade_date) 单条先删后插，保证幂等。
+     * 按业务键 (ts_code, trade_date) 批量先删后插，保证幂等。
      */
     private int persistByBizKey(List<StkLimitDTO> rows) {
         if (rows.isEmpty()) {
             return 0;
         }
+        List<StockStkLimitDO> entities = rows.stream()
+                .map(this::toEntity)
+                .filter(e -> e != null)
+                .collect(Collectors.toList());
         int count = 0;
-        for (StkLimitDTO dto : rows) {
-            StockStkLimitDO entity = toEntity(dto);
-            if (entity == null) {
-                continue;
-            }
-            stockStkLimitMapper.delete(new LambdaQueryWrapper<StockStkLimitDO>()
-                    .eq(StockStkLimitDO::getTsCode, entity.getTsCode())
-                    .eq(StockStkLimitDO::getTradeDate, entity.getTradeDate()));
-            stockStkLimitMapper.insert(entity);
-            count++;
+        for (List<StockStkLimitDO> batch : Lists.partition(entities, BATCH_SIZE)) {
+            stockStkLimitMapper.deleteBatchByKeys(batch);
+            count += stockStkLimitMapper.insertBatch(batch);
         }
         return count;
     }

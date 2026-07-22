@@ -17,6 +17,16 @@ import java.util.List;
 public interface SwIndustryMemberMapper extends BaseMapper<SwIndustryMemberDO> {
 
     /**
+     * 批量插入行业成分股记录。
+     */
+    int insertBatch(@Param("list") List<SwIndustryMemberDO> list);
+
+    /**
+     * 按 (ts_code, index_code, update_date) 批量删除。
+     */
+    int deleteBatchByKeys(@Param("list") List<SwIndustryMemberDO> list);
+
+    /**
      * 取个股当前（is_new=1）所属的一级行业。
      * <p>
      * level=1 判定通过 index_code IN (SELECT index_code FROM sw_industry WHERE level=1) 关联。

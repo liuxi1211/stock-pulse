@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.arthur.stock.mapper.SwIndustryMemberMapper">
+
+    <insert id="insertBatch">
+        INSERT INTO sw_industry_member (ts_code, index_code, index_name, in_date, out_date, is_new, src, update_date) VALUES
+        <foreach collection="list" item="item" separator=",">
+            (#{item.tsCode}, #{item.indexCode}, #{item.indexName}, #{item.inDate}, #{item.outDate}, #{item.isNew}, #{item.src}, #{item.updateDate})
+        </foreach>
+    </insert>
+
+    <delete id="deleteBatchByKeys">
+        DELETE FROM sw_industry_member WHERE (ts_code, index_code, update_date) IN
+        <foreach collection="list" item="item" open="(" separator="," close=")">
+            (#{item.tsCode}, #{item.indexCode}, #{item.updateDate})
+        </foreach>
+    </delete>
+
+</mapper>

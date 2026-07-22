@@ -12,6 +12,7 @@ import com.arthur.stock.model.SwIndustryMemberDO;
 import com.arthur.stock.service.SwIndustryService;
 import com.arthur.stock.vo.SwIndustryVO;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.google.common.collect.Lists;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -71,14 +72,13 @@ public class SwIndustryServiceImpl implements SwIndustryService {
         swIndustryMapper.delete(new LambdaQueryWrapper<SwIndustryDO>()
                 .eq(SwIndustryDO::getSrc, effectiveSrc));
 
+        List<SwIndustryDO> entities = rows.stream()
+                .map(dto -> toClassifyEntity(dto, effectiveSrc))
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
         int count = 0;
-        for (IndexClassifyDTO dto : rows) {
-            SwIndustryDO entity = toClassifyEntity(dto, effectiveSrc);
-            if (entity == null) {
-                continue;
-            }
-            swIndustryMapper.insert(entity);
-            count++;
+        for (List<SwIndustryDO> batch : Lists.partition(entities, INSERT_BATCH)) {
+            count += swIndustryMapper.insertBatch(batch);
         }
         log.info("Saved {} sw_industry classify records for src={}", count, effectiveSrc);
         return count;
@@ -202,22 +202,24 @@ public class SwIndustryServiceImpl implements SwIndustryService {
         if (rows.isEmpty()) {
             return 0;
         }
+        List<SwIndustryMemberDO> entities = rows.stream()
+                .map(dto -> {
+                    String updateDate = firstNonBlank(dto.getInDate(), dto.getOutDate(),
+                            LocalDate.now().format(DATE_FMT));
+                    return toMemberEntity(dto, src, updateDate);
+                })
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
         int count = 0;
-        for (IndexMemberDTO dto : rows) {
-            String updateDate = firstNonBlank(dto.getInDate(), dto.getOutDate(),
-                    LocalDate.now().format(DATE_FMT));
-            SwIndustryMemberDO entity = toMemberEntity(dto, src, updateDate);
-            if (entity == null) {
-                continue;
-            }
-            saveMember(entity);
-            count++;
+        for (List<SwIndustryMemberDO> batch : Lists.partition(entities, INSERT_BATCH)) {
+            swIndustryMemberMapper.deleteBatchByKeys(batch);
+            count += swIndustryMemberMapper.insertBatch(batch);
         }
         return count;
     }
 
     /**
-     * 成分股落库（指定 updateDate），按 (ts_code, index_code, update_date) 先删后插。
+     * 成分股落库（指定 updateDate），按 (ts_code, index_code, update_date) 批量先删后插。
      */
     private int persistMembers(List<IndexMemberDTO> rows, String src, String updateDate) {
         if (rows.isEmpty()) {
@@ -228,22 +230,11 @@ public class SwIndustryServiceImpl implements SwIndustryService {
                 .filter(Objects::nonNull)
                 .collect(Collectors.toList());
         int count = 0;
-        for (int i = 0; i < entities.size(); i += INSERT_BATCH) {
-            List<SwIndustryMemberDO> batch = entities.subList(i, Math.min(i + INSERT_BATCH, entities.size()));
-            for (SwIndustryMemberDO row : batch) {
-                saveMember(row);
-                count++;
-            }
+        for (List<SwIndustryMemberDO> batch : Lists.partition(entities, INSERT_BATCH)) {
+            swIndustryMemberMapper.deleteBatchByKeys(batch);
+            count += swIndustryMemberMapper.insertBatch(batch);
         }
         return count;
-    }
-
-    private void saveMember(SwIndustryMemberDO row) {
-        swIndustryMemberMapper.delete(new LambdaQueryWrapper<SwIndustryMemberDO>()
-                .eq(SwIndustryMemberDO::getTsCode, row.getTsCode())
-                .eq(SwIndustryMemberDO::getIndexCode, row.getIndexCode())
-                .eq(SwIndustryMemberDO::getUpdateDate, row.getUpdateDate()));
-        swIndustryMemberMapper.insert(row);
     }
 
     private static String firstNonBlank(String... values) {

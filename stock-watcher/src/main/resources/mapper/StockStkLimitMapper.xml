@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.arthur.stock.mapper.StockStkLimitMapper">
+
+    <insert id="insertBatch">
+        INSERT INTO stock_stk_limit (ts_code, trade_date, pre_close, up_limit, down_limit) VALUES
+        <foreach collection="list" item="item" separator=",">
+            (#{item.tsCode}, #{item.tradeDate}, #{item.preClose}, #{item.upLimit}, #{item.downLimit})
+        </foreach>
+    </insert>
+
+    <delete id="deleteBatchByKeys">
+        DELETE FROM stock_stk_limit WHERE (ts_code, trade_date) IN
+        <foreach collection="list" item="item" open="(" separator="," close=")">
+            (#{item.tsCode}, #{item.tradeDate})
+        </foreach>
+    </delete>
+
+</mapper>

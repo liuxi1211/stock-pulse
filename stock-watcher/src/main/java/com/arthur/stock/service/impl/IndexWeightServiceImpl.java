@@ -7,6 +7,7 @@ import com.arthur.stock.mapper.IndexWeightMapper;
 import com.arthur.stock.model.IndexWeightDO;
 import com.arthur.stock.service.IndexWeightService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.google.common.collect.Lists;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -139,13 +140,12 @@ public class IndexWeightServiceImpl implements IndexWeightService {
                 .eq(IndexWeightDO::getTsCode, indexCode)
                 .eq(IndexWeightDO::getTradeDate, tradeDate));
 
+        if (rows.isEmpty()) {
+            return 0;
+        }
         int count = 0;
-        for (int i = 0; i < rows.size(); i += BATCH_SIZE) {
-            List<IndexWeightDO> batch = rows.subList(i, Math.min(i + BATCH_SIZE, rows.size()));
-            for (IndexWeightDO row : batch) {
-                indexWeightMapper.insert(row);
-                count++;
-            }
+        for (List<IndexWeightDO> batch : Lists.partition(rows, BATCH_SIZE)) {
+            count += indexWeightMapper.insertBatch(batch);
         }
         return count;
     }

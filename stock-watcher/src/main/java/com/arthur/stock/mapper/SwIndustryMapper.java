@@ -15,6 +15,11 @@ import java.util.List;
 public interface SwIndustryMapper extends BaseMapper<SwIndustryDO> {
 
     /**
+     * 批量插入行业分类记录。
+     */
+    int insertBatch(@Param("list") List<SwIndustryDO> list);
+
+    /**
      * 按层级查询行业列表。
      *
      * @param level 行业层级（1/2/3）

@@ -17,6 +17,16 @@ import java.util.List;
 public interface StockSuspendDMapper extends BaseMapper<StockSuspendDDO> {
 
     /**
+     * 批量插入停复牌记录。
+     */
+    int insertBatch(@Param("list") List<StockSuspendDDO> list);
+
+    /**
+     * 按 (ts_code, trade_date) 批量删除。
+     */
+    int deleteBatchByKeys(@Param("list") List<StockSuspendDDO> list);
+
+    /**
      * 当日是否停牌。
      *
      * @param tsCode    股票代码

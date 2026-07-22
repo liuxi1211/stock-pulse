@@ -187,11 +187,27 @@ LIMIT ? OFFSET ?;
 SELECT * FROM daily_quote; -- 全表 + 所有字段
 ```
 
-### 3.2 插入/更新规范 💡 SHOULD
+### 3.2 插入/更新/删除规范 ✅ MUST
 
 - 批量操作使用批量插入/更新
-- 避免循环中单条插入
-- MyBatis-Plus 使用 `insertBatch` / `saveBatch`
+- **禁止循环内单条 SQL 操作**：当循环体内包含 INSERT/UPDATE/DELETE 且循环次数 >3 时，
+  必须改造为批量 SQL（`insertBatch` / `deleteBatchByKeys` / CASE WHEN 批量 UPDATE）
+- 单条操作仅允许在循环次数 ≤3 或确认数据量极小（<10 条）的场景使用
+- MyBatis-Plus 使用自定义批量 SQL（`<foreach>` 构造多值 INSERT）
+- 批量大小统一使用 `BATCH_SIZE = 500`，用 `Lists.partition(list, BATCH_SIZE)` 分批
+
+```java
+// 禁止 ❌ 循环逐条 INSERT
+for (Item item : items) {
+    mapper.insert(item);
+}
+
+// 正确 ✅ 批量 INSERT（先删后插，幂等 upsert）
+Lists.partition(entities, BATCH_SIZE).forEach(batch -> {
+    mapper.deleteBatchByKeys(batch);
+    mapper.insertBatch(batch);
+});
+```
 
 ### 3.3 避免 N+1 查询 ✅ MUST
 

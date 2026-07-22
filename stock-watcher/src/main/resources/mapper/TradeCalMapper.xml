@@ -28,6 +28,44 @@
         WHERE exchange = #{exchange} AND cal_date = #{calDate}
     </update>
 
+    <update id="updateRebalanceFlagsBatch">
+        UPDATE trade_cal SET
+            is_first_of_week = CASE
+                <foreach collection="list" item="item">
+                    WHEN exchange = #{item.exchange} AND cal_date = #{item.calDate} THEN #{item.isFirstOfWeek}
+                </foreach>
+                ELSE is_first_of_week END,
+            is_last_of_week = CASE
+                <foreach collection="list" item="item">
+                    WHEN exchange = #{item.exchange} AND cal_date = #{item.calDate} THEN #{item.isLastOfWeek}
+                </foreach>
+                ELSE is_last_of_week END,
+            is_first_of_month = CASE
+                <foreach collection="list" item="item">
+                    WHEN exchange = #{item.exchange} AND cal_date = #{item.calDate} THEN #{item.isFirstOfMonth}
+                </foreach>
+                ELSE is_first_of_month END,
+            is_last_of_month = CASE
+                <foreach collection="list" item="item">
+                    WHEN exchange = #{item.exchange} AND cal_date = #{item.calDate} THEN #{item.isLastOfMonth}
+                </foreach>
+                ELSE is_last_of_month END,
+            is_first_of_quarter = CASE
+                <foreach collection="list" item="item">
+                    WHEN exchange = #{item.exchange} AND cal_date = #{item.calDate} THEN #{item.isFirstOfQuarter}
+                </foreach>
+                ELSE is_first_of_quarter END,
+            is_last_of_quarter = CASE
+                <foreach collection="list" item="item">
+                    WHEN exchange = #{item.exchange} AND cal_date = #{item.calDate} THEN #{item.isLastOfQuarter}
+                </foreach>
+                ELSE is_last_of_quarter END
+        WHERE
+        <foreach collection="list" item="item" open="" separator=" OR " close="">
+            (exchange = #{item.exchange} AND cal_date = #{item.calDate})
+        </foreach>
+    </update>
+
     <delete id="deleteBatchByKeys">
         DELETE FROM trade_cal
         WHERE

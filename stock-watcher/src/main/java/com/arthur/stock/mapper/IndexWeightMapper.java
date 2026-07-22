@@ -15,6 +15,11 @@ import java.util.List;
 public interface IndexWeightMapper extends BaseMapper<IndexWeightDO> {
 
     /**
+     * 批量插入指数成分股权重。
+     */
+    int insertBatch(@Param("list") List<IndexWeightDO> list);
+
+    /**
      * 取该指数最新交易日的成分股代码列表（实时选股用）。
      */
     @Select("SELECT con_code FROM index_weight WHERE ts_code = #{tsCode} "
