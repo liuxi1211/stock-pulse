@@ -1,11 +1,17 @@
 package com.arthur.stock.service.impl;
 
+import com.arthur.stock.cache.TaskProgressCache;
 import com.arthur.stock.constant.InitStep;
+import com.arthur.stock.constant.IndexConstants;
 import com.arthur.stock.dto.DataInitProgress;
+import com.arthur.stock.dto.governance.TaskProgress;
 import com.arthur.stock.dto.tushare.StockBasicDTO;
 import com.arthur.stock.exception.BusinessException;
 import com.arthur.stock.exception.ErrorCode;
+import com.arthur.stock.mapper.DataPullLogMapper;
+import com.arthur.stock.model.DataPullLogDO;
 import com.arthur.stock.service.*;
+import com.arthur.stock.util.SensitiveDataUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -13,6 +19,8 @@ import org.springframework.cache.CacheManager;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -65,6 +73,16 @@ public class DataInitServiceImpl implements DataInitService {
     private final ForecastService forecastService;
     private final ExpressService expressService;
     private final CacheManager cacheManager;
+    private final TaskProgressCache taskProgressCache;
+    private final DataPullLogMapper dataPullLogMapper;
+    private final DataGovernanceService dataGovernanceService;
+    private final BasicDataService basicDataService;
+    private final MoneyflowService moneyflowService;
+    private final TopListService topListService;
+    private final BlockTradeService blockTradeService;
+    private final HkHoldService hkHoldService;
+    private final MarginService marginService;
+    private final IndexDailyFetchService indexDailyFetchService;
 
     private final AtomicReference<DataInitProgress> progressRef = new AtomicReference<>(
             DataInitProgress.builder().status("IDLE").build());
@@ -105,6 +123,350 @@ public class DataInitServiceImpl implements DataInitService {
     @Override
     public DataInitProgress getStatus() {
         return progressRef.get();
+    }
+
+    // ==================== 单表增量更新 / 全量重建 ====================
+
+    @Override
+    public String incrementalUpdate(String tableCode, String operator) {
+        InitStep step = InitStep.fromCode(tableCode);
+        if (step == null) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "无效的表代码: " + tableCode);
+        }
+        if (!taskProgressCache.tryAcquireLock()) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "有任务正在执行，请稍后再试");
+        }
+        String taskId = UUID.randomUUID().toString();
+        createPullLog(taskId, step, "MANUAL_INCREMENTAL", operator);
+        putInitialProgress(taskId, tableCode);
+        CompletableFuture.runAsync(() -> doIncrementalUpdate(step, taskId), IO_EXECUTOR);
+        return taskId;
+    }
+
+    @Override
+    public String fullRebuild(String tableCode, String operator) {
+        InitStep step = InitStep.fromCode(tableCode);
+        if (step == null) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "无效的表代码: " + tableCode);
+        }
+        if (!taskProgressCache.tryAcquireLock()) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "有任务正在执行，请稍后再试");
+        }
+        String taskId = UUID.randomUUID().toString();
+        createPullLog(taskId, step, "MANUAL_FULL", operator);
+        putInitialProgress(taskId, tableCode);
+        CompletableFuture.runAsync(() -> doFullRebuild(step, taskId), IO_EXECUTOR);
+        return taskId;
+    }
+
+    private void doIncrementalUpdate(InitStep step, String taskId) {
+        long startMs = System.currentTimeMillis();
+        try {
+            updateTaskProgress(taskId, 0, "增量拉取: " + step.getLabel(), 0, 0);
+            executeSingleStep(step, taskId, false);
+
+            if (taskProgressCache.isCancelled(taskId)) {
+                finishPullLog(taskId, "CANCELLED", startMs, "用户取消", null);
+                log.info("Incremental update cancelled: {} (taskId={})", step.getLabel(), taskId);
+                return;
+            }
+            finishPullLog(taskId, "SUCCESS", startMs, null, null);
+            runQualityCheck(step);
+            updateTaskProgress(taskId, 100, "完成", 0, 0);
+            log.info("Incremental update completed: {} (taskId={})", step.getLabel(), taskId);
+        } catch (Exception e) {
+            log.error("Incremental update failed: {} (taskId={})", step.getLabel(), taskId, e);
+            finishPullLog(taskId, "FAILED", startMs,
+                    SensitiveDataUtil.mask(e.getMessage()),
+                    SensitiveDataUtil.mask(getStackTrace(e)));
+        } finally {
+            taskProgressCache.releaseLock();
+        }
+    }
+
+    private void doFullRebuild(InitStep step, String taskId) {
+        long startMs = System.currentTimeMillis();
+        try {
+            updateTaskProgress(taskId, 0, "重建表: " + step.getLabel(), 0, 0);
+            rebuildTable(step);
+
+            updateTaskProgress(taskId, 0, "全量拉取: " + step.getLabel(), 0, 0);
+            executeSingleStep(step, taskId, true);
+
+            if (taskProgressCache.isCancelled(taskId)) {
+                finishPullLog(taskId, "CANCELLED", startMs, "用户取消", null);
+                log.info("Full rebuild cancelled: {} (taskId={})", step.getLabel(), taskId);
+                return;
+            }
+            finishPullLog(taskId, "SUCCESS", startMs, null, null);
+            runQualityCheck(step);
+            updateTaskProgress(taskId, 100, "完成", 0, 0);
+            log.info("Full rebuild completed: {} (taskId={})", step.getLabel(), taskId);
+        } catch (Exception e) {
+            log.error("Full rebuild failed: {} (taskId={})", step.getLabel(), taskId, e);
+            finishPullLog(taskId, "FAILED", startMs,
+                    SensitiveDataUtil.mask(e.getMessage()),
+                    SensitiveDataUtil.mask(getStackTrace(e)));
+        } finally {
+            taskProgressCache.releaseLock();
+        }
+    }
+
+    // ==================== 单步执行（switch 分发） ====================
+
+    private void executeSingleStep(InitStep step, String taskId, boolean isFull) {
+        String today = LocalDate.now().format(DATE_FMT);
+        String fullStart = LocalDate.now().minusYears(30).format(DATE_FMT);
+        String indexWeightStart = LocalDate.now().minusYears(5).format(DATE_FMT);
+
+        switch (step) {
+            case STOCK_BASIC -> {
+                stockBasicService.fetchAndSaveStockBasic();
+                updateTaskProgress(taskId, 100, "完成", 1, 1);
+            }
+            case TRADE_CAL -> {
+                ensureTradeCalRebalanceColumns();
+                tradeCalService.fetchAndSaveTradeCal(null, fullStart, today);
+                updateTaskProgress(taskId, 100, "完成", 1, 1);
+            }
+            case INDEX_WEIGHT -> {
+                for (String code : INDEX_CODES) {
+                    try {
+                        indexWeightService.fetchAndSaveRange(code, indexWeightStart, today);
+                    } catch (Exception e) {
+                        log.warn("Index weight failed for {}: {}", code, e.getMessage());
+                    }
+                }
+                updateTaskProgress(taskId, 100, "完成", INDEX_CODES.size(), INDEX_CODES.size());
+            }
+            case SW_INDUSTRY -> {
+                try {
+                    swIndustryService.fetchAndSaveClassify("SWS2021");
+                } catch (Exception e) {
+                    log.warn("SW classify failed: {}", e.getMessage());
+                }
+                try {
+                    swIndustryService.fetchAndSaveAllMembers("SWS2021");
+                } catch (Exception e) {
+                    log.warn("SW members failed: {}", e.getMessage());
+                }
+                updateTaskProgress(taskId, 100, "完成", 1, 1);
+            }
+            case NAMECHANGE -> {
+                stockNamechangeService.fetchAndSaveAll();
+                updateTaskProgress(taskId, 100, "完成", 1, 1);
+            }
+            case SUSPEND_D -> {
+                stockSuspendDService.fetchAndSaveAll();
+                updateTaskProgress(taskId, 100, "完成", 1, 1);
+            }
+            case STK_LIMIT -> {
+                stockStkLimitService.fetchAndSaveAll();
+                updateTaskProgress(taskId, 100, "完成", 1, 1);
+            }
+            // --- 逐股表 ---
+            case DAILY -> executePerStockStep(step, taskId, tsCode ->
+                    dailyQuoteService.fetchAndSaveDailyQuotes(tsCode));
+            case ADJ_FACTOR -> executePerStockStep(step, taskId, tsCode ->
+                    adjFactorService.fetchAndSaveAdjFactor(tsCode));
+            case DIVIDEND -> executePerStockStep(step, taskId, tsCode ->
+                    dividendService.fetchAndSaveDividend(tsCode));
+            case INCOME -> executePerStockStep(step, taskId, tsCode ->
+                    incomeService.fetchAndSaveIncome(tsCode, fullStart, today));
+            case BALANCESHEET -> executePerStockStep(step, taskId, tsCode ->
+                    balancesheetService.fetchAndSaveBalancesheet(tsCode, fullStart, today));
+            case CASHFLOW -> executePerStockStep(step, taskId, tsCode ->
+                    cashflowService.fetchAndSaveCashflow(tsCode, fullStart, today));
+            case FORECAST -> executePerStockStep(step, taskId, tsCode ->
+                    forecastService.fetchAndSaveForecast(tsCode, fullStart, today));
+            case EXPRESS -> executePerStockStep(step, taskId, tsCode ->
+                    expressService.fetchAndSaveExpress(tsCode, fullStart, today));
+            // --- 交易日表 ---
+            case DAILY_BASIC -> {
+                basicDataService.fetchAndSaveDailyBasic(today);
+                updateTaskProgress(taskId, 100, "完成", 1, 1);
+            }
+            case MONEYFLOW -> {
+                moneyflowService.fetchAndSave(today);
+                updateTaskProgress(taskId, 100, "完成", 1, 1);
+            }
+            case TOP_LIST -> {
+                topListService.fetchAndSaveTopList(today);
+                updateTaskProgress(taskId, 100, "完成", 1, 1);
+            }
+            case TOP_INST -> {
+                topListService.fetchAndSaveTopInst(today);
+                updateTaskProgress(taskId, 100, "完成", 1, 1);
+            }
+            case BLOCK_TRADE -> {
+                blockTradeService.fetchAndSave(today);
+                updateTaskProgress(taskId, 100, "完成", 1, 1);
+            }
+            case HK_HOLD -> {
+                hkHoldService.fetchAndSave(today);
+                updateTaskProgress(taskId, 100, "完成", 1, 1);
+            }
+            case MARGIN -> {
+                marginService.fetchAndSaveMargin(today);
+                updateTaskProgress(taskId, 100, "完成", 1, 1);
+            }
+            case MARGIN_DETAIL -> {
+                marginService.fetchAndSaveMarginDetail(today);
+                updateTaskProgress(taskId, 100, "完成", 1, 1);
+            }
+            // --- 区间表 ---
+            case FINA_INDICATOR -> {
+                String startPeriod = isFull ? fullStart : LocalDate.now().minusYears(1).format(DATE_FMT);
+                basicDataService.fetchAndSaveFinaIndicator(startPeriod, today);
+                updateTaskProgress(taskId, 100, "完成", 1, 1);
+            }
+            case INDEX_DAILY -> {
+                String start = isFull ? fullStart : today;
+                List<String> codes = IndexConstants.DEFAULT_INDEX_CODES;
+                int i = 0;
+                for (String code : codes) {
+                    try {
+                        indexDailyFetchService.fetchAndSaveIndexDaily(code, start, today);
+                    } catch (Exception e) {
+                        log.warn("Index daily failed for {}: {}", code, e.getMessage());
+                    }
+                    i++;
+                    updateTaskProgress(taskId, i * 100 / codes.size(),
+                            step.getLabel() + " (" + i + "/" + codes.size() + ")", i, codes.size());
+                }
+            }
+        }
+    }
+
+    @FunctionalInterface
+    private interface TsCodeTask {
+        void execute(String tsCode) throws Exception;
+    }
+
+    private void executePerStockStep(InitStep step, String taskId, TsCodeTask task) {
+        List<StockBasicDTO> stocks = resolveStockListForSingleStep();
+        int total = stocks.size();
+        if (total == 0) {
+            updateTaskProgress(taskId, 100, "完成（无股票）", 0, 0);
+            return;
+        }
+        int processed = 0;
+        for (int i = 0; i < total; i++) {
+            if (taskProgressCache.isCancelled(taskId)) {
+                log.info("Task {} cancelled at {}/{}", taskId, i, total);
+                break;
+            }
+            String tsCode = stocks.get(i).getTsCode();
+            try {
+                task.execute(tsCode);
+            } catch (Exception e) {
+                log.warn("Failed for {}: {}", tsCode, e.getMessage());
+            }
+            processed = i + 1;
+            if (processed % 100 == 0 || processed == total) {
+                updateTaskProgress(taskId, processed * 100 / total,
+                        step.getLabel() + " (" + processed + "/" + total + ")",
+                        processed, total);
+            }
+        }
+        updateTaskProgress(taskId, 100, "完成", processed, total);
+    }
+
+    // ==================== 单表操作辅助方法 ====================
+
+    private void createPullLog(String taskId, InitStep step, String operationType, String operator) {
+        DataPullLogDO logEntry = DataPullLogDO.builder()
+                .taskId(taskId)
+                .tableCode(step.getCode())
+                .tableName(step.getLabel())
+                .operationType(operationType)
+                .status("RUNNING")
+                .startTime(LocalDateTime.now().format(DATETIME_FMT))
+                .operator(operator)
+                .build();
+        dataPullLogMapper.insert(logEntry);
+    }
+
+    private void finishPullLog(String taskId, String status, long startMs,
+                              String errorMessage, String errorStack) {
+        long durationMs = System.currentTimeMillis() - startMs;
+        dataPullLogMapper.updateStatus(taskId, status,
+                LocalDateTime.now().format(DATETIME_FMT), durationMs,
+                null, null, null, errorMessage, errorStack);
+    }
+
+    private void runQualityCheck(InitStep step) {
+        try {
+            dataGovernanceService.checkTable(step.getCode());
+        } catch (Exception e) {
+            log.warn("Quality check failed for {}: {}", step.getCode(), e.getMessage());
+        }
+    }
+
+    private void putInitialProgress(String taskId, String tableCode) {
+        TaskProgress progress = TaskProgress.builder()
+                .taskId(taskId)
+                .tableCode(tableCode)
+                .progressPct(0)
+                .currentStep("准备中")
+                .processedItems(0)
+                .totalItems(0)
+                .cancelled(false)
+                .lastUpdated(LocalDateTime.now().format(DATETIME_FMT))
+                .build();
+        taskProgressCache.putProgress(taskId, progress);
+    }
+
+    private void updateTaskProgress(String taskId, int progressPct, String currentStep,
+                                    long processed, long total) {
+        TaskProgress existing = taskProgressCache.getProgress(taskId);
+        TaskProgress progress = TaskProgress.builder()
+                .taskId(taskId)
+                .tableCode(existing != null ? existing.getTableCode() : null)
+                .progressPct(progressPct)
+                .currentStep(currentStep)
+                .processedItems(processed)
+                .totalItems(total)
+                .cancelled(existing != null && existing.isCancelled())
+                .lastUpdated(LocalDateTime.now().format(DATETIME_FMT))
+                .build();
+        taskProgressCache.putProgress(taskId, progress);
+    }
+
+    private void rebuildTable(InitStep step) {
+        String table = step.getTableName();
+        Map<String, String> createTableSql = getCreateTableSql();
+        String sql = createTableSql.get(table);
+        if (sql != null) {
+            jdbcTemplate.execute("DROP TABLE IF EXISTS " + table);
+            jdbcTemplate.execute(sql);
+            log.info("Recreated table: {}", table);
+        } else {
+            log.warn("No CREATE TABLE SQL for {}, skipping table rebuild", table);
+        }
+        if (step == InitStep.SW_INDUSTRY) {
+            String memberSql = createTableSql.get("sw_industry_member");
+            if (memberSql != null) {
+                jdbcTemplate.execute("DROP TABLE IF EXISTS sw_industry_member");
+                jdbcTemplate.execute(memberSql);
+                log.info("Recreated table: sw_industry_member");
+            }
+        }
+    }
+
+    private List<StockBasicDTO> resolveStockListForSingleStep() {
+        List<StockBasicDTO> local = stockBasicService.queryLocal(null, null, null, null);
+        if (local.isEmpty()) {
+            throw new BusinessException(ErrorCode.NOT_FOUND,
+                    "本地无股票基础信息，请先初始化 stock_basic 步骤");
+        }
+        return local;
+    }
+
+    private static String getStackTrace(Throwable e) {
+        StringWriter sw = new StringWriter();
+        e.printStackTrace(new PrintWriter(sw));
+        return sw.toString();
     }
 
     private void doInitialize(List<InitStep> steps) {

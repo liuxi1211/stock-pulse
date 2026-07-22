@@ -95,6 +95,10 @@
 
         <div class="nav-section" th:if="${session.AUTH_USER?.role?.name() == 'ADMIN'}">
             <div class="nav-section-title">管理中心</div>
+            <a th:href="@{/page/data-governance}" class="nav-item" th:classappend="${activeMenu == 'data-governance'} ? 'active'">
+                <i class="bi bi-database-check"></i>
+                <span>数据管控中心</span>
+            </a>
             <a th:href="@{/page/user-management}" class="nav-item" th:classappend="${activeMenu == 'user-management'} ? 'active'">
                 <i class="bi bi-people"></i>
                 <span>用户管理</span>

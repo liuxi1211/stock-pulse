@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.arthur.stock.mapper.DataGovernanceMetricMapper">
+
+    <resultMap id="metricMap" type="com.arthur.stock.model.DataGovernanceMetricDO">
+        <id column="id" property="id"/>
+        <result column="check_batch_id" property="checkBatchId"/>
+        <result column="table_code" property="tableCode"/>
+        <result column="table_name" property="tableName"/>
+        <result column="table_group" property="tableGroup"/>
+        <result column="total_rows" property="totalRows"/>
+        <result column="row_delta_pct" property="rowDeltaPct"/>
+        <result column="latest_date" property="latestDate"/>
+        <result column="earliest_date" property="earliestDate"/>
+        <result column="status" property="status"/>
+        <result column="check_items" property="checkItems"/>
+        <result column="check_time" property="checkTime"/>
+        <result column="check_type" property="checkType"/>
+    </resultMap>
+
+    <insert id="insertBatch">
+        INSERT INTO data_governance_metric (check_batch_id, table_code, table_name, table_group,
+                                            total_rows, row_delta_pct, latest_date, earliest_date,
+                                            status, check_items, check_time, check_type) VALUES
+        <foreach collection="list" item="m" separator=",">
+            (#{m.checkBatchId}, #{m.tableCode}, #{m.tableName}, #{m.tableGroup},
+             #{m.totalRows}, #{m.rowDeltaPct}, #{m.latestDate}, #{m.earliestDate},
+             #{m.status}, #{m.checkItems}, #{m.checkTime}, #{m.checkType})
+        </foreach>
+    </insert>
+
+    <select id="selectLatestBatch" resultMap="metricMap">
+        SELECT * FROM data_governance_metric
+        WHERE check_batch_id = (
+            SELECT check_batch_id FROM data_governance_metric
+            ORDER BY check_time DESC
+            LIMIT 1
+        )
+        ORDER BY table_code
+    </select>
+
+    <select id="selectByTableCodeLatest" resultMap="metricMap">
+        SELECT * FROM data_governance_metric
+        WHERE table_code = #{tableCode}
+        ORDER BY check_time DESC
+        LIMIT 1
+    </select>
+
+    <select id="selectPreviousByTableCode" resultMap="metricMap">
+        SELECT * FROM data_governance_metric
+        WHERE table_code = #{tableCode}
+        ORDER BY check_time DESC
+        LIMIT 1 OFFSET 1
+    </select>
+
+    <delete id="deleteOlderThan">
+        DELETE FROM data_governance_metric WHERE check_time &lt; #{cutoffTime}
+    </delete>
+
+</mapper>

@@ -25,4 +25,21 @@ public interface IncomeMapper extends BaseMapper<IncomeDO> {
      * 用于选股时取最新可用财报数据，避免 lookahead bias；锁定合并报表口径保证结果可复现。
      */
     IncomeDO selectLatestAnnouncedBefore(@Param("tsCode") String tsCode, @Param("tradeDate") String tradeDate);
+
+    // ==================== 数据管控检查 ====================
+
+    /** 取表中最大的 ann_date */
+    String selectMaxAnnDate();
+
+    /** 取表中最大的 end_date（最新报告期） */
+    String selectMaxEndDate();
+
+    /** 统计指定报告期 total_revenue 为空或非正的记录数 */
+    int countRevenueNullOrNegative(@Param("endDate") String endDate);
+
+    /** 统计 n_income 超过 total_revenue 10 倍的记录数 */
+    int countNetIncomeExceedsRevenue(@Param("startDate") String startDate);
+
+    /** 统计上市超 1 年但无 income 数据的在市股票数 */
+    int countListedOverYearNoIncome(@Param("cutoffDate") String cutoffDate);
 }

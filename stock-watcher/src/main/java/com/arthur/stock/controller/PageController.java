@@ -118,6 +118,16 @@ public class PageController {
         return "pages/user-management";
     }
 
+    /**
+     * 数据管控中心页面
+     */
+    @GetMapping("/page/data-governance")
+    public String dataGovernance(Model model) {
+        model.addAttribute("pageTitle", "数据管控中心");
+        model.addAttribute("activeMenu", "data-governance");
+        return "pages/data-governance";
+    }
+
     // ============================================================
     //  策略管理（004 模块）页面路由
     //  视图目录 quant/strategies/*；数据由前端 JS 调 /api/strategies 拉取，

@@ -2,12 +2,18 @@ package com.arthur.stock.service.impl;
 
 import com.arthur.stock.client.TushareClient;
 import com.arthur.stock.constant.ExchangeEnum;
+import com.arthur.stock.constant.InitStep;
 import com.arthur.stock.constant.TradeDayStatusEnum;
+import com.arthur.stock.dto.governance.CheckLevel;
+import com.arthur.stock.dto.governance.DataCheckItem;
+import com.arthur.stock.dto.governance.DataCheckResult;
 import com.arthur.stock.mapper.TradeCalMapper;
 import com.arthur.stock.model.TradeCalDO;
 import com.arthur.stock.dto.tushare.TradeCalDTO;
 import com.arthur.stock.dto.tushare.TradeCalQueryDTO;
 import com.arthur.stock.service.TradeCalService;
+import com.arthur.stock.service.DataCheckable;
+import com.arthur.stock.util.SensitiveDataUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.google.common.collect.Lists;
 import lombok.RequiredArgsConstructor;
@@ -15,6 +21,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.IsoFields;
@@ -34,7 +41,7 @@ import java.util.stream.Collectors;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class TradeCalServiceImpl implements TradeCalService {
+public class TradeCalServiceImpl implements TradeCalService, DataCheckable {
 
     private static final int BATCH_SIZE = 500;
 
@@ -318,6 +325,112 @@ public class TradeCalServiceImpl implements TradeCalService {
         } catch (Exception e) {
             log.warn("parseCalDate failed: {}", calDate, e);
             return null;
+        }
+    }
+
+    // ==================== DataCheckable ====================
+
+    @Override
+    public String getTableCode() {
+        return InitStep.TRADE_CAL.getCode();
+    }
+
+    @Override
+    public DataCheckResult checkData() {
+        List<DataCheckItem> items = new ArrayList<>();
+        try {
+            long totalRows = tradeCalMapper.selectCount(null);
+            LocalDate today = LocalDate.now();
+
+            // Check 1: Calendar doesn't cover next 30 days (ERROR)
+            TradeCalDO latest = tradeCalMapper.selectOne(
+                    new LambdaQueryWrapper<TradeCalDO>()
+                            .select(TradeCalDO::getCalDate)
+                            .orderByDesc(TradeCalDO::getCalDate)
+                            .last("LIMIT 1"));
+            String maxCalDate = latest != null ? latest.getCalDate() : null;
+            String todayPlus30 = today.plusDays(30).format(CAL_DATE_FMT);
+            boolean coveragePassed = maxCalDate != null && maxCalDate.compareTo(todayPlus30) >= 0;
+            items.add(DataCheckItem.builder()
+                    .name("future_coverage")
+                    .displayName("未来覆盖度检测")
+                    .passed(coveragePassed)
+                    .level(CheckLevel.ERROR)
+                    .message(coveragePassed ? "通过，日历覆盖至 " + maxCalDate
+                            : "交易日历仅覆盖至 " + maxCalDate + "，不足未来 30 天（" + todayPlus30 + "）")
+                    .build());
+
+            // Check 2: Missing exchange (ERROR)
+            long sseCount = tradeCalMapper.selectCount(
+                    new LambdaQueryWrapper<TradeCalDO>().eq(TradeCalDO::getExchange, ExchangeEnum.SSE));
+            long szseCount = tradeCalMapper.selectCount(
+                    new LambdaQueryWrapper<TradeCalDO>().eq(TradeCalDO::getExchange, ExchangeEnum.SZSE));
+            boolean exchangePassed = sseCount > 0 && szseCount > 0;
+            items.add(DataCheckItem.builder()
+                    .name("exchange_coverage")
+                    .displayName("交易所覆盖检测")
+                    .passed(exchangePassed)
+                    .level(CheckLevel.ERROR)
+                    .message(exchangePassed ? "通过，SSE " + sseCount + " 条，SZSE " + szseCount + " 条"
+                            : "交易所覆盖缺失，SSE " + sseCount + " 条，SZSE " + szseCount + " 条")
+                    .build());
+
+            // Check 3: SSE/SZSE inconsistency last 30 days (WARN)
+            String thirtyDaysAgo = today.minusDays(30).format(CAL_DATE_FMT);
+            int inconsistency = tradeCalMapper.countSseSzseInconsistency(thirtyDaysAgo);
+            items.add(DataCheckItem.builder()
+                    .name("sse_szse_consistency")
+                    .displayName("沪深交易日一致性检测")
+                    .passed(inconsistency == 0)
+                    .level(CheckLevel.WARN)
+                    .message(inconsistency == 0 ? "通过，最近 30 天沪深交易日一致"
+                            : "最近 30 天沪深交易日不一致 " + inconsistency + " 天")
+                    .build());
+
+            // Check 4: Weekend marked as trading day (ERROR)
+            List<TradeCalDO> openDays = tradeCalMapper.selectList(
+                    new LambdaQueryWrapper<TradeCalDO>().eq(TradeCalDO::getIsOpen, TradeDayStatusEnum.OPEN));
+            int weekendCount = 0;
+            for (TradeCalDO day : openDays) {
+                LocalDate d = parseCalDate(day.getCalDate());
+                if (d != null) {
+                    DayOfWeek dow = d.getDayOfWeek();
+                    if (dow == DayOfWeek.SATURDAY || dow == DayOfWeek.SUNDAY) {
+                        weekendCount++;
+                    }
+                }
+            }
+            items.add(DataCheckItem.builder()
+                    .name("weekend_trading")
+                    .displayName("周末交易日检测")
+                    .passed(weekendCount == 0)
+                    .level(CheckLevel.ERROR)
+                    .message(weekendCount == 0 ? "通过，无周末被标记为交易日" : "存在 " + weekendCount + " 个周末被标记为交易日")
+                    .build());
+
+            return DataCheckResult.builder()
+                    .tableCode(getTableCode())
+                    .tableName(InitStep.TRADE_CAL.getLabel())
+                    .totalRows(totalRows)
+                    .latestDate(null)
+                    .items(items)
+                    .build();
+        } catch (Exception e) {
+            log.error("checkData error for trade_cal", e);
+            items.add(DataCheckItem.builder()
+                    .name("error")
+                    .displayName("检测执行异常")
+                    .passed(false)
+                    .level(CheckLevel.ERROR)
+                    .message("检测执行异常: " + SensitiveDataUtil.mask(e.getMessage()))
+                    .build());
+            return DataCheckResult.builder()
+                    .tableCode(getTableCode())
+                    .tableName(InitStep.TRADE_CAL.getLabel())
+                    .totalRows(0)
+                    .latestDate(null)
+                    .items(items)
+                    .build();
         }
     }
 }

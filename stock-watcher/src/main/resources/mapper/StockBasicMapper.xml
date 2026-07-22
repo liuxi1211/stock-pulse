@@ -22,4 +22,24 @@
         </foreach>
     </delete>
 
+    <!-- ==================== 数据管控检查 ==================== -->
+
+    <!-- 在 daily_quote 中出现但不在 stock_basic 中的 distinct ts_code 数量 -->
+    <select id="countStocksInDailyNotInBasic" resultType="int">
+        SELECT COUNT(DISTINCT d.ts_code) FROM daily_quote d
+        WHERE d.trade_date &gt;= #{startDate}
+        AND d.ts_code NOT IN (SELECT ts_code FROM stock_basic)
+    </select>
+
+    <!-- 最近 7 天 daily_quote 中的 distinct ts_code 数量 -->
+    <select id="countDistinctTsCodeInDaily" resultType="int">
+        SELECT COUNT(DISTINCT ts_code) FROM daily_quote WHERE trade_date &gt;= #{startDate}
+    </select>
+
+    <!-- 关键字段为空的记录数 -->
+    <select id="countNullKeyFields" resultType="int">
+        SELECT COUNT(*) FROM stock_basic
+        WHERE list_status IS NULL OR market IS NULL OR exchange IS NULL
+    </select>
+
 </mapper>

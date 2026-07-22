@@ -44,4 +44,16 @@ public interface IndexDailyMapper extends BaseMapper<IndexDailyDO> {
      */
     List<IndexDailyDO> selectByCodeOrderByTradeDate(@Param("tsCode") String tsCode,
                                                      @Param("limit") int limit);
+
+    // ==================== 数据管控检查 ====================
+
+    /**
+     * 查询指定日期起缺失的核心指数代码列表
+     */
+    List<String> selectMissingCoreIndices(@Param("startDate") String startDate);
+
+    /**
+     * 统计指定日期起价格异常记录数（high &lt; low OR close &lt;= 0 OR open &lt;= 0）
+     */
+    int countPriceAnomalies(@Param("startDate") String startDate);
 }

@@ -48,4 +48,11 @@ public interface TradeCalMapper extends BaseMapper<TradeCalDO> {
      * 批量更新 6 个调仓标记字段（CASE WHEN 构造，跨 MySQL/SQLite 通用）。
      */
     int updateRebalanceFlagsBatch(@Param("list") List<TradeCalDO> list);
+
+    // ==================== 数据管控检查 ====================
+
+    /**
+     * 统计 SSE/SZSE 在指定日期后 is_open 不一致的记录数
+     */
+    int countSseSzseInconsistency(@Param("startDate") String startDate);
 }

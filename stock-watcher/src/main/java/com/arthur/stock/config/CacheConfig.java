@@ -27,14 +27,18 @@ public class CacheConfig {
     public CacheManager cacheManager() {
         CaffeineCacheManager manager = new CaffeineCacheManager();
         // 默认缓存：无过期（保持与既有 kline 等缓存行为一致）
-        manager.setCaffeine(Caffeine.newBuilder());
+        manager.setCaffeine(Caffeine.newBuilder().recordStats());
         // 因子缓存：5 分钟写入后过期（兜底 TTL，防遗漏失效导致长期不一致）
-        Caffeine<Object, Object> factorSpec = Caffeine.newBuilder().expireAfterWrite(5, TimeUnit.MINUTES);
+        Caffeine<Object, Object> factorSpec = Caffeine.newBuilder()
+                .expireAfterWrite(5, TimeUnit.MINUTES)
+                .recordStats();
         manager.registerCustomCache("factorList", factorSpec.build());
         manager.registerCustomCache("factorDetail", factorSpec.build());
         manager.registerCustomCache("factorCategories", factorSpec.build());
         // 选股中心交易日历缓存：1 天写入后过期（交易日历日内稳定，每日 DailyUpdateTask 拉数后自然演进）
-        Caffeine<Object, Object> calendarSpec = Caffeine.newBuilder().expireAfterWrite(1, TimeUnit.DAYS);
+        Caffeine<Object, Object> calendarSpec = Caffeine.newBuilder()
+                .expireAfterWrite(1, TimeUnit.DAYS)
+                .recordStats();
         manager.registerCustomCache("tradeCalendar", calendarSpec.build());
         manager.registerCustomCache("latestTradeDate", calendarSpec.build());
         return manager;

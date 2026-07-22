@@ -142,4 +142,30 @@ public interface DailyQuoteMapper extends BaseMapper<DailyQuoteDO> {
     long countMembersWithQuote(@Param("indexCode") String indexCode,
                                 @Param("tradeDate") String tradeDate,
                                 @Param("keyword") String keyword);
+
+    // ==================== 数据管控检查 ====================
+
+    /**
+     * 最近 7 天与前 20 天的日均数据量统计。
+     * 返回 Map：recent_avg / prev_avg
+     */
+    Map<String, Object> selectDailyCountStats(@Param("recentStart") String recentStart,
+                                               @Param("recentEnd") String recentEnd,
+                                               @Param("prevStart") String prevStart,
+                                               @Param("prevEnd") String prevEnd);
+
+    /**
+     * 统计指定日期起价格异常记录数（high &lt; low OR close &lt;= 0 OR open &lt;= 0 OR pre_close &lt;= 0）
+     */
+    int countPriceAnomalies(@Param("startDate") String startDate);
+
+    /**
+     * 统计指定日期起收盘价超出涨跌停范围的记录数（JOIN stock_stk_limit）
+     */
+    int countCloseBeyondLimit(@Param("startDate") String startDate);
+
+    /**
+     * 统计指定交易日的 distinct ts_code 数量
+     */
+    int countDistinctStocksOnDate(@Param("tradeDate") String tradeDate);
 }

@@ -57,6 +57,8 @@ CREATE TABLE IF NOT EXISTS daily_quote (
     amount     DECIMAL(20,4)  COMMENT '成交额（千元）',
     PRIMARY KEY (ts_code, trade_date)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='日线行情表';
+create index idx_daily_quote_trade_date
+    on daily_quote (trade_date);
 
 -- 4. 股票基本信息表
 CREATE TABLE IF NOT EXISTS stock_basic (
@@ -719,7 +721,52 @@ CREATE TABLE IF NOT EXISTS margin_detail (
     INDEX idx_margin_detail_date (trade_date)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='融资融券个股明细表';
 
+-- 37. 数据质量检测历史表
+CREATE TABLE IF NOT EXISTS data_governance_metric (
+    id                BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
+    check_batch_id    VARCHAR(64)    NOT NULL COMMENT '检测批次ID（同一次检测的25条共享同一个batch_id）',
+    table_code        VARCHAR(64)    NOT NULL COMMENT '表代码（对应 InitStep.code）',
+    table_name        VARCHAR(64)    NOT NULL COMMENT '表中文名',
+    table_group       VARCHAR(32)    NOT NULL DEFAULT 'BASIC' COMMENT '表分组：BASIC/MARKET/FINANCE/EVENT/INDEX',
+    total_rows        BIGINT         DEFAULT 0 COMMENT '检测时总记录数',
+    row_delta_pct     DECIMAL(8,2)   DEFAULT 0 COMMENT '较上次检测的记录数变动百分比（正数=增加，负数=减少）',
+    latest_date       VARCHAR(8)     COMMENT '最新数据日期（YYYYMMDD）',
+    earliest_date     VARCHAR(8)     COMMENT '最早数据日期（YYYYMMDD）',
+    status            VARCHAR(16)    NOT NULL DEFAULT 'NORMAL' COMMENT '状态：NORMAL/DELAYED/ERROR',
+    check_items       JSON           COMMENT '所有检测项结果（JSON 数组，含通过和不通过的）',
+    check_time        DATETIME       NOT NULL COMMENT '检测执行时间',
+    check_type        VARCHAR(16)    DEFAULT 'SCHEDULED' COMMENT '检测类型：SCHEDULED（定时）/ MANUAL（手动）',
+    INDEX idx_check_batch_id (check_batch_id),
+    INDEX idx_table_code_check_time (table_code, check_time),
+    INDEX idx_check_time (check_time),
+    INDEX idx_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='数据质量检测历史表';
+
+-- 38. 数据拉取日志表
+CREATE TABLE IF NOT EXISTS data_pull_log (
+    id              BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
+    task_id         VARCHAR(64)    NOT NULL COMMENT '任务唯一ID（UUID）',
+    table_code      VARCHAR(64)    NOT NULL COMMENT '表代码',
+    table_name      VARCHAR(64)    NOT NULL COMMENT '表中文名',
+    operation_type  VARCHAR(32)    NOT NULL COMMENT '操作类型：SCHEDULED/MANUAL_INCREMENTAL/MANUAL_FULL',
+    status          VARCHAR(16)    NOT NULL DEFAULT 'RUNNING' COMMENT '状态：RUNNING/SUCCESS/FAILED/CANCELLED',
+    start_time      DATETIME       NOT NULL COMMENT '开始时间',
+    end_time        DATETIME       COMMENT '结束时间',
+    duration_ms     BIGINT         DEFAULT 0 COMMENT '耗时（毫秒）',
+    total_count     BIGINT         DEFAULT 0 COMMENT '处理总数（条）',
+    success_count   BIGINT         DEFAULT 0 COMMENT '成功数（条）',
+    fail_count      BIGINT         DEFAULT 0 COMMENT '失败数（条）',
+    error_message   VARCHAR(1024)  COMMENT '错误信息摘要（脱敏后）',
+    error_stack     TEXT           COMMENT '错误堆栈详情（脱敏后，仅管理员可见）',
+    operator        VARCHAR(64)    DEFAULT 'SYSTEM' COMMENT '操作人：用户名 / SYSTEM（定时任务）',
+    INDEX idx_task_id (task_id),
+    INDEX idx_table_code (table_code),
+    INDEX idx_status (status),
+    INDEX idx_start_time (start_time)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='数据拉取日志表';
+
 -- 初始管理员账号（仅当表为空时插入，默认密码: admin123）
 INSERT INTO sys_user (username, password, enabled, role)
 SELECT 'admin', '$2a$10$pfuIlLGBbNZqO5xXa9oRKeEFABc4FIxs2SVY46UUG1xpA7o9tGn9u', 1, 'ADMIN'
 WHERE NOT EXISTS (SELECT 1 FROM sys_user);
+

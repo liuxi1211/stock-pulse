@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.arthur.stock.mapper.DataPullLogMapper">
+
+    <resultMap id="logMap" type="com.arthur.stock.model.DataPullLogDO">
+        <id column="id" property="id"/>
+        <result column="task_id" property="taskId"/>
+        <result column="table_code" property="tableCode"/>
+        <result column="table_name" property="tableName"/>
+        <result column="operation_type" property="operationType"/>
+        <result column="status" property="status"/>
+        <result column="start_time" property="startTime"/>
+        <result column="end_time" property="endTime"/>
+        <result column="duration_ms" property="durationMs"/>
+        <result column="total_count" property="totalCount"/>
+        <result column="success_count" property="successCount"/>
+        <result column="fail_count" property="failCount"/>
+        <result column="error_message" property="errorMessage"/>
+        <result column="error_stack" property="errorStack"/>
+        <result column="operator" property="operator"/>
+    </resultMap>
+
+    <insert id="insert">
+        INSERT INTO data_pull_log (task_id, table_code, table_name, operation_type,
+                                   status, start_time, end_time, duration_ms,
+                                   total_count, success_count, fail_count,
+                                   error_message, error_stack, operator)
+        VALUES (#{taskId}, #{tableCode}, #{tableName}, #{operationType},
+                #{status}, #{startTime}, #{endTime}, #{durationMs},
+                #{totalCount}, #{successCount}, #{failCount},
+                #{errorMessage}, #{errorStack}, #{operator})
+    </insert>
+
+    <update id="updateStatus">
+        UPDATE data_pull_log
+        SET status = #{status},
+            end_time = #{endTime},
+            duration_ms = #{durationMs},
+            total_count = #{totalCount},
+            success_count = #{successCount},
+            fail_count = #{failCount},
+            error_message = #{errorMessage},
+            error_stack = #{errorStack}
+        WHERE task_id = #{taskId}
+    </update>
+
+    <select id="selectByTableCode" resultMap="logMap">
+        SELECT * FROM data_pull_log
+        WHERE table_code = #{tableCode}
+        ORDER BY start_time DESC
+        LIMIT #{limit}
+    </select>
+
+    <select id="selectPageList" resultMap="logMap">
+        SELECT * FROM data_pull_log
+        <where>
+            <if test="tableCode != null and tableCode != ''">
+                AND table_code = #{tableCode}
+            </if>
+            <if test="status != null and status != ''">
+                AND status = #{status}
+            </if>
+            <if test="operationType != null and operationType != ''">
+                AND operation_type = #{operationType}
+            </if>
+            <if test="startTime != null and startTime != ''">
+                AND start_time &gt;= #{startTime}
+            </if>
+            <if test="endTime != null and endTime != ''">
+                AND start_time &lt;= #{endTime}
+            </if>
+        </where>
+        ORDER BY start_time DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="selectPageCount" resultType="long">
+        SELECT COUNT(*) FROM data_pull_log
+        <where>
+            <if test="tableCode != null and tableCode != ''">
+                AND table_code = #{tableCode}
+            </if>
+            <if test="status != null and status != ''">
+                AND status = #{status}
+            </if>
+            <if test="operationType != null and operationType != ''">
+                AND operation_type = #{operationType}
+            </if>
+            <if test="startTime != null and startTime != ''">
+                AND start_time &gt;= #{startTime}
+            </if>
+            <if test="endTime != null and endTime != ''">
+                AND start_time &lt;= #{endTime}
+            </if>
+        </where>
+    </select>
+
+    <select id="selectById" resultMap="logMap">
+        SELECT * FROM data_pull_log WHERE id = #{id}
+    </select>
+
+    <delete id="deleteOlderThan">
+        DELETE FROM data_pull_log WHERE start_time &lt; #{cutoffTime}
+    </delete>
+
+</mapper>

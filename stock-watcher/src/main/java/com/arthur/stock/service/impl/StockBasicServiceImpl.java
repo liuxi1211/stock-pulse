@@ -2,12 +2,17 @@ package com.arthur.stock.service.impl;
 
 import com.arthur.stock.client.TushareClient;
 import com.arthur.stock.constant.*;
+import com.arthur.stock.dto.governance.CheckLevel;
+import com.arthur.stock.dto.governance.DataCheckItem;
+import com.arthur.stock.dto.governance.DataCheckResult;
 import com.arthur.stock.mapper.StockBasicMapper;
 import com.arthur.stock.model.StockBasicDO;
 import com.arthur.stock.dto.tushare.StockBasicDTO;
 import com.arthur.stock.dto.tushare.StockBasicQueryDTO;
 import com.arthur.stock.service.StockBasicService;
+import com.arthur.stock.service.DataCheckable;
 import com.arthur.stock.cache.StockCodeCache;
+import com.arthur.stock.util.SensitiveDataUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -15,6 +20,9 @@ import org.springframework.stereotype.Service;
 
 import com.google.common.collect.Lists;
 
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -26,9 +34,10 @@ import java.util.stream.Collectors;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class StockBasicServiceImpl implements StockBasicService {
+public class StockBasicServiceImpl implements StockBasicService, DataCheckable {
 
     private static final int BATCH_SIZE = 500;
+    private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("yyyyMMdd");
 
     private final TushareClient tushareClient;
     private final StockBasicMapper stockBasicMapper;
@@ -137,5 +146,84 @@ public class StockBasicServiceImpl implements StockBasicService {
             stockBasicMapper.deleteBatchByKeys(batch);
             stockBasicMapper.insertBatch(batch);
         });
+    }
+
+    // ==================== DataCheckable ====================
+
+    @Override
+    public String getTableCode() {
+        return InitStep.STOCK_BASIC.getCode();
+    }
+
+    @Override
+    public DataCheckResult checkData() {
+        List<DataCheckItem> items = new ArrayList<>();
+        try {
+            long totalRows = stockBasicMapper.selectCount(null);
+
+            // Check 1: Stocks in daily_quote but not in stock_basic (ERROR)
+            String thirtyDaysAgo = LocalDate.now().minusDays(30).format(DATE_FMT);
+            int orphanCount = stockBasicMapper.countStocksInDailyNotInBasic(thirtyDaysAgo);
+            items.add(DataCheckItem.builder()
+                    .name("orphan_in_daily")
+                    .displayName("行情数据孤儿检测")
+                    .passed(orphanCount == 0)
+                    .level(CheckLevel.ERROR)
+                    .message(orphanCount == 0 ? "通过，最近 30 天行情数据均有对应基础信息"
+                            : "最近 30 天有 " + orphanCount + " 只股票在行情中但不在基础信息表中")
+                    .build());
+
+            // Check 2: Listed count vs daily_quote distinct count mismatch (WARN)
+            long listedCount = stockBasicMapper.selectCount(
+                    new LambdaQueryWrapper<StockBasicDO>().eq(StockBasicDO::getListStatus, ListStatusEnum.LISTED));
+            String sevenDaysAgo = LocalDate.now().minusDays(7).format(DATE_FMT);
+            int dailyDistinct = stockBasicMapper.countDistinctTsCodeInDaily(sevenDaysAgo);
+            double diffPct = listedCount > 0
+                    ? Math.abs(listedCount - dailyDistinct) * 100.0 / listedCount : 100.0;
+            boolean countPassed = diffPct <= 5.0;
+            items.add(DataCheckItem.builder()
+                    .name("count_match")
+                    .displayName("上市数量与行情数量匹配检测")
+                    .passed(countPassed)
+                    .level(CheckLevel.WARN)
+                    .message(countPassed
+                            ? "通过，在市股票 " + listedCount + " 只，近 7 天行情 " + dailyDistinct + " 只"
+                            : "上市股票数量与行情数据差异过大（" + String.format("%.1f", diffPct) + "%）")
+                    .build());
+
+            // Check 3: Key fields null (WARN)
+            int nullCount = stockBasicMapper.countNullKeyFields();
+            items.add(DataCheckItem.builder()
+                    .name("null_key_fields")
+                    .displayName("关键字段空值检测")
+                    .passed(nullCount == 0)
+                    .level(CheckLevel.WARN)
+                    .message(nullCount == 0 ? "通过，无关键字段为空" : "存在 " + nullCount + " 条关键字段为空的记录")
+                    .build());
+
+            return DataCheckResult.builder()
+                    .tableCode(getTableCode())
+                    .tableName(InitStep.STOCK_BASIC.getLabel())
+                    .totalRows(totalRows)
+                    .latestDate(null)
+                    .items(items)
+                    .build();
+        } catch (Exception e) {
+            log.error("checkData error for stock_basic", e);
+            items.add(DataCheckItem.builder()
+                    .name("error")
+                    .displayName("检测执行异常")
+                    .passed(false)
+                    .level(CheckLevel.ERROR)
+                    .message("检测执行异常: " + SensitiveDataUtil.mask(e.getMessage()))
+                    .build());
+            return DataCheckResult.builder()
+                    .tableCode(getTableCode())
+                    .tableName(InitStep.STOCK_BASIC.getLabel())
+                    .totalRows(0)
+                    .latestDate(null)
+                    .items(items)
+                    .build();
+        }
     }
 }

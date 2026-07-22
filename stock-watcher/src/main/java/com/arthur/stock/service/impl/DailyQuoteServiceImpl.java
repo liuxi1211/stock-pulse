@@ -1,12 +1,21 @@
 package com.arthur.stock.service.impl;
 
 import com.arthur.stock.client.TushareClient;
+import com.arthur.stock.constant.InitStep;
+import com.arthur.stock.constant.ListStatusEnum;
+import com.arthur.stock.dto.governance.CheckLevel;
+import com.arthur.stock.dto.governance.DataCheckItem;
+import com.arthur.stock.dto.governance.DataCheckResult;
 import com.arthur.stock.mapper.DailyQuoteMapper;
+import com.arthur.stock.mapper.StockBasicMapper;
 import com.arthur.stock.model.DailyQuoteDO;
+import com.arthur.stock.model.StockBasicDO;
 import com.arthur.stock.dto.tushare.DailyQueryDTO;
 import com.arthur.stock.dto.tushare.DailyQuoteDTO;
 import com.arthur.stock.service.DailyQuoteService;
+import com.arthur.stock.service.DataCheckable;
 import com.arthur.stock.service.TradeCalendarService;
+import com.arthur.stock.util.SensitiveDataUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -25,7 +34,7 @@ import java.util.stream.Collectors;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class DailyQuoteServiceImpl implements DailyQuoteService {
+public class DailyQuoteServiceImpl implements DailyQuoteService, DataCheckable {
 
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("yyyyMMdd");
     private static final int PAGE_SIZE = 6000;
@@ -33,6 +42,7 @@ public class DailyQuoteServiceImpl implements DailyQuoteService {
 
     private final TushareClient tushareClient;
     private final DailyQuoteMapper dailyQuoteMapper;
+    private final StockBasicMapper stockBasicMapper;
     private final TradeCalendarService tradeCalendarService;
 
     /**
@@ -264,5 +274,132 @@ public class DailyQuoteServiceImpl implements DailyQuoteService {
             dailyQuoteMapper.deleteBatchByKeys(batch);
             dailyQuoteMapper.insertBatch(batch);
         });
+    }
+
+    // ==================== DataCheckable ====================
+
+    @Override
+    public String getTableCode() {
+        return InitStep.DAILY.getCode();
+    }
+
+    @Override
+    public DataCheckResult checkData() {
+        List<DataCheckItem> items = new ArrayList<>();
+        try {
+            long totalRows = dailyQuoteMapper.selectCount(null);
+            String latestDate = dailyQuoteMapper.selectLatestTradeDate();
+            LocalDate today = LocalDate.now();
+            String todayStr = today.format(DATE_FMT);
+
+            // Check 1: Freshness (use trade calendar to determine last expected trade day)
+            String lastTradeDate = tradeCalendarService.getLatestTradeDate();
+            boolean freshnessPassed = lastTradeDate != null && latestDate != null
+                    && latestDate.compareTo(lastTradeDate) >= 0;
+            String freshnessMsg;
+            if (freshnessPassed) {
+                freshnessMsg = "通过，最新数据 " + latestDate;
+            } else {
+                freshnessMsg = "最新交易日为 " + latestDate + "，最近交易日应为 " + lastTradeDate + "，疑似延迟";
+            }
+            items.add(DataCheckItem.builder()
+                    .name("freshness")
+                    .displayName("新鲜度检测")
+                    .passed(freshnessPassed)
+                    .level(CheckLevel.ERROR)
+                    .message(freshnessMsg)
+                    .build());
+
+            // Check 2: Data volume anomaly
+            String sevenDaysAgo = today.minusDays(7).format(DATE_FMT);
+            String twentySevenDaysAgo = today.minusDays(27).format(DATE_FMT);
+            String eightDaysAgo = today.minusDays(8).format(DATE_FMT);
+            Map<String, Object> stats = dailyQuoteMapper.selectDailyCountStats(sevenDaysAgo, todayStr, twentySevenDaysAgo, eightDaysAgo);
+            double recentAvg = getDouble(stats, "recent_avg");
+            double prevAvg = getDouble(stats, "prev_avg");
+            boolean volumePassed = prevAvg == 0 || recentAvg >= prevAvg * 0.7;
+            String volumeMsg;
+            if (volumePassed) {
+                volumeMsg = "通过，最近 7 天日均 " + (long) recentAvg + " 条，稳定";
+            } else {
+                double dropPct = (1 - recentAvg / prevAvg) * 100;
+                volumeMsg = "最近 7 天日均数据量仅 " + (long) recentAvg + " 条，较前 20 天下降 " + String.format("%.1f", dropPct) + "%";
+            }
+            items.add(DataCheckItem.builder()
+                    .name("data_volume")
+                    .displayName("数据量异常检测")
+                    .passed(volumePassed)
+                    .level(CheckLevel.ERROR)
+                    .message(volumeMsg)
+                    .build());
+
+            // Check 3: Price logic
+            String thirtyDaysAgo = today.minusDays(30).format(DATE_FMT);
+            int priceAnomalies = dailyQuoteMapper.countPriceAnomalies(thirtyDaysAgo);
+            items.add(DataCheckItem.builder()
+                    .name("price_logic")
+                    .displayName("价格逻辑检测")
+                    .passed(priceAnomalies == 0)
+                    .level(CheckLevel.ERROR)
+                    .message(priceAnomalies == 0 ? "通过，最近 30 天无异常" : "最近 30 天价格异常记录 " + priceAnomalies + " 条")
+                    .build());
+
+            // Check 4: Close price beyond limit
+            int beyondLimit = dailyQuoteMapper.countCloseBeyondLimit(thirtyDaysAgo);
+            items.add(DataCheckItem.builder()
+                    .name("close_beyond_limit")
+                    .displayName("收盘价超涨跌停检测")
+                    .passed(beyondLimit == 0)
+                    .level(CheckLevel.WARN)
+                    .message(beyondLimit == 0 ? "通过，最近 30 天收盘价均在涨跌停范围内" : "最近 30 天收盘价超出涨跌停 " + beyondLimit + " 条")
+                    .build());
+
+            // Check 5: Coverage
+            int dailyCount = dailyQuoteMapper.countDistinctStocksOnDate(latestDate != null ? latestDate : todayStr);
+            long listedCount = stockBasicMapper.selectCount(
+                    new LambdaQueryWrapper<StockBasicDO>().eq(StockBasicDO::getListStatus, ListStatusEnum.LISTED));
+            double coverage = listedCount > 0 ? (double) dailyCount / listedCount : 0;
+            int coveragePct = (int) (coverage * 100);
+            boolean coveragePassed = coverage >= 0.9;
+            items.add(DataCheckItem.builder()
+                    .name("coverage")
+                    .displayName("覆盖度检测")
+                    .passed(coveragePassed)
+                    .level(CheckLevel.WARN)
+                    .message(coveragePassed ? "通过，当日覆盖度 " + coveragePct + "%" : "当日股票覆盖度仅 " + coveragePct + "%")
+                    .build());
+
+            return DataCheckResult.builder()
+                    .tableCode(getTableCode())
+                    .tableName(InitStep.DAILY.getLabel())
+                    .totalRows(totalRows)
+                    .latestDate(latestDate)
+                    .items(items)
+                    .build();
+        } catch (Exception e) {
+            log.error("checkData error for daily_quote", e);
+            items.add(DataCheckItem.builder()
+                    .name("error")
+                    .displayName("检测执行异常")
+                    .passed(false)
+                    .level(CheckLevel.ERROR)
+                    .message("检测执行异常: " + SensitiveDataUtil.mask(e.getMessage()))
+                    .build());
+            return DataCheckResult.builder()
+                    .tableCode(getTableCode())
+                    .tableName(InitStep.DAILY.getLabel())
+                    .totalRows(0)
+                    .latestDate(null)
+                    .items(items)
+                    .build();
+        }
+    }
+
+    private double getDouble(Map<String, Object> map, String key) {
+        if (map == null) return 0.0;
+        Object val = map.get(key);
+        if (val == null) return 0.0;
+        if (val instanceof Number) return ((Number) val).doubleValue();
+        try { return Double.parseDouble(val.toString()); } catch (Exception e) { return 0.0; }
     }
 }

@@ -716,6 +716,50 @@ CREATE TABLE IF NOT EXISTS margin_detail (
 );
 CREATE INDEX IF NOT EXISTS idx_margin_detail_date ON margin_detail (trade_date);
 
+-- 37. 数据质量检测历史表
+CREATE TABLE IF NOT EXISTS data_governance_metric (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    check_batch_id    TEXT    NOT NULL,
+    table_code        TEXT    NOT NULL,
+    table_name        TEXT    NOT NULL,
+    table_group       TEXT    NOT NULL DEFAULT 'BASIC',
+    total_rows        INTEGER DEFAULT 0,
+    row_delta_pct     REAL    DEFAULT 0,
+    latest_date       TEXT,
+    earliest_date     TEXT,
+    status            TEXT    NOT NULL DEFAULT 'NORMAL',
+    check_items       TEXT,
+    check_time        TEXT    NOT NULL,
+    check_type        TEXT    DEFAULT 'SCHEDULED'
+);
+CREATE INDEX IF NOT EXISTS idx_check_batch_id ON data_governance_metric (check_batch_id);
+CREATE INDEX IF NOT EXISTS idx_table_code_check_time ON data_governance_metric (table_code, check_time);
+CREATE INDEX IF NOT EXISTS idx_metric_check_time ON data_governance_metric (check_time);
+CREATE INDEX IF NOT EXISTS idx_metric_status ON data_governance_metric (status);
+
+-- 38. 数据拉取日志表
+CREATE TABLE IF NOT EXISTS data_pull_log (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_id         TEXT    NOT NULL,
+    table_code      TEXT    NOT NULL,
+    table_name      TEXT    NOT NULL,
+    operation_type  TEXT    NOT NULL,
+    status          TEXT    NOT NULL DEFAULT 'RUNNING',
+    start_time      TEXT    NOT NULL,
+    end_time        TEXT,
+    duration_ms     INTEGER DEFAULT 0,
+    total_count     INTEGER DEFAULT 0,
+    success_count   INTEGER DEFAULT 0,
+    fail_count      INTEGER DEFAULT 0,
+    error_message   TEXT,
+    error_stack     TEXT,
+    operator        TEXT    DEFAULT 'SYSTEM'
+);
+CREATE INDEX IF NOT EXISTS idx_pull_log_task_id ON data_pull_log (task_id);
+CREATE INDEX IF NOT EXISTS idx_pull_log_table_code ON data_pull_log (table_code);
+CREATE INDEX IF NOT EXISTS idx_pull_log_status ON data_pull_log (status);
+CREATE INDEX IF NOT EXISTS idx_pull_log_start_time ON data_pull_log (start_time);
+
 -- 初始管理员账号（仅当表为空时插入，默认密码: admin123）
 INSERT INTO sys_user (username, password, enabled, role)
 SELECT 'admin', '$2a$10$pfuIlLGBbNZqO5xXa9oRKeEFABc4FIxs2SVY46UUG1xpA7o9tGn9u', 1, 'ADMIN'

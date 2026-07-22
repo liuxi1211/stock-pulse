@@ -91,4 +91,34 @@
         LIMIT 1
     </select>
 
+    <!-- ==================== 数据管控检查 ==================== -->
+
+    <select id="selectMaxAnnDate" resultType="string">
+        SELECT MAX(ann_date) FROM income
+    </select>
+
+    <select id="selectMaxEndDate" resultType="string">
+        SELECT MAX(end_date) FROM income
+    </select>
+
+    <select id="countRevenueNullOrNegative" resultType="int">
+        SELECT COUNT(*) FROM income
+        WHERE end_date = #{endDate}
+        AND (total_revenue IS NULL OR total_revenue &lt;= 0)
+    </select>
+
+    <select id="countNetIncomeExceedsRevenue" resultType="int">
+        SELECT COUNT(*) FROM income
+        WHERE end_date &gt;= #{startDate}
+        AND n_income &gt; total_revenue * 10
+        AND total_revenue &gt; 0
+    </select>
+
+    <select id="countListedOverYearNoIncome" resultType="int">
+        SELECT COUNT(*) FROM stock_basic b
+        WHERE b.list_date &lt; #{cutoffDate}
+        AND b.list_status = 'L'
+        AND NOT EXISTS (SELECT 1 FROM income i WHERE i.ts_code = b.ts_code)
+    </select>
+
 </mapper>

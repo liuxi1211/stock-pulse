@@ -83,4 +83,15 @@
         </foreach>
     </delete>
 
+    <!-- ==================== 数据管控检查 ==================== -->
+
+    <!-- SSE/SZSE 在指定日期后 is_open 不一致的记录数 -->
+    <select id="countSseSzseInconsistency" resultType="int">
+        SELECT COUNT(*) FROM trade_cal a
+        JOIN trade_cal b ON a.cal_date = b.cal_date
+        WHERE a.exchange = 'SSE' AND b.exchange = 'SZSE'
+        AND a.cal_date &gt;= #{startDate}
+        AND a.is_open != b.is_open
+    </select>
+
 </mapper>

@@ -1,12 +1,17 @@
 package com.arthur.stock.service.impl;
 
 import com.arthur.stock.client.TushareClient;
+import com.arthur.stock.constant.InitStep;
+import com.arthur.stock.dto.governance.CheckLevel;
+import com.arthur.stock.dto.governance.DataCheckItem;
+import com.arthur.stock.dto.governance.DataCheckResult;
 import com.arthur.stock.dto.tushare.IncomeDTO;
 import com.arthur.stock.dto.tushare.IncomeQueryDTO;
 import com.arthur.stock.dto.tushare.StockBasicDTO;
 import com.arthur.stock.mapper.IncomeMapper;
 import com.arthur.stock.model.IncomeDO;
 import com.arthur.stock.service.IncomeService;
+import com.arthur.stock.service.DataCheckable;
 import com.arthur.stock.service.StockBasicService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.google.common.collect.Lists;
@@ -14,6 +19,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -23,9 +32,10 @@ import java.util.stream.Collectors;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class IncomeServiceImpl implements IncomeService {
+public class IncomeServiceImpl implements IncomeService, DataCheckable {
 
     private static final int BATCH_SIZE = 500;
+    private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("yyyyMMdd");
 
     private final TushareClient tushareClient;
     private final IncomeMapper incomeMapper;
@@ -140,5 +150,117 @@ public class IncomeServiceImpl implements IncomeService {
                 .operateProfitIncomeYoy(d.getOperateProfitIncomeYoy())
                 .updateFlag(d.getUpdateFlag())
                 .build();
+    }
+
+    // ==================== DataCheckable ====================
+
+    @Override
+    public String getTableCode() {
+        return InitStep.INCOME.getCode();
+    }
+
+    @Override
+    public DataCheckResult checkData() {
+        List<DataCheckItem> items = new ArrayList<>();
+        try {
+            long totalRows = incomeMapper.selectCount(null);
+            String maxAnnDate = incomeMapper.selectMaxAnnDate();
+            LocalDate today = LocalDate.now();
+
+            // Check 1: Announcement freshness (WARN)
+            boolean freshnessPassed = true;
+            String freshnessMsg;
+            if (maxAnnDate == null || maxAnnDate.isEmpty()) {
+                freshnessPassed = false;
+                freshnessMsg = "无任何公告日期数据";
+            } else {
+                LocalDate annDate = LocalDate.parse(maxAnnDate, DATE_FMT);
+                long daysSince = ChronoUnit.DAYS.between(annDate, today);
+                int month = today.getMonthValue();
+                boolean inEarningsSeason = (month >= 1 && month <= 4) || (month >= 7 && month <= 8) || month == 10;
+                if (daysSince > 90 && !inEarningsSeason) {
+                    freshnessPassed = false;
+                    freshnessMsg = "距最近一次财报公告已超过 90 天（" + maxAnnDate + "）";
+                } else {
+                    freshnessMsg = "通过，最新公告日期 " + maxAnnDate;
+                }
+            }
+            items.add(DataCheckItem.builder()
+                    .name("freshness")
+                    .displayName("公告新鲜度检测")
+                    .passed(freshnessPassed)
+                    .level(CheckLevel.WARN)
+                    .message(freshnessMsg)
+                    .build());
+
+            // Check 2: Revenue null/negative in latest period (ERROR)
+            String maxEndDate = incomeMapper.selectMaxEndDate();
+            String revenueMsg;
+            boolean revenuePassed;
+            if (maxEndDate == null || maxEndDate.isEmpty()) {
+                revenuePassed = false;
+                revenueMsg = "无任何报告期数据";
+            } else {
+                int badCount = incomeMapper.countRevenueNullOrNegative(maxEndDate);
+                revenuePassed = badCount == 0;
+                revenueMsg = revenuePassed ? "通过，最新报告期 " + maxEndDate + " 营收数据正常"
+                        : "最新报告期 " + maxEndDate + " 有 " + badCount + " 条营收为空或非正";
+            }
+            items.add(DataCheckItem.builder()
+                    .name("revenue_validity")
+                    .displayName("营收有效性检测")
+                    .passed(revenuePassed)
+                    .level(CheckLevel.ERROR)
+                    .message(revenueMsg)
+                    .build());
+
+            // Check 3: Net income > revenue * 10 (WARN)
+            String nineMonthsAgo = today.minusMonths(9).format(DATE_FMT);
+            int exceedsCount = incomeMapper.countNetIncomeExceedsRevenue(nineMonthsAgo);
+            items.add(DataCheckItem.builder()
+                    .name("net_income_anomaly")
+                    .displayName("净利润异常检测")
+                    .passed(exceedsCount == 0)
+                    .level(CheckLevel.WARN)
+                    .message(exceedsCount == 0 ? "通过，近 3 季度无净利润超营收 10 倍异常"
+                            : "近 3 季度有 " + exceedsCount + " 条净利润超过营收 10 倍")
+                    .build());
+
+            // Check 4: Listed > 1 year but no income data (WARN)
+            String oneYearAgo = today.minusYears(1).format(DATE_FMT);
+            int noIncomeCount = incomeMapper.countListedOverYearNoIncome(oneYearAgo);
+            items.add(DataCheckItem.builder()
+                    .name("missing_income_data")
+                    .displayName("缺失利润表检测")
+                    .passed(noIncomeCount == 0)
+                    .level(CheckLevel.WARN)
+                    .message(noIncomeCount == 0 ? "通过，上市超 1 年股票均有利润表数据"
+                            : "上市超 1 年但无利润表数据的股票 " + noIncomeCount + " 只")
+                    .build());
+
+            return DataCheckResult.builder()
+                    .tableCode(getTableCode())
+                    .tableName(InitStep.INCOME.getLabel())
+                    .totalRows(totalRows)
+                    .latestDate(maxAnnDate)
+                    .items(items)
+                    .build();
+        } catch (Exception e) {
+            log.error("checkData error for income", e);
+            items.add(DataCheckItem.builder()
+                    .name("error")
+                    .displayName("检测执行异常")
+                    .passed(false)
+                    .level(CheckLevel.ERROR)
+                    .message("检测执行异常: " + e.getMessage())
+                    .build());
+            return DataCheckResult.builder()
+                    .tableCode(getTableCode())
+                    .tableName(InitStep.INCOME.getLabel())
+                    .totalRows(0)
+                    .latestDate(null)
+                    .items(items)
+                    .build();
+        }
     }
 }

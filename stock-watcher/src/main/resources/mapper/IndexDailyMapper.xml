@@ -71,4 +71,28 @@
         LIMIT #{limit}
     </select>
 
+    <!-- ==================== 数据管控检查 ==================== -->
+
+    <!-- 查询指定日期起缺失的核心指数代码列表 -->
+    <select id="selectMissingCoreIndices" resultType="string">
+        SELECT t.code FROM (
+            SELECT '000001.SH' AS code UNION
+            SELECT '399001.SZ' UNION
+            SELECT '399006.SZ' UNION
+            SELECT '000300.SH' UNION
+            SELECT '000905.SH' UNION
+            SELECT '000852.SH'
+        ) t
+        WHERE t.code NOT IN (
+            SELECT DISTINCT ts_code FROM index_daily WHERE trade_date &gt;= #{startDate}
+        )
+    </select>
+
+    <!-- 价格异常记录（high < low OR close <= 0 OR open <= 0） -->
+    <select id="countPriceAnomalies" resultType="int">
+        SELECT COUNT(*) FROM index_daily
+        WHERE trade_date &gt;= #{startDate}
+        AND (high &lt; low OR close &lt;= 0 OR open &lt;= 0)
+    </select>
+
 </mapper>
