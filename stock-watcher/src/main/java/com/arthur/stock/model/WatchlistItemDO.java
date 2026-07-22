@@ -3,6 +3,7 @@ package com.arthur.stock.model;
 import com.baomidou.mybatisplus.annotation.*;
 import lombok.Data;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
@@ -21,6 +22,21 @@ public class WatchlistItemDO {
 
     /** 股票代码，如 000001.SZ */
     private String stockCode;
+
+    /** 分组ID，NULL表示未分组 */
+    private Long groupId;
+
+    /** 用户备注 */
+    private String note;
+
+    /** 目标价上限 */
+    private BigDecimal targetPriceHigh;
+
+    /** 目标价下限 */
+    private BigDecimal targetPriceLow;
+
+    /** 排序序号 */
+    private Integer sortOrder;
 
     /** 创建时间 */
     @TableField(fill = FieldFill.INSERT)

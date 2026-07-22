@@ -24,7 +24,21 @@ ALTER TABLE sys_user MODIFY COLUMN updated_at  VARCHAR(32)  COMMENT '更新时�
 ALTER TABLE sys_watchlist COMMENT = '自选股表';
 ALTER TABLE sys_watchlist MODIFY COLUMN user_id    BIGINT       NOT NULL COMMENT '用户ID';
 ALTER TABLE sys_watchlist MODIFY COLUMN stock_code VARCHAR(16)  NOT NULL COMMENT '股票代码';
+ALTER TABLE sys_watchlist MODIFY COLUMN group_id   BIGINT       NULL COMMENT '分组ID，NULL表示未分组';
+ALTER TABLE sys_watchlist MODIFY COLUMN note       VARCHAR(255) NULL COMMENT '用户备注';
+ALTER TABLE sys_watchlist MODIFY COLUMN target_price_high DECIMAL(20,4) NULL COMMENT '目标价上限';
+ALTER TABLE sys_watchlist MODIFY COLUMN target_price_low  DECIMAL(20,4) NULL COMMENT '目标价下限';
+ALTER TABLE sys_watchlist MODIFY COLUMN sort_order INT          DEFAULT 0 COMMENT '排序序号';
 ALTER TABLE sys_watchlist MODIFY COLUMN created_at VARCHAR(32)  COMMENT '创建时间';
+
+-- -----------------------------------------------------------
+-- 2.1 sys_watchlist_group 自选股分组表
+-- -----------------------------------------------------------
+ALTER TABLE sys_watchlist_group COMMENT = '自选股分组表';
+ALTER TABLE sys_watchlist_group MODIFY COLUMN user_id    BIGINT       NOT NULL COMMENT '用户ID';
+ALTER TABLE sys_watchlist_group MODIFY COLUMN group_name VARCHAR(64)  NOT NULL COMMENT '分组名称';
+ALTER TABLE sys_watchlist_group MODIFY COLUMN sort_order INT          DEFAULT 0 COMMENT '排序序号';
+ALTER TABLE sys_watchlist_group MODIFY COLUMN created_at VARCHAR(32)  COMMENT '创建时间';
 
 -- -----------------------------------------------------------
 -- 3. daily_quote 日线行情表

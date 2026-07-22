@@ -110,13 +110,21 @@ public class SearchServiceImpl implements SearchService {
         if (normalized.isEmpty()) {
             return Collections.emptyList();
         }
-        return stockBasicMapper.selectList(new LambdaQueryWrapper<StockBasicDO>()
-                        .in(StockBasicDO::getTsCode, normalized))
-                .stream()
+        List<StockBasicDO> stocks = stockBasicMapper.selectList(new LambdaQueryWrapper<StockBasicDO>()
+                .in(StockBasicDO::getTsCode, normalized));
+        if (stocks.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<String> stockTsCodes = stocks.stream().map(StockBasicDO::getTsCode).toList();
+        Map<String, String> industryNameMap = batchL1IndustryNames(stockTsCodes);
+
+        return stocks.stream()
                 .map(b -> SuggestItemVO.builder()
                         .code(b.getSymbol())
                         .tsCode(b.getTsCode())
-                        .name(b.getName()).build())
+                        .name(b.getName())
+                        .industryName(industryNameMap.get(b.getTsCode()))
+                        .build())
                 .toList();
     }
 }

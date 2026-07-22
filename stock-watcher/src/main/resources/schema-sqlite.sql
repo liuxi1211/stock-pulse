@@ -19,11 +19,27 @@ CREATE TABLE IF NOT EXISTS sys_user (
 
 -- 2. 自选股表
 CREATE TABLE IF NOT EXISTS sys_watchlist (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id          INTEGER NOT NULL,
+    stock_code       TEXT    NOT NULL,
+    group_id         INTEGER NULL,
+    note             TEXT NULL,
+    target_price_high REAL NULL,
+    target_price_low  REAL NULL,
+    sort_order       INTEGER DEFAULT 0,
+    created_at       TEXT,
+    UNIQUE(user_id, stock_code)
+);
+CREATE INDEX IF NOT EXISTS idx_sys_watchlist_group ON sys_watchlist(user_id, group_id);
+
+-- 2.1 自选股分组表
+CREATE TABLE IF NOT EXISTS sys_watchlist_group (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id     INTEGER NOT NULL,
-    stock_code  TEXT    NOT NULL,
+    group_name  TEXT    NOT NULL,
+    sort_order  INTEGER DEFAULT 0,
     created_at  TEXT,
-    UNIQUE(user_id, stock_code)
+    UNIQUE(user_id, group_name)
 );
 
 -- 3. 日线行情表

@@ -19,12 +19,28 @@ CREATE TABLE IF NOT EXISTS sys_user (
 
 -- 2. 自选股表
 CREATE TABLE IF NOT EXISTS sys_watchlist (
+    id               BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
+    user_id          BIGINT       NOT NULL COMMENT '用户ID',
+    stock_code       VARCHAR(16)  NOT NULL COMMENT '股票代码',
+    group_id         BIGINT       NULL COMMENT '分组ID，NULL表示未分组',
+    note             VARCHAR(255) NULL COMMENT '用户备注',
+    target_price_high DECIMAL(20,4) NULL COMMENT '目标价上限',
+    target_price_low  DECIMAL(20,4) NULL COMMENT '目标价下限',
+    sort_order       INT          DEFAULT 0 COMMENT '排序序号',
+    created_at       VARCHAR(32)  COMMENT '创建时间',
+    UNIQUE(user_id, stock_code),
+    INDEX idx_sys_watchlist_group (user_id, group_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='自选股表';
+
+-- 2.1 自选股分组表
+CREATE TABLE IF NOT EXISTS sys_watchlist_group (
     id          BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
     user_id     BIGINT       NOT NULL COMMENT '用户ID',
-    stock_code  VARCHAR(16)  NOT NULL COMMENT '股票代码',
+    group_name  VARCHAR(64)  NOT NULL COMMENT '分组名称',
+    sort_order  INT          DEFAULT 0 COMMENT '排序序号',
     created_at  VARCHAR(32)  COMMENT '创建时间',
-    UNIQUE(user_id, stock_code)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='自选股表';
+    UNIQUE(user_id, group_name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='自选股分组表';
 
 -- 3. 日线行情表
 CREATE TABLE IF NOT EXISTS daily_quote (

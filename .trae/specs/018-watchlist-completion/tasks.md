@@ -1,0 +1,230 @@
+# 自选股模块功能补齐 - 实施计划（任务分解与优先级）
+
+## [ ] Task 1: 表结构扩展与数据模型层改造
+- **Priority**: high
+- **Depends On**: None
+- **Description**: 
+  - 扩展 `sys_watchlist` 表：新增 `group_id`（BIGINT/INTEGER）、`note`（VARCHAR(255)/TEXT）、`target_price_high`（DECIMAL(20,4)/REAL）、`target_price_low`（DECIMAL(20,4)/REAL）、`sort_order`（INT）5 个字段，均允许 NULL；新增 `INDEX idx_sys_watchlist_group (user_id, group_id)` 索引。
+  - 新建 `sys_watchlist_group` 表：字段 `id` / `user_id` / `group_name` / `created_at` / `sort_order`，含唯一索引 `UNIQUE(user_id, group_name)`。
+  - 同步更新 `schema-mysql.sql` + `schema-sqlite.sql` + `schema-mysql-comments.sql` 三份 schema 文件。
+  - 扩展 `WatchlistItemDO`：新增 5 个字段的 Java 属性（groupId / note / targetPriceHigh / targetPriceLow / sortOrder）。
+  - 新建 `WatchlistGroupDO` 实体类对应 `sys_watchlist_group` 表。
+  - 新建 `WatchlistGroupMapper` 继承 BaseMapper。
+- **Acceptance Criteria Addressed**: AC-1
+- **Test Requirements**:
+  - `programmatic` TR-1.1: 执行 schema-mysql.sql 后，`DESC sys_watchlist` 显示 5 个新字段且均允许 NULL，`SHOW INDEX` 显示 idx_sys_watchlist_group 索引存在。
+  - `programmatic` TR-1.2: 执行 schema-sqlite.sql 后，`PRAGMA table_info(sys_watchlist)` 显示 5 个新字段，`sys_watchlist_group` 表存在。
+  - `programmatic` TR-1.3: `schema-mysql-comments.sql` 包含新字段 ALTER TABLE COMMENT 和新表 COMMENT。
+  - `programmatic` TR-1.4: `WatchlistItemDO` 编译通过且包含 5 个新属性，`WatchlistGroupDO` + `WatchlistGroupMapper` 编译通过。
+  - `human-judgement` TR-1.5: 代码风格符合 Java 编码规范，字段命名与现有 DO 类一致（驼峰+TableField 映射）。
+- **Notes**: SQLite 用动态类型但建议对齐 MySQL 语义；所有扩展字段允许 NULL 保证向后兼容。
+
+## [ ] Task 2: Service 层扩展（自选股 + 分组 + 提醒 CRUD）
+- **Priority**: high
+- **Depends On**: Task 1
+- **Description**: 
+  - 扩展 `WatchlistService` 接口 + `WatchlistServiceImpl` 实现：
+    - `addToWatchlist` 方法增加可选参数 `groupId` / `note`。
+    - 新增 `setReminder(userId, stockCode, high, low)` / `clearReminder(userId, stockCode)` 设置/清除价格提醒。
+    - 新增 `updateSortOrder(userId, stockCode, sortOrder)` 更新排序。
+    - 新增 `updateGroup(userId, stockCode, groupId)` 更新分组。
+    - 新增 `batchRemove(userId, stockCodes)` / `batchMoveGroup(userId, stockCodes, groupId)` 批量操作，加 `@Transactional` 事务保证。
+    - `getWatchlist` 方法增加参数 `groupId` / `sortBy` / `order`，支持按分组过滤和排序；JOIN `daily_quote` / `daily_basic` / `stock_basic` / `sw_industry_member` / `sw_industry` 返回完整 VO（含 5 个新字段 + 行情 + 基本面 + 行业）。
+  - 新建 `WatchlistGroupService` 接口 + 实现类：
+    - `getGroups(userId)` 获取自定义分组列表。
+    - `createGroup(userId, groupName)` 创建分组。
+    - `renameGroup(userId, groupId, groupName)` 重命名分组。
+    - `deleteGroup(userId, groupId)` 删除分组（组内股票 group_id 置 NULL），加事务。
+  - 新建 `WatchlistItemVO`（或扩展 `StockVO`）包含所有展示字段（代码/名称/行情/基本面/行业/自选股元信息/30日收盘序列）。
+- **Acceptance Criteria Addressed**: AC-1, AC-2, AC-3, AC-6, AC-7, AC-9
+- **Test Requirements**:
+  - `programmatic` TR-2.1: Service 层所有新增方法编译通过，单元测试覆盖 CRUD 正常路径 + 异常路径（重复添加/不存在股票/权限校验）。
+  - `programmatic` TR-2.2: 批量操作加 `@Transactional` 注解，模拟中途异常时全部回滚。
+  - `programmatic` TR-2.3: `getWatchlist` 支持 groupId 过滤 + sortBy 排序，返回 VO 包含所有扩展字段。
+  - `programmatic` TR-2.4: 删除分组时，组内股票的 group_id 被置为 NULL，股票本身不被删除。
+  - `human-judgement` TR-2.5: Service 层接口设计清晰，命名符合项目规范，事务边界合理。
+- **Notes**: JOIN 查询注意性能，确保 `(ts_code, trade_date)` 索引存在；分页按需实现（一期可能不分页）。
+
+## [ ] Task 3: Controller 层扩展（API 接口）
+- **Priority**: high
+- **Depends On**: Task 2
+- **Description**: 
+  - 扩展 `WatchlistController`：
+    - `GET /watchlist` 增加 `groupId`（可选）/ `sortBy`（可选，默认 pct_chg）/ `order`（可选，默认 desc）查询参数（≤5 个，直接用 query 参数）。
+    - `POST /watchlist/{stockCode}` 增加可选 `groupId` query 参数。
+    - 新增 `POST /watchlist/{stockCode}/reminder`：设置价格提醒（body `targetPriceHigh` / `targetPriceLow` 可选）。
+    - 新增 `DELETE /watchlist/{stockCode}/reminder`：清除提醒。
+    - 新增 `PUT /watchlist/{stockCode}/sort`：更新排序（参数 `sortOrder`）。
+    - 新增 `PUT /watchlist/{stockCode}/group`：更新分组（参数 `groupId`，NULL 表示未分组）。
+    - 新增 `POST /watchlist/batch-delete`（body `stockCodes` 列表）：批量移除。
+    - 新增 `POST /watchlist/batch-move-group`（body `stockCodes` + `groupId`）：批量改分组。
+  - 新建 `WatchlistGroupController`：
+    - `GET /watchlist/groups`：获取当前用户自定义分组列表 + 行业分组列表（行业从 sw_industry 取）。
+    - `POST /watchlist/groups`：创建自定义分组（参数 `groupName`）。
+    - `PUT /watchlist/groups/{groupId}`：重命名分组。
+    - `DELETE /watchlist/groups/{groupId}`：删除分组。
+  - 所有接口返回 `ApiResponse<T>`，符合项目统一返回格式。
+- **Acceptance Criteria Addressed**: AC-2, AC-3, AC-5, AC-6, AC-7, AC-9
+- **Test Requirements**:
+  - `programmatic` TR-3.1: 所有 Controller 接口编译通过，Swagger 文档可访问且描述清晰。
+  - `programmatic` TR-3.2: 接口参数校验生效（如 stockCode 不能为空），异常返回正确错误码。
+  - `programmatic` TR-3.3: 批量操作接口参数 >5 个时封装为 DTO 对象（batch-delete/batch-move-group）。
+  - `programmatic` TR-3.4: GET /watchlist 接口的 query 参数合计 ≤ 5 个，符合 API 设计规范。
+  - `human-judgement` TR-3.5: API 命名符合 RESTful 风格，URL 用 kebab-case，语义清晰。
+- **Notes**: 注意 API 设计规范：参数 >5 个必须封装 DTO；请求/返回体禁止用 Map。
+
+## [ ] Task 4: DailyBasicController 补全（FR-9 依赖）
+- **Priority**: medium
+- **Depends On**: Task 3（可并行，不阻塞 Task 3）
+- **Description**: 
+  - 新建 `DailyBasicController`，暴露 `GET /api/daily-basic` 查询接口：
+    - 参数：`tsCode`（可选，支持多个用逗号分隔）/ `tradeDate`（可选，默认最新交易日）。
+    - 返回 `ApiResponse<List<DailyBasicDTO>>`，DTO 含 `ts_code` / `trade_date` / `close` / `total_mv` / `pe_ttm` / `pb` / `turnover_rate`。
+  - 复用已有 `DailyBasicService` / `DailyBasicMapper` / `DailyBasicDO` / DTO。
+  - 确认联想接口 `/search/suggest` 是否返回 `industry_name`，若未返回则扩展该接口（JOIN sw_industry_member + sw_industry）。
+- **Acceptance Criteria Addressed**: AC-9, AC-5
+- **Test Requirements**:
+  - `programmatic` TR-4.1: `DailyBasicController` 编译通过，接口可正常返回数据。
+  - `programmatic` TR-4.2: 参数缺失或无效时返回正确错误码。
+  - `programmatic` TR-4.3: `/search/suggest` 联想项含 `industryName` 字段。
+  - `human-judgement` TR-4.4: Controller 代码风格与现有 Controller 一致，注释完整。
+- **Notes**: daily_basic 的 DO/Mapper/Service/定时任务均已有，只需补 Controller；本任务是自选股列扩展的前置依赖但可独立开发。
+
+## [ ] Task 5: 前端脚本独立化（watchlist.js）
+- **Priority**: high
+- **Depends On**: Task 3（接口就绪后联调，但代码结构可先搭）
+- **Description**: 
+  - 新建 `static/js/watchlist.js`，用 IIFE 封装，暴露 `WatchlistPage` 全局对象，含 `init()` 入口方法。
+  - 迁移现有内联脚本的 `refreshWatchlist()` / `removeStock()` 两个函数。
+  - 新增模块内状态管理：`state = { list: [], currentGroupId: null, sortBy: 'pct_chg', order: 'desc', selectedCodes: new Set(), reminderPollingTimer: null, chartInstances: new Map() }`。
+  - 新增工具方法：`formatNumber()` / `formatPercent()` / `formatMarketValue()` / `formatPePb()` 等格式化函数（复用 `StockApp` 已有方法）。
+  - 修改 `watchlist.html`：删除内联 `<script>` 业务逻辑块，加 `<script th:src="@{/js/watchlist.js}"></script>` 引入，确保 common.js / search-suggest.js / echarts 加载顺序正确。
+  - 页面初始化调用 `WatchlistPage.init()`。
+- **Acceptance Criteria Addressed**: AC-10
+- **Test Requirements**:
+  - `programmatic` TR-5.1: `watchlist.js` 文件存在，HTML 正确引入，无内联业务脚本。
+  - `programmatic` TR-5.2: 页面加载正常，刷新/移除功能正常工作（无回归）。
+  - `programmatic` TR-5.3: 浏览器控制台无 `is not defined` 报错（依赖加载顺序正确）。
+  - `programmatic` TR-5.4: 二次访问页面时 watchlist.js 走浏览器缓存（Network 面板验证）。
+  - `human-judgement` TR-5.5: 代码结构清晰，IIFE 封装良好，命名规范，注释适度。
+- **Notes**: 本任务是 W10，为后续所有前端功能的基础工程，建议优先完成后再做其他前端任务。
+
+## [ ] Task 6: 前端页面布局改造（分组栏 + 搜索框 + 排序 + 批量操作 + 列扩展）
+- **Priority**: high
+- **Depends On**: Task 5
+- **Description**: 
+  - `watchlist.html` 页面布局改造：
+    - 左侧新增分组栏 div，显示「全部」+ 行业分组列表 + 自定义分组 + 「未分组」，底部「+ 新建分组」按钮。
+    - 顶部工具条改造：左侧加搜索框（SearchSuggest）+ 排序下拉框 + 批量操作按钮组（批量移除/批量改分组，默认隐藏）。
+    - 表格列扩展：新增「复选框」「行业」「总市值」「PE(TTM)」「PB」「换手率」「30 日趋势（占位）」「提醒（占位）」等列，完整表头顺序参照 PRD §3.9.1。
+    - 页面顶部新增通知条容器（固定定位，默认隐藏）。
+    - 新增数据日期显示（列表顶部显示「数据日期 YYYY-MM-DD」）。
+  - `watchlist.js` 对应实现：
+    - `loadGroups()` 拉取分组列表并渲染左侧分组栏。
+    - `selectGroup(groupId, groupType)` 切换分组，重新查询列表。
+    - `loadList()` 带 groupId/sortBy/order 参数调用 GET /watchlist。
+    - `renderTable()` 渲染表格行，包含所有新列的格式化逻辑。
+    - `initSearchSuggest()` 初始化搜索框，集成 SearchSuggest。
+    - `initSortDropdown()` 排序切换逻辑。
+    - `initBatchOperations()` 复选框/全选/反选/批量移除/批量改分组。
+    - `createGroup()` / `renameGroup()` / `deleteGroup()` 分组 CRUD。
+    - 股票代码列渲染为链接（跳转 `/page/stock-detail/{code}`），带降级判断。
+- **Acceptance Criteria Addressed**: AC-3, AC-4, AC-5, AC-6, AC-7, AC-9, AC-10
+- **Test Requirements**:
+  - `programmatic` TR-6.1: 页面布局渲染正确，左侧分组栏、顶部工具条、表格列数符合预期。
+  - `programmatic` TR-6.2: 分组切换正常，切换后列表数据对应刷新。
+  - `programmatic` TR-6.3: 搜索框集成 SearchSuggest，输入联想正常，点击添加成功。
+  - `programmatic` TR-6.4: 排序切换正常，4 种排序方式均生效。
+  - `programmatic` TR-6.5: 批量操作正常，全选/反选/批量移除/批量改分组均工作。
+  - `programmatic` TR-6.6: 5 个新列（行业/市值/PE/PB/换手率）格式化正确，空值显示「-」。
+  - `programmatic` TR-6.7: 股票代码列显示为链接，点击正确跳转。
+  - `human-judgement` TR-6.8: 页面视觉符合整体设计风格，三主题切换后颜色正确。
+- **Notes**: 30 日趋势列和提醒列本期先占位留空，下两个任务填充。
+
+## [ ] Task 7: 前端 mini K 线 sparkline 实现
+- **Priority**: high
+- **Depends On**: Task 6
+- **Description**: 
+  - `watchlist.js` 新增 mini K 线渲染逻辑：
+    - `initMiniCharts()` 遍历当前列表行，为每行创建 ECharts 实例渲染 sparkline。
+    - 每个 mini 图 option 配置：无 grid / 无 xAxis label / 无 yAxis / 无 legend / 仅 line + areaStyle，宽 100px × 高 30px。
+    - 颜色判断：`closeSeries[last] >= closeSeries[0]` 用涨色（`ChartsTheme.upColor`），否则跌色（`ChartsTheme.downColor`）。
+    - tooltip 配置：显示起止价 / 最高价 / 最低价 / 涨跌幅。
+    - `disposeAllCharts()` 方法：翻页/刷新/切换分组时，遍历 `chartInstances` Map 调用 `echarts.dispose()` 并清空。
+    - 数据来源：GET /watchlist 接口返回的 `closeSeries` 字段（30 个收盘价数组），或按需加载。
+  - 接口层：确认 GET /watchlist 返回的 VO 包含 `closeSeries`（30 日收盘价数组），若性能有问题则考虑单独接口批量获取。
+- **Acceptance Criteria Addressed**: AC-8, AC-10
+- **Test Requirements**:
+  - `programmatic` TR-7.1: 每行 mini K 线正确渲染，涨红跌绿颜色正确。
+  - `programmatic` TR-7.2: 鼠标悬停显示 tooltip，内容包含起止价/最高/最低/涨跌幅。
+  - `programmatic` TR-7.3: 切换分组或刷新列表时，旧 ECharts 实例被 dispose（无内存泄漏）。
+  - `programmatic` TR-7.4: 50 条 mini K 线首屏渲染时间 ≤ 1 秒（用 console.time 验证）。
+  - `programmatic` TR-7.5: 新股不足 30 日数据时，显示已有数据且 tooltip 提示「数据不足 30 日」。
+  - `human-judgement` TR-7.6: mini 图视觉精致，无锯齿，与列表行高对齐。
+- **Notes**: 若 50 只股票 × 30 天数据一次性返回性能有问题，可优化为单独接口批量取；注意 IntersectionObserver 懒加载是可选优化。
+
+## [ ] Task 8: 前端价格提醒（轮询 + 通知）
+- **Priority**: high
+- **Depends On**: Task 6, Task 7（提醒状态图标与列表行同渲染）
+- **Description**: 
+  - `watchlist.js` 新增价格提醒完整逻辑：
+    - `openReminderModal(stockCode)` 打开设置弹窗：支持「按目标价」和「按涨跌幅」两种模式切换；涨跌幅模式保存时前端换算为等价目标价。
+    - `saveReminder(stockCode, high, low)` 调用 POST /watchlist/{code}/reminder 保存。
+    - `clearReminder(stockCode)` 调用 DELETE /watchlist/{code}/reminder 清除。
+    - `startReminderPolling()` 启动 60 秒轮询，调用 GET /watchlist 获取最新行情，遍历比对阈值。
+    - `stopReminderPolling()` 停止轮询（页面卸载时调用）。
+    - `showReminderNotification(stock, direction, triggerType)` 触发提醒：顶部通知条 + toast + 行高亮闪烁（背景色脉冲动画 2 秒）。
+    - 5 分钟去重：用 `Map<code, lastTriggerTime>` 记录上次触发时间，5 分钟内同阈值不重复提醒。
+    - 后台 tab 降频：监听 `visibilitychange`，页面不可见时轮询间隔改为 5 分钟。
+    - 通知条点击跳转个股诊断页。
+    - 列表行右侧显示小铃铛图标（已设提醒），悬停 tooltip 显示提醒参数，点击打开编辑弹窗。
+- **Acceptance Criteria Addressed**: AC-2, AC-10
+- **Test Requirements**:
+  - `programmatic` TR-8.1: 设置提醒弹窗正常打开，两种模式切换正常，保存成功后小铃铛图标显示。
+  - `programmatic` TR-8.2: 模拟最新价触达阈值，60 秒内触发提醒（顶部通知条 + toast + 行高亮）。
+  - `programmatic` TR-8.3: 5 分钟内同阈值重复触发只提醒一次（去重验证）。
+  - `programmatic` TR-8.4: 清除提醒后小铃铛消失，不再触发提醒。
+  - `programmatic` TR-8.5: 切换到后台 tab 后，轮询间隔降为 5 分钟（控制台日志验证）。
+  - `programmatic` TR-8.6: 页面卸载时定时器被清除（无内存泄漏）。
+  - `human-judgement` TR-8.7: 通知条视觉醒目，行高亮动画流畅，交互体验好。
+- **Notes**: 单次轮询失败静默重试，连续 3 次失败才 toast 提示「行情刷新异常」；涨跌幅模式保存时需用当前最新价换算。
+
+## [ ] Task 9: 拖拽排序 + 跨分组拖拽
+- **Priority**: medium
+- **Depends On**: Task 6
+- **Description**: 
+  - `watchlist.js` 新增拖拽功能：
+    - `initDragAndDrop()` 初始化 HTML5 drag-and-drop：表格行可拖拽，dragstart 时记录股票代码和原位置。
+    - 同分组内拖拽排序：dragover 显示放置位置指示，drop 时调用 PUT /watchlist/{code}/sort 更新 sort_order，刷新列表。
+    - 跨分组拖拽：拖动行到左侧分组栏的某个分组名上，高亮目标分组，drop 时调用 PUT /watchlist/{code}/group 更新 group_id，刷新列表。
+    - 仅在「按自定义顺序」排序模式下启用行拖拽排序；其他排序模式下禁用拖拽（或拖拽后自动切到自定义顺序）。
+  - CSS 样式：拖拽时的半透明效果、放置指示线、目标分组高亮等。
+- **Acceptance Criteria Addressed**: AC-3, AC-6
+- **Test Requirements**:
+  - `programmatic` TR-9.1: 表格行可拖拽，在同分组内调整顺序后刷新保持。
+  - `programmatic` TR-9.2: 拖拽行到左侧分组名上可跨分组移动，刷新后分组正确。
+  - `programmatic` TR-9.3: 非自定义顺序模式下，拖拽行为合理（禁用或自动切换）。
+  - `human-judgement` TR-9.4: 拖拽视觉反馈清晰（放置指示、目标高亮），交互流畅。
+- **Notes**: HTML5 drag-and-drop 原生实现即可，无需引入第三方拖拽库；注意移动端不支持但本期不做移动端。
+
+## [ ] Task 10: 整体联调、主题兼容与性能优化
+- **Priority**: medium
+- **Depends On**: Task 7, Task 8, Task 9
+- **Description**: 
+  - 三主题兼容验证：azure / mist / cyber 三个主题下，列表颜色、mini K 线颜色、分组栏样式、通知条样式均正确，无硬编码颜色，无布局错乱。
+  - 性能优化：
+    - GET /watchlist 接口 SQL 优化，确保 JOIN 查询走索引。
+    - 确认 mini K 线数据加载策略（一次性返回 vs 单独接口）。
+    - 首屏加载时间 ≤ 2 秒（含 50 条 mini K 线）。
+  - 端到端流程验证：加入自选 → 设置分组 → 设置价格提醒 → 提醒触发 → 点击跳转个股诊断，全流程顺畅。
+  - 数据降级验证：模拟各表无数据时的降级展示是否正常。
+  - 向后兼容验证：已有自选股数据在表结构扩展后不报错，默认值正确。
+  - 代码自查与清理：移除调试日志、补充必要注释、检查代码规范。
+- **Acceptance Criteria Addressed**: AC-11, AC-1, AC-2, AC-3, AC-4, AC-5, AC-6, AC-7, AC-8, AC-9, AC-10
+- **Test Requirements**:
+  - `programmatic` TR-10.1: 三主题切换均无样式错乱，颜色随主题正确变化。
+  - `programmatic` TR-10.2: 首屏加载时间 ≤ 2 秒（performance API 验证）。
+  - `programmatic` TR-10.3: 端到端流程无报错，数据流转正确。
+  - `programmatic` TR-10.4: 数据降级场景下页面正常展示（无白屏/无报错）。
+  - `human-judgement` TR-10.5: 整体交互流畅，视觉效果符合专业工具定位，无明显 bug。
+- **Notes**: 本任务为收尾集成任务，确保整体质量达标。
