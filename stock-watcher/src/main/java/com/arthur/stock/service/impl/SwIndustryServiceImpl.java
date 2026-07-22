@@ -203,8 +203,8 @@ public class SwIndustryServiceImpl implements SwIndustryService {
         Map<String, IndexDailyDO> indexDailyMap = buildIndexDailyMap(industries, tradeDate);
 
         // 5. 查询成分股行情 + 股票名称
-        Map<String, DailyQuoteDO> quoteMap = new HashMap<>();
-        Map<String, String> nameMap = new HashMap<>();
+        Map<String, DailyQuoteDO> quoteMap;
+        Map<String, String> nameMap;
         if (allMembers != null && !allMembers.isEmpty()) {
             List<String> allTsCodes = allMembers.stream()
                     .map(SwIndustryMemberDO::getTsCode)
@@ -212,6 +212,9 @@ public class SwIndustryServiceImpl implements SwIndustryService {
                     .collect(Collectors.toList());
             quoteMap = buildStockQuoteMap(allTsCodes, tradeDate);
             nameMap = buildStockNameMap(allTsCodes);
+        } else {
+            nameMap = new HashMap<>();
+            quoteMap = new HashMap<>();
         }
 
         // 6. 构建返回结果
