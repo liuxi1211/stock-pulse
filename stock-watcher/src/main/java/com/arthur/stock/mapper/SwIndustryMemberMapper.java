@@ -92,4 +92,21 @@ public interface SwIndustryMemberMapper extends BaseMapper<SwIndustryMemberDO> {
             + " ORDER BY ts_code, update_date ASC"
             + "</script>")
     List<SwIndustryMemberDO> selectAllL1HistoryByTsCodes(@Param("tsCodes") List<String> tsCodes);
+
+    /**
+     * 查询全量当前一级成分股（is_new='1' 且属于指定 src 的 level=1 行业）。
+     */
+    @Select("SELECT ts_code, index_code, index_name, in_date, out_date, is_new, src, update_date "
+            + "FROM sw_industry_member "
+            + "WHERE is_new = '1' AND src = #{src} "
+            + "AND index_code IN (SELECT index_code FROM sw_industry WHERE level = 1 AND src = #{src})")
+    List<SwIndustryMemberDO> selectAllCurrentL1Members(@Param("src") String src);
+
+    /**
+     * 按行业代码查询当前成分股（is_new='1'）。
+     */
+    @Select("SELECT ts_code, index_code, index_name, in_date, out_date, is_new, src, update_date "
+            + "FROM sw_industry_member "
+            + "WHERE index_code = #{indexCode} AND is_new = '1' AND src = #{src}")
+    List<SwIndustryMemberDO> selectMembersByIndexCode(@Param("indexCode") String indexCode, @Param("src") String src);
 }

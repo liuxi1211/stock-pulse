@@ -3,6 +3,9 @@ package com.arthur.stock.service;
 import java.util.List;
 import java.util.Map;
 
+import com.arthur.stock.dto.PageResult;
+import com.arthur.stock.vo.IndustryMemberVO;
+import com.arthur.stock.vo.IndustryRankingVO;
 import com.arthur.stock.vo.SwIndustryVO;
 
 /**
@@ -76,4 +79,15 @@ public interface SwIndustryService {
      *         无历史记录或区间内无生效归属的 tsCode 不在内层 map
      */
     Map<String, Map<String, String>> getL1IndustriesPit(List<String> tsCodes, String startDate, String endDate);
+
+    /**
+     * 获取行业排行数据（28个申万一级行业）。
+     * Java 层多步聚合：行业列表 + 成分股 + 指数行情 + 成分股行情 -> 按行业分组取领涨/领跌。
+     */
+    List<IndustryRankingVO> getIndustryRanking(String tradeDate);
+
+    /**
+     * 分页查询行业成分股（含最新行情）。
+     */
+    PageResult<IndustryMemberVO> getIndustryMembers(String industryCode, String tradeDate, int page, int size, String keyword);
 }

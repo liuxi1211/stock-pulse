@@ -294,4 +294,37 @@
         <include refid="stockListFromWhere"/>
     </select>
 
+    <!-- 行业成分股行情（分页 + 搜索） -->
+    <select id="selectMembersWithQuote" resultType="com.arthur.stock.vo.IndustryMemberVO">
+        SELECT m.ts_code AS tsCode,
+               b.name AS name,
+               q.close AS close,
+               q.pct_chg AS pctChg,
+               q.vol AS vol,
+               q.amount AS amount,
+               b.market AS market
+        FROM sw_industry_member m
+        INNER JOIN stock_basic b ON m.ts_code = b.ts_code
+        LEFT JOIN daily_quote q ON m.ts_code = q.ts_code AND q.trade_date = #{tradeDate}
+        WHERE m.index_code = #{indexCode}
+          AND m.is_new = '1'
+          <if test="keyword != null and keyword != ''">
+          AND (b.name LIKE CONCAT('%', #{keyword}, '%') OR m.ts_code LIKE CONCAT('%', #{keyword}, '%'))
+          </if>
+        ORDER BY q.pct_chg DESC
+        LIMIT #{size} OFFSET #{offset}
+    </select>
+
+    <!-- 行业成分股行情总数（同 FROM/WHERE，不含排序分页） -->
+    <select id="countMembersWithQuote" resultType="long">
+        SELECT COUNT(*)
+        FROM sw_industry_member m
+        INNER JOIN stock_basic b ON m.ts_code = b.ts_code
+        WHERE m.index_code = #{indexCode}
+          AND m.is_new = '1'
+          <if test="keyword != null and keyword != ''">
+          AND (b.name LIKE CONCAT('%', #{keyword}, '%') OR m.ts_code LIKE CONCAT('%', #{keyword}, '%'))
+          </if>
+    </select>
+
 </mapper>

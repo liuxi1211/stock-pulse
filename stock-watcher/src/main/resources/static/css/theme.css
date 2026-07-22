@@ -79,10 +79,12 @@
     --rise-color: #DC2626;
     --rise-light: #EF4444;
     --rise-bg: rgba(220, 38, 38, 0.10);
+    --rise-strong-bg: rgba(220, 38, 38, 0.25);
     --rise-glow: rgba(220, 38, 38, 0.22);
     --fall-color: #059669;
     --fall-light: #10B981;
     --fall-bg: rgba(5, 150, 105, 0.10);
+    --fall-strong-bg: rgba(5, 150, 105, 0.25);
     --fall-glow: rgba(5, 150, 105, 0.22);
 
     /* Shadows(浅色用柔和投影) */
@@ -184,10 +186,12 @@
     --rise-color: #D0413B;
     --rise-light: #E05A52;
     --rise-bg: rgba(208, 65, 59, 0.12);
+    --rise-strong-bg: rgba(208, 65, 59, 0.28);
     --rise-glow: rgba(208, 65, 59, 0.24);
     --fall-color: #2E8B57;
     --fall-light: #3CA86E;
     --fall-bg: rgba(46, 139, 87, 0.12);
+    --fall-strong-bg: rgba(46, 139, 87, 0.28);
     --fall-glow: rgba(46, 139, 87, 0.24);
 
     /* Shadows */
@@ -289,10 +293,12 @@
     --rise-color: #FF2D55;
     --rise-light: #FF5C7A;
     --rise-bg: rgba(255, 45, 85, 0.16);
+    --rise-strong-bg: rgba(255, 45, 85, 0.32);
     --rise-glow: rgba(255, 45, 85, 0.40);
     --fall-color: #00FF9C;
     --fall-light: #5FFFBF;
     --fall-bg: rgba(0, 255, 156, 0.14);
+    --fall-strong-bg: rgba(0, 255, 156, 0.28);
     --fall-glow: rgba(0, 255, 156, 0.36);
 
     /* Shadows(深色 + 霓虹 glow) */

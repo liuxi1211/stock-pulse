@@ -1,6 +1,7 @@
 package com.arthur.stock.mapper;
 
 import com.arthur.stock.model.DailyQuoteDO;
+import com.arthur.stock.vo.IndustryMemberVO;
 import com.arthur.stock.vo.StockListDTO;
 import com.arthur.stock.vo.StockRankVO;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
@@ -125,4 +126,20 @@ public interface DailyQuoteMapper extends BaseMapper<DailyQuoteDO> {
     long selectStockListCount(@Param("tradeDate") String tradeDate,
                               @Param("industryCode") String industryCode,
                               @Param("market") String market);
+
+    /**
+     * 行业成分股行情（分页 + 搜索）：JOIN sw_industry_member + stock_basic + daily_quote。
+     */
+    List<IndustryMemberVO> selectMembersWithQuote(@Param("indexCode") String indexCode,
+                                                   @Param("tradeDate") String tradeDate,
+                                                   @Param("keyword") String keyword,
+                                                   @Param("size") int size,
+                                                   @Param("offset") int offset);
+
+    /**
+     * 行业成分股行情总数（与 selectMembersWithQuote 同 FROM/WHERE，不含排序分页）。
+     */
+    long countMembersWithQuote(@Param("indexCode") String indexCode,
+                                @Param("tradeDate") String tradeDate,
+                                @Param("keyword") String keyword);
 }

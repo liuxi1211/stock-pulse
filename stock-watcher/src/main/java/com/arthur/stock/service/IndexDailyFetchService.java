@@ -105,7 +105,7 @@ public class IndexDailyFetchService {
      */
     private List<String> listSwL1IndexCodes() {
         try {
-            List<SwIndustryDO> l1 = swIndustryMapper.selectByLevel(1);
+            List<SwIndustryDO> l1 = swIndustryMapper.selectByLevel(1, "SWS2021");
             if (l1 == null || l1.isEmpty()) {
                 log.warn("sw_industry level=1 为空，跳过申万行业指数同步");
                 return Collections.emptyList();

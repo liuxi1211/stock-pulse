@@ -1,0 +1,154 @@
+/* ============================================================
+   板块行情页面样式 (sector.css)
+   使用 theme.css 中的 CSS 变量，不硬编码颜色
+   ============================================================ */
+
+/* ---------- 热度图网格 ---------- */
+.sector-heatmap-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 6px;
+}
+
+.sector-heatmap-cell {
+    padding: 10px 8px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    text-align: center;
+    transition: transform 0.15s, box-shadow 0.15s;
+    border: 1px solid var(--border-light);
+    min-height: 80px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.sector-heatmap-cell:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+    z-index: 10;
+}
+
+.sector-heatmap-cell .cell-name {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-bottom: 4px;
+}
+
+.sector-heatmap-cell .cell-pct {
+    font-size: 18px;
+    font-weight: 700;
+    font-family: var(--font-mono);
+}
+
+.sector-heatmap-cell .cell-amount {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+
+/* 涨跌色 */
+.sector-heatmap-cell.cell-up { background: var(--rise-bg); }
+.sector-heatmap-cell.cell-up .cell-pct { color: var(--rise-light); }
+.sector-heatmap-cell.cell-up-strong { background: var(--rise-strong-bg); }
+.sector-heatmap-cell.cell-down { background: var(--fall-bg); }
+.sector-heatmap-cell.cell-down .cell-pct { color: var(--fall-light); }
+.sector-heatmap-cell.cell-down-strong { background: var(--fall-strong-bg); }
+.sector-heatmap-cell.cell-flat { background: var(--bg-secondary); }
+.sector-heatmap-cell.cell-flat .cell-pct { color: var(--text-muted); }
+
+/* ---------- 热度图 tooltip ---------- */
+.sector-tooltip {
+    position: fixed;
+    z-index: 9999;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    padding: 10px 14px;
+    box-shadow: var(--shadow-lg);
+    font-size: 12px;
+    pointer-events: none;
+    display: none;
+}
+
+.sector-tooltip .tt-name {
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+}
+
+.sector-tooltip .tt-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    color: var(--text-secondary);
+}
+
+.sector-tooltip .tt-row .tt-val {
+    font-family: var(--font-mono);
+}
+
+/* ---------- 排行表 ---------- */
+.sector-table-wrapper {
+    max-height: 600px;
+    overflow-y: auto;
+}
+
+.sector-table {
+    font-size: 13px;
+}
+
+.sector-table th {
+    position: sticky;
+    top: 0;
+    background: var(--bg-card);
+    z-index: 5;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.sector-table th.sortable {
+    cursor: pointer;
+    user-select: none;
+}
+
+.sector-table th.sortable:hover {
+    color: var(--accent-cyan);
+}
+
+.sector-table tbody tr {
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.sector-table tbody tr.active-row {
+    background: var(--bg-elevated);
+    border-left: 3px solid var(--accent-cyan);
+}
+
+/* 涨跌幅着色 */
+.text-rise { color: var(--rise-color); }
+.text-fall { color: var(--fall-color); }
+
+/* ---------- K线图容器 ---------- */
+#klineChart {
+    width: 100%;
+}
+
+/* ---------- 分页器 ---------- */
+#memberPagination .form-select-sm {
+    font-size: 12px;
+}
+
+/* ---------- 响应式 ---------- */
+@media (max-width: 991px) {
+    .sector-heatmap-grid {
+        grid-template-columns: repeat(4, 1fr);
+    }
+}
+
+@media (max-width: 576px) {
+    .sector-heatmap-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}

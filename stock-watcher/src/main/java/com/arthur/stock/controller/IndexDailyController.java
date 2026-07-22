@@ -42,4 +42,21 @@ public class IndexDailyController {
         }
         return ApiResponse.success(indexDailyService.getLatestByCodes(codeList));
     }
+
+    @Operation(summary = "查询指数日线", description = "按指数代码查询日线行情，按trade_date升序返回")
+    @GetMapping
+    public ApiResponse<List<IndexDailyDO>> query(
+            @Parameter(description = "指数代码，如 801010.SI", required = true)
+            @RequestParam String tsCode,
+            @Parameter(description = "起始日期 yyyyMMdd")
+            @RequestParam(required = false) String startDate,
+            @Parameter(description = "结束日期 yyyyMMdd")
+            @RequestParam(required = false) String endDate,
+            @Parameter(description = "返回条数，默认250")
+            @RequestParam(defaultValue = "250") int limit) {
+        List<IndexDailyDO> list = indexDailyService.getByCodeOrderByTradeDate(tsCode, limit);
+        // Service returns DESC order, reverse to ASC for K-line rendering
+        Collections.reverse(list);
+        return ApiResponse.success(list);
+    }
 }

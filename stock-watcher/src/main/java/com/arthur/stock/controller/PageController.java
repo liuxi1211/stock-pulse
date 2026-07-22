@@ -59,6 +59,16 @@ public class PageController {
     }
 
     /**
+     * 板块行情页面
+     */
+    @GetMapping("/page/sector")
+    public String sector(Model model) {
+        model.addAttribute("pageTitle", "板块行情");
+        model.addAttribute("activeMenu", "sector");
+        return "pages/sector";
+    }
+
+    /**
      * 系统设置页面
      */
     @GetMapping("/page/settings")

@@ -1041,7 +1041,7 @@ function showTemperatureEmpty() {
 
 // ========== Sector Overview (板块概览) ==========
 function fetchSectorOverview() {
-    fetch((StockApp.contextPath || '') + '/api/industry/ranking?limit=5')
+    fetch((StockApp.contextPath || '') + '/api/industry/ranking')
         .then(function(res) {
             if (!res.ok) throw new Error('Sector module not available');
             return res.json();
@@ -1058,17 +1058,25 @@ function fetchSectorOverview() {
 
 /**
  * 渲染板块概览: 涨幅前5(红) + 跌幅前5(绿)
- * 兼容两种返回结构:
- *   - { topGainers: [...], topLosers: [...] }
- *   - { gainers: [...], losers: [...] }
+ * data 为扁平数组(全部行业),按 pctChg 降序排序后取前5/末5
  */
 function renderSectorOverview(data) {
     const container = document.getElementById('sectorOverviewContainer');
     if (!container) return;
     const e = StockApp.escapeHtml;
 
-    const gainers = data.topGainers || data.gainers || [];
-    const losers = data.topLosers || data.losers || [];
+    if (!Array.isArray(data) || data.length === 0) {
+        showSectorDeveloping();
+        return;
+    }
+
+    var sorted = data.slice().sort(function(a, b) {
+        var va = a.pctChg != null ? a.pctChg : 0;
+        var vb = b.pctChg != null ? b.pctChg : 0;
+        return vb - va;
+    });
+    var gainers = sorted.slice(0, 5);
+    var losers = sorted.slice(-5);
 
     if (!gainers.length && !losers.length) {
         showSectorDeveloping();

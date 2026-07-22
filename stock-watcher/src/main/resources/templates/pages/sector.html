@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/common :: head(${pageTitle})}">
+<link th:href="@{/css/sector.css?v=20260722}" rel="stylesheet">
+</head>
+<body>
+<div class="app-container">
+    <nav th:replace="~{fragments/common :: sidebar}"></nav>
+    <div th:replace="~{fragments/common :: sidebarOverlay}"></div>
+    <div class="main-content">
+        <header th:replace="~{fragments/common :: topNavbar}"></header>
+        <main class="content-area">
+            <!-- Page Header -->
+            <div class="page-header">
+                <div>
+                    <h1 class="page-title">板块行情</h1>
+                    <p class="text-muted mb-0" style="font-size: 13px; margin-top: 4px;">申万一级行业板块轮动视角</p>
+                </div>
+                <div class="page-actions">
+                    <button class="btn btn-outline-secondary btn-sm" id="btnRefresh">
+                        <i class="bi bi-arrow-clockwise"></i> 刷新
+                    </button>
+                </div>
+            </div>
+
+            <!-- 顶部：板块轮动热度图 -->
+            <div class="animate-in delay-1 mb-3">
+                <div class="card card-glow">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span><i class="bi bi-grid-3x3-gap me-1"></i>板块轮动热度图</span>
+                        <span class="text-muted small" id="heatmapDate">--</span>
+                    </div>
+                    <div class="card-body">
+                        <div id="sectorHeatmap" class="sector-heatmap-grid"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 主体：排行表 + K线图/成分股 -->
+            <div class="animate-in delay-2">
+                <div class="row g-3">
+                    <!-- 左：行业排行表 -->
+                    <div class="col-lg-5">
+                        <div class="card card-glow h-100">
+                            <div class="card-header">
+                                <i class="bi bi-list-ul me-1"></i>行业涨跌排行
+                            </div>
+                            <div class="card-body p-0">
+                                <div class="sector-table-wrapper">
+                                    <table class="table table-hover sector-table mb-0" id="industryRankingTable">
+                                        <thead>
+                                            <tr>
+                                                <th>行业名</th>
+                                                <th class="sortable text-end" data-sort="pctChg">今日涨跌幅 <i class="bi bi-arrow-down-up"></i></th>
+                                                <th class="sortable text-end" data-sort="amount">成交额 <i class="bi bi-arrow-down-up"></i></th>
+                                                <th>领涨股</th>
+                                                <th>领跌股</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="industryRankingBody">
+                                            <tr><td colspan="5" class="text-center text-muted py-4">加载中...</td></tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 右：K线图 + 成分股 -->
+                    <div class="col-lg-7">
+                        <!-- K线图 -->
+                        <div class="card card-glow mb-3">
+                            <div class="card-header d-flex justify-content-between align-items-center flex-wrap">
+                                <span><i class="bi bi-graph-up me-1"></i><span id="klineTitle">行业指数K线</span></span>
+                                <div class="d-flex align-items-center gap-2 flex-wrap">
+                                    <!-- MA 显隐按钮 -->
+                                    <div class="btn-group btn-group-sm" role="group">
+                                        <button type="button" class="btn btn-outline-secondary ma-toggle active" data-ma="5">MA5</button>
+                                        <button type="button" class="btn btn-outline-secondary ma-toggle active" data-ma="10">MA10</button>
+                                        <button type="button" class="btn btn-outline-secondary ma-toggle active" data-ma="20">MA20</button>
+                                        <button type="button" class="btn btn-outline-secondary ma-toggle" data-ma="60">MA60</button>
+                                    </div>
+                                    <!-- 时间范围 -->
+                                    <div class="btn-group btn-group-sm" role="group">
+                                        <button type="button" class="btn btn-outline-secondary range-btn" data-range="60">60日</button>
+                                        <button type="button" class="btn btn-outline-secondary range-btn" data-range="120">120日</button>
+                                        <button type="button" class="btn btn-outline-secondary range-btn active" data-range="250">250日</button>
+                                        <button type="button" class="btn btn-outline-secondary range-btn" data-range="all">全部</button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card-body p-0">
+                                <div id="klineChart" style="height: 400px;"></div>
+                                <div id="klineEmpty" class="text-center text-muted py-5" style="display:none;">暂无数据</div>
+                            </div>
+                        </div>
+
+                        <!-- 成分股展开列表 -->
+                        <div class="card card-glow">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <span><i class="bi bi-people me-1"></i><span id="memberTitle">成分股</span></span>
+                                <div class="input-group input-group-sm" style="width: 200px;">
+                                    <input type="text" class="form-control" id="memberSearch" placeholder="搜索代码/名称">
+                                    <button class="btn btn-outline-secondary" type="button"><i class="bi bi-search"></i></button>
+                                </div>
+                            </div>
+                            <div class="card-body p-0">
+                                <div class="sector-table-wrapper">
+                                    <table class="table table-hover sector-table mb-0" id="memberTable">
+                                        <thead>
+                                            <tr>
+                                                <th>代码</th>
+                                                <th>名称</th>
+                                                <th class="text-end">最新价</th>
+                                                <th class="text-end">涨跌幅</th>
+                                                <th class="text-end">成交量</th>
+                                                <th class="text-end">成交额</th>
+                                                <th>市场</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="memberTableBody">
+                                            <tr><td colspan="7" class="text-center text-muted py-4">点击行业行查看成分股</td></tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <!-- 分页器 -->
+                                <div class="d-flex justify-content-between align-items-center px-3 py-2 border-top" id="memberPagination" style="display:none !important;">
+                                    <div class="d-flex align-items-center gap-2">
+                                        <select class="form-select form-select-sm" id="memberPageSize" style="width:auto;">
+                                            <option value="20">20条/页</option>
+                                            <option value="50">50条/页</option>
+                                            <option value="100">100条/页</option>
+                                        </select>
+                                        <span class="text-muted small" id="memberPageInfo">共 0 条</span>
+                                    </div>
+                                    <div class="btn-group btn-group-sm">
+                                        <button class="btn btn-outline-secondary" id="memberPrevPage"><i class="bi bi-chevron-left"></i></button>
+                                        <button class="btn btn-outline-secondary" id="memberNextPage"><i class="bi bi-chevron-right"></i></button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 错误重试 -->
+            <div id="errorRetry" class="text-center py-5" style="display:none;">
+                <p class="text-muted mb-3">数据加载失败</p>
+                <button class="btn btn-primary" onclick="location.reload()">重试</button>
+            </div>
+        </main>
+    </div>
+</div>
+<div th:replace="~{fragments/common :: toastContainer}"></div>
+<div th:replace="~{fragments/common :: scripts}"></div>
+<script th:src="@{/js/sector.js?v=20260722}"></script>
+</body>
+</html>

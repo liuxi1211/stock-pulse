@@ -1,15 +1,24 @@
 package com.arthur.stock.service.impl;
 
 import com.arthur.stock.client.TushareClient;
+import com.arthur.stock.dto.PageResult;
 import com.arthur.stock.dto.tushare.IndexClassifyDTO;
 import com.arthur.stock.dto.tushare.IndexClassifyQueryDTO;
 import com.arthur.stock.dto.tushare.IndexMemberDTO;
 import com.arthur.stock.dto.tushare.IndexMemberQueryDTO;
+import com.arthur.stock.mapper.DailyQuoteMapper;
+import com.arthur.stock.mapper.StockBasicMapper;
 import com.arthur.stock.mapper.SwIndustryMapper;
 import com.arthur.stock.mapper.SwIndustryMemberMapper;
+import com.arthur.stock.model.DailyQuoteDO;
+import com.arthur.stock.model.IndexDailyDO;
+import com.arthur.stock.model.StockBasicDO;
 import com.arthur.stock.model.SwIndustryDO;
 import com.arthur.stock.model.SwIndustryMemberDO;
+import com.arthur.stock.service.IndexDailyService;
 import com.arthur.stock.service.SwIndustryService;
+import com.arthur.stock.vo.IndustryMemberVO;
+import com.arthur.stock.vo.IndustryRankingVO;
 import com.arthur.stock.vo.SwIndustryVO;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.google.common.collect.Lists;
@@ -21,6 +30,7 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -53,6 +63,9 @@ public class SwIndustryServiceImpl implements SwIndustryService {
     private final TushareClient tushareClient;
     private final SwIndustryMapper swIndustryMapper;
     private final SwIndustryMemberMapper swIndustryMemberMapper;
+    private final DailyQuoteMapper dailyQuoteMapper;
+    private final IndexDailyService indexDailyService;
+    private final StockBasicMapper stockBasicMapper;
 
     @Override
     public int fetchAndSaveClassify(String src) {
@@ -153,7 +166,11 @@ public class SwIndustryServiceImpl implements SwIndustryService {
 
     @Override
     public List<SwIndustryVO> listByLevel(int level) {
-        List<SwIndustryDO> rows = swIndustryMapper.selectByLevel(level);
+        return listByLevel(level, "SWS2021");
+    }
+
+    public List<SwIndustryVO> listByLevel(int level, String src) {
+        List<SwIndustryDO> rows = swIndustryMapper.selectByLevel(level, src);
         if (rows == null || rows.isEmpty()) {
             return Collections.emptyList();
         }
@@ -163,6 +180,145 @@ public class SwIndustryServiceImpl implements SwIndustryService {
                         .industryName(d.getIndexName())
                         .build())
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<IndustryRankingVO> getIndustryRanking(String tradeDate) {
+        // 1. 获取28个申万一级行业
+        List<SwIndustryVO> industries = listByLevel(1);
+        if (industries.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        // 2. 确定交易日
+        if (tradeDate == null) {
+            tradeDate = dailyQuoteMapper.selectLatestTradeDate();
+        }
+
+        // 3. 查询全量当前一级成分股
+        List<SwIndustryMemberDO> allMembers = swIndustryMemberMapper.selectAllCurrentL1Members("SWS2021");
+        Map<String, List<SwIndustryMemberDO>> membersByIndustry = groupMembersByIndustry(allMembers);
+
+        // 4. 查询行业指数行情
+        Map<String, IndexDailyDO> indexDailyMap = buildIndexDailyMap(industries, tradeDate);
+
+        // 5. 查询成分股行情 + 股票名称
+        Map<String, DailyQuoteDO> quoteMap = new HashMap<>();
+        Map<String, String> nameMap = new HashMap<>();
+        if (allMembers != null && !allMembers.isEmpty()) {
+            List<String> allTsCodes = allMembers.stream()
+                    .map(SwIndustryMemberDO::getTsCode)
+                    .distinct()
+                    .collect(Collectors.toList());
+            quoteMap = buildStockQuoteMap(allTsCodes, tradeDate);
+            nameMap = buildStockNameMap(allTsCodes);
+        }
+
+        // 6. 构建返回结果
+        String finalTradeDate = tradeDate;
+        return industries.stream()
+                .map(ind -> buildIndustryRankingVO(ind, membersByIndustry, indexDailyMap, quoteMap, nameMap, finalTradeDate))
+                .collect(Collectors.toList());
+    }
+
+    private Map<String, List<SwIndustryMemberDO>> groupMembersByIndustry(List<SwIndustryMemberDO> allMembers) {
+        if (allMembers == null || allMembers.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        return allMembers.stream()
+                .collect(Collectors.groupingBy(SwIndustryMemberDO::getIndexCode));
+    }
+
+    private Map<String, IndexDailyDO> buildIndexDailyMap(List<SwIndustryVO> industries, String tradeDate) {
+        List<String> indexCodes = industries.stream()
+                .map(ind -> ind.getIndustryCode() + ".SI")
+                .collect(Collectors.toList());
+        List<IndexDailyDO> indexDailyList = indexDailyService.getByCodesAndTradeDate(indexCodes, tradeDate);
+        Map<String, IndexDailyDO> map = new HashMap<>();
+        for (IndexDailyDO d : indexDailyList) {
+            map.put(d.getTsCode(), d);
+        }
+        return map;
+    }
+
+    private Map<String, DailyQuoteDO> buildStockQuoteMap(List<String> tsCodes, String tradeDate) {
+        List<DailyQuoteDO> quotes = dailyQuoteMapper.selectByCodesAndTradeDate(tsCodes, tradeDate);
+        Map<String, DailyQuoteDO> map = new HashMap<>();
+        for (DailyQuoteDO q : quotes) {
+            map.put(q.getTsCode(), q);
+        }
+        return map;
+    }
+
+    private Map<String, String> buildStockNameMap(List<String> tsCodes) {
+        List<StockBasicDO> stocks = stockBasicMapper.selectList(
+                new LambdaQueryWrapper<StockBasicDO>()
+                        .in(StockBasicDO::getTsCode, tsCodes));
+        Map<String, String> map = new HashMap<>();
+        for (StockBasicDO s : stocks) {
+            map.put(s.getTsCode(), s.getName());
+        }
+        return map;
+    }
+
+    private IndustryRankingVO buildIndustryRankingVO(
+            SwIndustryVO ind,
+            Map<String, List<SwIndustryMemberDO>> membersByIndustry,
+            Map<String, IndexDailyDO> indexDailyMap,
+            Map<String, DailyQuoteDO> quoteMap,
+            Map<String, String> nameMap,
+            String tradeDate) {
+
+        String idxCode = ind.getIndustryCode();
+        String indexTsCode = idxCode + ".SI";
+        IndexDailyDO idxDaily = indexDailyMap.get(indexTsCode);
+
+        List<SwIndustryMemberDO> members = membersByIndustry.getOrDefault(idxCode, Collections.emptyList());
+        int constituentCount = members.size();
+
+        List<DailyQuoteDO> memberQuotes = members.stream()
+                .map(m -> quoteMap.get(m.getTsCode()))
+                .filter(q -> q != null && q.getPctChg() != null)
+                .sorted(Comparator.comparing(DailyQuoteDO::getPctChg).reversed())
+                .collect(Collectors.toList());
+        int activeCount = memberQuotes.size();
+
+        IndustryRankingVO.IndustryRankingVOBuilder builder = IndustryRankingVO.builder()
+                .industryCode(idxCode)
+                .industryName(ind.getIndustryName())
+                .indexCode(indexTsCode)
+                .constituentCount(constituentCount)
+                .activeCount(activeCount)
+                .tradeDate(tradeDate);
+
+        if (idxDaily != null) {
+            builder.pctChg(idxDaily.getPctChg())
+                    .amount(idxDaily.getAmount());
+        }
+
+        if (!memberQuotes.isEmpty()) {
+            DailyQuoteDO topGainer = memberQuotes.get(0);
+            DailyQuoteDO topLoser = memberQuotes.get(memberQuotes.size() - 1);
+            builder.topGainerCode(topGainer.getTsCode())
+                    .topGainerName(nameMap.getOrDefault(topGainer.getTsCode(), ""))
+                    .topGainerPctChg(topGainer.getPctChg())
+                    .topLoserCode(topLoser.getTsCode())
+                    .topLoserName(nameMap.getOrDefault(topLoser.getTsCode(), ""))
+                    .topLoserPctChg(topLoser.getPctChg());
+        }
+
+        return builder.build();
+    }
+
+    @Override
+    public PageResult<IndustryMemberVO> getIndustryMembers(String industryCode, String tradeDate, int page, int size, String keyword) {
+        if (tradeDate == null) {
+            tradeDate = dailyQuoteMapper.selectLatestTradeDate();
+        }
+        int offset = (page - 1) * size;
+        List<IndustryMemberVO> list = dailyQuoteMapper.selectMembersWithQuote(industryCode, tradeDate, keyword, size, offset);
+        long total = dailyQuoteMapper.countMembersWithQuote(industryCode, tradeDate, keyword);
+        return PageResult.of(list, total, page, size);
     }
 
     // ==================== 内部方法 ====================
