@@ -22,4 +22,18 @@ public interface FinaIndicatorMapper extends BaseMapper<FinaIndicatorDO> {
      * 用于选股时取最新可用财报数据。
      */
     FinaIndicatorDO selectLatestAnnouncedBefore(@Param("tsCode") String tsCode, @Param("tradeDate") String tradeDate);
+
+    // ==================== 数据管控检查 ====================
+
+    /** 取表中最大的 ann_date */
+    String selectMaxAnnDate();
+
+    /** 取表中最大的 end_date（最新报告期） */
+    String selectMaxEndDate();
+
+    /** 统计指定报告期 ROE 和 ROA 都为空的记录数 */
+    int countNullRoeRoa(@Param("endDate") String endDate);
+
+    /** 统计指定报告期资产负债率异常的记录数（< 0 或 > 100） */
+    int countInvalidDebtRatio(@Param("endDate") String endDate);
 }

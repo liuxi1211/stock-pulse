@@ -66,28 +66,30 @@ public class DataVerifyTask {
     private void verifyTradeCal(String startDate, String endDate) {
         log.info("[Verify 1] Checking trade_cal from {} to {}", startDate, endDate);
 
-        List<TradeCalDTO> localCals = tradeCalService.queryLocal(ExchangeEnum.SSE.getCode(), startDate, endDate, null);
-        Set<String> localDates = localCals.stream()
-                .map(TradeCalDTO::getCalDate)
-                .collect(Collectors.toSet());
+        for (ExchangeEnum ex : List.of(ExchangeEnum.SSE, ExchangeEnum.SZSE)) {
+            List<TradeCalDTO> localCals = tradeCalService.queryLocal(ex.getCode(), startDate, endDate, null);
+            Set<String> localDates = localCals.stream()
+                    .map(TradeCalDTO::getCalDate)
+                    .collect(Collectors.toSet());
 
-        List<String> missingDates = new ArrayList<>();
-        LocalDate start = LocalDate.parse(startDate, DATE_FMT);
-        LocalDate end = LocalDate.parse(endDate, DATE_FMT);
-        for (LocalDate d = start; !d.isAfter(end); d = d.plusDays(1)) {
-            String dateStr = d.format(DATE_FMT);
-            if (!localDates.contains(dateStr)) {
-                missingDates.add(dateStr);
+            List<String> missingDates = new ArrayList<>();
+            LocalDate start = LocalDate.parse(startDate, DATE_FMT);
+            LocalDate end = LocalDate.parse(endDate, DATE_FMT);
+            for (LocalDate d = start; !d.isAfter(end); d = d.plusDays(1)) {
+                String dateStr = d.format(DATE_FMT);
+                if (!localDates.contains(dateStr)) {
+                    missingDates.add(dateStr);
+                }
             }
-        }
 
-        if (missingDates.isEmpty()) {
-            log.info("trade_cal is complete, no gaps");
-            return;
-        }
+            if (missingDates.isEmpty()) {
+                log.info("trade_cal {} is complete, no gaps", ex.getCode());
+                continue;
+            }
 
-        log.info("Found {} missing dates in trade_cal, supplementing from Tushare", missingDates.size());
-        tradeCalService.fetchAndSaveTradeCal(ExchangeEnum.SSE.getCode(), startDate, endDate);
+            log.info("Found {} missing dates in trade_cal {}, supplementing from Tushare", missingDates.size(), ex.getCode());
+            tradeCalService.fetchAndSaveTradeCal(ex.getCode(), startDate, endDate);
+        }
     }
 
     /**

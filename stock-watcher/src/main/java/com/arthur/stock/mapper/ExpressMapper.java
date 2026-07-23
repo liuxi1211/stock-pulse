@@ -25,4 +25,18 @@ public interface ExpressMapper extends BaseMapper<ExpressDO> {
      * 用于选股时取最新可用业绩快报数据，避免 lookahead bias。
      */
     ExpressDO selectLatestAnnouncedBefore(@Param("tsCode") String tsCode, @Param("tradeDate") String tradeDate);
+
+    // ==================== 数据管控检查 ====================
+
+    /** 取表中最大的 ann_date */
+    String selectMaxAnnDate();
+
+    /** 取表中最大的 end_date（最新报告期） */
+    String selectMaxEndDate();
+
+    /** 统计指定报告期营收或总资产为负的记录数 */
+    int countInvalidRevenueAssets(@Param("endDate") String endDate);
+
+    /** 统计增长一致性错误的记录数：正增长但净利润更少 */
+    int countGrowthConsistencyErrors();
 }

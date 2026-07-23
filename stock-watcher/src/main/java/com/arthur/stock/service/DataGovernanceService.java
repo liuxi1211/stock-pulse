@@ -59,4 +59,13 @@ public interface DataGovernanceService {
      * @return 最新批次记录列表，正在运行任务时 status 被覆盖为 UPDATING
      */
     List<DataGovernanceMetricDO> getAllTableStatuses();
+
+    /**
+     * 获取某张表的历史检测记录（按时间倒序，最多 limit 条）。
+     *
+     * @param tableCode 表代码
+     * @param limit     最大返回条数
+     * @return 历史检测记录列表
+     */
+    List<DataGovernanceMetricDO> getMetricHistory(String tableCode, int limit);
 }

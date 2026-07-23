@@ -35,4 +35,16 @@ public interface MarginMapper extends BaseMapper<MarginDO> {
      * @return 最新交易日 yyyyMMdd；表为空时返回 null
      */
     String selectLatestTradeDate();
+
+    // ==================== 数据管控检查 ====================
+
+    /**
+     * 查询最近7天有数据的交易所列表。
+     */
+    List<String> selectRecentExchanges(@Param("startDate") String startDate);
+
+    /**
+     * 统计最近30天余额无效（rzye <= 0 OR rqye < 0 OR rzrqye <= 0）的记录数。
+     */
+    int countInvalidBalance(@Param("startDate") String startDate);
 }

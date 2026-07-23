@@ -44,4 +44,26 @@
         LIMIT 1
     </select>
 
+    <!-- ==================== 数据管控检查 ==================== -->
+
+    <select id="selectMaxAnnDate" resultType="string">
+        SELECT MAX(ann_date) FROM fina_indicator
+    </select>
+
+    <select id="selectMaxEndDate" resultType="string">
+        SELECT MAX(end_date) FROM fina_indicator
+    </select>
+
+    <select id="countNullRoeRoa" resultType="int">
+        SELECT COUNT(*) FROM fina_indicator
+        WHERE end_date = #{endDate}
+        AND roe IS NULL AND roa IS NULL
+    </select>
+
+    <select id="countInvalidDebtRatio" resultType="int">
+        SELECT COUNT(*) FROM fina_indicator
+        WHERE end_date = #{endDate}
+        AND (debt_to_assets &lt; 0 OR debt_to_assets &gt; 100)
+    </select>
+
 </mapper>

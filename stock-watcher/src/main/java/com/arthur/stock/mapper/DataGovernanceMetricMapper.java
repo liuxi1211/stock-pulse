@@ -27,4 +27,7 @@ public interface DataGovernanceMetricMapper extends BaseMapper<DataGovernanceMet
 
     /** 删除早于指定时间的记录 */
     int deleteOlderThan(@Param("cutoffTime") String cutoffTime);
+
+    /** 查询某张表的历史检测记录（按时间倒序，最多 limit 条） */
+    List<DataGovernanceMetricDO> selectHistoryByTableCode(@Param("tableCode") String tableCode, @Param("limit") int limit);
 }

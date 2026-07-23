@@ -13,6 +13,7 @@ import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
 
 /**
  * 每日数据更新定时任务
@@ -86,7 +87,15 @@ public class DailyUpdateTask {
     private void updateTradeCal() {
         String today = LocalDate.now().format(DATE_FMT);
         log.info("[Step 1] Syncing trade_cal data for {}", today);
-        tradeCalService.fetchAndSaveTradeCal(null, today, today);
+        for (com.arthur.stock.constant.ExchangeEnum ex : List.of(
+                com.arthur.stock.constant.ExchangeEnum.SSE,
+                com.arthur.stock.constant.ExchangeEnum.SZSE)) {
+            try {
+                tradeCalService.fetchAndSaveTradeCal(ex.getCode(), today, today);
+            } catch (Exception e) {
+                log.error("Failed to update trade_cal for {}", ex.getCode(), e);
+            }
+        }
     }
 
     /**

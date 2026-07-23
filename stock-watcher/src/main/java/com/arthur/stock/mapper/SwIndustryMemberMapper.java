@@ -109,4 +109,16 @@ public interface SwIndustryMemberMapper extends BaseMapper<SwIndustryMemberDO> {
             + "FROM sw_industry_member "
             + "WHERE index_code = #{indexCode} AND is_new = '1' AND src = #{src}")
     List<SwIndustryMemberDO> selectMembersByIndexCode(@Param("indexCode") String indexCode, @Param("src") String src);
+
+    // ==================== 数据管控检查 ====================
+
+    /**
+     * 统计有行业分类的股票数（distinct ts_code，is_new='1'）。
+     */
+    int countCoveredStocks();
+
+    /**
+     * 统计 out_date IS NOT NULL AND in_date > out_date 的记录数。
+     */
+    int countDateLogicErrors();
 }

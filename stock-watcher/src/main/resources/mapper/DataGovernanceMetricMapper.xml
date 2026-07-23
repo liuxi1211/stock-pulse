@@ -58,4 +58,11 @@
         DELETE FROM data_governance_metric WHERE check_time &lt; #{cutoffTime}
     </delete>
 
+    <select id="selectHistoryByTableCode" resultMap="metricMap">
+        SELECT * FROM data_governance_metric
+        WHERE table_code = #{tableCode}
+        ORDER BY check_time DESC
+        LIMIT #{limit}
+    </select>
+
 </mapper>

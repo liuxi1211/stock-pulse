@@ -1,10 +1,15 @@
 package com.arthur.stock.service.impl;
 
 import com.arthur.stock.client.TushareClient;
+import com.arthur.stock.constant.InitStep;
+import com.arthur.stock.dto.governance.CheckLevel;
+import com.arthur.stock.dto.governance.DataCheckItem;
+import com.arthur.stock.dto.governance.DataCheckResult;
 import com.arthur.stock.dto.tushare.SuspendDDTO;
 import com.arthur.stock.dto.tushare.SuspendDQueryDTO;
 import com.arthur.stock.mapper.StockSuspendDMapper;
 import com.arthur.stock.model.StockSuspendDDO;
+import com.arthur.stock.service.DataCheckable;
 import com.arthur.stock.service.StockSuspendDService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.google.common.collect.Lists;
@@ -30,7 +35,7 @@ import java.util.stream.Collectors;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class StockSuspendDServiceImpl implements StockSuspendDService {
+public class StockSuspendDServiceImpl implements StockSuspendDService, DataCheckable {
 
     /** suspend_d 单次分页大小（Tushare 上限 10000） */
     private static final int PAGE_SIZE = 10000;
@@ -121,5 +126,82 @@ public class StockSuspendDServiceImpl implements StockSuspendDService {
                 .suspReason(dto.getSuspReason())
                 .resumpDate(dto.getResumpDate())
                 .build();
+    }
+
+    // ==================== DataCheckable ====================
+
+    @Override
+    public String getTableCode() {
+        return InitStep.SUSPEND_D.getCode();
+    }
+
+    @Override
+    public DataCheckResult checkData() {
+        List<DataCheckItem> items = new ArrayList<>();
+        try {
+            long totalRows = stockSuspendDMapper.selectCount(null);
+            String latestDate = stockSuspendDMapper.selectMaxTradeDate();
+
+            if (totalRows == 0) {
+                items.add(DataCheckItem.builder()
+                        .name("date_logic")
+                        .displayName("日期逻辑检测")
+                        .passed(true)
+                        .level(CheckLevel.ERROR)
+                        .message("表为空，跳过检测")
+                        .build());
+                items.add(DataCheckItem.builder()
+                        .name("date_overlap")
+                        .displayName("日期重叠检测")
+                        .passed(true)
+                        .level(CheckLevel.WARN)
+                        .message("表为空，跳过检测")
+                        .build());
+            } else {
+                int dateLogicErrors = stockSuspendDMapper.countDateLogicErrors();
+                items.add(DataCheckItem.builder()
+                        .name("date_logic")
+                        .displayName("日期逻辑检测")
+                        .passed(dateLogicErrors == 0)
+                        .level(CheckLevel.ERROR)
+                        .message(dateLogicErrors == 0 ? "通过，日期逻辑正常"
+                                : "停牌日期晚于复牌日期的记录 " + dateLogicErrors + " 条")
+                        .build());
+
+                int dateOverlap = stockSuspendDMapper.countDateOverlap();
+                items.add(DataCheckItem.builder()
+                        .name("date_overlap")
+                        .displayName("日期重叠检测")
+                        .passed(dateOverlap == 0)
+                        .level(CheckLevel.WARN)
+                        .message(dateOverlap == 0 ? "通过，无停牌日期重叠"
+                                : "同一股票停牌日期重叠记录 " + dateOverlap + " 条")
+                        .build());
+            }
+
+            return DataCheckResult.builder()
+                    .tableCode(getTableCode())
+                    .tableName(InitStep.SUSPEND_D.getLabel())
+                    .totalRows(totalRows)
+                    .latestDate(latestDate)
+                    .items(items)
+                    .build();
+        } catch (Exception e) {
+            log.error("checkData error for suspend_d", e);
+            items.add(DataCheckItem.builder()
+                    .name("error")
+                    .displayName("检测执行异常")
+                    .passed(false)
+                    .level(CheckLevel.ERROR)
+                    .message("检测执行异常: " + e.getMessage())
+                    .build());
+            return DataCheckResult.builder()
+                    .tableCode(getTableCode())
+                    .tableName(InitStep.SUSPEND_D.getLabel())
+                    .totalRows(0)
+                    .latestDate(null)
+                    .items(items)
+                    .build();
+        }
     }
 }

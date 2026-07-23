@@ -55,10 +55,9 @@ CREATE TABLE IF NOT EXISTS daily_quote (
     pct_chg    DECIMAL(20,4)  COMMENT '涨跌幅（%）',
     vol        DECIMAL(20,4)  COMMENT '成交量（手）',
     amount     DECIMAL(20,4)  COMMENT '成交额（千元）',
-    PRIMARY KEY (ts_code, trade_date)
+    PRIMARY KEY (ts_code, trade_date),
+    INDEX idx_daily_quote_trade_date (trade_date)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='日线行情表';
-create index idx_daily_quote_trade_date
-    on daily_quote (trade_date);
 
 -- 4. 股票基本信息表
 CREATE TABLE IF NOT EXISTS stock_basic (

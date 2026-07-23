@@ -28,4 +28,12 @@ public interface TopInstMapper extends BaseMapper<TopInstDO> {
     /** 查某交易日的知名游资席位明细（按关键词模糊匹配 exalter）。 */
     List<TopInstDO> selectNotableByTradeDate(@Param("tradeDate") String tradeDate,
                                               @Param("keywords") List<String> keywords);
+
+    String selectMaxTradeDate();
+
+    int countInvalidAmount(@Param("startDate") String startDate);
+
+    int countSideAmountInconsistency(@Param("startDate") String startDate);
+
+    int countMissingInToplist(@Param("startDate") String startDate);
 }

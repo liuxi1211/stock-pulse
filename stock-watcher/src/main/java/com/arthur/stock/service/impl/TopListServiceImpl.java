@@ -1,12 +1,17 @@
 package com.arthur.stock.service.impl;
 
 import com.arthur.stock.client.TushareClient;
+import com.arthur.stock.constant.InitStep;
+import com.arthur.stock.dto.governance.CheckLevel;
+import com.arthur.stock.dto.governance.DataCheckItem;
+import com.arthur.stock.dto.governance.DataCheckResult;
 import com.arthur.stock.dto.tushare.TopInstDTO;
 import com.arthur.stock.dto.tushare.TopListDTO;
 import com.arthur.stock.mapper.TopInstMapper;
 import com.arthur.stock.mapper.TopListMapper;
 import com.arthur.stock.model.TopInstDO;
 import com.arthur.stock.model.TopListDO;
+import com.arthur.stock.service.DataCheckable;
 import com.arthur.stock.service.TopListService;
 import com.google.common.collect.Lists;
 import lombok.RequiredArgsConstructor;
@@ -14,6 +19,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -28,9 +36,10 @@ import java.util.stream.Collectors;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class TopListServiceImpl implements TopListService {
+public class TopListServiceImpl implements TopListService, DataCheckable {
 
     private static final int BATCH_SIZE = 500;
+    private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("yyyyMMdd");
 
     /** 知名游资/机构关键词列表 */
     private static final List<String> NOTABLE_KEYWORDS = List.of(
@@ -164,5 +173,101 @@ public class TopListServiceImpl implements TopListService {
                 .sellRate(d.getSellRate())
                 .netBuy(d.getNetBuy())
                 .build();
+    }
+
+    // ==================== DataCheckable ====================
+
+    @Override
+    public String getTableCode() {
+        return InitStep.TOP_LIST.getCode();
+    }
+
+    @Override
+    public DataCheckResult checkData() {
+        List<DataCheckItem> items = new ArrayList<>();
+        try {
+            long totalRows = topListMapper.selectCount(null);
+            String latestDate = topListMapper.selectLatestTradeDate();
+
+            if (totalRows == 0) {
+                items.add(DataCheckItem.builder()
+                        .name("amount_validity")
+                        .displayName("成交额有效性检测")
+                        .passed(true)
+                        .level(CheckLevel.ERROR)
+                        .message("表为空，跳过检测")
+                        .build());
+                items.add(DataCheckItem.builder()
+                        .name("pct_change_validity")
+                        .displayName("涨跌幅合理性检测")
+                        .passed(true)
+                        .level(CheckLevel.WARN)
+                        .message("表为空，跳过检测")
+                        .build());
+                items.add(DataCheckItem.builder()
+                        .name("net_amount_consistency")
+                        .displayName("净额一致性检测")
+                        .passed(true)
+                        .level(CheckLevel.WARN)
+                        .message("表为空，跳过检测")
+                        .build());
+            } else {
+                String thirtyDaysAgo = LocalDate.now().minusDays(30).format(DATE_FMT);
+
+                int invalidAmount = topListMapper.countInvalidAmount(thirtyDaysAgo);
+                items.add(DataCheckItem.builder()
+                        .name("amount_validity")
+                        .displayName("成交额有效性检测")
+                        .passed(invalidAmount == 0)
+                        .level(CheckLevel.ERROR)
+                        .message(invalidAmount == 0 ? "通过，最近30天成交额数据正常"
+                                : "最近30天成交额小于等于0的记录 " + invalidAmount + " 条")
+                        .build());
+
+                int invalidPctChange = topListMapper.countInvalidPctChange(thirtyDaysAgo);
+                items.add(DataCheckItem.builder()
+                        .name("pct_change_validity")
+                        .displayName("涨跌幅合理性检测")
+                        .passed(invalidPctChange == 0)
+                        .level(CheckLevel.WARN)
+                        .message(invalidPctChange == 0 ? "通过，最近30天涨跌幅数据正常"
+                                : "最近30天涨跌幅超出±21%的记录 " + invalidPctChange + " 条")
+                        .build());
+
+                int netAmountInconsistency = topListMapper.countNetAmountInconsistency(thirtyDaysAgo);
+                items.add(DataCheckItem.builder()
+                        .name("net_amount_consistency")
+                        .displayName("净额一致性检测")
+                        .passed(netAmountInconsistency == 0)
+                        .level(CheckLevel.WARN)
+                        .message(netAmountInconsistency == 0 ? "通过，最近30天净额数据一致"
+                                : "最近30天净额与买卖额偏差超过10%的记录 " + netAmountInconsistency + " 条")
+                        .build());
+            }
+
+            return DataCheckResult.builder()
+                    .tableCode(getTableCode())
+                    .tableName(InitStep.TOP_LIST.getLabel())
+                    .totalRows(totalRows)
+                    .latestDate(latestDate)
+                    .items(items)
+                    .build();
+        } catch (Exception e) {
+            log.error("checkData error for top_list", e);
+            items.add(DataCheckItem.builder()
+                    .name("error")
+                    .displayName("检测执行异常")
+                    .passed(false)
+                    .level(CheckLevel.ERROR)
+                    .message("检测执行异常: " + e.getMessage())
+                    .build());
+            return DataCheckResult.builder()
+                    .tableCode(getTableCode())
+                    .tableName(InitStep.TOP_LIST.getLabel())
+                    .totalRows(0)
+                    .latestDate(null)
+                    .items(items)
+                    .build();
+        }
     }
 }

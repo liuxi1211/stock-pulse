@@ -10,4 +10,33 @@
         </foreach>
     </insert>
 
+    <!-- ==================== 数据管控检查 ==================== -->
+
+    <select id="selectLatestTradeDate" resultType="string">
+        SELECT MAX(trade_date) FROM index_weight
+    </select>
+
+    <select id="countByIndexCode" resultType="java.util.Map">
+        SELECT ts_code AS tsCode, COUNT(*) AS cnt
+        FROM index_weight
+        WHERE trade_date = #{tradeDate}
+        GROUP BY ts_code
+    </select>
+
+    <select id="countWeightSumAbnormal" resultType="int">
+        SELECT COUNT(*) FROM (
+            SELECT ts_code, SUM(weight) AS weight_sum
+            FROM index_weight
+            WHERE trade_date = #{tradeDate}
+            GROUP BY ts_code
+        ) t
+        WHERE weight_sum &lt; 99 OR weight_sum &gt; 101
+    </select>
+
+    <select id="countInvalidWeight" resultType="int">
+        SELECT COUNT(*) FROM index_weight
+        WHERE trade_date = #{tradeDate}
+        AND (weight &lt;= 0 OR weight &gt; 20)
+    </select>
+
 </mapper>

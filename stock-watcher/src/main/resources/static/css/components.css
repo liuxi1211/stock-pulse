@@ -347,6 +347,58 @@
     animation: none;
 }
 
+/* Datasource indicator */
+.datasource-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 13px;
+}
+
+.datasource-indicator:hover {
+    background: var(--bg-hover);
+    border-color: var(--accent-blue);
+}
+
+.datasource-indicator .status-dot {
+    width: 10px;
+    height: 10px;
+}
+
+.status-dot.status-online {
+    background: #22c55e;
+    box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.15);
+    animation: pulse-green 2s ease-in-out infinite;
+}
+
+.status-dot.status-offline {
+    background: #ef4444;
+    box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.15);
+    animation: pulse-red 2s ease-in-out infinite;
+}
+
+.status-dot.status-unknown {
+    background: #9ca3af;
+    box-shadow: none;
+    animation: none;
+}
+
+@keyframes pulse-green {
+    0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.5); }
+    50% { opacity: 0.8; box-shadow: 0 0 0 8px transparent; }
+}
+
+@keyframes pulse-red {
+    0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.5); }
+    50% { opacity: 0.8; box-shadow: 0 0 0 8px transparent; }
+}
+
 @keyframes pulse {
     0%, 100% { opacity: 1; box-shadow: 0 0 0 0 color-mix(in srgb, var(--fall-color) 50%, transparent); }
     50% { opacity: 0.8; box-shadow: 0 0 0 6px transparent; }

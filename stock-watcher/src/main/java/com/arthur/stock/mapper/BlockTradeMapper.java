@@ -46,4 +46,10 @@ public interface BlockTradeMapper extends BaseMapper<BlockTradeDO> {
 
     /** 取 block_trade 表中最新交易日（SELECT MAX(trade_date)）。 */
     String selectLatestTradeDate();
+
+    int countInvalidPriceVol(@Param("startDate") String startDate);
+
+    int countBuyerSellerSame(@Param("startDate") String startDate);
+
+    int countAmountCalculationError(@Param("startDate") String startDate);
 }

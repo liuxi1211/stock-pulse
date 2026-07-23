@@ -76,7 +76,15 @@ public class DailyQuoteServiceImpl implements DailyQuoteService, DataCheckable {
     @Override
     public List<DailyQuoteDTO> fetchAndSaveDailyQuotes(String tsCode) {
         String lastDate = getLastTradeDate(tsCode);
+        return doFetchAndSaveDailyQuotes(tsCode, lastDate);
+    }
 
+    @Override
+    public List<DailyQuoteDTO> fetchAndSaveDailyQuotes(String tsCode, String knownLastDate) {
+        return doFetchAndSaveDailyQuotes(tsCode, knownLastDate);
+    }
+
+    private List<DailyQuoteDTO> doFetchAndSaveDailyQuotes(String tsCode, String lastDate) {
         String startDate;
         if (lastDate != null) {
             LocalDate ld = LocalDate.parse(lastDate, DATE_FMT);

@@ -17,4 +17,30 @@
         </foreach>
     </delete>
 
+    <!-- ==================== 数据管控检查 ==================== -->
+
+    <select id="selectMaxStartDate" resultType="string">
+        SELECT MAX(start_date) FROM stock_namechange
+    </select>
+
+    <select id="countDateLogicErrors" resultType="int">
+        SELECT COUNT(*) FROM stock_namechange
+        WHERE end_date IS NOT NULL AND end_date != '' AND start_date &gt; end_date
+    </select>
+
+    <select id="countDateOverlap" resultType="int">
+        SELECT COUNT(*) FROM stock_namechange a
+        WHERE EXISTS (
+            SELECT 1 FROM stock_namechange b
+            WHERE b.ts_code = a.ts_code
+              AND b.start_date &lt; a.start_date
+              AND (b.end_date IS NULL OR b.end_date = '' OR b.end_date &gt; a.start_date)
+        )
+    </select>
+
+    <select id="countInvalidName" resultType="int">
+        SELECT COUNT(*) FROM stock_namechange
+        WHERE name IS NULL OR name = ''
+    </select>
+
 </mapper>

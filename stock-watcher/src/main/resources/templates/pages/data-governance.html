@@ -10,14 +10,18 @@
         <header th:replace="~{fragments/common :: topNavbar}"></header>
 
         <main class="content-area">
-            <!-- Page Header -->
+            <!-- ============ Page Header ============ -->
             <div class="page-header">
                 <div>
                     <h1 class="page-title">数据管控中心</h1>
-                    <p class="text-muted mb-0" style="font-size: 13px; margin-top: 4px;">监控数据质量、管理数据更新任务、检测数据源连通性</p>
+                    <p class="text-muted mb-0" style="font-size: 12.5px; margin-top: 4px;">监控数据质量、管理数据更新任务</p>
                 </div>
                 <div class="page-actions">
-                    <button class="btn btn-outline-secondary btn-sm" onclick="DG.refreshOverview()">
+                    <span class="dg-ds-indicator" id="dsIndicator" title="数据源状态" onclick="DG.showDatasourceModal()">
+                        <span class="dg-ds-dot unknown" id="dsStatusDot"></span>
+                        <span id="dsLabel">数据源</span>
+                    </span>
+                    <button class="btn btn-outline-secondary btn-sm" onclick="DG.refreshAll()">
                         <i class="bi bi-arrow-clockwise"></i> 刷新
                     </button>
                     <button class="btn btn-secondary btn-sm" th:if="${session.AUTH_USER?.role?.name() == 'ADMIN'}" onclick="DG.checkAll()">
@@ -26,242 +30,238 @@
                 </div>
             </div>
 
-            <!-- Overview Stat Cards -->
-            <div class="row g-4 mb-4">
-                <div class="col-6 col-lg-4 animate-in delay-1">
-                    <div class="stat-card card-glow h-100" style="--stat-accent: var(--accent-blue);">
-                        <div class="stat-head">
-                            <div class="stat-label"><i class="bi bi-database"></i> 已接入数据表</div>
-                        </div>
-                        <div class="stat-value" id="ovTotalTables">-</div>
-                        <div class="stat-foot" id="ovLastCheck">最后检测：-</div>
+            <!-- ============ Stat Strip ============ -->
+            <div class="stat-strip">
+                <div class="stat-card animate-in delay-1" style="--stat-accent: var(--accent-blue);">
+                    <div class="stat-head">
+                        <span class="stat-label"><i class="bi bi-database"></i> 已接入数据表</span>
                     </div>
+                    <div class="stat-value" id="ovTotalTables">-</div>
+                    <div class="stat-foot"><span class="dot" style="--c: var(--accent-blue);" id="ovLastCheck">最后检测：-</span></div>
                 </div>
-                <div class="col-6 col-lg-4 animate-in delay-1">
-                    <div class="stat-card card-glow h-100" style="--stat-accent: var(--fall-color);">
-                        <div class="stat-head">
-                            <div class="stat-label"><i class="bi bi-check-circle"></i> 今日已更新</div>
-                        </div>
-                        <div class="stat-value" id="ovUpdatedToday">-</div>
-                        <div class="stat-foot" id="ovUpdatedFoot">运行正常</div>
+                <div class="stat-card animate-in delay-1" style="--stat-accent: var(--accent-green);">
+                    <div class="stat-head">
+                        <span class="stat-label"><i class="bi bi-arrow-repeat"></i> 今日已更新</span>
                     </div>
+                    <div class="stat-value" id="ovUpdatedToday">-</div>
+                    <div class="stat-foot"><span class="dot" style="--c: var(--accent-green);" id="ovUpdatedFoot">运行正常</span></div>
                 </div>
-                <div class="col-6 col-lg-4 animate-in delay-1">
-                    <div class="stat-card card-glow h-100" style="--stat-accent: var(--rise-color);">
-                        <div class="stat-head">
-                            <div class="stat-label"><i class="bi bi-exclamation-triangle"></i> 异常表数</div>
-                        </div>
-                        <div class="stat-value" id="ovErrorTables">-</div>
-                        <div class="stat-foot" id="ovErrorFoot">需关注</div>
+                <div class="stat-card animate-in delay-1" style="--stat-accent: var(--rise-color);">
+                    <div class="stat-head">
+                        <span class="stat-label"><i class="bi bi-exclamation-triangle"></i> 异常表数</span>
                     </div>
+                    <div class="stat-value" id="ovErrorTables">-</div>
+                    <div class="stat-foot"><span class="dot" style="--c: var(--rise-color);" id="ovErrorFoot">需关注</span></div>
                 </div>
-            </div>
-
-            <!-- Tab Navigation -->
-            <ul class="nav nav-tabs mb-3" id="dgTabs" role="tablist">
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link active" id="tab-tables" data-bs-toggle="tab" data-bs-target="#pane-tables" type="button" role="tab">
-                        <i class="bi bi-table"></i> 数据表总览
-                    </button>
-                </li>
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="tab-logs" data-bs-toggle="tab" data-bs-target="#pane-logs" type="button" role="tab">
-                        <i class="bi bi-list-ul"></i> 拉取日志
-                    </button>
-                </li>
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="tab-datasource" data-bs-toggle="tab" data-bs-target="#pane-datasource" type="button" role="tab">
-                        <i class="bi bi-plug"></i> 数据源
-                    </button>
-                </li>
-            </ul>
-
-            <!-- Tab 1: Tables Overview -->
-            <div class="tab-pane fade show active" id="pane-tables" role="tabpanel">
-                <div class="card card-glow mb-3 animate-in delay-2">
-                    <div class="card-body py-3">
-                        <div class="row g-2 align-items-end">
-                            <div class="col-md-3">
-                                <label class="form-label small text-muted mb-1">分组</label>
-                                <select class="form-select form-select-sm" id="filterGroup" onchange="DG.loadTables()">
-                                    <option value="">全部</option>
-                                    <option value="BASIC">基础数据</option>
-                                    <option value="MARKET">行情数据</option>
-                                    <option value="FINANCE">财务数据</option>
-                                    <option value="EVENT">事件数据</option>
-                                    <option value="INDEX">指数与市场</option>
-                                </select>
-                            </div>
-                            <div class="col-md-3">
-                                <label class="form-label small text-muted mb-1">状态</label>
-                                <select class="form-select form-select-sm" id="filterStatus" onchange="DG.loadTables()">
-                                    <option value="">全部</option>
-                                    <option value="NORMAL">正常</option>
-                                    <option value="DELAYED">延迟</option>
-                                    <option value="ERROR">异常</option>
-                                    <option value="UPDATING">更新中</option>
-                                </select>
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label small text-muted mb-1">搜索</label>
-                                <input type="text" class="form-control form-control-sm" id="filterKeyword"
-                                       placeholder="表名称或代码" onkeyup="DG.onKeywordSearch(event)">
-                            </div>
-                            <div class="col-md-2 text-end">
-                                <button class="btn btn-outline-secondary btn-sm" onclick="DG.resetTableFilters()">
-                                    <i class="bi bi-x-lg"></i> 重置
-                                </button>
-                            </div>
-                        </div>
+                <div class="stat-card animate-in delay-1" style="--stat-accent: var(--accent-cyan);">
+                    <div class="stat-head">
+                        <span class="stat-label"><i class="bi bi-clock-history"></i> 最近检测</span>
                     </div>
-                </div>
-
-                <div class="row g-3" id="tableCardGrid">
-                    <div class="col-12 text-center text-muted py-5">
-                        <div class="spinner-border spinner-border-sm me-1"></div>加载中...
-                    </div>
+                    <div class="stat-value dg-stat-time" id="ovLastCheckTime">-</div>
+                    <div class="stat-foot"><span class="dot" style="--c: var(--accent-cyan);">定时每晚 22:00</span></div>
                 </div>
             </div>
 
-            <!-- Tab 2: Pull Logs -->
-            <div class="tab-pane fade" id="pane-logs" role="tabpanel">
-                <div class="card card-glow mb-3">
-                    <div class="card-body py-3">
-                        <div class="row g-2 align-items-end">
-                            <div class="col-md-3">
-                                <label class="form-label small text-muted mb-1">数据表</label>
-                                <select class="form-select form-select-sm" id="logFilterTable">
-                                    <option value="">全部</option>
-                                </select>
-                            </div>
-                            <div class="col-md-2">
-                                <label class="form-label small text-muted mb-1">状态</label>
-                                <select class="form-select form-select-sm" id="logFilterStatus">
-                                    <option value="">全部</option>
-                                    <option value="SUCCESS">成功</option>
-                                    <option value="FAILED">失败</option>
-                                    <option value="RUNNING">运行中</option>
-                                </select>
-                            </div>
-                            <div class="col-md-2">
-                                <label class="form-label small text-muted mb-1">操作类型</label>
-                                <select class="form-select form-select-sm" id="logFilterOpType">
-                                    <option value="">全部</option>
-                                    <option value="AUTO_INCREMENTAL">自动增量</option>
-                                    <option value="MANUAL_INCREMENTAL">手动增量</option>
-                                    <option value="MANUAL_FULL">手动全量</option>
-                                    <option value="INIT">初始化</option>
-                                </select>
-                            </div>
-                            <div class="col-md-2">
-                                <label class="form-label small text-muted mb-1">开始日期</label>
-                                <input type="date" class="form-control form-control-sm" id="logFilterStart">
-                            </div>
-                            <div class="col-md-2">
-                                <label class="form-label small text-muted mb-1">结束日期</label>
-                                <input type="date" class="form-control form-control-sm" id="logFilterEnd">
-                            </div>
-                            <div class="col-md-1 text-end">
-                                <button class="btn btn-primary btn-sm" onclick="DG.loadLogs(1)">
-                                    <i class="bi bi-search"></i>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
+            <!-- ============ Compact Filter Bar ============ -->
+            <div class="dg-filter-bar animate-in delay-2">
+                <select class="form-select form-select-sm" id="filterGroup" onchange="DG.loadTables()" title="分组">
+                    <option value="">全部分组</option>
+                    <option value="BASIC">基础数据</option>
+                    <option value="MARKET">行情数据</option>
+                    <option value="FINANCE">财务数据</option>
+                    <option value="EVENT">事件数据</option>
+                    <option value="INDEX">指数与市场</option>
+                </select>
+                <select class="form-select form-select-sm" id="filterStatus" onchange="DG.loadTables()" title="状态">
+                    <option value="">全部状态</option>
+                    <option value="NORMAL">正常</option>
+                    <option value="DELAYED">延迟</option>
+                    <option value="ERROR">异常</option>
+                    <option value="UPDATING">更新中</option>
+                </select>
+                <div class="dg-search-box">
+                    <i class="bi bi-search"></i>
+                    <input type="text" class="form-control form-control-sm" id="filterKeyword"
+                           placeholder="搜索表名或代码" onkeyup="DG.onKeywordSearch(event)">
                 </div>
-
-                <div class="card card-glow">
-                    <div class="card-body p-0">
-                        <div class="table-responsive">
-                            <table class="table table-hover table-striped mb-0 align-middle">
-                                <thead>
-                                <tr>
-                                    <th>数据表</th>
-                                    <th>操作类型</th>
-                                    <th>状态</th>
-                                    <th>开始时间</th>
-                                    <th>耗时</th>
-                                    <th>成功/失败</th>
-                                    <th>操作人</th>
-                                    <th class="text-center">详情</th>
-                                </tr>
-                                </thead>
-                                <tbody id="logTableBody">
-                                    <tr><td colspan="8" class="text-center text-muted py-4">请点击搜索加载日志</td></tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                    <div class="card-footer d-flex justify-content-between align-items-center">
-                        <small class="text-muted" id="logPageInfo">共 0 条</small>
-                        <nav>
-                            <ul class="pagination pagination-sm mb-0" id="logPagination"></ul>
-                        </nav>
-                    </div>
-                </div>
+                <button class="btn btn-outline-secondary btn-sm" onclick="DG.resetTableFilters()">
+                    <i class="bi bi-x-lg"></i>
+                </button>
             </div>
 
-            <!-- Tab 3: Datasource -->
-            <div class="tab-pane fade" id="pane-datasource" role="tabpanel">
-                <div class="card card-glow animate-in delay-2" style="max-width: 600px;">
-                    <div class="card-header">
-                        <h6 class="card-title">
-                            <span class="card-title-icon">
-                                <i class="bi bi-plug"></i>
-                            </span>
-                            数据源状态
-                        </h6>
+            <!-- ============ Data Table ============ -->
+            <div class="dg-table-wrap animate-in delay-2">
+                <div class="dg-table-head">
+                    <span class="title">
+                        数据表总览
+                        <span class="count" id="tableCount">0 张</span>
+                    </span>
+                    <div class="dg-legend">
+                        <span class="lg-item"><span class="lg-dot normal"></span> 正常</span>
+                        <span class="lg-item"><span class="lg-dot delayed"></span> 延迟</span>
+                        <span class="lg-item"><span class="lg-dot error"></span> 异常</span>
+                        <span class="lg-item"><span class="lg-dot updating"></span> 更新中</span>
                     </div>
-                    <div class="card-body" id="datasourceBody">
-                        <div class="text-center text-muted py-4">
-                            <div class="spinner-border spinner-border-sm me-1"></div>加载中...
-                        </div>
-                    </div>
+                </div>
+                <div class="table-responsive">
+                    <table class="data-table mb-0">
+                        <thead>
+                        <tr>
+                            <th>数据表</th>
+                            <th>分组</th>
+                            <th>状态</th>
+                            <th class="text-end">数据量</th>
+                            <th>最新数据</th>
+                            <th>最后检测</th>
+                            <th>更新频率</th>
+                            <th class="text-center">操作</th>
+                        </tr>
+                        </thead>
+                        <tbody id="tableBody">
+                            <tr><td colspan="8">
+                                <div class="dg-empty">
+                                    <div class="spinner-border spinner-border-sm"></div>
+                                    <span style="font-size: 13px;">加载中...</span>
+                                </div>
+                            </td></tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </main>
     </div>
 </div>
 
-<!-- Detail Drawer (Offcanvas) -->
-<div class="offcanvas offcanvas-end" tabindex="-1" id="detailDrawer" style="width: 520px;">
-    <div class="offcanvas-header border-bottom">
-        <h5 class="offcanvas-title" id="detailDrawerTitle">表详情</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
-    </div>
-    <div class="offcanvas-body p-0">
-        <ul class="nav nav-pills nav-fill border-bottom" id="detailSubTabs">
-            <li class="nav-item">
-                <button class="nav-link active" data-bs-toggle="pill" data-bs-target="#detail-info" type="button">
-                    <i class="bi bi-info-circle"></i> 基本信息
-                </button>
-            </li>
-            <li class="nav-item">
-                <button class="nav-link" data-bs-toggle="pill" data-bs-target="#detail-check" type="button">
-                    <i class="bi bi-clipboard-check"></i> 检测结果
-                </button>
-            </li>
-            <li class="nav-item">
-                <button class="nav-link" data-bs-toggle="pill" data-bs-target="#detail-history" type="button">
-                    <i class="bi bi-clock-history"></i> 更新历史
-                </button>
-            </li>
-        </ul>
-        <div class="tab-content p-3" id="detailSubContent">
-            <div class="tab-pane fade show active" id="detail-info">
-                <div id="detailInfoBody"></div>
+<!-- ============ Detail Modal (basic info + latest check results, no tabs) ============ -->
+<div class="modal fade" id="detailModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-info-circle me-2"></i><span id="detailModalTitle">表详情</span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <div class="tab-pane fade" id="detail-check">
-                <div id="detailCheckBody"></div>
+            <div class="modal-body">
+                <!-- 基本信息 -->
+                <div class="dg-detail-section">
+                    <h6 class="dg-section-title"><i class="bi bi-info-circle"></i> 基本信息</h6>
+                    <div id="detailInfoBody"></div>
+                </div>
+                <!-- 最新检测结果 -->
+                <div class="dg-detail-section mt-4">
+                    <h6 class="dg-section-title"><i class="bi bi-clipboard-check"></i> 最新检测结果</h6>
+                    <div id="detailCheckBody"></div>
+                </div>
             </div>
-            <div class="tab-pane fade" id="detail-history">
-                <div id="detailHistoryBody"></div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">关闭</button>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Full Rebuild Confirmation Modal -->
+<!-- ============ Check History Modal ============ -->
+<div class="modal fade" id="checkHistoryModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-graph-up me-2"></i><span id="checkHistoryTableName">-</span> · 检测历史
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-0">
+                <div class="table-responsive">
+                    <table class="data-table mb-0">
+                        <thead>
+                        <tr>
+                            <th>检测时间</th>
+                            <th>类型</th>
+                            <th>状态</th>
+                            <th>异常详情</th>
+                            <th class="text-end">数据总量</th>
+                            <th>最新数据</th>
+                            <th class="text-end">行数变动</th>
+                        </tr>
+                        </thead>
+                        <tbody id="checkHistoryBody">
+                            <tr><td colspan="7" class="text-center text-muted py-4">加载中...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <small class="text-muted">最近 30 条记录，保留 3 个月</small>
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">关闭</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ============ Pull History Modal ============ -->
+<div class="modal fade" id="pullHistoryModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-clock-history me-2"></i><span id="pullHistoryTableName">-</span> · 拉取日志
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-0">
+                <div class="table-responsive">
+                    <table class="data-table mb-0">
+                        <thead>
+                        <tr>
+                            <th>操作类型</th>
+                            <th>状态</th>
+                            <th>开始时间</th>
+                            <th>结束时间</th>
+                            <th class="text-end">耗时</th>
+                            <th class="text-end">成功/失败</th>
+                            <th>操作人</th>
+                            <th class="text-center">详情</th>
+                        </tr>
+                        </thead>
+                        <tbody id="pullHistoryBody">
+                            <tr><td colspan="8" class="text-center text-muted py-4">加载中...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <small class="text-muted">最近 30 条记录</small>
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">关闭</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ============ Datasource Modal ============ -->
+<div class="modal fade" id="datasourceModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-plug me-2"></i>数据源状态</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="datasourceBody">
+                <div class="text-center text-muted py-4">
+                    <div class="spinner-border spinner-border-sm me-1"></div>加载中...
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary btn-sm" th:if="${session.AUTH_USER?.role?.name() == 'ADMIN'}" onclick="DG.testDatasource()">
+                    <i class="bi bi-lightning"></i> 重新测试
+                </button>
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">关闭</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ============ Full Rebuild Confirmation Modal ============ -->
 <div class="modal fade" id="rebuildModal" tabindex="-1" data-bs-backdrop="static">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -293,7 +293,7 @@
     </div>
 </div>
 
-<!-- Task Progress Modal -->
+<!-- ============ Task Progress Modal ============ -->
 <div class="modal fade" id="progressModal" tabindex="-1" data-bs-backdrop="static">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -305,15 +305,15 @@
             </div>
             <div class="modal-body text-center">
                 <div class="mb-3">
-                    <span class="badge bg-info me-2" id="progressTableBadge">-</span>
-                    <span class="badge bg-secondary" id="progressOpBadge">-</span>
+                    <span class="dg-badge updating me-2" id="progressTableBadge">-</span>
+                    <span class="dg-badge auto" id="progressOpBadge">-</span>
                 </div>
                 <div class="progress mb-3" style="height: 24px;">
                     <div class="progress-bar progress-bar-striped progress-bar-animated"
                          id="progressBar" role="progressbar" style="width: 0%;">0%</div>
                 </div>
                 <p class="mb-2" id="progressStep">准备中...</p>
-                <div class="row text-muted small">
+                <div class="row text-muted small font-mono">
                     <div class="col">
                         <span>已处理: <strong id="progressProcessed">0</strong></span>
                     </div>
@@ -335,7 +335,7 @@
     </div>
 </div>
 
-<!-- Log Detail Modal -->
+<!-- ============ Log Detail Modal ============ -->
 <div class="modal fade" id="logDetailModal" tabindex="-1">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
@@ -345,7 +345,7 @@
             </div>
             <div class="modal-body" id="logDetailBody"></div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">关闭</button>
             </div>
         </div>
     </div>
@@ -353,6 +353,7 @@
 
 <div th:replace="~{fragments/common :: toastContainer}"></div>
 <div th:replace="~{fragments/common :: scripts}"></div>
+<link rel="stylesheet" th:href="@{/css/data-governance.css}">
 <script th:src="@{/js/data-governance.js}"></script>
 </body>
 </html>

@@ -46,4 +46,27 @@
         LIMIT 1
     </select>
 
+    <!-- ==================== 数据管控检查 ==================== -->
+
+    <select id="selectMaxAnnDate" resultType="string">
+        SELECT MAX(ann_date) FROM forecast
+    </select>
+
+    <select id="countByAnnMonth" resultType="int">
+        SELECT COUNT(*) FROM forecast
+        WHERE ann_date LIKE CONCAT(#{annMonth}, '%')
+    </select>
+
+    <select id="countRangeLogicErrors" resultType="int">
+        SELECT COUNT(*) FROM forecast
+        WHERE (p_change_min IS NOT NULL AND p_change_max IS NOT NULL AND p_change_min &gt; p_change_max)
+           OR (net_profit_min IS NOT NULL AND net_profit_max IS NOT NULL AND net_profit_min &gt; net_profit_max)
+    </select>
+
+    <select id="countTypeConsistencyErrors" resultType="int">
+        SELECT COUNT(*) FROM forecast
+        WHERE (type IN ('预增', '扭亏', '续盈', '略增') AND p_change_max IS NOT NULL AND p_change_max &lt; 0)
+           OR (type IN ('预减', '首亏', '续亏', '略减') AND p_change_min IS NOT NULL AND p_change_min &gt; 0)
+    </select>
+
 </mapper>

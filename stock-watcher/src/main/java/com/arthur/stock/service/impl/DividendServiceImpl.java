@@ -1,10 +1,15 @@
 package com.arthur.stock.service.impl;
 
 import com.arthur.stock.client.TushareClient;
+import com.arthur.stock.constant.InitStep;
+import com.arthur.stock.dto.governance.CheckLevel;
+import com.arthur.stock.dto.governance.DataCheckItem;
+import com.arthur.stock.dto.governance.DataCheckResult;
 import com.arthur.stock.dto.tushare.DividendDTO;
 import com.arthur.stock.dto.tushare.DividendQueryDTO;
 import com.arthur.stock.mapper.DividendMapper;
 import com.arthur.stock.model.DividendDO;
+import com.arthur.stock.service.DataCheckable;
 import com.arthur.stock.service.DividendService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import lombok.RequiredArgsConstructor;
@@ -22,7 +27,7 @@ import java.util.stream.Collectors;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class DividendServiceImpl implements DividendService {
+public class DividendServiceImpl implements DividendService, DataCheckable {
 
     private static final int BATCH_SIZE = 500;
 
@@ -136,5 +141,99 @@ public class DividendServiceImpl implements DividendService {
             dividendMapper.deleteBatchByKeys(batch);
             dividendMapper.insertBatch(batch);
         });
+    }
+
+    // ==================== DataCheckable ====================
+
+    @Override
+    public String getTableCode() {
+        return InitStep.DIVIDEND.getCode();
+    }
+
+    @Override
+    public DataCheckResult checkData() {
+        List<DataCheckItem> items = new ArrayList<>();
+        try {
+            long totalRows = dividendMapper.selectCount(null);
+            String latestDate = dividendMapper.selectMaxAnnDate();
+
+            if (totalRows == 0) {
+                items.add(DataCheckItem.builder()
+                        .name("cash_div_validity")
+                        .displayName("现金分红有效性检测")
+                        .passed(true)
+                        .level(CheckLevel.ERROR)
+                        .message("表为空，跳过检测")
+                        .build());
+                items.add(DataCheckItem.builder()
+                        .name("stock_div_validity")
+                        .displayName("送股有效性检测")
+                        .passed(true)
+                        .level(CheckLevel.ERROR)
+                        .message("表为空，跳过检测")
+                        .build());
+                items.add(DataCheckItem.builder()
+                        .name("date_logic")
+                        .displayName("日期逻辑检测")
+                        .passed(true)
+                        .level(CheckLevel.ERROR)
+                        .message("表为空，跳过检测")
+                        .build());
+            } else {
+                int invalidCashDiv = dividendMapper.countInvalidCashDiv();
+                items.add(DataCheckItem.builder()
+                        .name("cash_div_validity")
+                        .displayName("现金分红有效性检测")
+                        .passed(invalidCashDiv == 0)
+                        .level(CheckLevel.ERROR)
+                        .message(invalidCashDiv == 0 ? "通过，现金分红数据正常"
+                                : "现金分红为负的记录 " + invalidCashDiv + " 条")
+                        .build());
+
+                int invalidStockDiv = dividendMapper.countInvalidStockDiv();
+                items.add(DataCheckItem.builder()
+                        .name("stock_div_validity")
+                        .displayName("送股有效性检测")
+                        .passed(invalidStockDiv == 0)
+                        .level(CheckLevel.ERROR)
+                        .message(invalidStockDiv == 0 ? "通过，送股数据正常"
+                                : "送股比例为负的记录 " + invalidStockDiv + " 条")
+                        .build());
+
+                int dateLogicErrors = dividendMapper.countDateLogicErrors();
+                items.add(DataCheckItem.builder()
+                        .name("date_logic")
+                        .displayName("日期逻辑检测")
+                        .passed(dateLogicErrors == 0)
+                        .level(CheckLevel.ERROR)
+                        .message(dateLogicErrors == 0 ? "通过，日期逻辑正常"
+                                : "日期逻辑异常记录 " + dateLogicErrors + " 条")
+                        .build());
+            }
+
+            return DataCheckResult.builder()
+                    .tableCode(getTableCode())
+                    .tableName(InitStep.DIVIDEND.getLabel())
+                    .totalRows(totalRows)
+                    .latestDate(latestDate)
+                    .items(items)
+                    .build();
+        } catch (Exception e) {
+            log.error("checkData error for dividend", e);
+            items.add(DataCheckItem.builder()
+                    .name("error")
+                    .displayName("检测执行异常")
+                    .passed(false)
+                    .level(CheckLevel.ERROR)
+                    .message("检测执行异常: " + e.getMessage())
+                    .build());
+            return DataCheckResult.builder()
+                    .tableCode(getTableCode())
+                    .tableName(InitStep.DIVIDEND.getLabel())
+                    .totalRows(0)
+                    .latestDate(null)
+                    .items(items)
+                    .build();
+        }
     }
 }

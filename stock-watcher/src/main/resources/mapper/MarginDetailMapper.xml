@@ -50,4 +50,12 @@
         SELECT MAX(trade_date) FROM margin_detail
     </select>
 
+    <!-- ==================== 数据管控检查 ==================== -->
+
+    <select id="countInvalidBalance" resultType="int">
+        SELECT COUNT(*) FROM margin_detail
+        WHERE trade_date &gt;= #{startDate}
+        AND (rzye &lt; 0 OR rqye &lt; 0)
+    </select>
+
 </mapper>

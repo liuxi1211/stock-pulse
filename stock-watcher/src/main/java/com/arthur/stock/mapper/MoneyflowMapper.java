@@ -31,4 +31,8 @@ public interface MoneyflowMapper extends BaseMapper<MoneyflowDO> {
 
     /** 取最新交易日。 */
     String selectLatestTradeDate();
+
+    int countInvalidAmount(@Param("startDate") String startDate);
+
+    int countNetAmountInconsistency(@Param("startDate") String startDate);
 }

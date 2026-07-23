@@ -51,4 +51,8 @@ public interface DailyBasicMapper extends BaseMapper<DailyBasicDO> {
      */
     List<DailyBasicDO> selectByCodesAndDate(@Param("tsCodes") List<String> tsCodes,
                                              @Param("tradeDate") String tradeDate);
+
+    int countInvalidMv(@Param("startDate") String startDate);
+
+    int countInvalidTurnover(@Param("startDate") String startDate);
 }

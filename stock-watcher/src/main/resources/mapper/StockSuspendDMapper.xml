@@ -17,4 +17,25 @@
         </foreach>
     </delete>
 
+    <!-- ==================== 数据管控检查 ==================== -->
+
+    <select id="selectMaxTradeDate" resultType="string">
+        SELECT MAX(trade_date) FROM stock_suspend_d
+    </select>
+
+    <select id="countDateLogicErrors" resultType="int">
+        SELECT COUNT(*) FROM stock_suspend_d
+        WHERE resump_date IS NOT NULL AND resump_date != '' AND trade_date &gt; resump_date
+    </select>
+
+    <select id="countDateOverlap" resultType="int">
+        SELECT COUNT(*) FROM stock_suspend_d a
+        WHERE EXISTS (
+            SELECT 1 FROM stock_suspend_d b
+            WHERE b.ts_code = a.ts_code
+              AND b.trade_date &lt; a.trade_date
+              AND (b.resump_date IS NULL OR b.resump_date = '' OR b.resump_date &gt;= a.trade_date)
+        )
+    </select>
+
 </mapper>

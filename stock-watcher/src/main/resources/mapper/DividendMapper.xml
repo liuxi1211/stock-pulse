@@ -21,4 +21,27 @@
         </foreach>
     </delete>
 
+    <!-- ==================== 数据管控检查 ==================== -->
+
+    <select id="selectMaxAnnDate" resultType="string">
+        SELECT MAX(ann_date) FROM dividend
+    </select>
+
+    <select id="countInvalidCashDiv" resultType="int">
+        SELECT COUNT(*) FROM dividend
+        WHERE cash_div &lt; 0 OR cash_div_tax &lt; 0
+    </select>
+
+    <select id="countInvalidStockDiv" resultType="int">
+        SELECT COUNT(*) FROM dividend
+        WHERE stk_div &lt; 0 OR stk_bo_rate &lt; 0 OR stk_co_rate &lt; 0
+    </select>
+
+    <select id="countDateLogicErrors" resultType="int">
+        SELECT COUNT(*) FROM dividend
+        WHERE ex_date &lt; ann_date
+           OR record_date &lt; ann_date
+           OR (pay_date IS NOT NULL AND pay_date != '' AND pay_date &lt; ex_date)
+    </select>
+
 </mapper>

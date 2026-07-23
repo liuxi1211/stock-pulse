@@ -43,4 +43,8 @@ public interface StockStkLimitMapper extends BaseMapper<StockStkLimitDO> {
     List<StockStkLimitDO> selectByTsCodesAndRange(@Param("tsCodes") List<String> tsCodes,
                                                    @Param("startDate") String startDate,
                                                    @Param("endDate") String endDate);
+
+    String selectLatestTradeDate();
+
+    int countPriceLogicErrors(@Param("startDate") String startDate);
 }

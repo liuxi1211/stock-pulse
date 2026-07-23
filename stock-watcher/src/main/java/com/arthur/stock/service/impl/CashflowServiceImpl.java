@@ -1,12 +1,17 @@
 package com.arthur.stock.service.impl;
 
 import com.arthur.stock.client.TushareClient;
+import com.arthur.stock.constant.InitStep;
+import com.arthur.stock.dto.governance.CheckLevel;
+import com.arthur.stock.dto.governance.DataCheckItem;
+import com.arthur.stock.dto.governance.DataCheckResult;
 import com.arthur.stock.dto.tushare.CashflowDTO;
 import com.arthur.stock.dto.tushare.CashflowQueryDTO;
 import com.arthur.stock.dto.tushare.StockBasicDTO;
 import com.arthur.stock.mapper.CashflowMapper;
 import com.arthur.stock.model.CashflowDO;
 import com.arthur.stock.service.CashflowService;
+import com.arthur.stock.service.DataCheckable;
 import com.arthur.stock.service.StockBasicService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.google.common.collect.Lists;
@@ -14,6 +19,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -23,9 +32,10 @@ import java.util.stream.Collectors;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class CashflowServiceImpl implements CashflowService {
+public class CashflowServiceImpl implements CashflowService, DataCheckable {
 
     private static final int BATCH_SIZE = 500;
+    private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("yyyyMMdd");
 
     private final TushareClient tushareClient;
     private final CashflowMapper cashflowMapper;
@@ -146,5 +156,145 @@ public class CashflowServiceImpl implements CashflowService {
                 .undistributedProfitIn(d.getUndistributedProfitIn())
                 .updateFlag(d.getUpdateFlag())
                 .build();
+    }
+
+    // ==================== DataCheckable ====================
+
+    @Override
+    public String getTableCode() {
+        return InitStep.CASHFLOW.getCode();
+    }
+
+    @Override
+    public DataCheckResult checkData() {
+        List<DataCheckItem> items = new ArrayList<>();
+        try {
+            long totalRows = cashflowMapper.selectCount(null);
+            String maxAnnDate = cashflowMapper.selectMaxAnnDate();
+            LocalDate today = LocalDate.now();
+
+            if (totalRows == 0) {
+                items.add(DataCheckItem.builder()
+                        .name("freshness")
+                        .displayName("公告新鲜度检测")
+                        .passed(true)
+                        .level(CheckLevel.WARN)
+                        .message("表为空，跳过检测")
+                        .build());
+                items.add(DataCheckItem.builder()
+                        .name("operating_cashflow_validity")
+                        .displayName("经营现金流有效性检测")
+                        .passed(true)
+                        .level(CheckLevel.ERROR)
+                        .message("表为空，跳过检测")
+                        .build());
+                items.add(DataCheckItem.builder()
+                        .name("cash_increase_consistency")
+                        .displayName("现金净增加额一致性检测")
+                        .passed(true)
+                        .level(CheckLevel.WARN)
+                        .message("表为空，跳过检测")
+                        .build());
+                return DataCheckResult.builder()
+                        .tableCode(getTableCode())
+                        .tableName(InitStep.CASHFLOW.getLabel())
+                        .totalRows(0)
+                        .latestDate(null)
+                        .items(items)
+                        .build();
+            }
+
+            // Check 1: Announcement freshness (WARN)
+            boolean freshnessPassed = true;
+            String freshnessMsg;
+            if (maxAnnDate == null || maxAnnDate.isEmpty()) {
+                freshnessPassed = false;
+                freshnessMsg = "无任何公告日期数据";
+            } else {
+                LocalDate annDate = LocalDate.parse(maxAnnDate, DATE_FMT);
+                long daysSince = ChronoUnit.DAYS.between(annDate, today);
+                int month = today.getMonthValue();
+                boolean inEarningsSeason = (month >= 1 && month <= 4) || (month >= 7 && month <= 8) || month == 10;
+                if (daysSince > 90 && !inEarningsSeason) {
+                    freshnessPassed = false;
+                    freshnessMsg = "距最近一次财报公告已超过 90 天（" + maxAnnDate + "）";
+                } else {
+                    freshnessMsg = "通过，最新公告日期 " + maxAnnDate;
+                }
+            }
+            items.add(DataCheckItem.builder()
+                    .name("freshness")
+                    .displayName("公告新鲜度检测")
+                    .passed(freshnessPassed)
+                    .level(CheckLevel.WARN)
+                    .message(freshnessMsg)
+                    .build());
+
+            // Check 2: Operating cashflow validity in latest period (ERROR)
+            String maxEndDate = cashflowMapper.selectMaxEndDate();
+            String ocfMsg;
+            boolean ocfPassed;
+            if (maxEndDate == null || maxEndDate.isEmpty()) {
+                ocfPassed = false;
+                ocfMsg = "无任何报告期数据";
+            } else {
+                int badCount = cashflowMapper.countNullOperatingCashflow(maxEndDate);
+                ocfPassed = badCount == 0;
+                ocfMsg = ocfPassed ? "通过，最新报告期 " + maxEndDate + " 经营现金流数据正常"
+                        : "最新报告期 " + maxEndDate + " 有 " + badCount + " 条经营现金流为空";
+            }
+            items.add(DataCheckItem.builder()
+                    .name("operating_cashflow_validity")
+                    .displayName("经营现金流有效性检测")
+                    .passed(ocfPassed)
+                    .level(CheckLevel.ERROR)
+                    .message(ocfMsg)
+                    .build());
+
+            // Check 3: Cash increase consistency (WARN) - 最近3个季度
+            boolean consistencyPassed;
+            String consistencyMsg;
+            if (maxEndDate == null || maxEndDate.isEmpty()) {
+                consistencyPassed = true;
+                consistencyMsg = "无数据，跳过检测";
+            } else {
+                String nineMonthsAgo = today.minusMonths(9).format(DATE_FMT);
+                int errorCount = cashflowMapper.countCashIncreaseInconsistency(nineMonthsAgo);
+                consistencyPassed = errorCount == 0;
+                consistencyMsg = consistencyPassed ? "通过，近 3 季度无现金净增加额异常"
+                        : "近 3 季度有 " + errorCount + " 条现金净增加额偏差超 10%";
+            }
+            items.add(DataCheckItem.builder()
+                    .name("cash_increase_consistency")
+                    .displayName("现金净增加额一致性检测")
+                    .passed(consistencyPassed)
+                    .level(CheckLevel.WARN)
+                    .message(consistencyMsg)
+                    .build());
+
+            return DataCheckResult.builder()
+                    .tableCode(getTableCode())
+                    .tableName(InitStep.CASHFLOW.getLabel())
+                    .totalRows(totalRows)
+                    .latestDate(maxAnnDate)
+                    .items(items)
+                    .build();
+        } catch (Exception e) {
+            log.error("checkData error for cashflow", e);
+            items.add(DataCheckItem.builder()
+                    .name("error")
+                    .displayName("检测执行异常")
+                    .passed(false)
+                    .level(CheckLevel.ERROR)
+                    .message("检测执行异常: " + e.getMessage())
+                    .build());
+            return DataCheckResult.builder()
+                    .tableCode(getTableCode())
+                    .tableName(InitStep.CASHFLOW.getLabel())
+                    .totalRows(0)
+                    .latestDate(null)
+                    .items(items)
+                    .build();
+        }
     }
 }

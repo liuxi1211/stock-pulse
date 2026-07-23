@@ -1,11 +1,16 @@
 package com.arthur.stock.service.impl;
 
 import com.arthur.stock.client.TushareClient;
+import com.arthur.stock.constant.InitStep;
+import com.arthur.stock.dto.governance.CheckLevel;
+import com.arthur.stock.dto.governance.DataCheckItem;
+import com.arthur.stock.dto.governance.DataCheckResult;
 import com.arthur.stock.dto.tushare.ExpressDTO;
 import com.arthur.stock.dto.tushare.ExpressQueryDTO;
 import com.arthur.stock.dto.tushare.StockBasicDTO;
 import com.arthur.stock.mapper.ExpressMapper;
 import com.arthur.stock.model.ExpressDO;
+import com.arthur.stock.service.DataCheckable;
 import com.arthur.stock.service.ExpressService;
 import com.arthur.stock.service.StockBasicService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
@@ -15,6 +20,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -25,9 +33,10 @@ import java.util.stream.Collectors;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class ExpressServiceImpl implements ExpressService {
+public class ExpressServiceImpl implements ExpressService, DataCheckable {
 
     private static final int BATCH_SIZE = 500;
+    private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("yyyyMMdd");
 
     private final TushareClient tushareClient;
     private final ExpressMapper expressMapper;
@@ -117,5 +126,156 @@ public class ExpressServiceImpl implements ExpressService {
                 .bmGrowthSales(d.getBmGrowthSales())
                 .updateFlag(d.getUpdateFlag())
                 .build();
+    }
+
+    // ==================== DataCheckable ====================
+
+    @Override
+    public String getTableCode() {
+        return InitStep.EXPRESS.getCode();
+    }
+
+    @Override
+    public DataCheckResult checkData() {
+        List<DataCheckItem> items = new ArrayList<>();
+        try {
+            long totalRows = expressMapper.selectCount(null);
+            String maxAnnDate = expressMapper.selectMaxAnnDate();
+            LocalDate today = LocalDate.now();
+
+            if (totalRows == 0) {
+                items.add(DataCheckItem.builder()
+                        .name("season_coverage")
+                        .displayName("快报季覆盖检测")
+                        .passed(true)
+                        .level(CheckLevel.WARN)
+                        .message("表为空，跳过检测")
+                        .build());
+                items.add(DataCheckItem.builder()
+                        .name("revenue_assets_validity")
+                        .displayName("营收与总资产有效性检测")
+                        .passed(true)
+                        .level(CheckLevel.ERROR)
+                        .message("表为空，跳过检测")
+                        .build());
+                items.add(DataCheckItem.builder()
+                        .name("growth_consistency")
+                        .displayName("增长一致性检测")
+                        .passed(true)
+                        .level(CheckLevel.WARN)
+                        .message("表为空，跳过检测")
+                        .build());
+                return DataCheckResult.builder()
+                        .tableCode(getTableCode())
+                        .tableName(InitStep.EXPRESS.getLabel())
+                        .totalRows(0)
+                        .latestDate(null)
+                        .items(items)
+                        .build();
+            }
+
+            // Check 1: Season coverage (WARN) - 上一个财报季
+            int currentMonth = today.getMonthValue();
+            int lastSeasonStartMonth;
+            if (currentMonth >= 10) {
+                lastSeasonStartMonth = 10;
+            } else if (currentMonth >= 7) {
+                lastSeasonStartMonth = 7;
+            } else if (currentMonth >= 4) {
+                lastSeasonStartMonth = 4;
+            } else {
+                lastSeasonStartMonth = 1;
+            }
+            if (currentMonth == lastSeasonStartMonth) {
+                if (lastSeasonStartMonth == 1) {
+                    lastSeasonStartMonth = 10;
+                } else if (lastSeasonStartMonth == 4) {
+                    lastSeasonStartMonth = 1;
+                } else if (lastSeasonStartMonth == 7) {
+                    lastSeasonStartMonth = 4;
+                } else {
+                    lastSeasonStartMonth = 7;
+                }
+            }
+            int year = today.getYear();
+            if (lastSeasonStartMonth == 10 && currentMonth < 10) {
+                year--;
+            }
+            String lastSeasonMonth = String.format("%04d%02d", year, lastSeasonStartMonth);
+            long seasonCount = expressMapper.selectCount(
+                    new LambdaQueryWrapper<ExpressDO>()
+                            .likeRight(ExpressDO::getAnnDate, lastSeasonMonth)
+            );
+            boolean seasonPassed = seasonCount > 0;
+            String seasonMsg = seasonPassed
+                    ? "通过，" + lastSeasonMonth + " 月有 " + seasonCount + " 条快报数据"
+                    : "上一快报季首月（" + lastSeasonMonth + "）无任何快报数据";
+            items.add(DataCheckItem.builder()
+                    .name("season_coverage")
+                    .displayName("快报季覆盖检测")
+                    .passed(seasonPassed)
+                    .level(CheckLevel.WARN)
+                    .message(seasonMsg)
+                    .build());
+
+            // Check 2: Revenue & assets validity (ERROR) - 最近报告期
+            String maxEndDate = expressMapper.selectMaxEndDate();
+            String raMsg;
+            boolean raPassed;
+            if (maxEndDate == null || maxEndDate.isEmpty()) {
+                raPassed = false;
+                raMsg = "无任何报告期数据";
+            } else {
+                int badCount = expressMapper.countInvalidRevenueAssets(maxEndDate);
+                raPassed = badCount == 0;
+                raMsg = raPassed ? "通过，最新报告期 " + maxEndDate + " 营收与总资产数据正常"
+                        : "最新报告期 " + maxEndDate + " 有 " + badCount + " 条营收或总资产为负";
+            }
+            items.add(DataCheckItem.builder()
+                    .name("revenue_assets_validity")
+                    .displayName("营收与总资产有效性检测")
+                    .passed(raPassed)
+                    .level(CheckLevel.ERROR)
+                    .message(raMsg)
+                    .build());
+
+            // Check 3: Growth consistency (WARN)
+            int growthErrorCount = expressMapper.countGrowthConsistencyErrors();
+            boolean growthPassed = growthErrorCount == 0;
+            String growthMsg = growthPassed
+                    ? "通过，无增长一致性错误"
+                    : "有 " + growthErrorCount + " 条正增长但净利润更少的异常";
+            items.add(DataCheckItem.builder()
+                    .name("growth_consistency")
+                    .displayName("增长一致性检测")
+                    .passed(growthPassed)
+                    .level(CheckLevel.WARN)
+                    .message(growthMsg)
+                    .build());
+
+            return DataCheckResult.builder()
+                    .tableCode(getTableCode())
+                    .tableName(InitStep.EXPRESS.getLabel())
+                    .totalRows(totalRows)
+                    .latestDate(maxAnnDate)
+                    .items(items)
+                    .build();
+        } catch (Exception e) {
+            log.error("checkData error for express", e);
+            items.add(DataCheckItem.builder()
+                    .name("error")
+                    .displayName("检测执行异常")
+                    .passed(false)
+                    .level(CheckLevel.ERROR)
+                    .message("检测执行异常: " + e.getMessage())
+                    .build());
+            return DataCheckResult.builder()
+                    .tableCode(getTableCode())
+                    .tableName(InitStep.EXPRESS.getLabel())
+                    .totalRows(0)
+                    .latestDate(null)
+                    .items(items)
+                    .build();
+        }
     }
 }

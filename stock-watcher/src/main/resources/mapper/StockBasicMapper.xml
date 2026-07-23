@@ -39,7 +39,7 @@
     <!-- 关键字段为空的记录数 -->
     <select id="countNullKeyFields" resultType="int">
         SELECT COUNT(*) FROM stock_basic
-        WHERE list_status IS NULL OR market IS NULL OR exchange IS NULL
+        WHERE list_status IS NULL OR ( list_status = 'L' and (market IS NULL OR exchange IS NULL))
     </select>
 
 </mapper>

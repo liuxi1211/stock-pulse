@@ -8,18 +8,7 @@ import com.arthur.stock.config.TushareConfig;
 import com.arthur.stock.constant.InitStep;
 import com.arthur.stock.context.UserContext;
 import com.arthur.stock.dto.ApiResponse;
-import com.arthur.stock.dto.governance.CheckLevel;
-import com.arthur.stock.dto.governance.DataCheckResult;
-import com.arthur.stock.dto.governance.DatasourceVO;
-import com.arthur.stock.dto.governance.LogPageVO;
-import com.arthur.stock.dto.governance.LogQueryDTO;
-import com.arthur.stock.dto.governance.OverviewVO;
-import com.arthur.stock.dto.governance.PullLogVO;
-import com.arthur.stock.dto.governance.TableDetailVO;
-import com.arthur.stock.dto.governance.TableStatus;
-import com.arthur.stock.dto.governance.TableStatusVO;
-import com.arthur.stock.dto.governance.TaskProgressVO;
-import com.arthur.stock.dto.governance.TaskResponseVO;
+import com.arthur.stock.dto.governance.*;
 import com.arthur.stock.dto.tushare.TradeCalQueryDTO;
 import com.arthur.stock.mapper.DataPullLogMapper;
 import com.arthur.stock.model.DataGovernanceMetricDO;
@@ -64,7 +53,7 @@ public class DataGovernanceController {
 
     // ==================== Overview ====================
 
-    @Operation(summary = "数据管控概览", description = "返回总表数、今日已更新数、异常表数及最后检测时间")
+    @Operation(summary = "数据管控概览", description = "返回总表数、正常表数、异常表数及最后检测时间")
     @GetMapping("/overview")
     public ApiResponse<OverviewVO> overview() {
         List<DataGovernanceMetricDO> allStatuses = dataGovernanceService.getAllTableStatuses();
@@ -75,7 +64,7 @@ public class DataGovernanceController {
         int errorTables = (int) allStatuses.stream()
                 .filter(s -> "ERROR".equals(s.getStatus()))
                 .count();
-        int updatedToday = totalTables - errorTables;
+        int normalTables = totalTables - errorTables;
         String lastCheckTime = allStatuses.stream()
                 .map(DataGovernanceMetricDO::getCheckTime)
                 .filter(Objects::nonNull)
@@ -83,7 +72,7 @@ public class DataGovernanceController {
                 .orElse(null);
         return ApiResponse.success(OverviewVO.builder()
                 .totalTables(totalTables)
-                .updatedToday(updatedToday)
+                .updatedToday(normalTables)
                 .errorTables(errorTables)
                 .lastCheckTime(lastCheckTime)
                 .build());
@@ -116,6 +105,7 @@ public class DataGovernanceController {
         List<DataCheckItem> checkItems = metric != null
                 ? parseCheckItems(metric.getCheckItems())
                 : Collections.emptyList();
+        String status = metric != null ? metric.getStatus() : "NORMAL";
         TableDetailVO vo = TableDetailVO.builder()
                 .tableCode(tableCode)
                 .tableName(step.getLabel())
@@ -129,7 +119,7 @@ public class DataGovernanceController {
                 .isDaily(step.isDaily())
                 .checkItems(checkItems)
                 .lastCheckTime(metric != null ? metric.getCheckTime() : null)
-                .status(metric != null ? metric.getStatus() : null)
+                .status(status)
                 .build();
         return ApiResponse.success(vo);
     }
@@ -155,6 +145,13 @@ public class DataGovernanceController {
                 .map(this::convertPullLogToVO)
                 .collect(Collectors.toList());
         return ApiResponse.success(result);
+    }
+
+    @Operation(summary = "查询单表检测历史", description = "返回最近30条检测记录")
+    @GetMapping("/tables/{tableCode}/check-history")
+    public ApiResponse<List<DataGovernanceMetricDO>> checkHistory(@PathVariable String tableCode) {
+        List<DataGovernanceMetricDO> history = dataGovernanceService.getMetricHistory(tableCode, 30);
+        return ApiResponse.success(history);
     }
 
     // ==================== Update ====================

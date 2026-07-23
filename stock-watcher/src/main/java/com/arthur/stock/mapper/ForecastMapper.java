@@ -26,4 +26,18 @@ public interface ForecastMapper extends BaseMapper<ForecastDO> {
      * 同一报告期可能有多条预告（首次+修正），取最新公告日的一条。
      */
     ForecastDO selectLatestAnnouncedBefore(@Param("tsCode") String tsCode, @Param("tradeDate") String tradeDate);
+
+    // ==================== 数据管控检查 ====================
+
+    /** 取表中最大的 ann_date */
+    String selectMaxAnnDate();
+
+    /** 统计指定月份的预告记录数 */
+    int countByAnnMonth(@Param("annMonth") String annMonth);
+
+    /** 统计范围逻辑错误的记录数：p_change_min > p_change_max 或 net_profit_min > net_profit_max */
+    int countRangeLogicErrors();
+
+    /** 统计预告类型与变动方向矛盾的记录数 */
+    int countTypeConsistencyErrors();
 }

@@ -177,7 +177,8 @@ public class DataGovernanceServiceImpl implements DataGovernanceService {
 
     /**
      * 获取每张表各自的最新检测记录（不依赖 batch 语义）。
-     * 即使单表手动检测生成了仅含 1 条记录的 batch，也不会影响其他表的状态展示。
+     * 以 InitStep 枚举为主表，无检测记录的表返回 NORMAL 状态的占位对象，
+     * 确保从未检测过的表也能出现在列表中。
      */
     private List<DataGovernanceMetricDO> getAllLatestMetrics() {
         List<DataGovernanceMetricDO> result = new ArrayList<>();
@@ -186,12 +187,34 @@ public class DataGovernanceServiceImpl implements DataGovernanceService {
                 DataGovernanceMetricDO metric = metricMapper.selectByTableCodeLatest(step.getCode());
                 if (metric != null) {
                     result.add(metric);
+                } else {
+                    result.add(buildEmptyMetric(step));
                 }
             } catch (Exception e) {
                 log.warn("获取表 {} 最新检测记录失败: {}", step.getCode(), e.getMessage());
+                result.add(buildEmptyMetric(step));
             }
         }
         return result;
+    }
+
+    /**
+     * 构造一张从未检测过的表的占位 metric 对象（NORMAL 状态，无检测数据）。
+     */
+    private DataGovernanceMetricDO buildEmptyMetric(InitStep step) {
+        return DataGovernanceMetricDO.builder()
+                .tableCode(step.getCode())
+                .tableName(step.getLabel())
+                .tableGroup(step.getGroup().name())
+                .totalRows(null)
+                .rowDeltaPct(null)
+                .latestDate(null)
+                .earliestDate(null)
+                .status(TableStatus.NORMAL.name())
+                .checkItems("[]")
+                .checkTime(null)
+                .checkType(null)
+                .build();
     }
 
     @Override
@@ -223,6 +246,12 @@ public class DataGovernanceServiceImpl implements DataGovernanceService {
             }
         }
         return metrics;
+    }
+
+    @Override
+    public List<DataGovernanceMetricDO> getMetricHistory(String tableCode, int limit) {
+        List<DataGovernanceMetricDO> list = metricMapper.selectHistoryByTableCode(tableCode, limit);
+        return list != null ? list : Collections.emptyList();
     }
 
     // ────────────────────────── 内部方法 ──────────────────────────

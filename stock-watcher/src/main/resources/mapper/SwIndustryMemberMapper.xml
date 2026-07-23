@@ -17,4 +17,17 @@
         </foreach>
     </delete>
 
+    <!-- ==================== 数据管控检查 ==================== -->
+
+    <select id="countCoveredStocks" resultType="int">
+        SELECT COUNT(DISTINCT ts_code) FROM sw_industry_member WHERE is_new = '1'
+    </select>
+
+    <select id="countDateLogicErrors" resultType="int">
+        SELECT COUNT(*) FROM sw_industry_member
+        WHERE out_date IS NOT NULL AND out_date != ''
+        AND in_date IS NOT NULL AND in_date != ''
+        AND in_date &gt; out_date
+    </select>
+
 </mapper>

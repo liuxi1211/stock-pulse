@@ -17,4 +17,27 @@
         </foreach>
     </delete>
 
+    <!-- 一次性查出所有股票的最新交易日期，用于增量更新预加载 -->
+    <select id="selectLatestDatePerStock" resultType="map">
+        SELECT ts_code, MAX(trade_date) AS latest_date FROM adj_factor GROUP BY ts_code
+    </select>
+
+    <select id="selectLatestTradeDate" resultType="string">
+        SELECT MAX(trade_date) FROM adj_factor
+    </select>
+
+    <select id="countInvalidFactor" resultType="int">
+        SELECT COUNT(*) FROM adj_factor
+        WHERE trade_date &gt;= #{startDate}
+          AND (adj_factor &lt;= 0 OR adj_factor &gt; 10)
+    </select>
+
+    <select id="countMissingInAdjFactor" resultType="int">
+        SELECT COUNT(DISTINCT d.ts_code)
+        FROM daily_quote d
+        LEFT JOIN adj_factor a ON d.ts_code = a.ts_code AND d.trade_date = a.trade_date
+        WHERE d.trade_date &gt;= #{startDate}
+          AND a.ts_code IS NULL
+    </select>
+
 </mapper>

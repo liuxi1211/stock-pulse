@@ -44,31 +44,41 @@ public class StockBasicServiceImpl implements StockBasicService, DataCheckable {
     private final StockCodeCache stockCodeCache;
 
     /**
-     * 从Tushare获取所有上市股票的基础信息并保存到本地数据库，已存在的记录会更新
+     * 从Tushare获取全量股票基础信息（含上市/退市/暂停上市）并保存到本地数据库，已存在的记录会更新
      */
     @Override
     public List<StockBasicDTO> fetchAndSaveStockBasic() {
-        log.info("Fetching stock_basic from Tushare");
+        log.info("Fetching stock_basic (all statuses) from Tushare");
 
-        StockBasicQueryDTO param = StockBasicQueryDTO.builder()
-                .listStatus(ListStatusEnum.LISTED.getCode())
-                .build();
-        List<StockBasicDTO> stocks = tushareClient.stockBasic(param);
+        List<StockBasicDTO> allStocks = new ArrayList<>();
+        for (ListStatusEnum status : List.of(
+                ListStatusEnum.LISTED, ListStatusEnum.DELISTED, ListStatusEnum.SUSPENDED)) {
+            try {
+                StockBasicQueryDTO param = StockBasicQueryDTO.builder()
+                        .listStatus(status.getCode())
+                        .build();
+                List<StockBasicDTO> stocks = tushareClient.stockBasic(param);
+                log.info("stock_basic list_status={} returned {} records", status.getCode(), stocks.size());
+                allStocks.addAll(stocks);
+            } catch (Exception e) {
+                log.warn("Failed to fetch stock_basic for list_status={}: {}", status.getCode(), e.getMessage());
+            }
+        }
 
-        if (stocks.isEmpty()) {
+        if (allStocks.isEmpty()) {
             log.info("No stock_basic data returned");
             return Collections.emptyList();
         }
 
-        List<StockBasicDO> entities = stocks.stream()
+        List<StockBasicDO> entities = allStocks.stream()
                 .map(this::toEntity)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toList());
 
         saveStocks(entities);
         stockCodeCache.refresh();
-        log.info("Saved {} stock_basic records", entities.size());
-        return stocks;
+        log.info("Saved {} stock_basic records (all statuses)", entities.size());
+        return allStocks;
     }
 
     /**

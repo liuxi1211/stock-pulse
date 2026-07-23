@@ -356,4 +356,9 @@
         SELECT COUNT(DISTINCT ts_code) FROM daily_quote WHERE trade_date = #{tradeDate}
     </select>
 
+    <!-- 一次性查出所有股票的最新交易日期，用于增量更新预加载 -->
+    <select id="selectLatestDatePerStock" resultType="map">
+        SELECT ts_code, MAX(trade_date) AS latest_date FROM daily_quote GROUP BY ts_code
+    </select>
+
 </mapper>

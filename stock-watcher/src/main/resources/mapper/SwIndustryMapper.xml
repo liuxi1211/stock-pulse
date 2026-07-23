@@ -10,4 +10,19 @@
         </foreach>
     </insert>
 
+    <!-- ==================== 数据管控检查 ==================== -->
+
+    <select id="countLevel1" resultType="int">
+        SELECT COUNT(*) FROM sw_industry WHERE level = 1
+    </select>
+
+    <select id="countCodeNameMismatch" resultType="int">
+        SELECT COUNT(*) FROM (
+            SELECT index_code
+            FROM sw_industry
+            GROUP BY index_code
+            HAVING COUNT(DISTINCT index_name) &gt; 1
+        ) t
+    </select>
+
 </mapper>

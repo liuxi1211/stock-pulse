@@ -45,4 +45,32 @@
         ORDER BY net_buy DESC
     </select>
 
+    <!-- ==================== 数据管控检查 ==================== -->
+
+    <select id="selectMaxTradeDate" resultType="string">
+        SELECT MAX(trade_date) FROM top_inst
+    </select>
+
+    <select id="countInvalidAmount" resultType="int">
+        SELECT COUNT(*) FROM top_inst
+        WHERE trade_date &gt;= #{startDate}
+          AND (buy &lt; 0 OR sell &lt; 0)
+    </select>
+
+    <select id="countSideAmountInconsistency" resultType="int">
+        SELECT COUNT(*) FROM top_inst
+        WHERE trade_date &gt;= #{startDate}
+          AND ((side = 'Buy' AND (buy = 0 OR buy IS NULL))
+            OR (side = 'Sell' AND (sell = 0 OR sell IS NULL)))
+    </select>
+
+    <select id="countMissingInToplist" resultType="int">
+        SELECT COUNT(*) FROM top_inst t
+        WHERE t.trade_date &gt;= #{startDate}
+          AND NOT EXISTS (
+              SELECT 1 FROM top_list l
+              WHERE l.trade_date = t.trade_date AND l.ts_code = t.ts_code
+          )
+    </select>
+
 </mapper>

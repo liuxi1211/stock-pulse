@@ -88,25 +88,42 @@ public class IndexDailyServiceImpl implements IndexDailyService, DataCheckable {
 
             // Check 2: Missing core indices (ERROR)
             String thirtyDaysAgo = today.minusDays(30).format(DATE_FMT);
-            List<String> missing = indexDailyMapper.selectMissingCoreIndices(thirtyDaysAgo);
-            boolean indicesPassed = missing == null || missing.isEmpty();
+            boolean indicesPassed;
+            String indicesMsg;
+            if (totalRows == 0) {
+                indicesPassed = true;
+                indicesMsg = "表为空，跳过检测";
+            } else {
+                List<String> missing = indexDailyMapper.selectMissingCoreIndices(thirtyDaysAgo);
+                indicesPassed = missing == null || missing.isEmpty();
+                indicesMsg = indicesPassed ? "通过，核心指数数据完整"
+                        : "缺少核心指数：" + String.join(", ", missing);
+            }
             items.add(DataCheckItem.builder()
                     .name("core_indices")
                     .displayName("核心指数完整性检测")
                     .passed(indicesPassed)
                     .level(CheckLevel.ERROR)
-                    .message(indicesPassed ? "通过，核心指数数据完整"
-                            : "缺少核心指数：" + String.join(", ", missing))
+                    .message(indicesMsg)
                     .build());
 
             // Check 3: Price anomalies (ERROR)
-            int anomalies = indexDailyMapper.countPriceAnomalies(thirtyDaysAgo);
+            boolean pricePassed;
+            String priceMsg;
+            if (totalRows == 0) {
+                pricePassed = true;
+                priceMsg = "表为空，跳过检测";
+            } else {
+                int anomalies = indexDailyMapper.countPriceAnomalies(thirtyDaysAgo);
+                pricePassed = anomalies == 0;
+                priceMsg = pricePassed ? "通过，最近 30 天无异常" : "最近 30 天价格异常记录 " + anomalies + " 条";
+            }
             items.add(DataCheckItem.builder()
                     .name("price_logic")
                     .displayName("价格逻辑检测")
-                    .passed(anomalies == 0)
+                    .passed(pricePassed)
                     .level(CheckLevel.ERROR)
-                    .message(anomalies == 0 ? "通过，最近 30 天无异常" : "最近 30 天价格异常记录 " + anomalies + " 条")
+                    .message(priceMsg)
                     .build());
 
             return DataCheckResult.builder()

@@ -1,12 +1,17 @@
 package com.arthur.stock.service.impl;
 
 import com.arthur.stock.client.TushareClient;
+import com.arthur.stock.constant.InitStep;
 import com.arthur.stock.dto.BlockTradePremiumVO;
 import com.arthur.stock.dto.BlockTradeWithCloseVO;
+import com.arthur.stock.dto.governance.CheckLevel;
+import com.arthur.stock.dto.governance.DataCheckItem;
+import com.arthur.stock.dto.governance.DataCheckResult;
 import com.arthur.stock.dto.tushare.BlockTradeDTO;
 import com.arthur.stock.mapper.BlockTradeMapper;
 import com.arthur.stock.model.BlockTradeDO;
 import com.arthur.stock.service.BlockTradeService;
+import com.arthur.stock.service.DataCheckable;
 import com.google.common.collect.Lists;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -15,6 +20,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -27,10 +34,11 @@ import java.util.List;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class BlockTradeServiceImpl implements BlockTradeService {
+public class BlockTradeServiceImpl implements BlockTradeService, DataCheckable {
 
     /** 批量写入批次大小 */
     private static final int BATCH_SIZE = 500;
+    private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("yyyyMMdd");
 
     private final TushareClient tushareClient;
     private final BlockTradeMapper blockTradeMapper;
@@ -136,5 +144,101 @@ public class BlockTradeServiceImpl implements BlockTradeService {
         if (premium < 3) return 5;
         if (premium < 5) return 6;
         return 7;
+    }
+
+    // ==================== DataCheckable ====================
+
+    @Override
+    public String getTableCode() {
+        return InitStep.BLOCK_TRADE.getCode();
+    }
+
+    @Override
+    public DataCheckResult checkData() {
+        List<DataCheckItem> items = new ArrayList<>();
+        try {
+            long totalRows = blockTradeMapper.selectCount(null);
+            String latestDate = blockTradeMapper.selectLatestTradeDate();
+
+            if (totalRows == 0) {
+                items.add(DataCheckItem.builder()
+                        .name("price_vol_validity")
+                        .displayName("价量有效性检测")
+                        .passed(true)
+                        .level(CheckLevel.ERROR)
+                        .message("表为空，跳过检测")
+                        .build());
+                items.add(DataCheckItem.builder()
+                        .name("buyer_seller_same")
+                        .displayName("买卖方一致性检测")
+                        .passed(true)
+                        .level(CheckLevel.WARN)
+                        .message("表为空，跳过检测")
+                        .build());
+                items.add(DataCheckItem.builder()
+                        .name("amount_calculation")
+                        .displayName("成交额计算检测")
+                        .passed(true)
+                        .level(CheckLevel.WARN)
+                        .message("表为空，跳过检测")
+                        .build());
+            } else {
+                String thirtyDaysAgo = LocalDate.now().minusDays(30).format(DATE_FMT);
+
+                int invalidPriceVol = blockTradeMapper.countInvalidPriceVol(thirtyDaysAgo);
+                items.add(DataCheckItem.builder()
+                        .name("price_vol_validity")
+                        .displayName("价量有效性检测")
+                        .passed(invalidPriceVol == 0)
+                        .level(CheckLevel.ERROR)
+                        .message(invalidPriceVol == 0 ? "通过，最近30天价量数据正常"
+                                : "最近30天价格/成交量/成交额小于等于0的记录 " + invalidPriceVol + " 条")
+                        .build());
+
+                int buyerSellerSame = blockTradeMapper.countBuyerSellerSame(thirtyDaysAgo);
+                items.add(DataCheckItem.builder()
+                        .name("buyer_seller_same")
+                        .displayName("买卖方一致性检测")
+                        .passed(buyerSellerSame == 0)
+                        .level(CheckLevel.WARN)
+                        .message(buyerSellerSame == 0 ? "通过，最近30天买卖方均不同"
+                                : "最近30天买卖方相同的记录 " + buyerSellerSame + " 条")
+                        .build());
+
+                int amountCalculationError = blockTradeMapper.countAmountCalculationError(thirtyDaysAgo);
+                items.add(DataCheckItem.builder()
+                        .name("amount_calculation")
+                        .displayName("成交额计算检测")
+                        .passed(amountCalculationError == 0)
+                        .level(CheckLevel.WARN)
+                        .message(amountCalculationError == 0 ? "通过，最近30天成交额计算正常"
+                                : "最近30天成交额与价量乘积偏差超过10%的记录 " + amountCalculationError + " 条")
+                        .build());
+            }
+
+            return DataCheckResult.builder()
+                    .tableCode(getTableCode())
+                    .tableName(InitStep.BLOCK_TRADE.getLabel())
+                    .totalRows(totalRows)
+                    .latestDate(latestDate)
+                    .items(items)
+                    .build();
+        } catch (Exception e) {
+            log.error("checkData error for block_trade", e);
+            items.add(DataCheckItem.builder()
+                    .name("error")
+                    .displayName("检测执行异常")
+                    .passed(false)
+                    .level(CheckLevel.ERROR)
+                    .message("检测执行异常: " + e.getMessage())
+                    .build());
+            return DataCheckResult.builder()
+                    .tableCode(getTableCode())
+                    .tableName(InitStep.BLOCK_TRADE.getLabel())
+                    .totalRows(0)
+                    .latestDate(null)
+                    .items(items)
+                    .build();
+        }
     }
 }

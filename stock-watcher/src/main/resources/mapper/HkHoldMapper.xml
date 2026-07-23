@@ -74,4 +74,18 @@
         SELECT MAX(trade_date) FROM hk_hold
     </select>
 
+    <!-- ==================== 数据管控检查 ==================== -->
+
+    <select id="countInvalidVol" resultType="int">
+        SELECT COUNT(*) FROM hk_hold
+        WHERE trade_date &gt;= #{startDate}
+        AND vol &lt; 0
+    </select>
+
+    <select id="countInvalidRatio" resultType="int">
+        SELECT COUNT(*) FROM hk_hold
+        WHERE trade_date &gt;= #{startDate}
+        AND (ratio &lt; 0 OR ratio &gt; 30)
+    </select>
+
 </mapper>

@@ -1,11 +1,16 @@
 package com.arthur.stock.service.impl;
 
 import com.arthur.stock.client.TushareClient;
+import com.arthur.stock.constant.InitStep;
+import com.arthur.stock.dto.governance.CheckLevel;
+import com.arthur.stock.dto.governance.DataCheckItem;
+import com.arthur.stock.dto.governance.DataCheckResult;
 import com.arthur.stock.dto.tushare.ForecastDTO;
 import com.arthur.stock.dto.tushare.ForecastQueryDTO;
 import com.arthur.stock.dto.tushare.StockBasicDTO;
 import com.arthur.stock.mapper.ForecastMapper;
 import com.arthur.stock.model.ForecastDO;
+import com.arthur.stock.service.DataCheckable;
 import com.arthur.stock.service.ForecastService;
 import com.arthur.stock.service.StockBasicService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
@@ -15,6 +20,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -25,9 +33,10 @@ import java.util.stream.Collectors;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class ForecastServiceImpl implements ForecastService {
+public class ForecastServiceImpl implements ForecastService, DataCheckable {
 
     private static final int BATCH_SIZE = 500;
+    private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("yyyyMMdd");
 
     private final TushareClient tushareClient;
     private final ForecastMapper forecastMapper;
@@ -111,5 +120,146 @@ public class ForecastServiceImpl implements ForecastService {
                 .summary(d.getSummary())
                 .changeReason(d.getChangeReason())
                 .build();
+    }
+
+    // ==================== DataCheckable ====================
+
+    @Override
+    public String getTableCode() {
+        return InitStep.FORECAST.getCode();
+    }
+
+    @Override
+    public DataCheckResult checkData() {
+        List<DataCheckItem> items = new ArrayList<>();
+        try {
+            long totalRows = forecastMapper.selectCount(null);
+            String maxAnnDate = forecastMapper.selectMaxAnnDate();
+            LocalDate today = LocalDate.now();
+
+            if (totalRows == 0) {
+                items.add(DataCheckItem.builder()
+                        .name("season_coverage")
+                        .displayName("财报季预告覆盖检测")
+                        .passed(true)
+                        .level(CheckLevel.WARN)
+                        .message("表为空，跳过检测")
+                        .build());
+                items.add(DataCheckItem.builder()
+                        .name("range_logic")
+                        .displayName("范围逻辑检测")
+                        .passed(true)
+                        .level(CheckLevel.ERROR)
+                        .message("表为空，跳过检测")
+                        .build());
+                items.add(DataCheckItem.builder()
+                        .name("type_consistency")
+                        .displayName("类型一致性检测")
+                        .passed(true)
+                        .level(CheckLevel.ERROR)
+                        .message("表为空，跳过检测")
+                        .build());
+                return DataCheckResult.builder()
+                        .tableCode(getTableCode())
+                        .tableName(InitStep.FORECAST.getLabel())
+                        .totalRows(0)
+                        .latestDate(null)
+                        .items(items)
+                        .build();
+            }
+
+            // Check 1: Season coverage (WARN) - 上一个财报季首月
+            int currentMonth = today.getMonthValue();
+            int lastSeasonStartMonth;
+            if (currentMonth >= 10) {
+                lastSeasonStartMonth = 10;
+            } else if (currentMonth >= 7) {
+                lastSeasonStartMonth = 7;
+            } else if (currentMonth >= 4) {
+                lastSeasonStartMonth = 4;
+            } else {
+                lastSeasonStartMonth = 1;
+            }
+            if (currentMonth == lastSeasonStartMonth) {
+                if (lastSeasonStartMonth == 1) {
+                    lastSeasonStartMonth = 10;
+                } else if (lastSeasonStartMonth == 4) {
+                    lastSeasonStartMonth = 1;
+                } else if (lastSeasonStartMonth == 7) {
+                    lastSeasonStartMonth = 4;
+                } else {
+                    lastSeasonStartMonth = 7;
+                }
+            }
+            int year = today.getYear();
+            if (lastSeasonStartMonth == 10 && currentMonth < 10) {
+                year--;
+            }
+            String lastSeasonMonth = String.format("%04d%02d", year, lastSeasonStartMonth);
+            int seasonCount = forecastMapper.countByAnnMonth(lastSeasonMonth);
+            boolean seasonPassed = seasonCount > 0;
+            String seasonMsg = seasonPassed
+                    ? "通过，" + lastSeasonMonth + " 月有 " + seasonCount + " 条预告数据"
+                    : "上一财报季首月（" + lastSeasonMonth + "）无任何预告数据";
+            items.add(DataCheckItem.builder()
+                    .name("season_coverage")
+                    .displayName("财报季预告覆盖检测")
+                    .passed(seasonPassed)
+                    .level(CheckLevel.WARN)
+                    .message(seasonMsg)
+                    .build());
+
+            // Check 2: Range logic (ERROR)
+            int rangeErrorCount = forecastMapper.countRangeLogicErrors();
+            boolean rangePassed = rangeErrorCount == 0;
+            String rangeMsg = rangePassed
+                    ? "通过，无范围逻辑错误"
+                    : "有 " + rangeErrorCount + " 条范围逻辑错误（最小值 > 最大值）";
+            items.add(DataCheckItem.builder()
+                    .name("range_logic")
+                    .displayName("范围逻辑检测")
+                    .passed(rangePassed)
+                    .level(CheckLevel.ERROR)
+                    .message(rangeMsg)
+                    .build());
+
+            // Check 3: Type consistency (ERROR)
+            int typeErrorCount = forecastMapper.countTypeConsistencyErrors();
+            boolean typePassed = typeErrorCount == 0;
+            String typeMsg = typePassed
+                    ? "通过，无类型一致性错误"
+                    : "有 " + typeErrorCount + " 条预告类型与变动方向矛盾";
+            items.add(DataCheckItem.builder()
+                    .name("type_consistency")
+                    .displayName("类型一致性检测")
+                    .passed(typePassed)
+                    .level(CheckLevel.ERROR)
+                    .message(typeMsg)
+                    .build());
+
+            return DataCheckResult.builder()
+                    .tableCode(getTableCode())
+                    .tableName(InitStep.FORECAST.getLabel())
+                    .totalRows(totalRows)
+                    .latestDate(maxAnnDate)
+                    .items(items)
+                    .build();
+        } catch (Exception e) {
+            log.error("checkData error for forecast", e);
+            items.add(DataCheckItem.builder()
+                    .name("error")
+                    .displayName("检测执行异常")
+                    .passed(false)
+                    .level(CheckLevel.ERROR)
+                    .message("检测执行异常: " + e.getMessage())
+                    .build());
+            return DataCheckResult.builder()
+                    .tableCode(getTableCode())
+                    .tableName(InitStep.FORECAST.getLabel())
+                    .totalRows(0)
+                    .latestDate(null)
+                    .items(items)
+                    .build();
+        }
     }
 }

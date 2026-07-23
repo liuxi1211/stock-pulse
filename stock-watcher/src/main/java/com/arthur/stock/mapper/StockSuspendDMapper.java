@@ -53,4 +53,10 @@ public interface StockSuspendDMapper extends BaseMapper<StockSuspendDDO> {
     List<StockSuspendDDO> selectByTsCodesAndRange(@Param("tsCodes") List<String> tsCodes,
                                                   @Param("startDate") String startDate,
                                                   @Param("endDate") String endDate);
+
+    String selectMaxTradeDate();
+
+    int countDateLogicErrors();
+
+    int countDateOverlap();
 }

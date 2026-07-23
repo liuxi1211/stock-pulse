@@ -15,10 +15,6 @@ spring:
     username: ${db.username}
     password: ${db.password}
     driver-class-name: ${DB_DRIVER:com.mysql.cj.jdbc.Driver}
-  sql:
-    init:
-      mode: always
-      schema-locations: ${SCHEMA_LOCATION:classpath:schema-mysql.sql}
   thymeleaf:
     prefix: classpath:/templates/
     suffix: .html

@@ -28,4 +28,16 @@ public interface SwIndustryMapper extends BaseMapper<SwIndustryDO> {
      */
     @Select("SELECT index_code, index_name, level, parent_code, src FROM sw_industry WHERE level = #{level} AND src = #{src}")
     List<SwIndustryDO> selectByLevel(@Param("level") int level, @Param("src") String src);
+
+    // ==================== 数据管控检查 ====================
+
+    /**
+     * 统计 level=1 的行业数量。
+     */
+    int countLevel1();
+
+    /**
+     * 统计同一 index_code 对应多个 index_name 的情况数。
+     */
+    int countCodeNameMismatch();
 }

@@ -47,4 +47,17 @@
         SELECT MAX(trade_date) FROM margin
     </select>
 
+    <!-- ==================== 数据管控检查 ==================== -->
+
+    <select id="selectRecentExchanges" resultType="string">
+        SELECT DISTINCT exchange_id FROM margin
+        WHERE trade_date &gt;= #{startDate}
+    </select>
+
+    <select id="countInvalidBalance" resultType="int">
+        SELECT COUNT(*) FROM margin
+        WHERE trade_date &gt;= #{startDate}
+        AND (rzye &lt;= 0 OR rqye &lt; 0 OR rzrqye &lt;= 0)
+    </select>
+
 </mapper>

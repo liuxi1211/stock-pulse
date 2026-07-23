@@ -83,4 +83,17 @@
         SELECT MAX(trade_date) FROM stock_moneyflow
     </select>
 
+    <select id="countInvalidAmount" resultType="int">
+        SELECT COUNT(*) FROM stock_moneyflow
+        WHERE trade_date &gt;= #{startDate}
+          AND (buy_sm_amount &lt; 0 OR sell_sm_amount &lt; 0 OR net_mf_amount IS NULL)
+    </select>
+
+    <select id="countNetAmountInconsistency" resultType="int">
+        SELECT COUNT(*) FROM stock_moneyflow
+        WHERE trade_date &gt;= #{startDate}
+          AND ABS(net_mf_amount - (buy_lg_amount + buy_elg_amount - sell_lg_amount - sell_elg_amount))
+            / NULLIF(ABS(net_mf_amount), 0) &gt; 0.1
+    </select>
+
 </mapper>

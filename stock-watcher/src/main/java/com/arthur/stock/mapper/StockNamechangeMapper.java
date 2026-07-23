@@ -54,4 +54,12 @@ public interface StockNamechangeMapper extends BaseMapper<StockNamechangeDO> {
             + "ORDER BY ts_code, start_date"
             + "</script>")
     List<StockNamechangeDO> selectByTsCodes(@Param("tsCodes") List<String> tsCodes);
+
+    String selectMaxStartDate();
+
+    int countDateLogicErrors();
+
+    int countDateOverlap();
+
+    int countInvalidName();
 }

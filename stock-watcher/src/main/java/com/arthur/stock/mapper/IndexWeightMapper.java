@@ -7,6 +7,7 @@ import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * 指数成分股权重数据访问层，基于MyBatis-Plus BaseMapper提供对index_weight表的CRUD操作
@@ -54,4 +55,26 @@ public interface IndexWeightMapper extends BaseMapper<IndexWeightDO> {
     List<String> selectConstituentsInRange(@Param("tsCode") String tsCode,
                                            @Param("startDate") String startDate,
                                            @Param("endDate") String endDate);
+
+    // ==================== 数据管控检查 ====================
+
+    /**
+     * 取表中最新的 trade_date。
+     */
+    String selectLatestTradeDate();
+
+    /**
+     * 按指数代码统计最新交易日的成分股数量。
+     */
+    List<Map<String, Object>> countByIndexCode(@Param("tradeDate") String tradeDate);
+
+    /**
+     * 统计最新一期权重总和不在 99-101 之间的指数数量。
+     */
+    int countWeightSumAbnormal(@Param("tradeDate") String tradeDate);
+
+    /**
+     * 统计最新一期权重无效（weight <= 0 OR weight > 20）的记录数。
+     */
+    int countInvalidWeight(@Param("tradeDate") String tradeDate);
 }

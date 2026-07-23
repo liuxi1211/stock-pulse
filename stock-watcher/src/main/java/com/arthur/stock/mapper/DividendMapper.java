@@ -16,4 +16,12 @@ public interface DividendMapper extends BaseMapper<DividendDO> {
     int insertBatch(@Param("list") List<DividendDO> list);
 
     int deleteBatchByKeys(@Param("list") List<DividendDO> list);
+
+    String selectMaxAnnDate();
+
+    int countInvalidCashDiv();
+
+    int countInvalidStockDiv();
+
+    int countDateLogicErrors();
 }

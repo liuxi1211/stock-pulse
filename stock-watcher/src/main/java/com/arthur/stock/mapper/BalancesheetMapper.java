@@ -25,4 +25,18 @@ public interface BalancesheetMapper extends BaseMapper<BalancesheetDO> {
      * 用于选股时取最新可用财报数据，避免 lookahead bias；锁定合并报表口径保证结果可复现。
      */
     BalancesheetDO selectLatestAnnouncedBefore(@Param("tsCode") String tsCode, @Param("tradeDate") String tradeDate);
+
+    // ==================== 数据管控检查 ====================
+
+    /** 取表中最大的 ann_date */
+    String selectMaxAnnDate();
+
+    /** 取表中最大的 end_date（最新报告期） */
+    String selectMaxEndDate();
+
+    /** 统计指定报告期 total_assets 为空或非正的记录数 */
+    int countInvalidTotalAssets(@Param("endDate") String endDate);
+
+    /** 统计最近N个季度会计恒等式不成立的记录数：abs(total_liab + total_equity - total_liab_equity) / total_assets > 1% */
+    int countAccountingIdentityErrors(@Param("startDate") String startDate);
 }

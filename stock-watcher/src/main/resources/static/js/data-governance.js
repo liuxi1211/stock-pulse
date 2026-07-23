@@ -1,7 +1,8 @@
 /**
  * Data Governance Center
- * Handles: overview stats, table cards, detail drawer, pull logs, datasource status,
- *          incremental update / full rebuild with task progress polling.
+ * Handles: overview stats, table list, detail modal, pull logs, check history,
+ *          datasource status (10s polling), incremental update / full rebuild,
+ *          per-table manual check.
  */
 const DG = {
     apiBase: '/api/data-governance',
@@ -12,10 +13,29 @@ const DG = {
     rebuildTableCode: null,
     rebuildTableName: null,
     rebuildCountdownTimer: null,
-    logPage: 1,
-    logPageSize: 20,
     tableListCache: [],
     keywordSearchTimer: null,
+
+    // Datasource polling: enter page -> test once -> poll GET every 10s
+    dsPollTimer: null,
+    DS_POLL_INTERVAL: 10000,
+
+    // Group metadata: label + accent color token
+    GROUP_META: {
+        BASIC:   { label: '基础数据',   color: 'var(--accent-blue)' },
+        MARKET:  { label: '行情数据',   color: 'var(--accent-cyan)' },
+        FINANCE: { label: '财务数据',   color: 'var(--accent-purple)' },
+        EVENT:   { label: '事件数据',   color: 'var(--accent-yellow)' },
+        INDEX:   { label: '指数与市场', color: 'var(--accent-green)' },
+    },
+
+    // ==================== Init ====================
+
+    refreshAll() {
+        this.refreshOverview();
+        this.loadTables();
+        this.startDatasourcePolling();
+    },
 
     // ==================== Overview ====================
 
@@ -26,14 +46,126 @@ const DG = {
                 return;
             }
             const d = resp.data || {};
-            document.getElementById('ovTotalTables').textContent = d.totalTables ?? '-';
+            const total = d.totalTables ?? 0;
+            const errors = d.errorTables ?? 0;
+
+            document.getElementById('ovTotalTables').textContent = total || '-';
             document.getElementById('ovUpdatedToday').textContent = d.updatedToday ?? '-';
-            document.getElementById('ovErrorTables').textContent = d.errorTables ?? '-';
+            document.getElementById('ovErrorTables').textContent = errors;
             document.getElementById('ovLastCheck').textContent = '最后检测：' + (d.lastCheckTime || '-');
+            document.getElementById('ovLastCheckTime').textContent = d.lastCheckTime || '-';
+
             document.getElementById('ovUpdatedFoot').textContent =
-                d.errorTables > 0 ? `${d.errorTables} 张表异常` : '运行正常';
-            const errorFoot = document.getElementById('ovErrorFoot');
-            errorFoot.textContent = d.errorTables > 0 ? '需关注' : '无异常';
+                errors > 0 ? `${errors} 张表异常` : '运行正常';
+            document.getElementById('ovErrorFoot').textContent = errors > 0 ? '需关注' : '无异常';
+        });
+    },
+
+    // ==================== Datasource Polling ====================
+
+    startDatasourcePolling() {
+        // On enter: trigger a live test (admin) or read cache (non-admin), then poll every 10s
+        this.testDatasourceSilent();
+        clearInterval(this.dsPollTimer);
+        this.dsPollTimer = setInterval(() => this.loadDatasourceStatus(), this.DS_POLL_INTERVAL);
+    },
+
+    stopDatasourcePolling() {
+        clearInterval(this.dsPollTimer);
+    },
+
+    testDatasourceSilent() {
+        // Admin: POST test triggers a real connectivity check and updates cache
+        if (this.isAdmin) {
+            StockApp.post(this.apiBase + '/datasource/test', null, (resp) => {
+                if (resp.code === 200) {
+                    this.applyDatasourceStatus(resp.data || {});
+                }
+            });
+        } else {
+            // Non-admin: just read the cache
+            this.loadDatasourceStatus();
+        }
+    },
+
+    loadDatasourceStatus() {
+        StockApp.get(this.apiBase + '/datasource', null, (resp) => {
+            if (resp.code !== 200) {
+                this.applyDatasourceStatus({});
+                return;
+            }
+            this.applyDatasourceStatus(resp.data || {});
+        });
+    },
+
+    applyDatasourceStatus(d) {
+        const dot = document.getElementById('dsStatusDot');
+        const label = document.getElementById('dsLabel');
+        const indicator = document.getElementById('dsIndicator');
+        if (d.lastTestOk) {
+            dot.className = 'dg-ds-dot online';
+            label.textContent = 'Tushare';
+            indicator.title = '数据源正常 · ' + (d.lastTestTime || '');
+        } else if (d.status === 'INACTIVE') {
+            dot.className = 'dg-ds-dot offline';
+            label.textContent = 'Tushare';
+            indicator.title = '数据源异常 · ' + (d.lastTestTime || '');
+        } else {
+            dot.className = 'dg-ds-dot unknown';
+            label.textContent = '数据源';
+            indicator.title = '未检测';
+        }
+    },
+
+    showDatasourceModal() {
+        const modal = new bootstrap.Modal(document.getElementById('datasourceModal'));
+        modal.show();
+        this.loadDatasourceDetail();
+    },
+
+    loadDatasourceDetail() {
+        const body = document.getElementById('datasourceBody');
+        body.innerHTML = '<div class="text-center text-muted py-4"><div class="spinner-border spinner-border-sm me-1"></div>加载中...</div>';
+        StockApp.get(this.apiBase + '/datasource', null, (resp) => {
+            if (resp.code !== 200) {
+                body.innerHTML = '<p class="text-danger">' + StockApp.escapeHtml(resp.message) + '</p>';
+                return;
+            }
+            const d = resp.data || {};
+            const ok = d.lastTestOk;
+            const statusBadge = d.status === 'ACTIVE'
+                ? '<span class="dg-badge normal">活跃</span>'
+                : d.status === 'INACTIVE'
+                ? '<span class="dg-badge error">不可用</span>'
+                : '<span class="dg-badge auto">未知</span>';
+            body.innerHTML = `
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div>
+                        <h6 class="mb-0">${StockApp.escapeHtml(d.sourceName || '-')}</h6>
+                        <small class="text-muted font-mono">${d.sourceCode || '-'}</small>
+                    </div>
+                    ${statusBadge}
+                </div>
+                <ul class="dg-detail-list">
+                    <li><span class="dl-label">连通状态</span>
+                        <span class="dl-value">${ok ? '<span style="color:var(--accent-green)"><i class="bi bi-check-circle-fill"></i> 正常</span>' : '<span style="color:var(--rise-light)"><i class="bi bi-x-circle-fill"></i> 异常</span>'}</span></li>
+                    <li><span class="dl-label">最后测试</span><span class="dl-value">${d.lastTestTime || '-'}</span></li>
+                    <li><span class="dl-label">响应时间</span><span class="dl-value">${d.responseTimeMs > 0 ? d.responseTimeMs + 'ms' : '-'}</span></li>
+                    <li><span class="dl-label">测试接口</span><span class="dl-value">${StockApp.escapeHtml(d.testInterface || '-')}</span></li>
+                </ul>`;
+        });
+    },
+
+    testDatasource() {
+        StockApp.post(this.apiBase + '/datasource/test', null, (resp) => {
+            if (resp.code !== 200) {
+                StockApp.toast(resp.message || '测试失败', 'danger');
+                return;
+            }
+            const d = resp.data || {};
+            StockApp.toast(d.lastTestOk ? '数据源连通正常 (' + d.responseTimeMs + 'ms)' : '数据源连通失败', d.lastTestOk ? 'success' : 'danger');
+            this.applyDatasourceStatus(d);
+            this.loadDatasourceDetail();
         });
     },
 
@@ -51,66 +183,88 @@ const DG = {
                 return;
             }
             this.tableListCache = resp.data || [];
-            this.renderTableCards(this.tableListCache);
-            this.populateLogTableDropdown(this.tableListCache);
+            this.renderTable(this.tableListCache);
         });
     },
 
-    renderTableCards(list) {
-        const grid = document.getElementById('tableCardGrid');
+    renderTable(list) {
+        document.getElementById('tableCount').textContent = (list?.length || 0) + ' 张';
+
+        const tbody = document.getElementById('tableBody');
         if (!list || !list.length) {
-            grid.innerHTML = '<div class="col-12 text-center text-muted py-5"><i class="bi bi-inbox"></i> 无匹配的数据表</div>';
+            tbody.innerHTML = `<tr><td colspan="8"><div class="dg-empty">
+                <i class="bi bi-inbox"></i>无匹配的数据表
+            </div></td></tr>`;
             return;
         }
-        grid.innerHTML = list.map(t => {
-            const status = this.getStatusInfo(t.status);
-            const groupLabel = this.getGroupLabel(t.tableGroup);
+        tbody.innerHTML = list.map(t => {
+            // Fix: if there are failed checks, display as ERROR regardless of backend status
+            // (backend only sets ERROR for ERROR-level failures, not WARN-level)
+            const displayStatus = this.getDisplayStatus(t.status, t.checkItems);
+            const status = this.getStatusInfo(displayStatus);
+            const failedItems = this.getFailedCheckItems(t.checkItems);
+
+            // Build tooltip HTML for failed checks
+            let tooltipAttr = '';
+            if (failedItems.length > 0) {
+                const tipHtml = failedItems.map(i =>
+                    `<div>• <strong>${StockApp.escapeHtml(i.displayName || i.name)}</strong>${i.message ? ': ' + StockApp.escapeHtml(i.message) : ''}</div>`
+                ).join('');
+                tooltipAttr = ` data-bs-toggle="tooltip" data-bs-html="true" data-bs-custom-class="dg-status-tip" data-bs-title="${StockApp.escapeHtml(tipHtml)}"`;
+            }
+
+            const groupMeta = this.getGroupMeta(t.tableGroup);
             const failedBadge = t.failedCount > 0
-                ? `<span class="badge bg-danger ms-1">${t.failedCount} 项异常</span>` : '';
+                ? `<span class="dg-badge error ms-1">${t.failedCount} 项</span>` : '';
             const adminButtons = this.isAdmin ? `
-                <button class="btn btn-sm btn-outline-primary" onclick="DG.incrementalUpdate('${t.tableCode}')" title="增量更新">
-                    <i class="bi bi-arrow-up-circle"></i>
+                <button class="dg-mini-btn" onclick="DG.incrementalUpdate('${t.tableCode}')" title="增量更新">
+                    <i class="bi bi-arrow-up-circle"></i> 增量
                 </button>
-                <button class="btn btn-sm btn-outline-warning" onclick="DG.openRebuildModal('${t.tableCode}', '${StockApp.escapeHtml(t.tableName)}')" title="全量重建">
-                    <i class="bi bi-arrow-repeat"></i>
+                <button class="dg-mini-btn warn" onclick="DG.openRebuildModal('${t.tableCode}', '${StockApp.escapeHtml(t.tableName)}')" title="全量重建">
+                    <i class="bi bi-arrow-repeat"></i> 全量
                 </button>
             ` : '';
             return `
-                <div class="col-md-6 col-xl-4">
-                    <div class="card card-glow h-100">
-                        <div class="card-body">
-                            <div class="d-flex justify-content-between align-items-start mb-2">
-                                <div>
-                                    <h6 class="card-title mb-0">${StockApp.escapeHtml(t.tableName)}</h6>
-                                    <small class="text-muted mono">${t.tableCode}</small>
-                                </div>
-                                <span class="badge ${status.badgeClass}">${status.label}</span>
-                            </div>
-                            <div class="row g-2 small text-muted mb-2">
-                                <div class="col-6">
-                                    <i class="bi bi-tag"></i> ${groupLabel}
-                                </div>
-                                <div class="col-6">
-                                    <i class="bi bi-calendar-event"></i> ${this.formatDate(t.latestDate) || '-'}
-                                </div>
-                                <div class="col-6">
-                                    <i class="bi bi-database"></i> ${this.formatCount(t.totalRows)} 行
-                                </div>
-                                <div class="col-6">
-                                    <i class="bi bi-clock"></i> ${t.updateFrequency || '-'}
-                                </div>
-                            </div>
-                            ${failedBadge}
-                            <div class="mt-2 d-flex gap-1">
-                                <button class="btn btn-sm btn-outline-secondary" onclick="DG.openDetail('${t.tableCode}')" title="查看详情">
-                                    <i class="bi bi-eye"></i> 详情
-                                </button>
-                                ${adminButtons}
-                            </div>
+                <tr>
+                    <td>
+                        <div class="dg-table-name">${StockApp.escapeHtml(t.tableName)}</div>
+                        <div class="dg-table-code">${t.tableCode}</div>
+                    </td>
+                    <td><span class="dg-grp-tag" style="--grp-c: ${groupMeta.color};">${groupMeta.label}</span></td>
+                    <td${tooltipAttr}>
+                        <span class="dg-status ${status.cls}">
+                            <span class="dot"></span>${status.label}
+                        </span>
+                        ${failedBadge}
+                    </td>
+                    <td class="text-end font-mono">${this.formatCount(t.totalRows)}</td>
+                    <td class="font-mono">${this.formatDate(t.latestDate) || '-'}</td>
+                    <td><small class="text-muted font-mono">${t.lastCheckTime || '-'}</small></td>
+                    <td><small class="text-muted">${t.updateFrequency || '-'}</small></td>
+                    <td>
+                        <div class="dg-actions">
+                            <button class="dg-mini-btn" onclick="DG.openDetail('${t.tableCode}')" title="查看详情">
+                                <i class="bi bi-eye"></i> 详情
+                            </button>
+                            <button class="dg-mini-btn" onclick="DG.checkTable('${t.tableCode}')" title="手动检测">
+                                <i class="bi bi-clipboard-check"></i> 检测
+                            </button>
+                            <button class="dg-mini-btn" onclick="DG.openPullHistory('${t.tableCode}', '${StockApp.escapeHtml(t.tableName)}')" title="拉取日志">
+                                <i class="bi bi-clock-history"></i> 日志
+                            </button>
+                            <button class="dg-mini-btn" onclick="DG.openCheckHistory('${t.tableCode}', '${StockApp.escapeHtml(t.tableName)}')" title="检测历史">
+                                <i class="bi bi-graph-up"></i> 历史
+                            </button>
+                            ${adminButtons}
                         </div>
-                    </div>
-                </div>`;
+                    </td>
+                </tr>`;
         }).join('');
+
+        // Initialize Bootstrap tooltips on status cells
+        tbody.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el => {
+            bootstrap.Tooltip.getOrCreateInstance(el);
+        });
     },
 
     resetTableFilters() {
@@ -125,16 +279,130 @@ const DG = {
         this.keywordSearchTimer = setTimeout(() => this.loadTables(), 300);
     },
 
-    // ==================== Detail Drawer ====================
+    // ==================== Per-table Manual Check ====================
+
+    checkTable(tableCode) {
+        StockApp.post(this.apiBase + '/check/' + tableCode, null, (resp) => {
+            if (resp.code !== 200) {
+                StockApp.toast(resp.message || '检测失败', 'danger');
+                return;
+            }
+            const result = resp.data || {};
+            const failed = (result.checkItems || []).filter(i => !i.passed).length;
+            if (failed > 0) {
+                StockApp.toast(`检测完成，发现 ${failed} 项异常`, 'warning');
+            } else {
+                StockApp.toast('检测完成，全部通过', 'success');
+            }
+            this.loadTables();
+            this.refreshOverview();
+        });
+    },
+
+    // ==================== Pull History Modal ====================
+
+    openPullHistory(tableCode, tableName) {
+        document.getElementById('pullHistoryTableName').textContent = tableName;
+        const modal = new bootstrap.Modal(document.getElementById('pullHistoryModal'));
+        modal.show();
+        const body = document.getElementById('pullHistoryBody');
+        body.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4"><div class="spinner-border spinner-border-sm me-1"></div>加载中...</td></tr>';
+        StockApp.get(this.apiBase + '/tables/' + tableCode + '/pull-history', null, (resp) => {
+            if (resp.code !== 200) {
+                body.innerHTML = '<tr><td colspan="8" class="text-center text-danger py-4">' + StockApp.escapeHtml(resp.message) + '</td></tr>';
+                return;
+            }
+            const logs = resp.data || [];
+            if (!logs.length) {
+                body.innerHTML = `<tr><td colspan="8"><div class="dg-empty"><i class="bi bi-inbox"></i>暂无拉取日志</div></td></tr>`;
+                return;
+            }
+            body.innerHTML = logs.map(log => {
+                const statusBadge = this.getLogStatusBadge(log.status);
+                const duration = log.durationMs != null
+                    ? (log.durationMs >= 1000 ? (log.durationMs / 1000).toFixed(1) + 's' : log.durationMs + 'ms')
+                    : '-';
+                const counts = `${log.successCount ?? 0} / ${log.failCount ?? 0}`;
+                return `
+                    <tr style="cursor:pointer;" onclick="DG.showLogDetail(${log.id})">
+                        <td><small>${StockApp.escapeHtml(this.getOperationTypeLabel(log.operationType))}</small></td>
+                        <td>${statusBadge}</td>
+                        <td><small class="font-mono">${log.startTime || '-'}</small></td>
+                        <td><small class="font-mono">${log.endTime || '-'}</small></td>
+                        <td class="text-end font-mono">${duration}</td>
+                        <td class="text-end font-mono">${counts}</td>
+                        <td><small>${StockApp.escapeHtml(log.operator || '-')}</small></td>
+                        <td class="text-center"><i class="bi bi-chevron-right text-muted"></i></td>
+                    </tr>`;
+            }).join('');
+        });
+    },
+
+    // ==================== Check History Modal ====================
+
+    openCheckHistory(tableCode, tableName) {
+        document.getElementById('checkHistoryTableName').textContent = tableName;
+        const modal = new bootstrap.Modal(document.getElementById('checkHistoryModal'));
+        modal.show();
+        const body = document.getElementById('checkHistoryBody');
+        body.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4"><div class="spinner-border spinner-border-sm me-1"></div>加载中...</td></tr>';
+        StockApp.get(this.apiBase + '/tables/' + tableCode + '/check-history', null, (resp) => {
+            if (resp.code !== 200) {
+                body.innerHTML = '<tr><td colspan="7" class="text-center text-danger py-4">' + StockApp.escapeHtml(resp.message) + '</td></tr>';
+                return;
+            }
+            const history = resp.data || [];
+            if (!history.length) {
+                body.innerHTML = `<tr><td colspan="7"><div class="dg-empty"><i class="bi bi-inbox"></i>暂无检测记录</div></td></tr>`;
+                return;
+            }
+            body.innerHTML = history.map(m => {
+                // Fix status: show ERROR when there are failed checks
+                const displayStatus = this.getDisplayStatus(m.status, m.checkItems);
+                const status = this.getStatusInfo(displayStatus);
+                const failedItems = this.getFailedCheckItems(m.checkItems);
+
+                // Build anomaly details cell
+                let anomalyCell;
+                if (failedItems.length === 0) {
+                    anomalyCell = '<span class="dg-anomaly-pass"><i class="bi bi-check-circle-fill"></i> 全部通过</span>';
+                } else {
+                    anomalyCell = `<div class="dg-anomaly-list">` +
+                        failedItems.map(i =>
+                            `<div class="dg-anomaly-item">• <strong>${StockApp.escapeHtml(i.displayName || i.name)}</strong>${i.message ? ': ' + StockApp.escapeHtml(i.message) : ''}</div>`
+                        ).join('') +
+                        `</div>`;
+                }
+
+                const delta = m.rowDeltaPct != null
+                    ? (m.rowDeltaPct > 0 ? '+' : '') + m.rowDeltaPct + '%'
+                    : '-';
+                const deltaClass = m.rowDeltaPct != null
+                    ? (m.rowDeltaPct >= 0 ? 'rise' : 'fall')
+                    : 'text-muted';
+                return `
+                    <tr>
+                        <td><small class="font-mono">${m.checkTime || '-'}</small></td>
+                        <td>${m.checkType === 'MANUAL' ? '<span class="dg-badge manual">手动</span>' : '<span class="dg-badge auto">定时</span>'}</td>
+                        <td><span class="dg-status ${status.cls}"><span class="dot"></span>${status.label}</span></td>
+                        <td class="dg-anomaly-cell">${anomalyCell}</td>
+                        <td class="text-end font-mono">${this.formatCount(m.totalRows)}</td>
+                        <td class="font-mono">${this.formatDate(m.latestDate) || '-'}</td>
+                        <td class="text-end font-mono ${deltaClass}">${delta}</td>
+                    </tr>`;
+            }).join('');
+        });
+    },
+
+    // ==================== Detail Modal (basic info + latest check results) ====================
 
     openDetail(tableCode) {
-        document.getElementById('detailDrawerTitle').textContent = '表详情';
-        const bsOffcanvas = new bootstrap.Offcanvas(document.getElementById('detailDrawer'));
-        bsOffcanvas.show();
+        document.getElementById('detailModalTitle').textContent = '表详情';
+        const modal = new bootstrap.Modal(document.getElementById('detailModal'));
+        modal.show();
 
         document.getElementById('detailInfoBody').innerHTML = '<div class="text-center text-muted py-3"><div class="spinner-border spinner-border-sm"></div></div>';
-        document.getElementById('detailCheckBody').innerHTML = '<div class="text-center text-muted py-3"><div class="spinner-border spinner-border-sm"></div></div>';
-        document.getElementById('detailHistoryBody').innerHTML = '<div class="text-center text-muted py-3"><div class="spinner-border spinner-border-sm"></div></div>';
+        document.getElementById('detailCheckBody').innerHTML = '';
 
         StockApp.get(this.apiBase + '/tables/' + tableCode, null, (resp) => {
             if (resp.code !== 200) {
@@ -142,26 +410,20 @@ const DG = {
                 return;
             }
             const d = resp.data || {};
-            document.getElementById('detailDrawerTitle').textContent = d.tableName || tableCode;
+            document.getElementById('detailModalTitle').textContent = d.tableName || tableCode;
             this.renderDetailInfo(d);
             this.renderDetailCheck(d.checkItems || []);
-        });
-
-        StockApp.get(this.apiBase + '/tables/' + tableCode + '/pull-history', null, (resp) => {
-            if (resp.code !== 200) {
-                document.getElementById('detailHistoryBody').innerHTML = '<p class="text-danger">' + StockApp.escapeHtml(resp.message) + '</p>';
-                return;
-            }
-            this.renderPullHistory(resp.data || []);
         });
     },
 
     renderDetailInfo(d) {
-        const status = this.getStatusInfo(d.status);
+        const displayStatus = this.getDisplayStatus(d.status, d.checkItems);
+        const status = this.getStatusInfo(displayStatus);
+        const groupMeta = this.getGroupMeta(d.tableGroup);
         const rows = [
             ['表代码', d.tableCode],
             ['表名称', d.tableName],
-            ['分组', this.getGroupLabel(d.tableGroup)],
+            ['分组', `<span class="dg-grp-tag" style="--grp-c: ${groupMeta.color};">${groupMeta.label}</span>`],
             ['Tushare 接口', d.tushareApi || '-'],
             ['数据总量', this.formatCount(d.totalRows) + ' 行'],
             ['最新数据日期', this.formatDate(d.latestDate) || '-'],
@@ -170,67 +432,35 @@ const DG = {
             ['预期更新时间', d.expectedUpdateTime || '-'],
             ['是否日频', d.isDaily ? '是' : '否'],
             ['最后检测时间', d.lastCheckTime || '-'],
-            ['当前状态', `<span class="badge ${status.badgeClass}">${status.label}</span>`],
+            ['当前状态', `<span class="dg-badge ${status.cls}">${status.label}</span>`],
         ];
         document.getElementById('detailInfoBody').innerHTML = `
-            <table class="table table-sm table-borderless">
-                <tbody>
-                    ${rows.map(r => `<tr><td class="text-muted" style="width:130px;">${r[0]}</td><td>${r[1] ?? '-'}</td></tr>`).join('')}
-                </tbody>
-            </table>`;
+            <ul class="dg-detail-list two-col">
+                ${rows.map(r => `<li><span class="dl-label">${r[0]}</span><span class="dl-value">${r[1] ?? '-'}</span></li>`).join('')}
+            </ul>`;
     },
 
     renderDetailCheck(items) {
         const body = document.getElementById('detailCheckBody');
         if (!items || !items.length) {
-            body.innerHTML = '<p class="text-muted text-center py-3">暂无检测结果</p>';
+            body.innerHTML = `<div class="dg-empty"><i class="bi bi-clipboard-check"></i>暂无检测结果</div>`;
             return;
         }
         body.innerHTML = items.map(item => {
-            const icon = item.passed
-                ? '<i class="bi bi-check-circle-fill text-success"></i>'
-                : `<i class="bi bi-x-circle-fill ${item.level === 'ERROR' ? 'text-danger' : 'text-warning'}"></i>`;
+            const iconClass = item.passed ? 'pass' : (item.level === 'ERROR' ? 'fail' : 'warn');
+            const icon = item.passed ? 'bi-check' : 'bi-x';
             const detail = item.message
-                ? `<div class="small text-muted mt-1 ps-3">${StockApp.escapeHtml(item.message)}</div>`
+                ? `<div class="dg-check-msg">${StockApp.escapeHtml(item.message)}</div>`
                 : '';
             return `
-                <div class="d-flex align-items-start mb-2 pb-2 border-bottom">
-                    <div class="me-2">${icon}</div>
+                <div class="dg-check-item">
+                    <div class="dg-check-icon ${iconClass}"><i class="bi ${icon}"></i></div>
                     <div class="flex-grow-1">
-                        <div class="fw-medium">${StockApp.escapeHtml(item.displayName || item.name)}</div>
+                        <div class="dg-check-name">${StockApp.escapeHtml(item.displayName || item.name)}</div>
                         ${detail}
                     </div>
                 </div>`;
         }).join('');
-    },
-
-    renderPullHistory(logs) {
-        const body = document.getElementById('detailHistoryBody');
-        if (!logs || !logs.length) {
-            body.innerHTML = '<p class="text-muted text-center py-3">暂无更新历史</p>';
-            return;
-        }
-        body.innerHTML = `
-            <div class="list-group">
-                ${logs.map(log => {
-                    const statusBadge = log.status === 'SUCCESS'
-                        ? '<span class="badge bg-success">成功</span>'
-                        : log.status === 'FAILED'
-                        ? '<span class="badge bg-danger">失败</span>'
-                        : '<span class="badge bg-info">运行中</span>';
-                    return `
-                        <div class="list-group-item list-group-item-action py-2" style="cursor:pointer;" onclick="DG.showLogDetail(${log.id})">
-                            <div class="d-flex justify-content-between align-items-center">
-                                <span class="small">${StockApp.escapeHtml(log.operationType || '-')}</span>
-                                ${statusBadge}
-                            </div>
-                            <div class="small text-muted">
-                                ${log.startTime || '-'} ~ ${log.endTime || '-'}
-                                ${log.failCount > 0 ? ` · <span class="text-danger">失败 ${log.failCount}</span>` : ''}
-                            </div>
-                        </div>`;
-                }).join('')}
-            </div>`;
     },
 
     // ==================== Incremental Update ====================
@@ -260,7 +490,6 @@ const DG = {
         const modal = new bootstrap.Modal(document.getElementById('rebuildModal'));
         modal.show();
 
-        // 10s countdown
         clearInterval(this.rebuildCountdownTimer);
         let count = 10;
         this.rebuildCountdownTimer = setInterval(() => {
@@ -316,9 +545,8 @@ const DG = {
                 StockApp.toast(resp.message || '检测失败', 'danger');
                 return;
             }
-            StockApp.toast('全量检测完成，批次: ' + (resp.data?.batchId || ''), 'success');
-            this.refreshOverview();
-            this.loadTables();
+            StockApp.toast('全量检测已启动', 'success');
+            this.startProgressPolling(resp.data.taskId, 'MANUAL_CHECK_ALL', 'ALL');
         });
     },
 
@@ -329,7 +557,7 @@ const DG = {
         this.pollStartTime = Date.now();
         const tableInfo = this.tableListCache.find(t => t.tableCode === tableCode);
         document.getElementById('progressTableBadge').textContent = tableInfo?.tableName || tableCode;
-        document.getElementById('progressOpBadge').textContent = operationType || '-';
+        document.getElementById('progressOpBadge').textContent = this.getOperationTypeLabel(operationType);
         document.getElementById('progressBar').style.width = '0%';
         document.getElementById('progressBar').textContent = '0%';
         document.getElementById('progressStep').textContent = '准备中...';
@@ -369,8 +597,7 @@ const DG = {
             } else if (pct >= 100) {
                 clearInterval(this.pollTimer);
                 StockApp.toast('任务完成', 'success');
-                this.refreshOverview();
-                this.loadTables();
+                this.refreshAll();
             }
         });
     },
@@ -390,87 +617,7 @@ const DG = {
         clearInterval(this.pollTimer);
     },
 
-    // ==================== Pull Logs ====================
-
-    loadLogs(page) {
-        this.logPage = page;
-        const params = {
-            tableCode: document.getElementById('logFilterTable').value,
-            status: document.getElementById('logFilterStatus').value,
-            operationType: document.getElementById('logFilterOpType').value,
-            startDate: this.toDateStr(document.getElementById('logFilterStart').value),
-            endDate: this.toDateStr(document.getElementById('logFilterEnd').value),
-            page: page,
-            size: this.logPageSize,
-        };
-        StockApp.get(this.apiBase + '/logs', params, (resp) => {
-            if (resp.code !== 200) {
-                StockApp.toast(resp.message || '加载日志失败', 'danger');
-                return;
-            }
-            this.renderLogTable(resp.data || {});
-        });
-    },
-
-    renderLogTable(data) {
-        const tbody = document.getElementById('logTableBody');
-        const records = data.records || [];
-        if (!records.length) {
-            tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4">无日志记录</td></tr>';
-        } else {
-            tbody.innerHTML = records.map(log => {
-                const statusBadge = log.status === 'SUCCESS'
-                    ? '<span class="badge bg-success">成功</span>'
-                    : log.status === 'FAILED'
-                    ? '<span class="badge bg-danger">失败</span>'
-                    : '<span class="badge bg-info">运行中</span>';
-                const duration = log.durationMs != null
-                    ? (log.durationMs >= 1000 ? (log.durationMs / 1000).toFixed(1) + 's' : log.durationMs + 'ms')
-                    : '-';
-                const counts = `${log.successCount ?? 0} / ${log.failCount ?? 0}`;
-                return `
-                    <tr style="cursor:pointer;" onclick="DG.showLogDetail(${log.id})">
-                        <td>${StockApp.escapeHtml(log.tableName || log.tableCode || '-')}</td>
-                        <td><small>${StockApp.escapeHtml(log.operationType || '-')}</small></td>
-                        <td>${statusBadge}</td>
-                        <td><small>${log.startTime || '-'}</small></td>
-                        <td><small>${duration}</small></td>
-                        <td><small>${counts}</small></td>
-                        <td><small>${StockApp.escapeHtml(log.operator || '-')}</small></td>
-                        <td class="text-center"><i class="bi bi-chevron-right text-muted"></i></td>
-                    </tr>`;
-            }).join('');
-        }
-
-        const total = data.total || 0;
-        const totalPages = Math.ceil(total / this.logPageSize);
-        document.getElementById('logPageInfo').textContent = `共 ${total} 条`;
-        this.renderLogPagination(totalPages, data.page || 1);
-    },
-
-    renderLogPagination(totalPages, current) {
-        const ul = document.getElementById('logPagination');
-        if (totalPages <= 1) {
-            ul.innerHTML = '';
-            return;
-        }
-        let html = `<li class="page-item ${current <= 1 ? 'disabled' : ''}">
-            <a class="page-link" href="#" onclick="DG.loadLogs(${current - 1});return false;">上一页</a>
-        </li>`;
-        for (let i = 1; i <= totalPages; i++) {
-            if (i === 1 || i === totalPages || Math.abs(i - current) <= 2) {
-                html += `<li class="page-item ${i === current ? 'active' : ''}">
-                    <a class="page-link" href="#" onclick="DG.loadLogs(${i});return false;">${i}</a>
-                </li>`;
-            } else if (Math.abs(i - current) === 3) {
-                html += '<li class="page-item disabled"><span class="page-link">...</span></li>';
-            }
-        }
-        html += `<li class="page-item ${current >= totalPages ? 'disabled' : ''}">
-            <a class="page-link" href="#" onclick="DG.loadLogs(${current + 1});return false;">下一页</a>
-        </li>`;
-        ul.innerHTML = html;
-    },
+    // ==================== Log Detail ====================
 
     showLogDetail(logId) {
         StockApp.get(this.apiBase + '/logs/' + logId, null, (resp) => {
@@ -479,14 +626,10 @@ const DG = {
                 return;
             }
             const log = resp.data || {};
-            const statusBadge = log.status === 'SUCCESS'
-                ? '<span class="badge bg-success">成功</span>'
-                : log.status === 'FAILED'
-                ? '<span class="badge bg-danger">失败</span>'
-                : '<span class="badge bg-info">运行中</span>';
+            const statusBadge = this.getLogStatusBadge(log.status);
             const rows = [
                 ['数据表', log.tableName || log.tableCode],
-                ['操作类型', log.operationType],
+                ['操作类型', this.getOperationTypeLabel(log.operationType)],
                 ['状态', statusBadge],
                 ['开始时间', log.startTime || '-'],
                 ['结束时间', log.endTime || '-'],
@@ -497,99 +640,89 @@ const DG = {
                 ['操作人', log.operator || '-'],
                 ['任务ID', log.taskId || '-'],
             ];
-            let html = `<table class="table table-sm table-borderless">
-                <tbody>${rows.map(r => `<tr><td class="text-muted" style="width:100px;">${r[0]}</td><td>${r[1] ?? '-'}</td></tr>`).join('')}</tbody>
-            </table>`;
+            let html = `<ul class="dg-detail-list">
+                ${rows.map(r => `<li><span class="dl-label">${r[0]}</span><span class="dl-value">${r[1] ?? '-'}</span></li>`).join('')}
+            </ul>`;
             if (log.errorMessage) {
-                html += `<div class="alert alert-danger"><strong>错误信息：</strong>${StockApp.escapeHtml(log.errorMessage)}</div>`;
+                html += `<div class="alert alert-danger mt-3"><strong>错误信息：</strong>${StockApp.escapeHtml(log.errorMessage)}</div>`;
             }
             if (this.isAdmin && log.errorStack) {
-                html += `<div class="mt-2"><details><summary class="small text-muted">错误堆栈 (仅管理员可见)</summary><pre class="small mt-1 p-2 bg-light rounded" style="max-height:300px;overflow:auto;">${StockApp.escapeHtml(log.errorStack)}</pre></details></div>`;
+                html += `<div class="mt-2"><details><summary class="small text-muted">错误堆栈 (仅管理员可见)</summary><pre class="small mt-1 p-2 rounded font-mono" style="background:var(--bg-tertiary);max-height:300px;overflow:auto;">${StockApp.escapeHtml(log.errorStack)}</pre></details></div>`;
             }
             document.getElementById('logDetailBody').innerHTML = html;
             new bootstrap.Modal(document.getElementById('logDetailModal')).show();
         });
     },
 
-    populateLogTableDropdown(list) {
-        const sel = document.getElementById('logFilterTable');
-        const current = sel.value;
-        const options = list.map(t =>
-            `<option value="${t.tableCode}">${StockApp.escapeHtml(t.tableName)}</option>`
-        ).join('');
-        sel.innerHTML = '<option value="">全部</option>' + options;
-        sel.value = current;
-    },
-
-    // ==================== Datasource ====================
-
-    loadDatasource() {
-        StockApp.get(this.apiBase + '/datasource', null, (resp) => {
-            const body = document.getElementById('datasourceBody');
-            if (resp.code !== 200) {
-                body.innerHTML = '<p class="text-danger">' + StockApp.escapeHtml(resp.message) + '</p>';
-                return;
-            }
-            const d = resp.data || {};
-            const ok = d.lastTestOk;
-            const statusBadge = d.status === 'ACTIVE'
-                ? '<span class="badge bg-success">活跃</span>'
-                : d.status === 'INACTIVE'
-                ? '<span class="badge bg-danger">不可用</span>'
-                : '<span class="badge bg-secondary">未知</span>';
-            const testBtn = this.isAdmin
-                ? `<button class="btn btn-primary btn-sm mt-2" onclick="DG.testDatasource()"><i class="bi bi-lightning"></i> 重新测试</button>`
-                : '';
-            body.innerHTML = `
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <div>
-                        <h6 class="mb-0">${StockApp.escapeHtml(d.sourceName || '-')}</h6>
-                        <small class="text-muted mono">${d.sourceCode || '-'}</small>
-                    </div>
-                    ${statusBadge}
-                </div>
-                <table class="table table-sm table-borderless">
-                    <tbody>
-                        <tr><td class="text-muted" style="width:120px;">连通状态</td><td>${ok ? '<span class="text-success"><i class="bi bi-check-circle-fill"></i> 正常</span>' : '<span class="text-danger"><i class="bi bi-x-circle-fill"></i> 异常</span>'}</td></tr>
-                        <tr><td class="text-muted">最后测试</td><td>${d.lastTestTime || '-'}</td></tr>
-                        <tr><td class="text-muted">响应时间</td><td>${d.responseTimeMs > 0 ? d.responseTimeMs + 'ms' : '-'}</td></tr>
-                        <tr><td class="text-muted">测试接口</td><td>${StockApp.escapeHtml(d.testInterface || '-')}</td></tr>
-                    </tbody>
-                </table>
-                ${testBtn}`;
-        });
-    },
-
-    testDatasource() {
-        StockApp.post(this.apiBase + '/datasource/test', null, (resp) => {
-            if (resp.code !== 200) {
-                StockApp.toast(resp.message || '测试失败', 'danger');
-                return;
-            }
-            const d = resp.data || {};
-            StockApp.toast(d.lastTestOk ? '数据源连通正常 (' + d.responseTimeMs + 'ms)' : '数据源连通失败', d.lastTestOk ? 'success' : 'danger');
-            this.loadDatasource();
-        });
-    },
-
     // ==================== Utilities ====================
+
+    /**
+     * Parse checkItems from a JSON string (backend stores it as JSON in DataGovernanceMetricDO).
+     * If already an array (e.g. from TableStatusVO/TableDetailVO), returns as-is.
+     */
+    parseCheckItems(checkItems) {
+        if (!checkItems) return [];
+        if (Array.isArray(checkItems)) return checkItems;
+        try {
+            return JSON.parse(checkItems);
+        } catch (e) {
+            return [];
+        }
+    },
+
+    /**
+     * Extract failed (not passed) check items from a checkItems list.
+     */
+    getFailedCheckItems(checkItems) {
+        return this.parseCheckItems(checkItems).filter(i => !i.passed);
+    },
+
+    /**
+     * Compute the display status based on backend status and check items.
+     * Backend only sets ERROR for ERROR-level failures; WARN-level failures
+     * leave status as NORMAL, which is misleading. This ensures any failed
+     * check item shows as ERROR in the UI.
+     */
+    getDisplayStatus(status, checkItems) {
+        if (status === 'UPDATING') return status;
+        const failed = this.getFailedCheckItems(checkItems);
+        if (failed.length > 0) return 'ERROR';
+        return status;
+    },
+
+    /**
+     * 操作类型枚举值 -> 中文名称映射。
+     */
+    getOperationTypeLabel(operationType) {
+        const map = {
+            MANUAL_INCREMENTAL: '手动增量更新',
+            MANUAL_FULL:        '手动全量重建',
+            MANUAL_CHECK_ALL:   '手动全量检测',
+        };
+        return map[operationType] || operationType || '-';
+    },
 
     getStatusInfo(status) {
         const map = {
-            NORMAL: { badgeClass: 'bg-success', label: '正常' },
-            DELAYED: { badgeClass: 'bg-warning', label: '延迟' },
-            ERROR: { badgeClass: 'bg-danger', label: '异常' },
-            UPDATING: { badgeClass: 'bg-info', label: '更新中' },
+            NORMAL:   { cls: 'normal',   label: '正常' },
+            DELAYED:  { cls: 'delayed',  label: '延迟' },
+            ERROR:    { cls: 'error',    label: '异常' },
+            UPDATING: { cls: 'updating', label: '更新中' },
         };
-        return map[status] || { badgeClass: 'bg-secondary', label: status || '未知' };
+        return map[status] || { cls: 'auto', label: status || '未知' };
     },
 
-    getGroupLabel(group) {
+    getGroupMeta(group) {
+        return this.GROUP_META[group] || { label: group || '-', color: 'var(--text-muted)' };
+    },
+
+    getLogStatusBadge(status) {
         const map = {
-            BASIC: '基础数据', MARKET: '行情数据', FINANCE: '财务数据',
-            EVENT: '事件数据', INDEX: '指数与市场',
+            SUCCESS: '<span class="dg-badge success">成功</span>',
+            FAILED:  '<span class="dg-badge failed">失败</span>',
+            RUNNING: '<span class="dg-badge running">运行中</span>',
         };
-        return map[group] || group || '-';
+        return map[status] || `<span class="dg-badge auto">${status || '-'}</span>`;
     },
 
     formatDate(dateStr) {
@@ -598,11 +731,6 @@ const DG = {
             return dateStr.substring(0, 4) + '-' + dateStr.substring(4, 6) + '-' + dateStr.substring(6, 8);
         }
         return dateStr;
-    },
-
-    toDateStr(dateInput) {
-        if (!dateInput) return '';
-        return dateInput.replace(/-/g, '');
     },
 
     formatCount(num) {
@@ -614,16 +742,8 @@ const DG = {
     },
 };
 
-// ==================== Tab Switch Lazy Loading ====================
-document.getElementById('tab-logs').addEventListener('shown.bs.tab', () => {
-    if (document.getElementById('logTableBody').textContent.includes('请点击搜索')) {
-        DG.loadLogs(1);
-    }
-});
-document.getElementById('tab-datasource').addEventListener('shown.bs.tab', () => {
-    DG.loadDatasource();
-});
-
 // ==================== Init ====================
-DG.refreshOverview();
-DG.loadTables();
+DG.refreshAll();
+
+// Clean up polling when page unloads
+window.addEventListener('beforeunload', () => DG.stopDatasourcePolling());

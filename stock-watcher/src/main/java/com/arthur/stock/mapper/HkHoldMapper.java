@@ -61,4 +61,16 @@ public interface HkHoldMapper extends BaseMapper<HkHoldDO> {
      * @return 最新交易日 yyyyMMdd；表为空时返回 null
      */
     String selectLatestTradeDate();
+
+    // ==================== 数据管控检查 ====================
+
+    /**
+     * 统计最近30天 vol < 0 的记录数。
+     */
+    int countInvalidVol(@Param("startDate") String startDate);
+
+    /**
+     * 统计最近30天 ratio < 0 OR ratio > 30 的记录数。
+     */
+    int countInvalidRatio(@Param("startDate") String startDate);
 }

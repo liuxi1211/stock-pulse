@@ -168,4 +168,10 @@ public interface DailyQuoteMapper extends BaseMapper<DailyQuoteDO> {
      * 统计指定交易日的 distinct ts_code 数量
      */
     int countDistinctStocksOnDate(@Param("tradeDate") String tradeDate);
+
+    /**
+     * 一次性查出所有股票的最新交易日期（ts_code -&gt; latest_trade_date）。
+     * 用于增量更新前预加载，避免逐只股票 N+1 查询。
+     */
+    List<Map<String, Object>> selectLatestDatePerStock();
 }

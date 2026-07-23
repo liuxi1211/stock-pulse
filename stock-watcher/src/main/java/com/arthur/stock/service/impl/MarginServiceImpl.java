@@ -1,12 +1,17 @@
 package com.arthur.stock.service.impl;
 
 import com.arthur.stock.client.TushareClient;
+import com.arthur.stock.constant.InitStep;
+import com.arthur.stock.dto.governance.CheckLevel;
+import com.arthur.stock.dto.governance.DataCheckItem;
+import com.arthur.stock.dto.governance.DataCheckResult;
 import com.arthur.stock.dto.tushare.MarginDTO;
 import com.arthur.stock.dto.tushare.MarginDetailDTO;
 import com.arthur.stock.mapper.MarginDetailMapper;
 import com.arthur.stock.mapper.MarginMapper;
 import com.arthur.stock.model.MarginDO;
 import com.arthur.stock.model.MarginDetailDO;
+import com.arthur.stock.service.DataCheckable;
 import com.arthur.stock.service.MarginService;
 import com.google.common.collect.Lists;
 import lombok.RequiredArgsConstructor;
@@ -16,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
@@ -30,7 +36,7 @@ import java.util.stream.Collectors;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class MarginServiceImpl implements MarginService {
+public class MarginServiceImpl implements MarginService, DataCheckable {
 
     private static final int BATCH_SIZE = 500;
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("yyyyMMdd");
@@ -197,5 +203,114 @@ public class MarginServiceImpl implements MarginService {
                 .rqmcl(dto.getRqmcl())
                 .rzrqye(dto.getRzrqye())
                 .build();
+    }
+
+    // ==================== DataCheckable ====================
+
+    @Override
+    public String getTableCode() {
+        return InitStep.MARGIN.getCode();
+    }
+
+    @Override
+    public DataCheckResult checkData() {
+        List<DataCheckItem> items = new ArrayList<>();
+        try {
+            long totalRows = marginMapper.selectCount(null);
+            String latestDate = marginMapper.selectLatestTradeDate();
+            LocalDate today = LocalDate.now();
+            String todayStr = today.format(DATE_FMT);
+
+            // Check 1: Freshness (ERROR) - max(trade_date) < 上一交易日
+            boolean freshnessPassed;
+            String freshnessMsg;
+            if (totalRows == 0 || latestDate == null) {
+                freshnessPassed = true;
+                freshnessMsg = "表为空，跳过检测";
+            } else {
+                String yesterday = today.minusDays(1).format(DATE_FMT);
+                freshnessPassed = latestDate.compareTo(yesterday) >= 0;
+                freshnessMsg = freshnessPassed ? "通过，最新数据 " + latestDate
+                        : "最新交易日为 " + latestDate + "，疑似延迟";
+            }
+            items.add(DataCheckItem.builder()
+                    .name("freshness")
+                    .displayName("新鲜度检测")
+                    .passed(freshnessPassed)
+                    .level(CheckLevel.ERROR)
+                    .message(freshnessMsg)
+                    .build());
+
+            if (totalRows == 0) {
+                // 空表，剩余检测项跳过
+                items.add(DataCheckItem.builder()
+                        .name("exchange_coverage")
+                        .displayName("交易所覆盖检测")
+                        .passed(true)
+                        .level(CheckLevel.ERROR)
+                        .message("表为空，跳过检测")
+                        .build());
+                items.add(DataCheckItem.builder()
+                        .name("balance_validity")
+                        .displayName("余额有效性检测")
+                        .passed(true)
+                        .level(CheckLevel.ERROR)
+                        .message("表为空，跳过检测")
+                        .build());
+            } else {
+                String sevenDaysAgo = today.minusDays(7).format(DATE_FMT);
+                String thirtyDaysAgo = today.minusDays(30).format(DATE_FMT);
+
+                // Check 2: 交易所覆盖（ERROR）
+                List<String> recentExchanges = marginMapper.selectRecentExchanges(sevenDaysAgo);
+                boolean exchangePassed = recentExchanges != null
+                        && recentExchanges.contains("SSE")
+                        && recentExchanges.contains("SZSE");
+                items.add(DataCheckItem.builder()
+                        .name("exchange_coverage")
+                        .displayName("交易所覆盖检测")
+                        .passed(exchangePassed)
+                        .level(CheckLevel.ERROR)
+                        .message(exchangePassed ? "通过，SSE/SZSE 均有数据"
+                                : "最近 7 天有数据的交易所：" + String.join(", ", recentExchanges))
+                        .build());
+
+                // Check 3: 余额有效性（ERROR）
+                int invalidBalance = marginMapper.countInvalidBalance(thirtyDaysAgo);
+                boolean balancePassed = invalidBalance == 0;
+                items.add(DataCheckItem.builder()
+                        .name("balance_validity")
+                        .displayName("余额有效性检测")
+                        .passed(balancePassed)
+                        .level(CheckLevel.ERROR)
+                        .message(balancePassed ? "通过，最近 30 天无异常"
+                                : "最近 30 天余额异常记录 " + invalidBalance + " 条")
+                        .build());
+            }
+
+            return DataCheckResult.builder()
+                    .tableCode(getTableCode())
+                    .tableName(InitStep.MARGIN.getLabel())
+                    .totalRows(totalRows)
+                    .latestDate(latestDate)
+                    .items(items)
+                    .build();
+        } catch (Exception e) {
+            log.error("checkData error for margin", e);
+            items.add(DataCheckItem.builder()
+                    .name("error")
+                    .displayName("检测执行异常")
+                    .passed(false)
+                    .level(CheckLevel.ERROR)
+                    .message("检测执行异常: " + e.getMessage())
+                    .build());
+            return DataCheckResult.builder()
+                    .tableCode(getTableCode())
+                    .tableName(InitStep.MARGIN.getLabel())
+                    .totalRows(0)
+                    .latestDate(null)
+                    .items(items)
+                    .build();
+        }
     }
 }

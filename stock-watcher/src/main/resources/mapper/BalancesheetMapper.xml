@@ -127,4 +127,27 @@
         LIMIT 1
     </select>
 
+    <!-- ==================== 数据管控检查 ==================== -->
+
+    <select id="selectMaxAnnDate" resultType="string">
+        SELECT MAX(ann_date) FROM balancesheet
+    </select>
+
+    <select id="selectMaxEndDate" resultType="string">
+        SELECT MAX(end_date) FROM balancesheet
+    </select>
+
+    <select id="countInvalidTotalAssets" resultType="int">
+        SELECT COUNT(*) FROM balancesheet
+        WHERE end_date = #{endDate}
+        AND (total_assets IS NULL OR total_assets &lt;= 0)
+    </select>
+
+    <select id="countAccountingIdentityErrors" resultType="int">
+        SELECT COUNT(*) FROM balancesheet
+        WHERE end_date &gt;= #{startDate}
+        AND total_assets &gt; 0
+        AND ABS(total_liab + total_equity - total_liab_equity) / total_assets &gt; 0.01
+    </select>
+
 </mapper>

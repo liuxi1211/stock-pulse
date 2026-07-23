@@ -215,27 +215,45 @@ public class IncomeServiceImpl implements IncomeService, DataCheckable {
                     .build());
 
             // Check 3: Net income > revenue * 10 (WARN)
-            String nineMonthsAgo = today.minusMonths(9).format(DATE_FMT);
-            int exceedsCount = incomeMapper.countNetIncomeExceedsRevenue(nineMonthsAgo);
+            boolean niPassed;
+            String niMsg;
+            if (totalRows == 0 || maxEndDate == null || maxEndDate.isEmpty()) {
+                niPassed = true;
+                niMsg = "无数据，跳过检测";
+            } else {
+                String nineMonthsAgo = today.minusMonths(9).format(DATE_FMT);
+                int exceedsCount = incomeMapper.countNetIncomeExceedsRevenue(nineMonthsAgo);
+                niPassed = exceedsCount == 0;
+                niMsg = niPassed ? "通过，近 3 季度无净利润超营收 10 倍异常"
+                        : "近 3 季度有 " + exceedsCount + " 条净利润超过营收 10 倍";
+            }
             items.add(DataCheckItem.builder()
                     .name("net_income_anomaly")
                     .displayName("净利润异常检测")
-                    .passed(exceedsCount == 0)
+                    .passed(niPassed)
                     .level(CheckLevel.WARN)
-                    .message(exceedsCount == 0 ? "通过，近 3 季度无净利润超营收 10 倍异常"
-                            : "近 3 季度有 " + exceedsCount + " 条净利润超过营收 10 倍")
+                    .message(niMsg)
                     .build());
 
             // Check 4: Listed > 1 year but no income data (WARN)
-            String oneYearAgo = today.minusYears(1).format(DATE_FMT);
-            int noIncomeCount = incomeMapper.countListedOverYearNoIncome(oneYearAgo);
+            boolean missingPassed;
+            String missingMsg;
+            if (totalRows == 0) {
+                missingPassed = true;
+                missingMsg = "无数据，跳过检测";
+            } else {
+                String oneYearAgo = today.minusYears(1).format(DATE_FMT);
+                int noIncomeCount = incomeMapper.countListedOverYearNoIncome(oneYearAgo);
+                missingPassed = noIncomeCount == 0;
+                missingMsg = missingPassed ? "通过，上市超 1 年股票均有利润表数据"
+                        : "上市超 1 年但无利润表数据的股票 " + noIncomeCount + " 只";
+            }
             items.add(DataCheckItem.builder()
                     .name("missing_income_data")
                     .displayName("缺失利润表检测")
-                    .passed(noIncomeCount == 0)
+                    .passed(missingPassed)
                     .level(CheckLevel.WARN)
-                    .message(noIncomeCount == 0 ? "通过，上市超 1 年股票均有利润表数据"
-                            : "上市超 1 年但无利润表数据的股票 " + noIncomeCount + " 只")
+                    .message(missingMsg)
                     .build());
 
             return DataCheckResult.builder()

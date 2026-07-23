@@ -1,11 +1,16 @@
 package com.arthur.stock.service.impl;
 
 import com.arthur.stock.client.TushareClient;
+import com.arthur.stock.constant.InitStep;
+import com.arthur.stock.dto.governance.CheckLevel;
+import com.arthur.stock.dto.governance.DataCheckItem;
+import com.arthur.stock.dto.governance.DataCheckResult;
 import com.arthur.stock.dto.tushare.AdjFactorDTO;
 import com.arthur.stock.dto.tushare.AdjFactorQueryDTO;
 import com.arthur.stock.mapper.AdjFactorMapper;
 import com.arthur.stock.model.AdjFactorDO;
 import com.arthur.stock.service.AdjFactorService;
+import com.arthur.stock.service.DataCheckable;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -24,7 +29,7 @@ import java.util.stream.Collectors;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class AdjFactorServiceImpl implements AdjFactorService {
+public class AdjFactorServiceImpl implements AdjFactorService, DataCheckable {
 
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("yyyyMMdd");
     private static final int BATCH_SIZE = 500;
@@ -53,7 +58,15 @@ public class AdjFactorServiceImpl implements AdjFactorService {
     @Override
     public List<AdjFactorDTO> fetchAndSaveAdjFactor(String tsCode) {
         String lastDate = getLastTradeDate(tsCode);
+        return doFetchAndSaveAdjFactor(tsCode, lastDate);
+    }
 
+    @Override
+    public List<AdjFactorDTO> fetchAndSaveAdjFactor(String tsCode, String knownLastDate) {
+        return doFetchAndSaveAdjFactor(tsCode, knownLastDate);
+    }
+
+    private List<AdjFactorDTO> doFetchAndSaveAdjFactor(String tsCode, String lastDate) {
         String startDate;
         if (lastDate != null) {
             LocalDate ld = LocalDate.parse(lastDate, DATE_FMT);
@@ -153,5 +166,95 @@ public class AdjFactorServiceImpl implements AdjFactorService {
             adjFactorMapper.deleteBatchByKeys(batch);
             adjFactorMapper.insertBatch(batch);
         });
+    }
+
+    // ==================== DataCheckable ====================
+
+    @Override
+    public String getTableCode() {
+        return InitStep.ADJ_FACTOR.getCode();
+    }
+
+    @Override
+    public DataCheckResult checkData() {
+        List<DataCheckItem> items = new ArrayList<>();
+        try {
+            long totalRows = adjFactorMapper.selectCount(null);
+            String latestDate = adjFactorMapper.selectLatestTradeDate();
+            LocalDate today = LocalDate.now();
+            String todayStr = today.format(DATE_FMT);
+
+            boolean isWeekday = today.getDayOfWeek().getValue() <= 5;
+            boolean freshnessPassed = !isWeekday || (latestDate != null && latestDate.compareTo(todayStr) >= 0);
+            items.add(DataCheckItem.builder()
+                    .name("freshness")
+                    .displayName("新鲜度检测")
+                    .passed(freshnessPassed)
+                    .level(CheckLevel.ERROR)
+                    .message(freshnessPassed ? "通过，最新数据 " + latestDate : "最新交易日为 " + latestDate + "，疑似延迟")
+                    .build());
+
+            String thirtyDaysAgo = today.minusDays(30).format(DATE_FMT);
+            boolean factorPassed;
+            String factorMsg;
+            if (totalRows == 0) {
+                factorPassed = true;
+                factorMsg = "表为空，跳过检测";
+            } else {
+                int invalidCount = adjFactorMapper.countInvalidFactor(thirtyDaysAgo);
+                factorPassed = invalidCount == 0;
+                factorMsg = factorPassed ? "通过，最近 30 天复权因子正常" : "最近 30 天异常复权因子 " + invalidCount + " 条";
+            }
+            items.add(DataCheckItem.builder()
+                    .name("factor_validity")
+                    .displayName("复权因子有效性检测")
+                    .passed(factorPassed)
+                    .level(CheckLevel.ERROR)
+                    .message(factorMsg)
+                    .build());
+
+            String sevenDaysAgo = today.minusDays(7).format(DATE_FMT);
+            boolean coveragePassed;
+            String coverageMsg;
+            if (totalRows == 0) {
+                coveragePassed = true;
+                coverageMsg = "表为空，跳过检测";
+            } else {
+                int missingCount = adjFactorMapper.countMissingInAdjFactor(sevenDaysAgo);
+                coveragePassed = missingCount == 0;
+                coverageMsg = coveragePassed ? "通过，最近 7 天行情覆盖完整" : "最近 7 天缺失复权因子的股票 " + missingCount + " 只";
+            }
+            items.add(DataCheckItem.builder()
+                    .name("quote_coverage")
+                    .displayName("行情覆盖一致性检测")
+                    .passed(coveragePassed)
+                    .level(CheckLevel.WARN)
+                    .message(coverageMsg)
+                    .build());
+
+            return DataCheckResult.builder()
+                    .tableCode(getTableCode())
+                    .tableName(InitStep.ADJ_FACTOR.getLabel())
+                    .totalRows(totalRows)
+                    .latestDate(latestDate)
+                    .items(items)
+                    .build();
+        } catch (Exception e) {
+            log.error("checkData error for adj_factor", e);
+            items.add(DataCheckItem.builder()
+                    .name("error")
+                    .displayName("检测执行异常")
+                    .passed(false)
+                    .level(CheckLevel.ERROR)
+                    .message("检测执行异常: " + e.getMessage())
+                    .build());
+            return DataCheckResult.builder()
+                    .tableCode(getTableCode())
+                    .tableName(InitStep.ADJ_FACTOR.getLabel())
+                    .totalRows(0)
+                    .latestDate(null)
+                    .items(items)
+                    .build();
+        }
     }
 }

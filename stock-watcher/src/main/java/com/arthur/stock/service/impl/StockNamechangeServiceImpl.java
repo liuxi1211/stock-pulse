@@ -1,10 +1,15 @@
 package com.arthur.stock.service.impl;
 
 import com.arthur.stock.client.TushareClient;
+import com.arthur.stock.constant.InitStep;
+import com.arthur.stock.dto.governance.CheckLevel;
+import com.arthur.stock.dto.governance.DataCheckItem;
+import com.arthur.stock.dto.governance.DataCheckResult;
 import com.arthur.stock.dto.tushare.NamechangeDTO;
 import com.arthur.stock.dto.tushare.NamechangeQueryDTO;
 import com.arthur.stock.mapper.StockNamechangeMapper;
 import com.arthur.stock.model.StockNamechangeDO;
+import com.arthur.stock.service.DataCheckable;
 import com.arthur.stock.service.StockNamechangeService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.google.common.collect.Lists;
@@ -33,7 +38,7 @@ import java.util.stream.Collectors;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class StockNamechangeServiceImpl implements StockNamechangeService {
+public class StockNamechangeServiceImpl implements StockNamechangeService, DataCheckable {
 
     /** namechange 单次分页大小（Tushare 上限 5000） */
     private static final int PAGE_SIZE = 5000;
@@ -145,5 +150,99 @@ public class StockNamechangeServiceImpl implements StockNamechangeService {
                 .endDate(dto.getEndDate())
                 .changeReason(dto.getChangeReason())
                 .build();
+    }
+
+    // ==================== DataCheckable ====================
+
+    @Override
+    public String getTableCode() {
+        return InitStep.NAMECHANGE.getCode();
+    }
+
+    @Override
+    public DataCheckResult checkData() {
+        List<DataCheckItem> items = new ArrayList<>();
+        try {
+            long totalRows = stockNamechangeMapper.selectCount(null);
+            String latestDate = stockNamechangeMapper.selectMaxStartDate();
+
+            if (totalRows == 0) {
+                items.add(DataCheckItem.builder()
+                        .name("date_logic")
+                        .displayName("日期逻辑检测")
+                        .passed(true)
+                        .level(CheckLevel.ERROR)
+                        .message("表为空，跳过检测")
+                        .build());
+                items.add(DataCheckItem.builder()
+                        .name("date_overlap")
+                        .displayName("日期重叠检测")
+                        .passed(true)
+                        .level(CheckLevel.WARN)
+                        .message("表为空，跳过检测")
+                        .build());
+                items.add(DataCheckItem.builder()
+                        .name("name_validity")
+                        .displayName("名称有效性检测")
+                        .passed(true)
+                        .level(CheckLevel.ERROR)
+                        .message("表为空，跳过检测")
+                        .build());
+            } else {
+                int dateLogicErrors = stockNamechangeMapper.countDateLogicErrors();
+                items.add(DataCheckItem.builder()
+                        .name("date_logic")
+                        .displayName("日期逻辑检测")
+                        .passed(dateLogicErrors == 0)
+                        .level(CheckLevel.ERROR)
+                        .message(dateLogicErrors == 0 ? "通过，日期逻辑正常"
+                                : "起始日期大于结束日期的记录 " + dateLogicErrors + " 条")
+                        .build());
+
+                int dateOverlap = stockNamechangeMapper.countDateOverlap();
+                items.add(DataCheckItem.builder()
+                        .name("date_overlap")
+                        .displayName("日期重叠检测")
+                        .passed(dateOverlap == 0)
+                        .level(CheckLevel.WARN)
+                        .message(dateOverlap == 0 ? "通过，无日期重叠"
+                                : "同一股票相邻记录日期重叠 " + dateOverlap + " 条")
+                        .build());
+
+                int invalidName = stockNamechangeMapper.countInvalidName();
+                items.add(DataCheckItem.builder()
+                        .name("name_validity")
+                        .displayName("名称有效性检测")
+                        .passed(invalidName == 0)
+                        .level(CheckLevel.ERROR)
+                        .message(invalidName == 0 ? "通过，名称数据正常"
+                                : "名称为空的记录 " + invalidName + " 条")
+                        .build());
+            }
+
+            return DataCheckResult.builder()
+                    .tableCode(getTableCode())
+                    .tableName(InitStep.NAMECHANGE.getLabel())
+                    .totalRows(totalRows)
+                    .latestDate(latestDate)
+                    .items(items)
+                    .build();
+        } catch (Exception e) {
+            log.error("checkData error for namechange", e);
+            items.add(DataCheckItem.builder()
+                    .name("error")
+                    .displayName("检测执行异常")
+                    .passed(false)
+                    .level(CheckLevel.ERROR)
+                    .message("检测执行异常: " + e.getMessage())
+                    .build());
+            return DataCheckResult.builder()
+                    .tableCode(getTableCode())
+                    .tableName(InitStep.NAMECHANGE.getLabel())
+                    .totalRows(0)
+                    .latestDate(null)
+                    .items(items)
+                    .build();
+        }
     }
 }

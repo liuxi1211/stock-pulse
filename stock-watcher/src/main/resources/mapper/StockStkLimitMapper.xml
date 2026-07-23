@@ -17,4 +17,14 @@
         </foreach>
     </delete>
 
+    <select id="selectLatestTradeDate" resultType="string">
+        SELECT MAX(trade_date) FROM stock_stk_limit
+    </select>
+
+    <select id="countPriceLogicErrors" resultType="int">
+        SELECT COUNT(*) FROM stock_stk_limit
+        WHERE trade_date &gt;= #{startDate}
+          AND (up_limit &lt;= down_limit OR up_limit &lt;= 0 OR down_limit &lt;= 0)
+    </select>
+
 </mapper>

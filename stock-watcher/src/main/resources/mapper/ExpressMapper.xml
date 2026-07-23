@@ -56,4 +56,27 @@
         LIMIT 1
     </select>
 
+    <!-- ==================== 数据管控检查 ==================== -->
+
+    <select id="selectMaxAnnDate" resultType="string">
+        SELECT MAX(ann_date) FROM express
+    </select>
+
+    <select id="selectMaxEndDate" resultType="string">
+        SELECT MAX(end_date) FROM express
+    </select>
+
+    <select id="countInvalidRevenueAssets" resultType="int">
+        SELECT COUNT(*) FROM express
+        WHERE end_date = #{endDate}
+        AND (revenue &lt; 0 OR total_assets &lt; 0)
+    </select>
+
+    <select id="countGrowthConsistencyErrors" resultType="int">
+        SELECT COUNT(*) FROM express
+        WHERE growth_yield &gt; 0
+          AND n_income &lt; yst_net_profit
+          AND yst_net_profit &gt; 0
+    </select>
+
 </mapper>

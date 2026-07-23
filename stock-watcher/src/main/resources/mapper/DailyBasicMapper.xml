@@ -73,4 +73,16 @@
         </foreach>
     </select>
 
+    <select id="countInvalidMv" resultType="int">
+        SELECT COUNT(*) FROM daily_basic
+        WHERE trade_date &gt;= #{startDate}
+          AND (total_mv IS NULL OR total_mv &lt;= 0)
+    </select>
+
+    <select id="countInvalidTurnover" resultType="int">
+        SELECT COUNT(*) FROM daily_basic
+        WHERE trade_date &gt;= #{startDate}
+          AND (turnover_rate &lt; 0 OR volume_ratio &lt;= 0)
+    </select>
+
 </mapper>

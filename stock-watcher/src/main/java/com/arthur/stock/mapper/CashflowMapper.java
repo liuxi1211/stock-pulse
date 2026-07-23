@@ -25,4 +25,18 @@ public interface CashflowMapper extends BaseMapper<CashflowDO> {
      * 用于选股时取最新可用财报数据，避免 lookahead bias；锁定合并报表口径保证结果可复现。
      */
     CashflowDO selectLatestAnnouncedBefore(@Param("tsCode") String tsCode, @Param("tradeDate") String tradeDate);
+
+    // ==================== 数据管控检查 ====================
+
+    /** 取表中最大的 ann_date */
+    String selectMaxAnnDate();
+
+    /** 取表中最大的 end_date（最新报告期） */
+    String selectMaxEndDate();
+
+    /** 统计指定报告期经营活动现金流为空的记录数 */
+    int countNullOperatingCashflow(@Param("endDate") String endDate);
+
+    /** 统计最近N个季度现金净增加额与期末期初差额偏差超10%的记录数 */
+    int countCashIncreaseInconsistency(@Param("startDate") String startDate);
 }

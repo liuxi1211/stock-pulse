@@ -1,7 +1,12 @@
 package com.arthur.stock.service.impl;
 
 import com.arthur.stock.client.TushareClient;
+import com.arthur.stock.constant.InitStep;
+import com.arthur.stock.constant.ListStatusEnum;
 import com.arthur.stock.dto.PageResult;
+import com.arthur.stock.dto.governance.CheckLevel;
+import com.arthur.stock.dto.governance.DataCheckItem;
+import com.arthur.stock.dto.governance.DataCheckResult;
 import com.arthur.stock.dto.tushare.IndexClassifyDTO;
 import com.arthur.stock.dto.tushare.IndexClassifyQueryDTO;
 import com.arthur.stock.dto.tushare.IndexMemberDTO;
@@ -15,6 +20,7 @@ import com.arthur.stock.model.IndexDailyDO;
 import com.arthur.stock.model.StockBasicDO;
 import com.arthur.stock.model.SwIndustryDO;
 import com.arthur.stock.model.SwIndustryMemberDO;
+import com.arthur.stock.service.DataCheckable;
 import com.arthur.stock.service.IndexDailyService;
 import com.arthur.stock.service.SwIndustryService;
 import com.arthur.stock.vo.IndustryMemberVO;
@@ -50,7 +56,7 @@ import java.util.stream.Collectors;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class SwIndustryServiceImpl implements SwIndustryService {
+public class SwIndustryServiceImpl implements SwIndustryService, DataCheckable {
 
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("yyyyMMdd");
 
@@ -470,5 +476,111 @@ public class SwIndustryServiceImpl implements SwIndustryService {
             // 日期解析失败 → 返回空（不 forward-fill）
         }
         return out;
+    }
+
+    // ==================== DataCheckable ====================
+
+    @Override
+    public String getTableCode() {
+        return InitStep.SW_INDUSTRY.getCode();
+    }
+
+    @Override
+    public DataCheckResult checkData() {
+        List<DataCheckItem> items = new ArrayList<>();
+        try {
+            long totalRows = swIndustryMapper.selectCount(null) + swIndustryMemberMapper.selectCount(null);
+
+            // Check 1: level1 行业数量（ERROR）
+            int level1Count = swIndustryMapper.countLevel1();
+            boolean level1Passed = level1Count >= 28 && level1Count <= 35;
+            items.add(DataCheckItem.builder()
+                    .name("level1_count")
+                    .displayName("一级行业数量检测")
+                    .passed(level1Passed)
+                    .level(CheckLevel.ERROR)
+                    .message(level1Passed ? "通过，一级行业 " + level1Count + " 个"
+                            : "异常，一级行业 " + level1Count + " 个（期望 28-35）")
+                    .build());
+
+            // Check 2: 股票覆盖率（WARN）
+            boolean coveragePassed;
+            String coverageMsg;
+            if (totalRows == 0) {
+                coveragePassed = true;
+                coverageMsg = "表为空，跳过检测";
+            } else {
+                int coveredStocks = swIndustryMemberMapper.countCoveredStocks();
+                long listedStocks = stockBasicMapper.selectCount(
+                        new LambdaQueryWrapper<StockBasicDO>()
+                                .eq(StockBasicDO::getListStatus, ListStatusEnum.LISTED)
+                );
+                if (listedStocks == 0) {
+                    coveragePassed = true;
+                    coverageMsg = "在市股票数为 0，跳过检测";
+                } else {
+                    double ratio = (double) coveredStocks / listedStocks;
+                    coveragePassed = ratio >= 0.9;
+                    coverageMsg = String.format("覆盖率 %.1f%%（%d/%d）%s",
+                            ratio * 100, coveredStocks, listedStocks,
+                            coveragePassed ? "，通过" : "，低于 90%");
+                }
+            }
+            items.add(DataCheckItem.builder()
+                    .name("stock_coverage")
+                    .displayName("股票覆盖率检测")
+                    .passed(coveragePassed)
+                    .level(CheckLevel.WARN)
+                    .message(coverageMsg)
+                    .build());
+
+            // Check 3: code_name 一致性（WARN）
+            int mismatchCount = swIndustryMapper.countCodeNameMismatch();
+            boolean mismatchPassed = mismatchCount == 0;
+            items.add(DataCheckItem.builder()
+                    .name("code_name_match")
+                    .displayName("行业代码名称一致性检测")
+                    .passed(mismatchPassed)
+                    .level(CheckLevel.WARN)
+                    .message(mismatchPassed ? "通过，无不一致"
+                            : "存在 " + mismatchCount + " 个 index_code 对应多个名称")
+                    .build());
+
+            // Check 4: 日期逻辑（ERROR）
+            int dateLogicErrors = swIndustryMemberMapper.countDateLogicErrors();
+            boolean dateLogicPassed = dateLogicErrors == 0;
+            items.add(DataCheckItem.builder()
+                    .name("date_logic")
+                    .displayName("成分股日期逻辑检测")
+                    .passed(dateLogicPassed)
+                    .level(CheckLevel.ERROR)
+                    .message(dateLogicPassed ? "通过，无日期逻辑错误"
+                            : "存在 " + dateLogicErrors + " 条 in_date > out_date 的记录")
+                    .build());
+
+            return DataCheckResult.builder()
+                    .tableCode(getTableCode())
+                    .tableName(InitStep.SW_INDUSTRY.getLabel())
+                    .totalRows(totalRows)
+                    .latestDate(null)
+                    .items(items)
+                    .build();
+        } catch (Exception e) {
+            log.error("checkData error for sw_industry", e);
+            items.add(DataCheckItem.builder()
+                    .name("error")
+                    .displayName("检测执行异常")
+                    .passed(false)
+                    .level(CheckLevel.ERROR)
+                    .message("检测执行异常: " + e.getMessage())
+                    .build());
+            return DataCheckResult.builder()
+                    .tableCode(getTableCode())
+                    .tableName(InitStep.SW_INDUSTRY.getLabel())
+                    .totalRows(0)
+                    .latestDate(null)
+                    .items(items)
+                    .build();
+        }
     }
 }

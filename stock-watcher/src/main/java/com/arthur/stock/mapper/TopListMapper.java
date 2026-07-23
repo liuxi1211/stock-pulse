@@ -26,4 +26,10 @@ public interface TopListMapper extends BaseMapper<TopListDO> {
 
     /** 取 top_list 表中最新的交易日。 */
     String selectLatestTradeDate();
+
+    int countInvalidAmount(@Param("startDate") String startDate);
+
+    int countInvalidPctChange(@Param("startDate") String startDate);
+
+    int countNetAmountInconsistency(@Param("startDate") String startDate);
 }

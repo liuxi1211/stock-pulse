@@ -101,4 +101,30 @@
         LIMIT 1
     </select>
 
+    <!-- ==================== 数据管控检查 ==================== -->
+
+    <select id="selectMaxAnnDate" resultType="string">
+        SELECT MAX(ann_date) FROM cashflow
+    </select>
+
+    <select id="selectMaxEndDate" resultType="string">
+        SELECT MAX(end_date) FROM cashflow
+    </select>
+
+    <select id="countNullOperatingCashflow" resultType="int">
+        SELECT COUNT(*) FROM cashflow
+        WHERE end_date = #{endDate}
+        AND n_cashflow_act IS NULL
+    </select>
+
+    <select id="countCashIncreaseInconsistency" resultType="int">
+        SELECT COUNT(*) FROM cashflow
+        WHERE end_date &gt;= #{startDate}
+        AND beg_bal_cash IS NOT NULL
+        AND end_bal_cash IS NOT NULL
+        AND n_cash_equ IS NOT NULL
+        AND beg_bal_cash &lt;&gt; 0
+        AND ABS(n_cash_equ - (end_bal_cash - beg_bal_cash)) / ABS(beg_bal_cash) &gt; 0.1
+    </select>
+
 </mapper>

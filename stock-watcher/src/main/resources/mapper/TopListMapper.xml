@@ -45,4 +45,25 @@
         SELECT MAX(trade_date) FROM top_list
     </select>
 
+    <!-- ==================== 数据管控检查 ==================== -->
+
+    <select id="countInvalidAmount" resultType="int">
+        SELECT COUNT(*) FROM top_list
+        WHERE trade_date &gt;= #{startDate}
+          AND amount &lt;= 0
+    </select>
+
+    <select id="countInvalidPctChange" resultType="int">
+        SELECT COUNT(*) FROM top_list
+        WHERE trade_date &gt;= #{startDate}
+          AND (pct_change &lt; -21 OR pct_change &gt; 21)
+    </select>
+
+    <select id="countNetAmountInconsistency" resultType="int">
+        SELECT COUNT(*) FROM top_list
+        WHERE trade_date &gt;= #{startDate}
+          AND l_buy_amount &gt; 0
+          AND ABS(net_amount - (l_buy_amount - l_sell_amount)) / l_buy_amount &gt; 0.1
+    </select>
+
 </mapper>
