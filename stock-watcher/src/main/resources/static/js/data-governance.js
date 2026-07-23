@@ -551,7 +551,7 @@ const DG = {
         });
     },
 
-    // ==================== Task Progress ====================
+    // ==================== Task Loading ====================
 
     startProgressPolling(taskId, operationType, tableCode) {
         this.currentTaskId = taskId;
@@ -559,18 +559,14 @@ const DG = {
         const tableInfo = this.tableListCache.find(t => t.tableCode === tableCode);
         document.getElementById('progressTableBadge').textContent = tableInfo?.tableName || tableCode;
         document.getElementById('progressOpBadge').textContent = this.getOperationTypeLabel(operationType);
-        document.getElementById('progressBar').style.width = '0%';
-        document.getElementById('progressBar').textContent = '0%';
-        document.getElementById('progressStep').textContent = '准备中...';
-        document.getElementById('progressProcessed').textContent = '0';
-        document.getElementById('progressTotal').textContent = '0';
+        document.getElementById('progressStep').textContent = '处理中，请稍候...';
         document.getElementById('progressElapsed').textContent = '0s';
 
         const modal = new bootstrap.Modal(document.getElementById('progressModal'));
         modal.show();
 
         clearInterval(this.pollTimer);
-        this.pollTimer = setInterval(() => this.pollOnce(), 1000);
+        this.pollTimer = setInterval(() => this.pollOnce(), 2000);
         this.pollOnce();
     },
 
@@ -579,26 +575,30 @@ const DG = {
         StockApp.get(this.apiBase + '/tasks/' + this.currentTaskId + '/progress', null, (resp) => {
             if (resp.code !== 200) {
                 clearInterval(this.pollTimer);
-                StockApp.toast(resp.message || '查询进度失败', 'danger');
+                StockApp.toast(resp.message || '查询任务状态失败', 'danger');
+                this.closeProgressModal();
                 return;
             }
             const d = resp.data || {};
-            const pct = d.progressPct ?? 0;
-            document.getElementById('progressBar').style.width = pct + '%';
-            document.getElementById('progressBar').textContent = pct + '%';
-            document.getElementById('progressStep').textContent = d.currentStep || '处理中...';
-            document.getElementById('progressProcessed').textContent = d.processedItems ?? 0;
-            document.getElementById('progressTotal').textContent = d.totalItems ?? 0;
+            document.getElementById('progressStep').textContent = d.currentStep || '处理中，请稍候...';
             const elapsed = Math.floor((Date.now() - this.pollStartTime) / 1000);
             document.getElementById('progressElapsed').textContent = elapsed + 's';
 
-            if (d.cancelled) {
+            if (d.cancelled || d.status === 'CANCELLED') {
                 clearInterval(this.pollTimer);
                 StockApp.toast('任务已取消', 'warning');
-            } else if (pct >= 100) {
+                this.refreshAll();
+                this.closeProgressModal();
+            } else if (d.status === 'SUCCESS') {
                 clearInterval(this.pollTimer);
                 StockApp.toast('任务完成', 'success');
                 this.refreshAll();
+                this.closeProgressModal();
+            } else if (d.status === 'FAILED') {
+                clearInterval(this.pollTimer);
+                StockApp.toast('任务失败' + (d.errorMessage ? ': ' + d.errorMessage : ''), 'danger');
+                this.refreshAll();
+                this.closeProgressModal();
             }
         });
     },
@@ -608,10 +608,23 @@ const DG = {
         StockApp.post(this.apiBase + '/tasks/' + this.currentTaskId + '/cancel', null, (resp) => {
             if (resp.code === 200) {
                 StockApp.toast('取消请求已发送', 'info');
+                this.closeProgressModal();
             } else {
                 StockApp.toast(resp.message || '取消失败', 'danger');
             }
         });
+    },
+
+    closeProgressModal() {
+        clearInterval(this.pollTimer);
+        this.currentTaskId = null;
+        const modalEl = document.getElementById('progressModal');
+        if (modalEl) {
+            const modal = bootstrap.Modal.getInstance(modalEl);
+            if (modal) {
+                modal.hide();
+            }
+        }
     },
 
     onProgressModalClose() {

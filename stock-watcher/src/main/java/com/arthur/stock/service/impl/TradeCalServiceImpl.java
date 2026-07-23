@@ -23,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.DayOfWeek;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.IsoFields;
 import java.util.ArrayList;
@@ -342,22 +343,25 @@ public class TradeCalServiceImpl implements TradeCalService, DataCheckable {
             long totalRows = tradeCalMapper.selectCount(null);
             LocalDate today = LocalDate.now();
 
-            // Check 1: Calendar doesn't cover next 30 days (ERROR)
+            // Check 1: Calendar covers the latest expected trade date (ERROR)
+            // 以每日 18:00 为界：18:00 前期望最新交易日为昨天，18:00 后期望为今天
             TradeCalDO latest = tradeCalMapper.selectOne(
                     new LambdaQueryWrapper<TradeCalDO>()
                             .select(TradeCalDO::getCalDate)
                             .orderByDesc(TradeCalDO::getCalDate)
                             .last("LIMIT 1"));
             String maxCalDate = latest != null ? latest.getCalDate() : null;
-            String todayPlus30 = today.plusDays(30).format(CAL_DATE_FMT);
-            boolean coveragePassed = maxCalDate != null && maxCalDate.compareTo(todayPlus30) >= 0;
+            LocalDateTime now = LocalDateTime.now();
+            LocalDate expectedDate = now.getHour() >= 18 ? today : today.minusDays(1);
+            String expectedCalDate = expectedDate.format(CAL_DATE_FMT);
+            boolean coveragePassed = maxCalDate != null && maxCalDate.compareTo(expectedCalDate) >= 0;
             items.add(DataCheckItem.builder()
                     .name("future_coverage")
-                    .displayName("未来覆盖度检测")
+                    .displayName("最新交易日覆盖检测")
                     .passed(coveragePassed)
                     .level(CheckLevel.ERROR)
                     .message(coveragePassed ? "通过，日历覆盖至 " + maxCalDate
-                            : "交易日历仅覆盖至 " + maxCalDate + "，不足未来 30 天（" + todayPlus30 + "）")
+                            : "交易日历仅覆盖至 " + maxCalDate + "，未达到期望日期 " + expectedCalDate)
                     .build());
 
             // Check 2: Missing exchange (ERROR)

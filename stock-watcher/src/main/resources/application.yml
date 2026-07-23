@@ -15,6 +15,12 @@ spring:
     username: ${db.username}
     password: ${db.password}
     driver-class-name: ${DB_DRIVER:com.mysql.cj.jdbc.Driver}
+    hikari:
+      maximum-pool-size: 60
+      minimum-idle: 10
+      connection-timeout: 30000
+      idle-timeout: 60000
+      max-lifetime: 1800000
   thymeleaf:
     prefix: classpath:/templates/
     suffix: .html
@@ -49,7 +55,7 @@ tushare:
     trade_cal:
       permits-per-minute: 500
     adj_factor:
-      permits-per-minute: 500
+      permits-per-minute: 200
     dividend:
       permits-per-minute: 180
     index_weight:
@@ -65,15 +71,15 @@ tushare:
     stk_limit:
       permits-per-minute: 500
     income:
-      permits-per-minute: 100
+      permits-per-minute: 200
     balancesheet:
-      permits-per-minute: 100
+      permits-per-minute: 200
     cashflow:
-      permits-per-minute: 100
+      permits-per-minute: 200
     forecast:
-      permits-per-minute: 100
+      permits-per-minute: 200
     express:
-      permits-per-minute: 100
+      permits-per-minute: 200
     index_daily:
       permits-per-minute: 500
 

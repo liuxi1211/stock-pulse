@@ -104,4 +104,18 @@
         DELETE FROM data_pull_log WHERE start_time &lt; #{cutoffTime}
     </delete>
 
+    <select id="selectLatestPerTable" resultMap="logMap">
+        SELECT l.*
+        FROM data_pull_log l
+        INNER JOIN (
+            SELECT table_code, MAX(start_time) AS max_start
+            FROM data_pull_log
+            WHERE table_code IN
+            <foreach collection="tableCodes" item="tc" open="(" separator="," close=")">
+                #{tc}
+            </foreach>
+            GROUP BY table_code
+        ) latest ON l.table_code = latest.table_code AND l.start_time = latest.max_start
+    </select>
+
 </mapper>

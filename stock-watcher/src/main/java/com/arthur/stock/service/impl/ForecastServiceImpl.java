@@ -18,12 +18,14 @@ import com.google.common.collect.Lists;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -41,9 +43,9 @@ public class ForecastServiceImpl implements ForecastService, DataCheckable {
     private final TushareClient tushareClient;
     private final ForecastMapper forecastMapper;
     private final StockBasicService stockBasicService;
+    private final TransactionTemplate transactionTemplate;
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public int fetchAndSaveForecast(String tsCode, String startDate, String endDate) {
         log.info("拉取 forecast {} [{}~{}]", tsCode, startDate, endDate);
         ForecastQueryDTO param = ForecastQueryDTO.builder()
@@ -51,13 +53,18 @@ public class ForecastServiceImpl implements ForecastService, DataCheckable {
                 .startDate(startDate)
                 .endDate(endDate)
                 .build();
+        // ⚠️ API 调用在事务外执行，避免限流等待时长时间占用数据库连接
         List<ForecastDTO> rows = tushareClient.forecast(param);
         if (rows == null || rows.isEmpty()) {
             log.info("forecast {} 无数据", tsCode);
             return 0;
         }
         List<ForecastDO> entities = rows.stream().map(this::toEntity).collect(Collectors.toList());
-        saveBatch(entities);
+        // 数据库写入才开启事务，尽量缩短连接持有时间
+        transactionTemplate.execute(status -> {
+            saveBatch(entities);
+            return null;
+        });
         log.info("forecast {} 保存 {} 条", tsCode, entities.size());
         return entities.size();
     }
@@ -100,16 +107,40 @@ public class ForecastServiceImpl implements ForecastService, DataCheckable {
     // ==================== 内部 ====================
 
     private void saveBatch(List<ForecastDO> list) {
-        Lists.partition(list, BATCH_SIZE).forEach(batch -> {
+        // 按 (ts_code, end_date, ann_date) 去重，保留最后一条（后出现的覆盖先出现的）
+        // 防止 Tushare 返回同一批次内的重复数据导致唯一键冲突
+        List<ForecastDO> deduplicated = new ArrayList<>(deduplicateByKey(list).values());
+        Lists.partition(deduplicated, BATCH_SIZE).forEach(batch -> {
             forecastMapper.deleteBatchByKeys(batch);
             forecastMapper.insertBatch(batch);
         });
     }
 
+    /**
+     * 按唯一键 (ts_code, end_date, ann_date) 去重，保留最后出现的一条。
+     * ann_date 为 null 或空字符串视为等价（与 deleteBatchByKeys 的 NULL 处理保持一致）。
+     */
+    private Map<String, ForecastDO> deduplicateByKey(List<ForecastDO> list) {
+        Map<String, ForecastDO> map = new LinkedHashMap<>();
+        for (ForecastDO item : list) {
+            String annKey = (item.getAnnDate() == null || item.getAnnDate().isEmpty())
+                    ? "__NULL__" : item.getAnnDate();
+            String key = item.getTsCode() + "|" + item.getEndDate() + "|" + annKey;
+            map.put(key, item);
+        }
+        return map;
+    }
+
     private ForecastDO toEntity(ForecastDTO d) {
+        // ann_date 归一化：null / 空白 -> 空字符串
+        // 确保唯一键 (ts_code, end_date, ann_date) 中无可空值，UNIQUE 约束真正生效
+        String annDate = d.getAnnDate();
+        if (annDate == null || annDate.isBlank()) {
+            annDate = "";
+        }
         return ForecastDO.builder()
                 .tsCode(d.getTsCode())
-                .annDate(d.getAnnDate())
+                .annDate(annDate)
                 .endDate(d.getEndDate())
                 .type(d.getType())
                 .pChangeMin(d.getPChangeMin())

@@ -54,7 +54,18 @@ public class BalancesheetServiceImpl implements BalancesheetService, DataCheckab
             log.info("balancesheet {} 无数据", tsCode);
             return 0;
         }
-        List<BalancesheetDO> entities = rows.stream().map(this::toEntity).collect(Collectors.toList());
+        List<BalancesheetDO> entities = rows.stream()
+                .map(this::toEntity)
+                // 按唯一键 (ts_code, end_date, report_type) 去重，保留 ann_date 最新的一条
+                .collect(Collectors.toMap(
+                        e -> e.getTsCode() + "|" + e.getEndDate() + "|" + e.getReportType(),
+                        e -> e,
+                        (a, b) -> compareAnnDate(a.getAnnDate(), b.getAnnDate()) >= 0 ? a : b,
+                        java.util.LinkedHashMap::new
+                ))
+                .values()
+                .stream()
+                .collect(Collectors.toList());
         saveBatch(entities);
         log.info("balancesheet {} 保存 {} 条", tsCode, entities.size());
         return entities.size();
@@ -96,6 +107,17 @@ public class BalancesheetServiceImpl implements BalancesheetService, DataCheckab
     }
 
     // ==================== 内部 ====================
+
+    /**
+     * 比较两个公告日期字符串（yyyyMMdd 格式），返回值同 Comparator.compare。
+     * null 视为最小（即非 null 的那条更新）。
+     */
+    private int compareAnnDate(String a, String b) {
+        if (a == null && b == null) return 0;
+        if (a == null) return -1;
+        if (b == null) return 1;
+        return a.compareTo(b);
+    }
 
     private void saveBatch(List<BalancesheetDO> list) {
         Lists.partition(list, BATCH_SIZE).forEach(batch -> {

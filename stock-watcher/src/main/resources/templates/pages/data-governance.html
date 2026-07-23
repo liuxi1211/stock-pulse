@@ -297,9 +297,9 @@
     </div>
 </div>
 
-<!-- ============ Task Progress Modal ============ -->
+<!-- ============ Task Loading Modal ============ -->
 <div class="modal fade" id="progressModal" tabindex="-1" data-bs-backdrop="static">
-    <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">
@@ -307,33 +307,23 @@
                 </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" onclick="DG.onProgressModalClose()"></button>
             </div>
-            <div class="modal-body text-center">
-                <div class="mb-3">
+            <div class="modal-body text-center py-4">
+                <div class="spinner-border text-primary mb-3" style="width: 3rem; height: 3rem;" role="status">
+                    <span class="visually-hidden">加载中...</span>
+                </div>
+                <div class="mb-2">
                     <span class="badge bg-info me-2" id="progressTableBadge">-</span>
                     <span class="badge bg-secondary" id="progressOpBadge">-</span>
                 </div>
-                <div class="progress mb-3" style="height: 24px;">
-                    <div class="progress-bar progress-bar-striped progress-bar-animated"
-                         id="progressBar" role="progressbar" style="width: 0%;">0%</div>
-                </div>
-                <p class="mb-2" id="progressStep">准备中...</p>
-                <div class="row text-muted small font-mono">
-                    <div class="col">
-                        <span>已处理: <strong id="progressProcessed">0</strong></span>
-                    </div>
-                    <div class="col">
-                        <span>总计: <strong id="progressTotal">0</strong></span>
-                    </div>
-                    <div class="col">
-                        <span>耗时: <strong id="progressElapsed">0s</strong></span>
-                    </div>
-                </div>
+                <p class="text-muted mb-0" id="progressStep">处理中，请稍候...</p>
+                <p class="text-muted small mt-2 mb-0">
+                    耗时: <span id="progressElapsed" class="font-mono">0s</span>
+                </p>
             </div>
-            <div class="modal-footer">
+            <div class="modal-footer justify-content-center">
                 <button class="btn btn-outline-danger btn-sm" id="cancelTaskBtn" onclick="DG.cancelTask()">
                     <i class="bi bi-x-circle ico-danger"></i> 取消任务
                 </button>
-                <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">关闭</button>
             </div>
         </div>
     </div>

@@ -30,4 +30,11 @@ public interface DataGovernanceMetricMapper extends BaseMapper<DataGovernanceMet
 
     /** 查询某张表的历史检测记录（按时间倒序，最多 limit 条） */
     List<DataGovernanceMetricDO> selectHistoryByTableCode(@Param("tableCode") String tableCode, @Param("limit") int limit);
+
+    /**
+     * 批量查询各表最新检测记录。
+     * 使用 MAX(check_time) 分组取每组最大，再自连接回表，
+     * 替代 N 次单表查询，一次 SQL 拿到所有表的最新记录。
+     */
+    List<DataGovernanceMetricDO> selectLatestPerTable(@Param("tableCodes") List<String> tableCodes);
 }

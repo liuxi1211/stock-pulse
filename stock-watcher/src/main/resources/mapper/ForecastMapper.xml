@@ -32,7 +32,12 @@
     <delete id="deleteBatchByKeys">
         DELETE FROM forecast WHERE
         <foreach collection="list" item="i" separator=" OR ">
-            (ts_code = #{i.tsCode} AND end_date = #{i.endDate} AND ann_date = #{i.annDate})
+            (ts_code = #{i.tsCode}
+             AND end_date = #{i.endDate}
+             AND <choose>
+                 <when test="i.annDate == null or i.annDate == ''">ann_date IS NULL</when>
+                 <otherwise>ann_date = #{i.annDate}</otherwise>
+             </choose>)
         </foreach>
     </delete>
 

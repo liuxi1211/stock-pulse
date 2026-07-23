@@ -12,10 +12,9 @@ import lombok.NoArgsConstructor;
 public class TaskProgressVO {
     private String taskId;
     private String tableCode;
-    private int progressPct;
+    private String status;
     private String currentStep;
-    private long processedItems;
-    private long totalItems;
+    private String errorMessage;
     private boolean cancelled;
     private String lastUpdated;
 }

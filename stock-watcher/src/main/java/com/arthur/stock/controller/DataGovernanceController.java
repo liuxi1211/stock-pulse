@@ -30,6 +30,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
@@ -87,8 +88,10 @@ public class DataGovernanceController {
         if (allStatuses == null) {
             allStatuses = Collections.emptyList();
         }
+        // 批量查询所有表的最新拉取日志，一次 SQL 搞定，避免 N+1 查询
+        Map<String, String> lastUpdateTimeMap = loadLastUpdateTimeMap(allStatuses);
         List<TableStatusVO> result = allStatuses.stream()
-                .map(this::buildTableStatusVO)
+                .map(metric -> buildTableStatusVO(metric, lastUpdateTimeMap))
                 .filter(vo -> matchesFilter(vo, query))
                 .collect(Collectors.toList());
         return ApiResponse.success(result);
@@ -209,7 +212,7 @@ public class DataGovernanceController {
 
     // ==================== Task ====================
 
-    @Operation(summary = "查询任务进度", description = "根据任务ID查询实时进度")
+    @Operation(summary = "查询任务状态", description = "根据任务ID查询实时状态（运行中/成功/失败/已取消）")
     @GetMapping("/tasks/{taskId}/progress")
     public ApiResponse<TaskProgressVO> taskProgress(@PathVariable String taskId) {
         TaskProgress progress = taskProgressCache.getProgress(taskId);
@@ -219,10 +222,9 @@ public class DataGovernanceController {
         return ApiResponse.success(TaskProgressVO.builder()
                 .taskId(progress.getTaskId())
                 .tableCode(progress.getTableCode())
-                .progressPct(progress.getProgressPct())
+                .status(progress.getStatus())
                 .currentStep(progress.getCurrentStep())
-                .processedItems(progress.getProcessedItems())
-                .totalItems(progress.getTotalItems())
+                .errorMessage(progress.getErrorMessage())
                 .cancelled(progress.isCancelled())
                 .lastUpdated(progress.getLastUpdated())
                 .build());
@@ -331,12 +333,14 @@ public class DataGovernanceController {
         return user != null && user.getUsername() != null ? user.getUsername() : "SYSTEM";
     }
 
-    private TableStatusVO buildTableStatusVO(DataGovernanceMetricDO metric) {
+    private TableStatusVO buildTableStatusVO(DataGovernanceMetricDO metric, Map<String, String> lastUpdateTimeMap) {
         List<DataCheckItem> checkItems = parseCheckItems(metric.getCheckItems());
         int failedCount = (int) checkItems.stream().filter(item -> !item.isPassed()).count();
         InitStep step = InitStep.fromCode(metric.getTableCode());
         String updateFrequency = step != null ? step.getUpdateFrequency() : null;
-        String lastUpdateTime = getLastUpdateTime(metric.getTableCode());
+        String lastUpdateTime = lastUpdateTimeMap != null
+                ? lastUpdateTimeMap.get(metric.getTableCode())
+                : getLastUpdateTime(metric.getTableCode());
         return TableStatusVO.builder()
                 .tableCode(metric.getTableCode())
                 .tableName(metric.getTableName())
@@ -351,6 +355,33 @@ public class DataGovernanceController {
                 .lastUpdateTime(lastUpdateTime)
                 .updateFrequency(updateFrequency)
                 .build();
+    }
+
+    /**
+     * 批量加载各表最新拉取时间，返回 table_code -> end_time 的映射。
+     * 用一次分组聚合查询替代 N 次单表查询，解决 N+1 问题。
+     */
+    private Map<String, String> loadLastUpdateTimeMap(List<DataGovernanceMetricDO> metrics) {
+        if (metrics == null || metrics.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        List<String> tableCodes = metrics.stream()
+                .map(DataGovernanceMetricDO::getTableCode)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+        if (tableCodes.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        List<DataPullLogDO> logs = dataPullLogMapper.selectLatestPerTable(tableCodes);
+        if (logs == null || logs.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        Map<String, String> result = new java.util.HashMap<>(logs.size() * 2);
+        for (DataPullLogDO log : logs) {
+            result.put(log.getTableCode(), log.getEndTime());
+        }
+        return result;
     }
 
     private String getLastUpdateTime(String tableCode) {

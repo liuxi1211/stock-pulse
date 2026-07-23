@@ -65,4 +65,18 @@
         LIMIT #{limit}
     </select>
 
+    <select id="selectLatestPerTable" resultMap="metricMap">
+        SELECT m.*
+        FROM data_governance_metric m
+        INNER JOIN (
+            SELECT table_code, MAX(check_time) AS max_check_time
+            FROM data_governance_metric
+            WHERE table_code IN
+            <foreach collection="tableCodes" item="tc" open="(" separator="," close=")">
+                #{tc}
+            </foreach>
+            GROUP BY table_code
+        ) latest ON m.table_code = latest.table_code AND m.check_time = latest.max_check_time
+    </select>
+
 </mapper>

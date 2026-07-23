@@ -93,10 +93,9 @@ public class DataGovernanceServiceImpl implements DataGovernanceService {
         TaskProgress initialProgress = TaskProgress.builder()
                 .taskId(taskId)
                 .tableCode("ALL")
-                .progressPct(0)
+                .status("RUNNING")
                 .currentStep("准备中")
-                .processedItems(0)
-                .totalItems(totalTables)
+                .errorMessage(null)
                 .cancelled(false)
                 .lastUpdated(LocalDateTime.now().format(CHECK_TIME_FMT))
                 .build();
@@ -108,21 +107,23 @@ public class DataGovernanceServiceImpl implements DataGovernanceService {
                     InitStep step = steps[i];
                     if (taskProgressCache.isCancelled(taskId)) {
                         log.info("全表检测被取消，taskId={}, 已完成 {}/{}", taskId, i, totalTables);
-                        updateCheckProgress(taskId, i, totalTables, "已取消", step.getCode());
+                        updateCheckCancelled(taskId, "用户取消");
                         break;
                     }
-                    updateCheckProgress(taskId, i, totalTables, "检测中: " + step.getLabel(), step.getCode());
+                    updateCheckRunning(taskId, "检测中: " + step.getLabel(), step.getCode());
                     try {
                         doCheckTable(step.getCode(), batchId, "MANUAL");
                     } catch (Exception e) {
                         log.warn("检测表 {} 失败: {}", step.getCode(), e.getMessage(), e);
                     }
                 }
-                updateCheckProgress(taskId, totalTables, totalTables, "完成", "ALL");
+                if (!taskProgressCache.isCancelled(taskId)) {
+                    updateCheckSuccess(taskId);
+                }
                 log.info("全表检测完成, taskId={}, batchId={}", taskId, batchId);
             } catch (Exception e) {
                 log.error("全表检测异常, taskId={}", taskId, e);
-                updateCheckProgress(taskId, 0, totalTables, "失败: " + e.getMessage(), "ALL");
+                updateCheckFailed(taskId, e.getMessage());
             } finally {
                 taskProgressCache.releaseCheckLock();
             }
@@ -149,9 +150,9 @@ public class DataGovernanceServiceImpl implements DataGovernanceService {
     }
 
     /**
-     * 更新检测任务进度。
+     * 更新检测任务状态 - 运行中。
      */
-    private void updateCheckProgress(String taskId, int processed, int total, String currentStep, String tableCode) {
+    private void updateCheckRunning(String taskId, String currentStep, String tableCode) {
         TaskProgress existing = taskProgressCache.getProgress(taskId);
         if (existing == null) {
             return;
@@ -159,11 +160,61 @@ public class DataGovernanceServiceImpl implements DataGovernanceService {
         TaskProgress progress = TaskProgress.builder()
                 .taskId(taskId)
                 .tableCode(tableCode)
-                .progressPct(total > 0 ? processed * 100 / total : 0)
+                .status("RUNNING")
                 .currentStep(currentStep)
-                .processedItems(processed)
-                .totalItems(total)
+                .errorMessage(null)
                 .cancelled(existing.isCancelled())
+                .lastUpdated(LocalDateTime.now().format(CHECK_TIME_FMT))
+                .build();
+        taskProgressCache.putProgress(taskId, progress);
+    }
+
+    private void updateCheckSuccess(String taskId) {
+        TaskProgress existing = taskProgressCache.getProgress(taskId);
+        if (existing == null) {
+            return;
+        }
+        TaskProgress progress = TaskProgress.builder()
+                .taskId(taskId)
+                .tableCode("ALL")
+                .status("SUCCESS")
+                .currentStep("完成")
+                .errorMessage(null)
+                .cancelled(false)
+                .lastUpdated(LocalDateTime.now().format(CHECK_TIME_FMT))
+                .build();
+        taskProgressCache.putProgress(taskId, progress);
+    }
+
+    private void updateCheckFailed(String taskId, String errorMessage) {
+        TaskProgress existing = taskProgressCache.getProgress(taskId);
+        if (existing == null) {
+            return;
+        }
+        TaskProgress progress = TaskProgress.builder()
+                .taskId(taskId)
+                .tableCode("ALL")
+                .status("FAILED")
+                .currentStep("失败")
+                .errorMessage(errorMessage)
+                .cancelled(false)
+                .lastUpdated(LocalDateTime.now().format(CHECK_TIME_FMT))
+                .build();
+        taskProgressCache.putProgress(taskId, progress);
+    }
+
+    private void updateCheckCancelled(String taskId, String reason) {
+        TaskProgress existing = taskProgressCache.getProgress(taskId);
+        if (existing == null) {
+            return;
+        }
+        TaskProgress progress = TaskProgress.builder()
+                .taskId(taskId)
+                .tableCode("ALL")
+                .status("CANCELLED")
+                .currentStep("已取消")
+                .errorMessage(reason)
+                .cancelled(true)
                 .lastUpdated(LocalDateTime.now().format(CHECK_TIME_FMT))
                 .build();
         taskProgressCache.putProgress(taskId, progress);
@@ -179,19 +230,39 @@ public class DataGovernanceServiceImpl implements DataGovernanceService {
      * 获取每张表各自的最新检测记录（不依赖 batch 语义）。
      * 以 InitStep 枚举为主表，无检测记录的表返回 NORMAL 状态的占位对象，
      * 确保从未检测过的表也能出现在列表中。
+     * <p>
+     * 优化：用一次分组聚合查询替代 N 次单表查询，避免 N+1 问题。
      */
     private List<DataGovernanceMetricDO> getAllLatestMetrics() {
-        List<DataGovernanceMetricDO> result = new ArrayList<>();
+        List<String> allTableCodes = java.util.Arrays.stream(InitStep.values())
+                .map(InitStep::getCode)
+                .collect(Collectors.toList());
+
+        // 一次查询拿到所有表的最新记录
+        List<DataGovernanceMetricDO> latestMetrics;
+        try {
+            latestMetrics = metricMapper.selectLatestPerTable(allTableCodes);
+        } catch (Exception e) {
+            log.warn("批量查询最新检测记录失败，降级为逐表查询: {}", e.getMessage());
+            latestMetrics = Collections.emptyList();
+        }
+
+        // 转成 Map 便于查找
+        Map<String, DataGovernanceMetricDO> metricMap = new java.util.HashMap<>(
+                latestMetrics != null ? latestMetrics.size() * 2 : 16);
+        if (latestMetrics != null) {
+            for (DataGovernanceMetricDO m : latestMetrics) {
+                metricMap.put(m.getTableCode(), m);
+            }
+        }
+
+        // 按 InitStep 顺序组装结果，无数据的补占位对象
+        List<DataGovernanceMetricDO> result = new ArrayList<>(allTableCodes.size());
         for (InitStep step : InitStep.values()) {
-            try {
-                DataGovernanceMetricDO metric = metricMapper.selectByTableCodeLatest(step.getCode());
-                if (metric != null) {
-                    result.add(metric);
-                } else {
-                    result.add(buildEmptyMetric(step));
-                }
-            } catch (Exception e) {
-                log.warn("获取表 {} 最新检测记录失败: {}", step.getCode(), e.getMessage());
+            DataGovernanceMetricDO metric = metricMap.get(step.getCode());
+            if (metric != null) {
+                result.add(metric);
+            } else {
                 result.add(buildEmptyMetric(step));
             }
         }

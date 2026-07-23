@@ -18,7 +18,7 @@ import com.google.common.collect.Lists;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
@@ -41,9 +41,9 @@ public class ExpressServiceImpl implements ExpressService, DataCheckable {
     private final TushareClient tushareClient;
     private final ExpressMapper expressMapper;
     private final StockBasicService stockBasicService;
+    private final TransactionTemplate transactionTemplate;
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public int fetchAndSaveExpress(String tsCode, String startDate, String endDate) {
         log.info("拉取 express {} [{}~{}]", tsCode, startDate, endDate);
         ExpressQueryDTO param = ExpressQueryDTO.builder()
@@ -51,13 +51,18 @@ public class ExpressServiceImpl implements ExpressService, DataCheckable {
                 .startDate(startDate)
                 .endDate(endDate)
                 .build();
+        // ⚠️ API 调用在事务外执行，避免限流等待时长时间占用数据库连接
         List<ExpressDTO> rows = tushareClient.express(param);
         if (rows == null || rows.isEmpty()) {
             log.info("express {} 无数据", tsCode);
             return 0;
         }
         List<ExpressDO> entities = rows.stream().map(this::toEntity).collect(Collectors.toList());
-        saveBatch(entities);
+        // 数据库写入才开启事务，尽量缩短连接持有时间
+        transactionTemplate.execute(status -> {
+            saveBatch(entities);
+            return null;
+        });
         log.info("express {} 保存 {} 条", tsCode, entities.size());
         return entities.size();
     }

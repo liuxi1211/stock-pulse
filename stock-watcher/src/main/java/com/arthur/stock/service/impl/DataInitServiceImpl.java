@@ -116,23 +116,25 @@ public class DataInitServiceImpl implements DataInitService {
         long startMs = System.currentTimeMillis();
         StepStats stats = StepStats.empty();
         try {
-            updateTaskProgress(taskId, 0, "增量拉取: " + step.getLabel(), 0, 0);
+            updateTaskRunning(taskId, "增量拉取: " + step.getLabel());
             stats = executeSingleStep(step, taskId, false);
 
             if (taskProgressCache.isCancelled(taskId)) {
                 finishPullLog(taskId, "CANCELLED", startMs, "用户取消", null, stats);
+                updateTaskCancelled(taskId, "用户取消");
                 log.info("Incremental update cancelled: {} (taskId={})", step.getLabel(), taskId);
                 return;
             }
             finishPullLog(taskId, "SUCCESS", startMs, null, null, stats);
             runQualityCheck(step);
-            updateTaskProgress(taskId, 100, "完成", 0, 0);
+            updateTaskSuccess(taskId);
             log.info("Incremental update completed: {} (taskId={})", step.getLabel(), taskId);
         } catch (Exception e) {
             log.error("Incremental update failed: {} (taskId={})", step.getLabel(), taskId, e);
             finishPullLog(taskId, "FAILED", startMs,
                     SensitiveDataUtil.mask(e.getMessage()),
                     SensitiveDataUtil.mask(getStackTrace(e)), stats);
+            updateTaskFailed(taskId, SensitiveDataUtil.mask(e.getMessage()));
         } finally {
             taskProgressCache.releaseLock();
         }
@@ -142,26 +144,28 @@ public class DataInitServiceImpl implements DataInitService {
         long startMs = System.currentTimeMillis();
         StepStats stats = StepStats.empty();
         try {
-            updateTaskProgress(taskId, 0, "重建表: " + step.getLabel(), 0, 0);
+            updateTaskRunning(taskId, "重建表: " + step.getLabel());
             rebuildTable(step);
 
-            updateTaskProgress(taskId, 0, "全量拉取: " + step.getLabel(), 0, 0);
+            updateTaskRunning(taskId, "全量拉取: " + step.getLabel());
             stats = executeSingleStep(step, taskId, true);
 
             if (taskProgressCache.isCancelled(taskId)) {
                 finishPullLog(taskId, "CANCELLED", startMs, "用户取消", null, stats);
+                updateTaskCancelled(taskId, "用户取消");
                 log.info("Full rebuild cancelled: {} (taskId={})", step.getLabel(), taskId);
                 return;
             }
             finishPullLog(taskId, "SUCCESS", startMs, null, null, stats);
             runQualityCheck(step);
-            updateTaskProgress(taskId, 100, "完成", 0, 0);
+            updateTaskSuccess(taskId);
             log.info("Full rebuild completed: {} (taskId={})", step.getLabel(), taskId);
         } catch (Exception e) {
             log.error("Full rebuild failed: {} (taskId={})", step.getLabel(), taskId, e);
             finishPullLog(taskId, "FAILED", startMs,
                     SensitiveDataUtil.mask(e.getMessage()),
                     SensitiveDataUtil.mask(getStackTrace(e)), stats);
+            updateTaskFailed(taskId, SensitiveDataUtil.mask(e.getMessage()));
         } finally {
             taskProgressCache.releaseLock();
         }
@@ -175,7 +179,6 @@ public class DataInitServiceImpl implements DataInitService {
         switch (step) {
             case STOCK_BASIC -> {
                 stockBasicService.fetchAndSaveStockBasic();
-                updateTaskProgress(taskId, 100, "完成", 1, 1);
                 return StepStats.single();
             }
             case TRADE_CAL -> {
@@ -188,7 +191,6 @@ public class DataInitServiceImpl implements DataInitService {
                         log.warn("Trade cal failed for {}: {}", ex.getCode(), e.getMessage());
                     }
                 }
-                updateTaskProgress(taskId, 100, "完成", 2, 2);
                 return new StepStats(2, ok, 2 - ok);
             }
             case INDEX_WEIGHT -> {
@@ -201,7 +203,6 @@ public class DataInitServiceImpl implements DataInitService {
                         log.warn("Index weight failed for {}: {}", code, e.getMessage());
                     }
                 }
-                updateTaskProgress(taskId, 100, "完成", INDEX_CODES.size(), INDEX_CODES.size());
                 return new StepStats(INDEX_CODES.size(), success, INDEX_CODES.size() - success);
             }
             case SW_INDUSTRY -> {
@@ -218,22 +219,18 @@ public class DataInitServiceImpl implements DataInitService {
                 } catch (Exception e) {
                     log.warn("SW members failed: {}", e.getMessage());
                 }
-                updateTaskProgress(taskId, 100, "完成", 1, 1);
                 return new StepStats(2, swOk, 2 - swOk);
             }
             case NAMECHANGE -> {
                 stockNamechangeService.fetchAndSaveAll();
-                updateTaskProgress(taskId, 100, "完成", 1, 1);
                 return StepStats.single();
             }
             case SUSPEND_D -> {
                 stockSuspendDService.fetchAndSaveAll();
-                updateTaskProgress(taskId, 100, "完成", 1, 1);
                 return StepStats.single();
             }
             case STK_LIMIT -> {
                 stockStkLimitService.fetchAndSaveAll();
-                updateTaskProgress(taskId, 100, "完成", 1, 1);
                 return StepStats.single();
             }
             case DAILY -> {
@@ -279,55 +276,45 @@ public class DataInitServiceImpl implements DataInitService {
             }
             case DAILY_BASIC -> {
                 basicDataService.fetchAndSaveDailyBasic(today);
-                updateTaskProgress(taskId, 100, "完成", 1, 1);
                 return StepStats.single();
             }
             case MONEYFLOW -> {
                 moneyflowService.fetchAndSave(today);
-                updateTaskProgress(taskId, 100, "完成", 1, 1);
                 return StepStats.single();
             }
             case TOP_LIST -> {
                 topListService.fetchAndSaveTopList(today);
-                updateTaskProgress(taskId, 100, "完成", 1, 1);
                 return StepStats.single();
             }
             case TOP_INST -> {
                 topListService.fetchAndSaveTopInst(today);
-                updateTaskProgress(taskId, 100, "完成", 1, 1);
                 return StepStats.single();
             }
             case BLOCK_TRADE -> {
                 blockTradeService.fetchAndSave(today);
-                updateTaskProgress(taskId, 100, "完成", 1, 1);
                 return StepStats.single();
             }
             case HK_HOLD -> {
                 hkHoldService.fetchAndSave(today);
-                updateTaskProgress(taskId, 100, "完成", 1, 1);
                 return StepStats.single();
             }
             case MARGIN -> {
                 marginService.fetchAndSaveMargin(today);
-                updateTaskProgress(taskId, 100, "完成", 1, 1);
                 return StepStats.single();
             }
             case MARGIN_DETAIL -> {
                 marginService.fetchAndSaveMarginDetail(today);
-                updateTaskProgress(taskId, 100, "完成", 1, 1);
                 return StepStats.single();
             }
             case FINA_INDICATOR -> {
                 String startPeriod = isFull ? fullStart : LocalDate.now().minusYears(1).format(DATE_FMT);
                 basicDataService.fetchAndSaveFinaIndicator(startPeriod, today);
-                updateTaskProgress(taskId, 100, "完成", 1, 1);
                 return StepStats.single();
             }
             case INDEX_DAILY -> {
                 String start = isFull ? fullStart : today;
                 List<String> codes = IndexConstants.DEFAULT_INDEX_CODES;
                 int success = 0;
-                int i = 0;
                 for (String code : codes) {
                     try {
                         indexDailyFetchService.fetchAndSaveIndexDaily(code, start, today);
@@ -335,9 +322,6 @@ public class DataInitServiceImpl implements DataInitService {
                     } catch (Exception e) {
                         log.warn("Index daily failed for {}: {}", code, e.getMessage());
                     }
-                    i++;
-                    updateTaskProgress(taskId, i * 100 / codes.size(),
-                            step.getLabel() + " (" + i + "/" + codes.size() + ")", i, codes.size());
                 }
                 return new StepStats(codes.size(), success, codes.size() - success);
             }
@@ -377,14 +361,12 @@ public class DataInitServiceImpl implements DataInitService {
         List<StockBasicDTO> stocks = resolveStockListForSingleStep();
         int total = stocks.size();
         if (total == 0) {
-            updateTaskProgress(taskId, 100, "完成（无股票）", 0, 0);
             return StepStats.empty();
         }
 
         int concurrency = Math.min(20, Math.max(4, total / 50));
         ExecutorService executor = Executors.newFixedThreadPool(
                 concurrency, Thread.ofVirtual().name("data-init-", 0).factory());
-        AtomicInteger processed = new AtomicInteger(0);
         AtomicInteger successCount = new AtomicInteger(0);
         AtomicInteger failCount = new AtomicInteger(0);
         AtomicBoolean cancelled = new AtomicBoolean(false);
@@ -405,12 +387,6 @@ public class DataInitServiceImpl implements DataInitService {
                     failCount.incrementAndGet();
                     log.warn("Failed for {}: {}", tsCode, e.getMessage());
                 }
-                int done = processed.incrementAndGet();
-                if (done % 100 == 0 || done == total) {
-                    updateTaskProgress(taskId, done * 100 / total,
-                            step.getLabel() + " (" + done + "/" + total + ")",
-                            done, total);
-                }
             }, executor);
             futures.add(future);
         }
@@ -423,8 +399,6 @@ public class DataInitServiceImpl implements DataInitService {
             executor.shutdown();
         }
 
-        int done = processed.get();
-        updateTaskProgress(taskId, 100, "完成", done, total);
         log.info("{} completed: success={}, fail={}, total={}",
                 step.getLabel(), successCount.get(), failCount.get(), total);
         return new StepStats(total, successCount.get(), failCount.get());
@@ -466,31 +440,70 @@ public class DataInitServiceImpl implements DataInitService {
         TaskProgress progress = TaskProgress.builder()
                 .taskId(taskId)
                 .tableCode(tableCode)
-                .progressPct(0)
+                .status("RUNNING")
                 .currentStep("准备中")
-                .processedItems(0)
-                .totalItems(0)
+                .errorMessage(null)
                 .cancelled(false)
                 .lastUpdated(LocalDateTime.now().format(DATETIME_FMT))
                 .build();
         taskProgressCache.putProgress(taskId, progress);
     }
 
-    private void updateTaskProgress(String taskId, int progressPct, String currentStep,
-                                    long processed, long total) {
+    private void updateTaskRunning(String taskId, String currentStep) {
         TaskProgress existing = taskProgressCache.getProgress(taskId);
         TaskProgress progress = TaskProgress.builder()
                 .taskId(taskId)
                 .tableCode(existing != null ? existing.getTableCode() : null)
-                .progressPct(progressPct)
+                .status("RUNNING")
                 .currentStep(currentStep)
-                .processedItems(processed)
-                .totalItems(total)
+                .errorMessage(null)
                 .cancelled(existing != null && existing.isCancelled())
                 .lastUpdated(LocalDateTime.now().format(DATETIME_FMT))
                 .build();
         taskProgressCache.putProgress(taskId, progress);
         taskProgressCache.heartbeat(taskId);
+    }
+
+    private void updateTaskSuccess(String taskId) {
+        TaskProgress existing = taskProgressCache.getProgress(taskId);
+        TaskProgress progress = TaskProgress.builder()
+                .taskId(taskId)
+                .tableCode(existing != null ? existing.getTableCode() : null)
+                .status("SUCCESS")
+                .currentStep("完成")
+                .errorMessage(null)
+                .cancelled(false)
+                .lastUpdated(LocalDateTime.now().format(DATETIME_FMT))
+                .build();
+        taskProgressCache.putProgress(taskId, progress);
+    }
+
+    private void updateTaskFailed(String taskId, String errorMessage) {
+        TaskProgress existing = taskProgressCache.getProgress(taskId);
+        TaskProgress progress = TaskProgress.builder()
+                .taskId(taskId)
+                .tableCode(existing != null ? existing.getTableCode() : null)
+                .status("FAILED")
+                .currentStep("失败")
+                .errorMessage(errorMessage)
+                .cancelled(false)
+                .lastUpdated(LocalDateTime.now().format(DATETIME_FMT))
+                .build();
+        taskProgressCache.putProgress(taskId, progress);
+    }
+
+    private void updateTaskCancelled(String taskId, String reason) {
+        TaskProgress existing = taskProgressCache.getProgress(taskId);
+        TaskProgress progress = TaskProgress.builder()
+                .taskId(taskId)
+                .tableCode(existing != null ? existing.getTableCode() : null)
+                .status("CANCELLED")
+                .currentStep("已取消")
+                .errorMessage(reason)
+                .cancelled(true)
+                .lastUpdated(LocalDateTime.now().format(DATETIME_FMT))
+                .build();
+        taskProgressCache.putProgress(taskId, progress);
     }
 
     private void rebuildTable(InitStep step) {
