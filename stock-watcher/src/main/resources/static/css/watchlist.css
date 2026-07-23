@@ -350,7 +350,7 @@
     font-size: 16px;
 }
 
-/* 涨跌颜色 */
+/* 涨跌颜色（已迁入 components.css，此处保留兼容） */
 .rise {
     color: var(--rise-color) !important;
 }
@@ -359,7 +359,7 @@
     color: var(--fall-color) !important;
 }
 
-/* 仅图标按钮 */
+/* 仅图标按钮（已迁入 components.css 的 .btn-icon，保留兼容） */
 .btn-icon-only {
     width: 32px;
     height: 32px;

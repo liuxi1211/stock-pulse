@@ -134,10 +134,10 @@ const DG = {
             const d = resp.data || {};
             const ok = d.lastTestOk;
             const statusBadge = d.status === 'ACTIVE'
-                ? '<span class="dg-badge normal">活跃</span>'
+                ? '<span class="badge bg-success badge-dot">活跃</span>'
                 : d.status === 'INACTIVE'
-                ? '<span class="dg-badge error">不可用</span>'
-                : '<span class="dg-badge auto">未知</span>';
+                ? '<span class="badge bg-danger badge-dot">不可用</span>'
+                : '<span class="badge bg-secondary badge-dot">未知</span>';
             body.innerHTML = `
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <div>
@@ -192,8 +192,9 @@ const DG = {
 
         const tbody = document.getElementById('tableBody');
         if (!list || !list.length) {
-            tbody.innerHTML = `<tr><td colspan="8"><div class="dg-empty">
-                <i class="bi bi-inbox"></i>无匹配的数据表
+            tbody.innerHTML = `<tr><td colspan="8"><div class="empty-state-sm">
+                <i class="bi bi-inbox"></i>
+                <p>无匹配的数据表</p>
             </div></td></tr>`;
             return;
         }
@@ -215,13 +216,13 @@ const DG = {
 
             const groupMeta = this.getGroupMeta(t.tableGroup);
             const failedBadge = t.failedCount > 0
-                ? `<span class="dg-badge error ms-1">${t.failedCount} 项</span>` : '';
+                ? `<span class="badge bg-danger ms-1">${t.failedCount} 项</span>` : '';
             const adminButtons = this.isAdmin ? `
-                <button class="dg-mini-btn" onclick="DG.incrementalUpdate('${t.tableCode}')" title="增量更新">
-                    <i class="bi bi-arrow-up-circle"></i> 增量
+                <button class="btn btn-outline-secondary btn-sm" onclick="DG.incrementalUpdate('${t.tableCode}')" title="增量更新">
+                    <i class="bi bi-arrow-up-circle ico-success"></i> 增量
                 </button>
-                <button class="dg-mini-btn warn" onclick="DG.openRebuildModal('${t.tableCode}', '${StockApp.escapeHtml(t.tableName)}')" title="全量重建">
-                    <i class="bi bi-arrow-repeat"></i> 全量
+                <button class="btn btn-outline-secondary btn-sm" onclick="DG.openRebuildModal('${t.tableCode}', '${StockApp.escapeHtml(t.tableName)}')" title="全量重建">
+                    <i class="bi bi-arrow-repeat ico-warning"></i> 全量
                 </button>
             ` : '';
             return `
@@ -230,7 +231,7 @@ const DG = {
                         <div class="dg-table-name">${StockApp.escapeHtml(t.tableName)}</div>
                         <div class="dg-table-code">${t.tableCode}</div>
                     </td>
-                    <td><span class="dg-grp-tag" style="--grp-c: ${groupMeta.color};">${groupMeta.label}</span></td>
+                    <td><span class="badge badge-pill" style="background: color-mix(in srgb, ${groupMeta.color} 14%, transparent); color: ${groupMeta.color}; border: 1px solid color-mix(in srgb, ${groupMeta.color} 25%, transparent);">${groupMeta.label}</span></td>
                     <td${tooltipAttr}>
                         <span class="dg-status ${status.cls}">
                             <span class="dot"></span>${status.label}
@@ -242,18 +243,18 @@ const DG = {
                     <td><small class="text-muted font-mono">${t.lastCheckTime || '-'}</small></td>
                     <td><small class="text-muted">${t.updateFrequency || '-'}</small></td>
                     <td>
-                        <div class="dg-actions">
-                            <button class="dg-mini-btn" onclick="DG.openDetail('${t.tableCode}')" title="查看详情">
-                                <i class="bi bi-eye"></i> 详情
+                        <div class="d-flex flex-wrap gap-1 justify-content-center">
+                            <button class="btn btn-outline-secondary btn-sm" onclick="DG.openDetail('${t.tableCode}')" title="查看详情">
+                                <i class="bi bi-eye ico-primary"></i> 详情
                             </button>
-                            <button class="dg-mini-btn" onclick="DG.checkTable('${t.tableCode}')" title="手动检测">
-                                <i class="bi bi-clipboard-check"></i> 检测
+                            <button class="btn btn-outline-secondary btn-sm" onclick="DG.checkTable('${t.tableCode}')" title="手动检测">
+                                <i class="bi bi-clipboard-check ico-info"></i> 检测
                             </button>
-                            <button class="dg-mini-btn" onclick="DG.openPullHistory('${t.tableCode}', '${StockApp.escapeHtml(t.tableName)}')" title="拉取日志">
-                                <i class="bi bi-clock-history"></i> 日志
+                            <button class="btn btn-outline-secondary btn-sm" onclick="DG.openPullHistory('${t.tableCode}', '${StockApp.escapeHtml(t.tableName)}')" title="拉取日志">
+                                <i class="bi bi-clock-history ico-muted"></i> 日志
                             </button>
-                            <button class="dg-mini-btn" onclick="DG.openCheckHistory('${t.tableCode}', '${StockApp.escapeHtml(t.tableName)}')" title="检测历史">
-                                <i class="bi bi-graph-up"></i> 历史
+                            <button class="btn btn-outline-secondary btn-sm" onclick="DG.openCheckHistory('${t.tableCode}', '${StockApp.escapeHtml(t.tableName)}')" title="检测历史">
+                                <i class="bi bi-graph-up ico-muted"></i> 历史
                             </button>
                             ${adminButtons}
                         </div>
@@ -314,7 +315,7 @@ const DG = {
             }
             const logs = resp.data || [];
             if (!logs.length) {
-                body.innerHTML = `<tr><td colspan="8"><div class="dg-empty"><i class="bi bi-inbox"></i>暂无拉取日志</div></td></tr>`;
+                body.innerHTML = `<tr><td colspan="8"><div class="empty-state-sm"><i class="bi bi-inbox"></i><p>暂无拉取日志</p></div></td></tr>`;
                 return;
             }
             body.innerHTML = logs.map(log => {
@@ -353,7 +354,7 @@ const DG = {
             }
             const history = resp.data || [];
             if (!history.length) {
-                body.innerHTML = `<tr><td colspan="7"><div class="dg-empty"><i class="bi bi-inbox"></i>暂无检测记录</div></td></tr>`;
+                body.innerHTML = `<tr><td colspan="7"><div class="empty-state-sm"><i class="bi bi-inbox"></i><p>暂无检测记录</p></div></td></tr>`;
                 return;
             }
             body.innerHTML = history.map(m => {
@@ -383,7 +384,7 @@ const DG = {
                 return `
                     <tr>
                         <td><small class="font-mono">${m.checkTime || '-'}</small></td>
-                        <td>${m.checkType === 'MANUAL' ? '<span class="dg-badge manual">手动</span>' : '<span class="dg-badge auto">定时</span>'}</td>
+                        <td>${m.checkType === 'MANUAL' ? '<span class="badge bg-secondary">手动</span>' : '<span class="badge bg-light">定时</span>'}</td>
                         <td><span class="dg-status ${status.cls}"><span class="dot"></span>${status.label}</span></td>
                         <td class="dg-anomaly-cell">${anomalyCell}</td>
                         <td class="text-end font-mono">${this.formatCount(m.totalRows)}</td>
@@ -423,7 +424,7 @@ const DG = {
         const rows = [
             ['表代码', d.tableCode],
             ['表名称', d.tableName],
-            ['分组', `<span class="dg-grp-tag" style="--grp-c: ${groupMeta.color};">${groupMeta.label}</span>`],
+            ['分组', `<span class="badge badge-pill" style="background: color-mix(in srgb, ${groupMeta.color} 14%, transparent); color: ${groupMeta.color}; border: 1px solid color-mix(in srgb, ${groupMeta.color} 25%, transparent);">${groupMeta.label}</span>`],
             ['Tushare 接口', d.tushareApi || '-'],
             ['数据总量', this.formatCount(d.totalRows) + ' 行'],
             ['最新数据日期', this.formatDate(d.latestDate) || '-'],
@@ -432,7 +433,7 @@ const DG = {
             ['预期更新时间', d.expectedUpdateTime || '-'],
             ['是否日频', d.isDaily ? '是' : '否'],
             ['最后检测时间', d.lastCheckTime || '-'],
-            ['当前状态', `<span class="dg-badge ${status.cls}">${status.label}</span>`],
+            ['当前状态', `<span class="badge bg-${status.cls === 'normal' ? 'success' : status.cls === 'error' ? 'danger' : status.cls === 'delayed' ? 'warning' : 'info'} badge-dot">${status.label}</span>`],
         ];
         document.getElementById('detailInfoBody').innerHTML = `
             <ul class="dg-detail-list two-col">
@@ -443,7 +444,7 @@ const DG = {
     renderDetailCheck(items) {
         const body = document.getElementById('detailCheckBody');
         if (!items || !items.length) {
-            body.innerHTML = `<div class="dg-empty"><i class="bi bi-clipboard-check"></i>暂无检测结果</div>`;
+            body.innerHTML = `<div class="empty-state-sm"><i class="bi bi-clipboard-check"></i><p>暂无检测结果</p></div>`;
             return;
         }
         body.innerHTML = items.map(item => {
@@ -718,11 +719,11 @@ const DG = {
 
     getLogStatusBadge(status) {
         const map = {
-            SUCCESS: '<span class="dg-badge success">成功</span>',
-            FAILED:  '<span class="dg-badge failed">失败</span>',
-            RUNNING: '<span class="dg-badge running">运行中</span>',
+            SUCCESS: '<span class="badge bg-success badge-dot">成功</span>',
+            FAILED:  '<span class="badge bg-danger badge-dot">失败</span>',
+            RUNNING: '<span class="badge bg-info badge-dot">运行中</span>',
         };
-        return map[status] || `<span class="dg-badge auto">${status || '-'}</span>`;
+        return map[status] || `<span class="badge bg-secondary">${status || '-'}</span>`;
     },
 
     formatDate(dateStr) {

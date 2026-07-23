@@ -120,14 +120,19 @@ node run.js logs watcher|engine   # tail 日志
 
 ### 4.2 前端规范（`frontend/`）
 
-| 场景 | 文档                               | 内容要点              |
-|-----|----------------------------------|-------------------|
-| HTML/CSS 风格 | `01-frontend.md`                 | 前端页面风格，前端页面编写必须参考 |
-| JavaScript 风格 | `02-javascript-style.md`         | JavaScript 风格     |
-| Thymeleaf 最佳实践 | `03-thymeleaf-best-practices.md` | Thymeleaf 最佳实践    |
-| ECharts 最佳实践 | `04-echarts-best-practices.md`   | ECharts 最佳实践      |
-| 前端性能优化 | `05-frontend-performance.md`     | 前端性能优化            |
-| 前端安全 | `06-frontend-security.md`        | 前端安全              |
+> ⭐ 前端开发先看 `01-overview.md`（总览 + 5 步起步法）。分三层：基础层（每次写页面都用）→ 技术栈层（用到再查）→ 专项层（按需查阅）。
+
+| 层 | # | 文档 | 内容要点 |
+|---|---|------|---------|
+| **基础** | 01 | `01-overview.md` | ⭐ 总览 + 索引 + 新页面 5 步起步法（**新任务先看**） |
+| | 02 | `02-design-tokens.md` | 三主题系统 + 全部 Design Tokens（颜色/字体/圆角/阴影/动效） |
+| | 03 | `03-components.md` | 组件库手册（按钮/卡片/表单/表格/徽章/统计条/模态框…） |
+| | 04 | `04-coding-guide.md` | HTML/CSS 编码规范 + 交付自查清单 |
+| **技术栈** | 05 | `05-thymeleaf-guide.md` | Thymeleaf 模板最佳实践（表达式/片段/表单/布局） |
+| | 06 | `06-javascript-guide.md` | JavaScript 代码风格 + 项目特定规范（StockApp/命名/异步） |
+| | 07 | `07-echarts-guide.md` | ECharts 图表最佳实践（K线/折线/柱图/性能/主题色） |
+| **专项** | 08 | `08-performance.md` | 前端性能优化（资源加载/渲染/DOM/ECharts/网络） |
+| | 09 | `09-security.md` | 前端安全规范（XSS/CSRF/敏感信息/存储） |
 
 ### 4.3 业务指南（`business/`）
 
@@ -198,13 +203,16 @@ node run.js logs watcher|engine   # tail 日志
 │   │   ├── 06-java-security.md
 │   │   ├── 07-java-code-quality.md
 │   │   └── 08-constants-usage.md
-│   ├── frontend/                     # 前端规范
-│   │   ├── 01-frontend.md
-│   │   ├── 02-javascript-style.md
-│   │   ├── 03-thymeleaf-best-practices.md
-│   │   ├── 04-echarts-best-practices.md
-│   │   ├── 05-frontend-performance.md
-│   │   └── 06-frontend-security.md
+│   ├── frontend/                     # 前端规范（3 层 9 份）
+│   │   ├── 01-overview.md            # ⭐ 入口：总览 + 5 步起步法
+│   │   ├── 02-design-tokens.md       # 基础：设计令牌 + 三主题
+│   │   ├── 03-components.md          # 基础：组件库手册
+│   │   ├── 04-coding-guide.md        # 基础：编码规范 + 自查清单
+│   │   ├── 05-thymeleaf-guide.md     # 技术栈：Thymeleaf
+│   │   ├── 06-javascript-guide.md    # 技术栈：JavaScript
+│   │   ├── 07-echarts-guide.md       # 技术栈：ECharts
+│   │   ├── 08-performance.md         # 专项：性能优化
+│   │   └── 09-security.md            # 专项：安全规范
 │   └── business/                     # 业务指南
 │       ├── 01-auth.md
 │       └── 02-tushare-integration-guide.md

@@ -2,6 +2,7 @@
    数据管控中心页面样式
    - 使用 dg- 前缀避免与全局组件冲突
    - 所有颜色走 theme.css token，透明度用 color-mix
+   - 已迁移至全局组件：badge / empty-state / btn 系列
    ============================================================ */
 
 /* ============ 筛选栏（紧凑型） ============ */
@@ -15,6 +16,13 @@
     display: flex;
     gap: 8px;
     flex-wrap: wrap;
+    align-items: center;
+}
+
+.dg-filter-left,
+.dg-filter-right {
+    display: flex;
+    gap: 8px;
     align-items: center;
 }
 
@@ -46,7 +54,7 @@
 }
 
 .dg-search-box input {
-    padding-left: 32px;
+    padding-left: 32px !important;
 }
 
 .dg-filter-bar .btn {
@@ -152,109 +160,7 @@
     50% { opacity: 0.4; transform: scale(0.7); }
 }
 
-/* ============ 分组标签 ============ */
-.dg-grp-tag {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    padding: 3px 9px;
-    border-radius: var(--radius-full);
-    font-size: 10px;
-    font-weight: 600;
-    background: color-mix(in srgb, var(--grp-c, var(--text-muted)) 12%, transparent);
-    color: var(--grp-c, var(--text-secondary));
-    border: 1px solid color-mix(in srgb, var(--grp-c, var(--text-muted)) 25%, transparent);
-}
-
-/* ============ 表内操作按钮 ============ */
-.dg-actions {
-    display: flex;
-    gap: 4px;
-    justify-content: center;
-    flex-wrap: wrap;
-}
-
-.dg-mini-btn {
-    height: 28px;
-    padding: 0 10px;
-    border-radius: var(--radius-sm);
-    background: var(--bg-tertiary);
-    border: 1px solid var(--border-color);
-    color: var(--text-secondary);
-    font-size: 12px;
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    cursor: pointer;
-    transition: color var(--transition-fast),
-                border-color var(--transition-fast),
-                background var(--transition-fast);
-}
-
-.dg-mini-btn:hover {
-    color: var(--accent-cyan);
-    border-color: var(--accent-blue);
-    background: color-mix(in srgb, var(--accent-blue) 8%, transparent);
-}
-
-.dg-mini-btn i {
-    font-size: 13px;
-}
-
-.dg-mini-btn.warn:hover {
-    color: var(--accent-yellow);
-    border-color: var(--accent-yellow);
-}
-
-/* ============ 数据源指示器 ============ */
-.dg-ds-indicator {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    padding: 6px 14px;
-    border-radius: var(--radius-full);
-    background: var(--bg-card);
-    border: 1px solid var(--border-color);
-    cursor: pointer;
-    font-size: 12px;
-    color: var(--text-secondary);
-    transition: all var(--transition-fast);
-}
-
-.dg-ds-indicator:hover {
-    border-color: var(--accent-blue);
-    color: var(--text-primary);
-}
-
-.dg-ds-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    flex-shrink: 0;
-}
-
-.dg-ds-dot.online {
-    background: var(--accent-green);
-    box-shadow: 0 0 6px color-mix(in srgb, var(--accent-green) 50%, transparent);
-}
-
-.dg-ds-dot.offline {
-    background: var(--rise-color);
-    box-shadow: 0 0 6px color-mix(in srgb, var(--rise-color) 50%, transparent);
-}
-
-.dg-ds-dot.unknown {
-    background: var(--text-muted);
-}
-
-/* ============ 时间格式卡片值 ============ */
-.dg-stat-time {
-    font-size: 16px !important;
-    font-weight: 600 !important;
-    line-height: 1.3 !important;
-}
-
-/* ============ 表名单元格 ============ */
+/* ============ 表名字段 ============ */
 .dg-table-name {
     font-weight: 500;
     color: var(--text-primary);
@@ -397,111 +303,72 @@
     margin-top: 3px;
 }
 
-/* ============ 拉取历史列表 ============ */
-.dg-log-item {
-    padding: 10px 12px;
-    border-radius: var(--radius-sm);
-    cursor: pointer;
-    transition: background var(--transition-fast);
-    border: 1px solid transparent;
-}
-
-.dg-log-item:hover {
-    background: var(--bg-tertiary);
-    border-color: var(--border-light);
-}
-
-.dg-log-item .lg-row {
-    display: flex;
-    justify-content: space-between;
+/* ============ 数据源指示器 ============ */
+.dg-ds-indicator {
+    display: inline-flex;
     align-items: center;
-    margin-bottom: 4px;
+    gap: 8px;
+    padding: 6px 14px;
+    border-radius: var(--radius-full);
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    cursor: pointer;
+    font-size: 12px;
+    color: var(--text-secondary);
+    transition: all var(--transition-fast);
 }
 
-.dg-log-item .lg-time {
-    font-size: 11px;
-    color: var(--text-muted);
-    font-family: var(--font-mono);
+.dg-ds-indicator:hover {
+    border-color: var(--accent-blue);
+    color: var(--text-primary);
 }
 
-/* ============ 状态徽章（详情/弹窗用） ============ */
-.dg-badge {
+.dg-ds-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.dg-ds-dot.online {
+    background: var(--accent-green);
+    box-shadow: 0 0 6px color-mix(in srgb, var(--accent-green) 50%, transparent);
+}
+
+.dg-ds-dot.offline {
+    background: var(--rise-color);
+    box-shadow: 0 0 6px color-mix(in srgb, var(--rise-color) 50%, transparent);
+}
+
+.dg-ds-dot.unknown {
+    background: var(--text-muted);
+}
+
+/* ============ 检测历史异常详情列 ============ */
+.dg-anomaly-cell {
+    max-width: 280px;
+}
+
+.dg-anomaly-cell .dg-anomaly-list {
+    font-size: 11.5px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+}
+
+.dg-anomaly-cell .dg-anomaly-item {
+    margin-bottom: 2px;
+}
+
+.dg-anomaly-cell .dg-anomaly-item strong {
+    color: var(--rise-light);
+}
+
+.dg-anomaly-pass {
+    color: var(--accent-green);
+    font-size: 12px;
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    padding: 3px 10px;
-    border-radius: var(--radius-full);
-    font-size: 11px;
-    font-weight: 600;
-    font-family: var(--font-mono);
-}
-
-.dg-badge.normal {
-    background: color-mix(in srgb, var(--accent-green) 14%, transparent);
-    color: var(--accent-green);
-    border: 1px solid color-mix(in srgb, var(--accent-green) 25%, transparent);
-}
-
-.dg-badge.delayed {
-    background: color-mix(in srgb, var(--accent-yellow) 14%, transparent);
-    color: var(--accent-yellow);
-    border: 1px solid color-mix(in srgb, var(--accent-yellow) 25%, transparent);
-}
-
-.dg-badge.error {
-    background: color-mix(in srgb, var(--rise-color) 14%, transparent);
-    color: var(--rise-light);
-    border: 1px solid color-mix(in srgb, var(--rise-color) 25%, transparent);
-}
-
-.dg-badge.updating {
-    background: color-mix(in srgb, var(--accent-cyan) 14%, transparent);
-    color: var(--accent-cyan);
-    border: 1px solid color-mix(in srgb, var(--accent-cyan) 25%, transparent);
-}
-
-.dg-badge.success {
-    background: color-mix(in srgb, var(--accent-green) 14%, transparent);
-    color: var(--accent-green);
-    border: 1px solid color-mix(in srgb, var(--accent-green) 25%, transparent);
-}
-
-.dg-badge.failed {
-    background: color-mix(in srgb, var(--rise-color) 14%, transparent);
-    color: var(--rise-light);
-    border: 1px solid color-mix(in srgb, var(--rise-color) 25%, transparent);
-}
-
-.dg-badge.running {
-    background: color-mix(in srgb, var(--accent-cyan) 14%, transparent);
-    color: var(--accent-cyan);
-    border: 1px solid color-mix(in srgb, var(--accent-cyan) 25%, transparent);
-}
-
-.dg-badge.manual {
-    background: color-mix(in srgb, var(--accent-purple) 14%, transparent);
-    color: var(--accent-purple-light);
-    border: 1px solid color-mix(in srgb, var(--accent-purple) 25%, transparent);
-}
-
-.dg-badge.auto {
-    background: color-mix(in srgb, var(--text-muted) 14%, transparent);
-    color: var(--text-muted);
-    border: 1px solid color-mix(in srgb, var(--text-muted) 25%, transparent);
-}
-
-/* ============ 空状态 ============ */
-.dg-empty {
-    padding: 60px 20px;
-    text-align: center;
-    color: var(--text-muted);
-}
-
-.dg-empty i {
-    font-size: 36px;
-    opacity: 0.4;
-    display: block;
-    margin-bottom: 12px;
 }
 
 /* ============ 状态 tooltip 自定义样式 ============ */
@@ -539,44 +406,28 @@
     color: var(--accent-cyan);
 }
 
-/* ============ 检测历史异常详情列 ============ */
-.dg-anomaly-cell {
-    max-width: 280px;
-}
-
-.dg-anomaly-cell .dg-anomaly-list {
-    font-size: 11.5px;
-    color: var(--text-secondary);
-    line-height: 1.6;
-}
-
-.dg-anomaly-cell .dg-anomaly-item {
-    margin-bottom: 2px;
-}
-
-.dg-anomaly-cell .dg-anomaly-item strong {
-    color: var(--rise-light);
-}
-
-.dg-anomaly-pass {
-    color: var(--accent-green);
-    font-size: 12px;
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-}
-
 /* ============ 响应式 ============ */
 @media (max-width: 640px) {
     .dg-filter-bar {
         flex-direction: column;
         align-items: stretch;
     }
+    .dg-filter-left,
+    .dg-filter-right {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .dg-filter-right {
+        margin-left: 0;
+    }
     .dg-filter-bar .form-select-sm,
     .dg-filter-bar .form-control-sm,
     .dg-search-box {
         width: 100%;
         max-width: none;
+    }
+    .dg-filter-bar .btn {
+        width: 100%;
     }
 }
 

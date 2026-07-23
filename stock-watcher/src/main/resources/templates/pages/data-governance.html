@@ -22,10 +22,10 @@
                         <span id="dsLabel">数据源</span>
                     </span>
                     <button class="btn btn-outline-secondary btn-sm" onclick="DG.refreshAll()">
-                        <i class="bi bi-arrow-clockwise"></i> 刷新
+                        <i class="bi bi-arrow-clockwise ico-info"></i> 刷新
                     </button>
-                    <button class="btn btn-secondary btn-sm" th:if="${session.AUTH_USER?.role?.name() == 'ADMIN'}" onclick="DG.checkAll()">
-                        <i class="bi bi-shield-check"></i> 全量检测
+                    <button class="btn btn-primary btn-sm" th:if="${session.AUTH_USER?.role?.name() == 'ADMIN'}" onclick="DG.checkAll()">
+                        <i class="bi bi-shield-check ico-white"></i> 全量检测
                     </button>
                 </div>
             </div>
@@ -57,36 +57,40 @@
                     <div class="stat-head">
                         <span class="stat-label"><i class="bi bi-clock-history"></i> 最近检测</span>
                     </div>
-                    <div class="stat-value dg-stat-time" id="ovLastCheckTime">-</div>
+                    <div class="stat-value font-mono" id="ovLastCheckTime">-</div>
                     <div class="stat-foot"><span class="dot" style="--c: var(--accent-cyan);">定时每晚 22:00</span></div>
                 </div>
             </div>
 
             <!-- ============ Compact Filter Bar ============ -->
             <div class="dg-filter-bar animate-in delay-2">
-                <select class="form-select form-select-sm" id="filterGroup" onchange="DG.loadTables()" title="分组">
-                    <option value="">全部分组</option>
-                    <option value="BASIC">基础数据</option>
-                    <option value="MARKET">行情数据</option>
-                    <option value="FINANCE">财务数据</option>
-                    <option value="EVENT">事件数据</option>
-                    <option value="INDEX">指数与市场</option>
-                </select>
-                <select class="form-select form-select-sm" id="filterStatus" onchange="DG.loadTables()" title="状态">
-                    <option value="">全部状态</option>
-                    <option value="NORMAL">正常</option>
-                    <option value="DELAYED">延迟</option>
-                    <option value="ERROR">异常</option>
-                    <option value="UPDATING">更新中</option>
-                </select>
-                <div class="dg-search-box">
-                    <i class="bi bi-search"></i>
-                    <input type="text" class="form-control form-control-sm" id="filterKeyword"
-                           placeholder="搜索表名或代码" onkeyup="DG.onKeywordSearch(event)">
+                <div class="dg-filter-left">
+                    <select class="form-select form-select-sm" id="filterGroup" onchange="DG.loadTables()" title="分组">
+                        <option value="">全部分组</option>
+                        <option value="BASIC">基础数据</option>
+                        <option value="MARKET">行情数据</option>
+                        <option value="FINANCE">财务数据</option>
+                        <option value="EVENT">事件数据</option>
+                        <option value="INDEX">指数与市场</option>
+                    </select>
+                    <select class="form-select form-select-sm" id="filterStatus" onchange="DG.loadTables()" title="状态">
+                        <option value="">全部状态</option>
+                        <option value="NORMAL">正常</option>
+                        <option value="DELAYED">延迟</option>
+                        <option value="ERROR">异常</option>
+                        <option value="UPDATING">更新中</option>
+                    </select>
                 </div>
-                <button class="btn btn-outline-secondary btn-sm" onclick="DG.resetTableFilters()">
-                    <i class="bi bi-x-lg"></i>
-                </button>
+                <div class="dg-filter-right">
+                    <div class="dg-search-box">
+                        <i class="bi bi-search ico-muted"></i>
+                        <input type="text" class="form-control form-control-sm" id="filterKeyword"
+                               placeholder="搜索表名或代码" onkeyup="DG.onKeywordSearch(event)">
+                    </div>
+                    <button class="btn btn-outline-secondary btn-sm" onclick="DG.resetTableFilters()" title="重置筛选">
+                        <i class="bi bi-x-lg ico-muted"></i>
+                    </button>
+                </div>
             </div>
 
             <!-- ============ Data Table ============ -->
@@ -119,9 +123,9 @@
                         </thead>
                         <tbody id="tableBody">
                             <tr><td colspan="8">
-                                <div class="dg-empty">
+                                <div class="empty-state-sm">
                                     <div class="spinner-border spinner-border-sm"></div>
-                                    <span style="font-size: 13px;">加载中...</span>
+                                    <p>加载中...</p>
                                 </div>
                             </td></tr>
                         </tbody>
@@ -253,7 +257,7 @@
             </div>
             <div class="modal-footer">
                 <button class="btn btn-primary btn-sm" th:if="${session.AUTH_USER?.role?.name() == 'ADMIN'}" onclick="DG.testDatasource()">
-                    <i class="bi bi-lightning"></i> 重新测试
+                    <i class="bi bi-lightning ico-white"></i> 重新测试
                 </button>
                 <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">关闭</button>
             </div>
@@ -281,7 +285,7 @@
                 <input type="text" class="form-control" id="rebuildConfirmInput" placeholder="请输入表名" oninput="DG.onRebuildInput()">
                 <div class="mt-3">
                     <button class="btn btn-danger" id="rebuildConfirmBtn" disabled onclick="DG.executeFullRebuild()">
-                        <i class="bi bi-arrow-repeat"></i> 确认全量重建
+                        <i class="bi bi-arrow-repeat ico-white"></i> 确认全量重建
                         <span id="rebuildCountdown"></span>
                     </button>
                 </div>
@@ -305,8 +309,8 @@
             </div>
             <div class="modal-body text-center">
                 <div class="mb-3">
-                    <span class="dg-badge updating me-2" id="progressTableBadge">-</span>
-                    <span class="dg-badge auto" id="progressOpBadge">-</span>
+                    <span class="badge bg-info me-2" id="progressTableBadge">-</span>
+                    <span class="badge bg-secondary" id="progressOpBadge">-</span>
                 </div>
                 <div class="progress mb-3" style="height: 24px;">
                     <div class="progress-bar progress-bar-striped progress-bar-animated"
@@ -327,7 +331,7 @@
             </div>
             <div class="modal-footer">
                 <button class="btn btn-outline-danger btn-sm" id="cancelTaskBtn" onclick="DG.cancelTask()">
-                    <i class="bi bi-x-circle"></i> 取消任务
+                    <i class="bi bi-x-circle ico-danger"></i> 取消任务
                 </button>
                 <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">关闭</button>
             </div>

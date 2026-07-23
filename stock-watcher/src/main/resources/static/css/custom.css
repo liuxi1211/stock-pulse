@@ -1,9 +1,10 @@
 /* ============================================================
-   StockPulse Custom Styles
-   页面特化样式 - 基于主题变量
+   StockPulse Custom Utilities & Page-specific Styles
+   纯工具类 + 首页特有样式 - 基于主题变量
+   通用组件请使用 components.css
    ============================================================ */
 
-/* ========== Index Card 指数卡片 ========== */
+/* ========== Index Card 指数卡片（首页用） ========== */
 .index-card .card-body {
     padding: 16px 20px;
 }
@@ -36,7 +37,7 @@
     font-size: 10px;
 }
 
-/* ========== Stock List Table 股票列表 ========== */
+/* ========== Stock List Table 股票列表（首页/行情用） ========== */
 .stock-code {
     font-family: var(--font-mono);
     font-weight: 600;
@@ -80,7 +81,7 @@
     position: relative;
 }
 
-/* ========== Watchlist 自选股 ========== */
+/* ========== Watchlist 自选股（首页用） ========== */
 .watchlist-item {
     display: flex;
     align-items: center;
@@ -122,7 +123,7 @@
     transform: scale(1.2);
 }
 
-/* ========== Ranking List 排行榜 ========== */
+/* ========== Ranking List 排行榜（首页用） ========== */
 .rank-item {
     display: flex;
     align-items: center;
@@ -162,19 +163,19 @@
 .rank-item:nth-child(1) .rank-number {
     background: var(--gradient-gold);
     color: white;
-    box-shadow: 0 2px 8px rgba(251, 191, 36, 0.3);
+    box-shadow: 0 2px 8px color-mix(in srgb, var(--accent-yellow) 30%, transparent);
 }
 
 .rank-item:nth-child(2) .rank-number {
     background: var(--gradient-silver);
     color: white;
-    box-shadow: 0 2px 8px rgba(148, 163, 184, 0.3);
+    box-shadow: 0 2px 8px color-mix(in srgb, var(--text-muted) 30%, transparent);
 }
 
 .rank-item:nth-child(3) .rank-number {
     background: var(--gradient-bronze);
     color: white;
-    box-shadow: 0 2px 8px rgba(217, 119, 6, 0.3);
+    box-shadow: 0 2px 8px color-mix(in srgb, var(--accent-yellow-dark) 30%, transparent);
 }
 
 .rank-stock {
@@ -201,103 +202,7 @@
     text-align: right;
 }
 
-/* ========== Stat Card 统计卡片 ========== */
-.stat-card {
-    background: var(--bg-card);
-    backdrop-filter: var(--blur-card);
-    -webkit-backdrop-filter: var(--blur-card);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-lg);
-    padding: 20px 24px;
-    position: relative;
-    overflow: hidden;
-    transition: all var(--transition-base);
-}
-
-.stat-card:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-lg);
-    border-color: color-mix(in srgb, var(--accent-blue) 30%, var(--border-color));
-}
-
-.stat-card::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 2px;
-    background: var(--gradient-primary);
-    opacity: 0.6;
-}
-
-.stat-label {
-    font-size: 12px;
-    color: var(--text-muted);
-    font-weight: 500;
-    margin-bottom: 8px;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
-
-.stat-value {
-    font-family: var(--font-display);
-    font-size: 28px;
-    font-weight: 700;
-    letter-spacing: -1px;
-    margin-bottom: 4px;
-}
-
-.stat-change {
-    font-size: 12px;
-    font-weight: 500;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-}
-
-/* ========== Tabs 标签页 ========== */
-.nav-tabs {
-    border-bottom: 1px solid var(--border-light) !important;
-    gap: 4px;
-}
-
-.nav-tabs .nav-link {
-    color: var(--text-secondary) !important;
-    border: none !important;
-    border-radius: var(--radius-sm) var(--radius-sm) 0 0 !important;
-    padding: 10px 16px !important;
-    font-size: 13px !important;
-    font-weight: 500 !important;
-    transition: all var(--transition-fast) !important;
-    background: transparent !important;
-    position: relative;
-    margin-bottom: -1px;
-}
-
-.nav-tabs .nav-link:hover {
-    color: var(--text-primary) !important;
-    background: color-mix(in srgb, var(--accent-blue) 5%, transparent) !important;
-}
-
-.nav-tabs .nav-link.active {
-    color: var(--accent-blue-light) !important;
-    background: color-mix(in srgb, var(--accent-blue) 8%, transparent) !important;
-    font-weight: 600 !important;
-}
-
-.nav-tabs .nav-link.active::after {
-    content: '';
-    position: absolute;
-    bottom: -1px;
-    left: 0;
-    right: 0;
-    height: 2px;
-    background: var(--gradient-primary);
-    border-radius: 2px 2px 0 0;
-}
-
-/* ========== Search Suggest Dropdown ========== */
+/* ========== Search Suggest Dropdown（通用搜索） ========== */
 .search-suggest-dropdown {
     display: none;
     position: absolute;
@@ -357,7 +262,7 @@
     text-align: center;
 }
 
-/* ========== Sortable table columns (行情中心) ========== */
+/* ========== Sortable table columns（行情中心用） ========== */
 .sortable-col {
     cursor: pointer;
     user-select: none;
@@ -384,122 +289,7 @@
     text-decoration: underline;
 }
 
-/* ========== Switch Toggle 开关 ========== */
-.form-switch .form-check-input {
-    width: 44px !important;
-    height: 24px !important;
-    background-color: var(--bg-tertiary) !important;
-    border: 1px solid var(--border-color) !important;
-    background-image: none !important;
-    cursor: pointer;
-    transition: all var(--transition-base) !important;
-}
-
-.form-switch .form-check-input:checked {
-    background-color: var(--accent-blue) !important;
-    border-color: var(--accent-blue) !important;
-    background-image: none !important;
-    box-shadow: 0 2px 8px color-mix(in srgb, var(--accent-blue) 30%, transparent);
-}
-
-.form-switch .form-check-input:focus {
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-blue) 10%, transparent) !important;
-    border-color: var(--accent-blue) !important;
-    background-image: none !important;
-}
-
-/* ========== Toast 通知 ========== */
-#toastContainer .toast {
-    background: var(--bg-secondary) !important;
-    border: 1px solid var(--border-color) !important;
-    color: var(--text-primary) !important;
-    border-radius: var(--radius-md) !important;
-    box-shadow: var(--shadow-lg) !important;
-    backdrop-filter: var(--blur-card);
-    -webkit-backdrop-filter: var(--blur-card);
-}
-
-#toastContainer .toast-body {
-    font-size: 13px;
-    padding: 12px 16px;
-}
-
-#toastContainer .toast-header {
-    background: transparent !important;
-    border-bottom: 1px solid var(--border-light) !important;
-}
-
-/* ========== Empty State 空状态 ========== */
-.empty-state {
-    text-align: center;
-    padding: 48px 24px;
-    color: var(--text-muted);
-}
-
-.empty-state i {
-    font-size: 48px;
-    margin-bottom: 16px;
-    opacity: 0.5;
-}
-
-.empty-state h5 {
-    font-size: 16px;
-    color: var(--text-secondary);
-    margin-bottom: 8px;
-}
-
-.empty-state p {
-    font-size: 13px;
-    margin-bottom: 0;
-}
-
-/* ========== Loading Spinner ========== */
-.spinner-border {
-    color: var(--accent-blue) !important;
-}
-
-/* ========== Progress Bar ========== */
-.progress {
-    background-color: var(--bg-tertiary) !important;
-    border-radius: var(--radius-full) !important;
-    height: 8px !important;
-}
-
-.progress-bar {
-    background: var(--gradient-primary) !important;
-    border-radius: var(--radius-full) !important;
-}
-
-/* ========== Tooltip ========== */
-.tooltip .tooltip-inner {
-    background: var(--bg-elevated) !important;
-    color: var(--text-primary) !important;
-    border: 1px solid var(--border-color) !important;
-    box-shadow: var(--shadow-md) !important;
-    font-size: 12px !important;
-    padding: 8px 12px !important;
-}
-
-/* ========== Popover ========== */
-.popover {
-    background: var(--bg-secondary) !important;
-    border: 1px solid var(--border-color) !important;
-    border-radius: var(--radius-md) !important;
-    box-shadow: var(--shadow-lg) !important;
-}
-
-.popover-header {
-    background: transparent !important;
-    border-bottom: 1px solid var(--border-light) !important;
-    color: var(--text-primary) !important;
-    font-weight: 600 !important;
-}
-
-.popover-body {
-    color: var(--text-secondary) !important;
-}
-
-/* ========== Input Group Search ========== */
+/* ========== Input Group Search 小补丁 ========== */
 .input-group .form-control {
     border-right: none !important;
 }
@@ -510,10 +300,6 @@
 
 /* ========== Responsive Tweaks ========== */
 @media (max-width: 991.98px) {
-    .stat-value {
-        font-size: 22px;
-    }
-
     .chart-container {
         height: 320px;
     }
@@ -524,14 +310,6 @@
 }
 
 @media (max-width: 575.98px) {
-    .stat-card {
-        padding: 16px;
-    }
-
-    .stat-value {
-        font-size: 20px;
-    }
-
     .chart-container {
         height: 280px;
     }
