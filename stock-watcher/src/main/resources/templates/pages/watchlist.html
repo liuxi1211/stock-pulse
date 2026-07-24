@@ -1,8 +1,6 @@
 <!DOCTYPE html>
 <html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
-<head th:replace="~{fragments/common :: head(${pageTitle})}">
-<link th:href="@{/css/watchlist.css}" rel="stylesheet">
-</head>
+<head th:replace="~{fragments/common :: head(${pageTitle})}"></head>
 <body>
 <div class="app-container">
     <nav th:replace="~{fragments/common :: sidebar}"></nav>
@@ -13,180 +11,204 @@
         <header th:replace="~{fragments/common :: topNavbar}"></header>
 
         <main class="content-area">
+            <!-- 页头：左标题 + 右操作（一个主按钮：新增分组） -->
             <div class="page-header animate-in delay-1">
                 <div>
-                    <h1 class="page-title">我的自选股</h1>
-                    <p class="text-muted mb-0" style="font-size: 13px; margin-top: 4px;">实时追踪关注的股票动态，掌握投资先机</p>
+                    <h1 class="page-title">自选股</h1>
+                    <p class="wl-subtitle">关注什么，盯住什么——单点异动一览</p>
                 </div>
                 <div class="page-actions">
-                    <button class="btn btn-secondary btn-sm" id="refreshWatchlistBtn">
-                        <i class="bi bi-arrow-clockwise"></i> 刷新
-                    </button>
-                    <button class="btn btn-outline-primary btn-sm" id="batchModeBtn">
-                        <i class="bi bi-check2-square"></i> 批量管理
+                    <button class="btn btn-secondary btn-sm" id="refreshWatchlistBtn" title="重新拉取行情">
+                        <i class="bi bi-arrow-clockwise"></i> 刷新行情
                     </button>
                     <button class="btn btn-primary btn-sm" id="addGroupBtnTop">
-                        <i class="bi bi-plus-lg"></i> 新增分组
+                        <i class="bi bi-plus-lg"></i> 新建分组
                     </button>
                 </div>
             </div>
 
-            <div class="watchlist-layout animate-in delay-2">
-                <div class="watchlist-sidebar">
-                    <div class="sidebar-header">
-                        <span class="sidebar-title">分组</span>
-                        <button class="btn btn-sm btn-icon-only" id="addGroupBtn" title="新建分组">
+            <!-- 统计条：盘感四要素 -->
+            <div class="stat-strip animate-in delay-2">
+                <div class="stat-card" style="--stat-accent: var(--accent-blue);">
+                    <div class="stat-head">
+                        <div class="stat-label"><i class="bi bi-star"></i>自选总数</div>
+                        <span class="stat-tag" id="wlTagGroupName">全部</span>
+                    </div>
+                    <div class="stat-value font-mono" id="wlStatTotal">—<span class="unit">只</span></div>
+                    <div class="stat-foot" id="wlStatFoot">加载中</div>
+                </div>
+                <div class="stat-card" style="--stat-accent: var(--rise-color);">
+                    <div class="stat-head">
+                        <div class="stat-label"><i class="bi bi-triangle-fill"></i>今日上涨</div>
+                        <span class="stat-tag">RISE</span>
+                    </div>
+                    <div class="stat-value font-mono wl-stat-rise" id="wlStatRise">—<span class="unit">只</span></div>
+                    <div class="stat-foot"><span class="dot" style="--c: var(--rise-color);">红盘占比按当日涨跌幅</span></div>
+                </div>
+                <div class="stat-card" style="--stat-accent: var(--fall-color);">
+                    <div class="stat-head">
+                        <div class="stat-label"><i class="bi bi-triangle-fill wl-down-tri"></i>今日下跌</div>
+                        <span class="stat-tag">FALL</span>
+                    </div>
+                    <div class="stat-value font-mono wl-stat-fall" id="wlStatFall">—<span class="unit">只</span></div>
+                    <div class="stat-foot"><span class="dot" style="--c: var(--fall-color);">绿盘占比按当日涨跌幅</span></div>
+                </div>
+                <div class="stat-card" style="--stat-accent: var(--accent-yellow);">
+                    <div class="stat-head">
+                        <div class="stat-label"><i class="bi bi-bell-fill"></i>价格提醒</div>
+                        <span class="stat-tag">ALERT</span>
+                    </div>
+                    <div class="stat-value font-mono" id="wlStatAlert">—<span class="unit">只</span></div>
+                    <div class="stat-foot" id="wlStatAlertFoot">已设置高位或低位提醒</div>
+                </div>
+            </div>
+
+            <!-- 主卡片：分组条 + 工具栏 + 表格 一体化 -->
+            <div class="wl-grid animate-in delay-2">
+                <section class="wl-table-wrap">
+                    <!-- 卡片头部：分组胶囊（横排，超出滚动）+ 新建分组按钮 -->
+                    <div class="wl-card-head">
+                        <div class="wl-group-bar" id="groupList" role="tablist" aria-label="自选股分组"></div>
+                        <button class="btn btn-sm btn-icon wl-add-group-btn" id="addGroupBtn"
+                                title="新建分组" aria-label="新建分组">
                             <i class="bi bi-plus-lg"></i>
                         </button>
                     </div>
-                    <div class="group-list" id="groupList">
-                    </div>
-                </div>
 
-                <div class="watchlist-main">
-                    <div class="card card-glow">
-                        <div class="card-header">
-                            <h6 class="card-title">
-                                <span class="card-title-icon yellow">
-                                    <i class="bi bi-star-fill"></i>
-                                </span>
-                                <span id="currentGroupTitle">全部自选股</span>
-                                <span class="badge bg-secondary ms-2" id="stockCountBadge">0</span>
-                            </h6>
-                        </div>
-
-                        <div class="table-toolbar">
-                            <div class="toolbar-left">
-                                <div class="search-wrapper">
-                                    <i class="bi bi-search toolbar-icon"></i>
-                                    <input type="text" class="form-control form-control-sm" id="searchInput" placeholder="搜索股票代码/名称...">
-                                </div>
-                            </div>
-                            <div class="toolbar-center">
-                                <div class="sort-wrapper">
-                                    <span class="sort-label">排序：</span>
-                                    <select class="form-select form-select-sm" id="sortBySelect">
-                                        <option value="pct_chg">涨跌幅</option>
-                                        <option value="close">最新价</option>
-                                        <option value="volume">成交量</option>
-                                        <option value="total_mv">总市值</option>
-                                        <option value="turnover_rate">换手率</option>
-                                        <option value="pe_ttm">市盈率(TTM)</option>
-                                        <option value="pb">市净率</option>
-                                    </select>
-                                    <button class="btn btn-sm btn-outline-secondary order-toggle" id="orderToggleBtn" title="切换升降序">
-                                        <i class="bi bi-sort-down-alt" id="orderIcon"></i>
-                                    </button>
-                                </div>
-                            </div>
-                            <div class="toolbar-right">
-                                <button class="btn btn-sm btn-outline-primary" id="batchModeBtnToolbar">
-                                    <i class="bi bi-check2-square"></i> 批量管理
-                                </button>
+                    <!-- 工具栏：搜索 | 排序 | 批量 -->
+                    <div class="wl-toolbar">
+                        <div class="wl-toolbar-left">
+                            <div class="wl-search">
+                                <i class="bi bi-search"></i>
+                                <input type="text" id="searchInput" placeholder="搜索代码或名称加入自选"
+                                       autocomplete="off" aria-label="搜索股票">
                             </div>
                         </div>
-
-                        <div class="batch-action-bar" id="batchActionBar" style="display: none;">
-                            <div class="batch-left">
-                                <label class="batch-select-all">
-                                    <input type="checkbox" id="selectAllCheckbox"> 全选
-                                </label>
-                                <span class="batch-selected-count">已选中 <b id="selectedCount">0</b> 只</span>
-                            </div>
-                            <div class="batch-right">
-                                <button class="btn btn-sm btn-outline-danger" id="batchRemoveBtn">
-                                    <i class="bi bi-trash"></i> 批量移除
+                        <div class="wl-toolbar-right">
+                            <div class="wl-sort">
+                                <span class="wl-sort-label">排序</span>
+                                <select class="form-select form-select-sm" id="sortBySelect" aria-label="排序字段">
+                                    <option value="pct_chg">涨跌幅</option>
+                                    <option value="close">最新价</option>
+                                    <option value="volume">成交量</option>
+                                    <option value="total_mv">总市值</option>
+                                    <option value="turnover_rate">换手率</option>
+                                    <option value="pe_ttm">市盈率 TTM</option>
+                                    <option value="pb">市净率</option>
+                                </select>
+                                <button class="btn btn-sm btn-outline-secondary wl-order-toggle"
+                                        id="orderToggleBtn" title="切换升降序" aria-label="切换升降序">
+                                    <i class="bi bi-sort-down-alt" id="orderIcon"></i>
                                 </button>
-                                <button class="btn btn-sm btn-outline-primary" id="batchMoveBtn">
-                                    <i class="bi bi-folder2-open"></i> 移动分组
-                                </button>
                             </div>
-                        </div>
-
-                        <div class="card-body p-0">
-                            <div class="table-responsive">
-                                <table class="table table-hover mb-0 align-middle watchlist-table">
-                                    <thead>
-                                        <tr>
-                                            <th class="col-checkbox" style="display: none;">
-                                                <input type="checkbox" id="tableSelectAll">
-                                            </th>
-                                            <th>代码</th>
-                                            <th>名称</th>
-                                            <th>所属行业</th>
-                                            <th class="text-end">最新价</th>
-                                            <th class="text-end">涨跌额</th>
-                                            <th class="text-end">涨跌幅</th>
-                                            <th class="text-end">总市值</th>
-                                            <th class="text-end">市盈率(TTM)</th>
-                                            <th class="text-end">市净率</th>
-                                            <th class="text-end">换手率</th>
-                                            <th class="text-center">走势</th>
-                                            <th class="text-center">提醒</th>
-                                            <th class="text-center">操作</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="watchlistTable">
-                                        <tr><td colspan="14" class="text-center text-muted py-4">加载中...</td></tr>
-                                    </tbody>
-                                </table>
-                            </div>
+                            <button class="btn btn-sm btn-outline-secondary" id="batchModeBtn" title="进入批量管理">
+                                <i class="bi bi-check2-square"></i> 批量管理
+                            </button>
                         </div>
                     </div>
-                </div>
+
+                    <!-- 批量操作条 -->
+                    <div class="wl-batch-bar" id="batchActionBar" hidden>
+                        <div class="wl-batch-left">
+                            <label class="wl-batch-select-all">
+                                <input type="checkbox" id="selectAllCheckbox"> 全选
+                            </label>
+                            <span class="wl-batch-count">已选中 <b id="selectedCount" class="font-mono">0</b> 只</span>
+                        </div>
+                        <div class="wl-batch-right">
+                            <button class="btn btn-sm btn-outline-danger" id="batchRemoveBtn">
+                                <i class="bi bi-trash3"></i> 移除自选
+                            </button>
+                            <button class="btn btn-sm btn-outline-secondary" id="batchMoveBtn">
+                                <i class="bi bi-folder2-open"></i> 移动到分组
+                            </button>
+                            <button class="btn btn-sm btn-ghost" id="batchExitBtn">退出批量</button>
+                        </div>
+                    </div>
+
+                    <!-- 表格 -->
+                    <div class="wl-table-scroll">
+                        <table class="data-table wl-table">
+                            <thead>
+                                <tr>
+                                    <th class="wl-col-check" hidden>
+                                        <input type="checkbox" id="tableSelectAll" aria-label="全选当前页">
+                                    </th>
+                                    <th class="wl-col-stock">股票</th>
+                                    <th class="text-end">最新价</th>
+                                    <th class="text-end">涨跌幅</th>
+                                    <th class="text-end">总市值</th>
+                                    <th class="text-end">PE TTM</th>
+                                    <th class="text-end">换手率</th>
+                                    <th class="text-center wl-col-spark">7日走势</th>
+                                    <th class="text-center wl-col-ops">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="watchlistTable">
+                                <tr><td colspan="9" class="wl-loading">正在拉取行情…</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
             </div>
         </main>
     </div>
 </div>
 
-<div class="modal fade" id="reminderModal" tabindex="-1">
+<!-- 价格提醒设置：明确告知触发条件 -->
+<div class="modal fade" id="reminderModal" tabindex="-1" aria-labelledby="reminderModalTitle">
     <div class="modal-dialog modal-sm">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">价格提醒设置</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                <h5 class="modal-title" id="reminderModalTitle">价格提醒</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
             </div>
             <div class="modal-body">
-                <div class="mb-3">
-                    <label class="form-label">股票代码</label>
-                    <input type="text" class="form-control" id="reminderStockCode" readonly>
+                <div class="wl-reminder-target">
+                    <span class="wl-reminder-label">标的</span>
+                    <code class="font-mono" id="reminderStockCode"></code>
                 </div>
                 <div class="mb-3">
-                    <label class="form-label">高位提醒价</label>
-                    <input type="number" step="0.01" class="form-control" id="reminderHighPrice" placeholder="达到或超过此价提醒">
+                    <label class="form-label" for="reminderHighPrice">价格上穿此位时通知</label>
+                    <input type="number" step="0.01" class="form-control font-mono" id="reminderHighPrice"
+                           placeholder="例如 12.50">
+                    <div class="form-text">达到或高于此价即提醒一次</div>
                 </div>
                 <div class="mb-3">
-                    <label class="form-label">低位提醒价</label>
-                    <input type="number" step="0.01" class="form-control" id="reminderLowPrice" placeholder="达到或低于此价提醒">
+                    <label class="form-label" for="reminderLowPrice">价格下穿此位时通知</label>
+                    <input type="number" step="0.01" class="form-control font-mono" id="reminderLowPrice"
+                           placeholder="例如 10.50">
+                    <div class="form-text">达到或低于此价即提醒一次</div>
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-outline-danger" id="clearReminderBtn">清除提醒</button>
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-                <button type="button" class="btn btn-primary" id="saveReminderBtn">保存</button>
+                <button type="button" class="btn btn-outline-danger btn-sm" id="clearReminderBtn">清除提醒</button>
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary btn-sm" id="saveReminderBtn">保存提醒</button>
             </div>
         </div>
     </div>
 </div>
 
-<div class="modal fade" id="moveGroupModal" tabindex="-1">
+<!-- 移动到分组：动作明确 -->
+<div class="modal fade" id="moveGroupModal" tabindex="-1" aria-labelledby="moveGroupModalTitle">
     <div class="modal-dialog modal-sm">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">移动到分组</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                <h5 class="modal-title" id="moveGroupModalTitle">移动到分组</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
             </div>
             <div class="modal-body">
                 <div class="mb-3">
-                    <label class="form-label">选择目标分组</label>
+                    <label class="form-label" for="moveGroupSelect">目标分组</label>
                     <select class="form-select" id="moveGroupSelect">
                         <option value="">未分组</option>
                     </select>
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-                <button type="button" class="btn btn-primary" id="confirmMoveBtn">确定</button>
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary btn-sm" id="confirmMoveBtn">移动</button>
             </div>
         </div>
     </div>
@@ -195,9 +217,10 @@
 <div class="toast-container position-fixed bottom-0 end-0 p-3" id="toastContainer"></div>
 
 <div th:replace="~{fragments/common :: scripts}"></div>
+<link rel="stylesheet" th:href="@{/css/watchlist.css}">
 <script th:src="@{/js/watchlist.js}"></script>
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('DOMContentLoaded', function () {
         WatchlistPage.init();
     });
 </script>

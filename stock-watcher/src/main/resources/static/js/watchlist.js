@@ -1,10 +1,26 @@
 /**
- * 自选股页面逻辑。
- * - 列表加载：GET /watchlist
- * - 分组管理：GET/POST/PUT/DELETE /watchlist/groups
- * - 移除自选股：POST /watchlist/{code}/delete
- * - 批量操作：批量移除、批量移动分组
- * - 排序、搜索联想、价格提醒
+ * 自选股页面逻辑（重构版）。
+ *
+ * 与旧版的主要差异：
+ *  1. 渲染目标结构改为 .wl- 命名空间，匹配 watchlist.css
+ *  2. 修复批量按钮重复 bug：统一一个 #batchModeBtn + 新增 #batchExitBtn
+ *  3. 修复全选混乱：#selectAllCheckbox（batch bar）与 #tableSelectAll（表头）始终联动
+ *  4. refreshPrices 时不再整体 renderTable（不销毁 mini-kline），
+ *     仅就地更新数字 + 加 .flash 微动 + 同步脉冲指示器强度档
+ *  5. 新增统计条数据更新（自选总数 / 今日上涨 / 今日下跌 / 价格提醒数）
+ *  6. 新增「盘口脉冲指示器」强度档计算（strong / medium / weak / flat）
+ *
+ * 接口契约不变：
+ *  - GET    /watchlist
+ *  - GET/POST/PUT/DELETE /watchlist/groups
+ *  - POST   /watchlist/{code}
+ *  - POST   /watchlist/{code}/delete
+ *  - POST   /watchlist/batch-delete
+ *  - PUT    /watchlist/{code}/group?groupId=
+ *  - POST   /watchlist/batch-move-group
+ *  - POST   /watchlist/{code}/reminder
+ *  - DELETE /watchlist/{code}/reminder
+ *  - PUT    /watchlist/{code}/sort?sortOrder=
  */
 const WatchlistPage = (function () {
     'use strict';
@@ -25,6 +41,7 @@ const WatchlistPage = (function () {
         searchSuggest: null,
         currentReminderStock: null,
         moveGroupStockCodes: [],
+        lastPriceMap: new Map(),
         dragState: {
             draggingCode: null,
             originalList: null,
@@ -68,19 +85,29 @@ const WatchlistPage = (function () {
         return Number(val).toFixed(2) + '%';
     }
 
-    function getUpDownClass(changePercent) {
-        if (changePercent === null || changePercent === undefined || changePercent === 0) return '';
+    /**
+     * 计算盘口脉冲强度档（红涨绿跌）。
+     * 返回 { dir, level }：dir ∈ rise/fall/flat，level ∈ strong/medium/weak/flat
+     */
+    function pulseLevel(changePercent) {
+        if (changePercent === null || changePercent === undefined || isNaN(changePercent) || changePercent === 0) {
+            return { dir: 'flat', level: 'flat' };
+        }
+        const abs = Math.abs(Number(changePercent));
+        let level = 'weak';
+        if (abs >= 5) level = 'strong';
+        else if (abs >= 1) level = 'medium';
+        return { dir: changePercent > 0 ? 'rise' : 'fall', level: level };
+    }
+
+    function pctCellClass(changePercent) {
+        if (changePercent === null || changePercent === undefined || isNaN(changePercent) || changePercent === 0) {
+            return 'flat';
+        }
         return changePercent > 0 ? 'rise' : 'fall';
     }
 
-    function formatVolume(vol) {
-        if (vol === null || vol === undefined || isNaN(vol)) return '-';
-        const v = Number(vol);
-        if (v >= 10000) return (v / 10000).toFixed(1) + '万';
-        return v.toString();
-    }
-
-    // ===================== 初始化与事件绑定 =====================
+    // ===================== 初始化 =====================
 
     function init() {
         bindRefreshBtn();
@@ -100,7 +127,7 @@ const WatchlistPage = (function () {
         const btn = document.getElementById('refreshWatchlistBtn');
         if (btn) {
             btn.addEventListener('click', function () {
-                loadList();
+                loadList(true);
             });
         }
     }
@@ -134,18 +161,15 @@ const WatchlistPage = (function () {
     function updateOrderIcon() {
         const icon = document.getElementById('orderIcon');
         if (!icon) return;
-        if (state.order === 'desc') {
-            icon.className = 'bi bi-sort-down-alt';
-        } else {
-            icon.className = 'bi bi-sort-up-alt';
-        }
+        icon.className = state.order === 'desc' ? 'bi bi-sort-down-alt' : 'bi bi-sort-up-alt';
     }
 
     function bindBatchControls() {
         const batchBtn = document.getElementById('batchModeBtn');
-        const batchBtnToolbar = document.getElementById('batchModeBtnToolbar');
         if (batchBtn) batchBtn.addEventListener('click', toggleBatchMode);
-        if (batchBtnToolbar) batchBtnToolbar.addEventListener('click', toggleBatchMode);
+
+        const exitBtn = document.getElementById('batchExitBtn');
+        if (exitBtn) exitBtn.addEventListener('click', function () { toggleBatchMode(); });
 
         const selectAllCb = document.getElementById('selectAllCheckbox');
         const tableSelectAll = document.getElementById('tableSelectAll');
@@ -195,6 +219,7 @@ const WatchlistPage = (function () {
             if (resp.code !== 200) return;
             state.groups = resp.data || [];
             renderGroups();
+            updateCurrentGroupTitle();
         });
     }
 
@@ -203,17 +228,14 @@ const WatchlistPage = (function () {
         if (!listEl) return;
 
         const totalCount = state.list.length || 0;
-        const ungroupedCount = state.list.filter(function (s) {
-            return !s.groupId;
-        }).length;
+        const ungroupedCount = state.list.filter(function (s) { return !s.groupId; }).length;
 
         let html = '';
-
-        html += buildGroupItem('all', '全部', totalCount, state.currentGroupId === null);
-        html += buildGroupItem('ungrouped', '未分组', ungroupedCount, state.currentGroupId === 'ungrouped');
+        html += buildGroupItem('all', '全部', totalCount, state.currentGroupId === null, 'bi-star-fill');
+        html += buildGroupItem('ungrouped', '未分组', ungroupedCount, state.currentGroupId === 'ungrouped', 'bi-folder2-open');
 
         if (state.groups.length) {
-            html += '<div class="group-divider"><span>我的分组</span></div>';
+            html += '<div class="wl-group-divider"><span>我的分组</span></div>';
             state.groups.forEach(function (g) {
                 const count = state.list.filter(function (s) {
                     return String(s.groupId) === String(g.id);
@@ -229,36 +251,38 @@ const WatchlistPage = (function () {
         });
     }
 
-    function buildGroupItem(id, name, count, active) {
-        return `
-            <div class="group-item ${active ? 'active' : ''}" data-group-id="${e(id)}"
-                 onclick="WatchlistPage.selectGroup('${e(id)}')">
-                <span class="group-name">
-                    <i class="bi ${id === 'all' ? 'bi-star-fill' : 'bi-folder2-open'} group-icon"></i>
-                    ${e(name)}
-                </span>
-                <span class="group-count">${count}</span>
-            </div>`;
+    function buildGroupItem(id, name, count, active, iconClass) {
+        return '<div class="wl-group-item' + (active ? ' active' : '') + '" data-group-id="' + e(id) + '"' +
+            ' role="tab" tabindex="0"' +
+            ' onclick="WatchlistPage.selectGroup(\'' + e(id) + '\')"' +
+            ' onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();WatchlistPage.selectGroup(\'' + e(id) + '\')}">' +
+            '<span class="wl-group-name">' +
+                '<i class="bi ' + iconClass + ' wl-group-icon"></i>' +
+                '<span>' + e(name) + '</span>' +
+            '</span>' +
+            '<span class="wl-group-count">' + count + '</span>' +
+            '</div>';
     }
 
     function buildCustomGroupItem(group, count) {
         const active = state.currentGroupId && String(state.currentGroupId) === String(group.id);
-        return `
-            <div class="group-item group-item-custom ${active ? 'active' : ''}" data-group-id="${e(group.id)}"
-                 onclick="WatchlistPage.selectGroup('${e(group.id)}')"
-                 ondblclick="WatchlistPage.startRenameGroup('${e(group.id)}', event)">
-                <span class="group-name">
-                    <i class="bi bi-folder2 group-icon"></i>
-                    <span class="group-name-text">${e(group.name)}</span>
-                </span>
-                <span class="group-actions">
-                    <span class="group-count">${count}</span>
-                    <button class="group-del-btn" title="删除分组"
-                            onclick="event.stopPropagation();WatchlistPage.deleteGroup('${e(group.id)}')">
-                        <i class="bi bi-trash3"></i>
-                    </button>
-                </span>
-            </div>`;
+        return '<div class="wl-group-item wl-group-item-custom' + (active ? ' active' : '') + '" data-group-id="' + e(group.id) + '"' +
+            ' role="tab" tabindex="0"' +
+            ' onclick="WatchlistPage.selectGroup(\'' + e(group.id) + '\')"' +
+            ' ondblclick="WatchlistPage.startRenameGroup(\'' + e(group.id) + '\', event)"' +
+            ' onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();WatchlistPage.selectGroup(\'' + e(group.id) + '\')}">' +
+            '<span class="wl-group-name">' +
+                '<i class="bi bi-folder2 wl-group-icon"></i>' +
+                '<span class="wl-group-name-text">' + e(group.name) + '</span>' +
+            '</span>' +
+            '<span class="wl-group-actions">' +
+                '<span class="wl-group-count">' + count + '</span>' +
+                '<button class="wl-group-del" title="删除分组" aria-label="删除分组"' +
+                    ' onclick="event.stopPropagation();WatchlistPage.deleteGroup(\'' + e(group.id) + '\')">' +
+                    '<i class="bi bi-trash3"></i>' +
+                '</button>' +
+            '</span>' +
+            '</div>';
     }
 
     function selectGroup(groupId) {
@@ -278,15 +302,18 @@ const WatchlistPage = (function () {
 
     function updateCurrentGroupTitle() {
         const titleEl = document.getElementById('currentGroupTitle');
-        if (!titleEl) return;
+        const tagEl = document.getElementById('wlTagGroupName');
+        let label = '全部';
         if (state.currentGroupId === null) {
-            titleEl.textContent = '全部自选股';
+            label = '全部';
         } else if (state.currentGroupId === 'ungrouped') {
-            titleEl.textContent = '未分组';
+            label = '未分组';
         } else {
             const g = state.groups.find(function (x) { return String(x.id) === String(state.currentGroupId); });
-            titleEl.textContent = g ? g.name : '自选股';
+            label = g ? g.name : '自选股';
         }
+        if (titleEl) titleEl.textContent = label;
+        if (tagEl) tagEl.textContent = label;
     }
 
     async function createGroup() {
@@ -303,25 +330,24 @@ const WatchlistPage = (function () {
 
         StockApp.post('/watchlist/groups?groupName=' + encodeURIComponent(name.trim()), null, function (resp) {
             StockApp.toast(resp.message, resp.code === 200 ? 'success' : 'danger');
-            if (resp.code === 200) {
-                loadGroups();
-            }
+            if (resp.code === 200) loadGroups();
         });
     }
 
     function startRenameGroup(groupId, event) {
         if (event) event.preventDefault();
-        const item = document.querySelector('.group-item[data-group-id="' + groupId + '"]');
+        const item = document.querySelector('.wl-group-item[data-group-id="' + groupId + '"]');
         if (!item) return;
 
-        const nameEl = item.querySelector('.group-name-text');
+        const nameEl = item.querySelector('.wl-group-name-text');
         if (!nameEl) return;
 
         const currentName = nameEl.textContent;
         const input = document.createElement('input');
         input.type = 'text';
-        input.className = 'form-control form-control-sm group-rename-input';
+        input.className = 'form-control form-control-sm wl-group-rename';
         input.value = currentName;
+        input.setAttribute('aria-label', '重命名分组');
 
         nameEl.style.display = 'none';
         nameEl.parentNode.insertBefore(input, nameEl);
@@ -357,12 +383,7 @@ const WatchlistPage = (function () {
             .then(r => r.json())
             .then(function (resp) {
                 StockApp.toast(resp.message, resp.code === 200 ? 'success' : 'danger');
-                if (resp.code === 200) {
-                    loadGroups();
-                    updateCurrentGroupTitle();
-                } else {
-                    loadGroups();
-                }
+                loadGroups();
             })
             .catch(err => StockApp.toast('请求失败: ' + err.message, 'danger'));
     }
@@ -411,7 +432,7 @@ const WatchlistPage = (function () {
         const closeSeries = item.closeSeries;
 
         if (!closeSeries || !Array.isArray(closeSeries) || closeSeries.length < 2) {
-            containerEl.innerHTML = '<span class="text-muted">-</span>';
+            containerEl.innerHTML = '<span class="wl-spark-placeholder">-</span>';
             return;
         }
 
@@ -436,41 +457,18 @@ const WatchlistPage = (function () {
 
         chart.setOption({
             backgroundColor: 'transparent',
-            grid: {
-                left: 0,
-                right: 0,
-                top: 2,
-                bottom: 2,
-                containLabel: false
-            },
-            xAxis: {
-                type: 'category',
-                show: false,
-                data: data.map(function (_, i) { return i; })
-            },
-            yAxis: {
-                type: 'value',
-                show: false,
-                scale: true
-            },
-            tooltip: {
-                show: false
-            },
-            legend: {
-                show: false
-            },
+            grid: { left: 0, right: 0, top: 2, bottom: 2, containLabel: false },
+            xAxis: { type: 'category', show: false, data: data.map(function (_, i) { return i; }) },
+            yAxis: { type: 'value', show: false, scale: true },
+            tooltip: { show: false },
+            legend: { show: false },
             series: [{
                 type: 'line',
                 data: data,
                 smooth: true,
                 symbol: 'none',
-                lineStyle: {
-                    color: lineColor,
-                    width: 1.5
-                },
-                areaStyle: {
-                    color: areaGradient
-                }
+                lineStyle: { color: lineColor, width: 1.5 },
+                areaStyle: { color: areaGradient }
             }]
         });
 
@@ -498,23 +496,23 @@ const WatchlistPage = (function () {
         const maxRender = 50;
 
         state.list.forEach(function (item, index) {
-            const container = document.querySelector('.mini-kline[data-code="' + item.code + '"]');
+            const container = document.querySelector('.wl-spark[data-code="' + item.code + '"]');
             if (!container) return;
 
             if (index >= maxRender) {
-                container.innerHTML = '<span class="text-muted">-</span>';
+                container.innerHTML = '<span class="wl-spark-placeholder">-</span>';
                 return;
             }
 
             setTimeout(function () {
-                if (document.querySelector('.mini-kline[data-code="' + item.code + '"]')) {
+                if (document.querySelector('.wl-spark[data-code="' + item.code + '"]')) {
                     renderMiniKline(container, item);
                 }
             }, index * 10);
         });
     }
 
-    function loadList() {
+    function loadList(manualRefresh) {
         const params = {};
         if (state.currentGroupId && state.currentGroupId !== 'ungrouped') {
             params.groupId = state.currentGroupId;
@@ -524,20 +522,70 @@ const WatchlistPage = (function () {
         if (state.sortBy) params.sortBy = state.sortBy;
         if (state.order) params.order = state.order;
 
+        if (manualRefresh) {
+            const tbody = document.getElementById('watchlistTable');
+            if (tbody && !state.list.length) {
+                tbody.innerHTML = '<tr><td colspan="9" class="wl-loading">正在拉取行情…</td></tr>';
+            }
+        }
+
         StockApp.get('/watchlist', params, function (resp) {
             if (resp.code !== 200) return;
             state.list = resp.data || [];
+
+            // 价格快照，用于刷新时比较与微动效
+            state.lastPriceMap.clear();
+            state.list.forEach(function (s) {
+                state.lastPriceMap.set(s.code, s.currentPrice);
+            });
+
             state.selectedCodes.clear();
             updateSelectedCount();
             renderTable();
             renderGroups();
-            updateStockCountBadge();
+            updateStatStrip();
         });
     }
 
-    function updateStockCountBadge() {
-        const badge = document.getElementById('stockCountBadge');
-        if (badge) badge.textContent = state.list.length;
+    function updateStatStrip() {
+        const total = state.list.length;
+        const riseCount = state.list.filter(function (s) { return s.changePercent > 0; }).length;
+        const fallCount = state.list.filter(function (s) { return s.changePercent < 0; }).length;
+        const alertCount = state.list.filter(function (s) {
+            return (s.targetPriceHigh != null && s.targetPriceHigh > 0) ||
+                   (s.targetPriceLow != null && s.targetPriceLow > 0);
+        }).length;
+
+        setStatValue('wlStatTotal', total, '只');
+        setStatValue('wlStatRise', riseCount, '只');
+        setStatValue('wlStatFall', fallCount, '只');
+        setStatValue('wlStatAlert', alertCount, '只');
+
+        const footEl = document.getElementById('wlStatFoot');
+        if (footEl) {
+            if (!total) {
+                footEl.textContent = '尚未添加自选股';
+            } else if (riseCount > fallCount) {
+                footEl.textContent = '红盘占多';
+            } else if (fallCount > riseCount) {
+                footEl.textContent = '绿盘占多';
+            } else {
+                footEl.textContent = '红绿相当';
+            }
+        }
+
+        const alertFoot = document.getElementById('wlStatAlertFoot');
+        if (alertFoot) {
+            alertFoot.textContent = alertCount > 0
+                ? '已设置高位或低位提醒'
+                : '尚无设置任何提醒';
+        }
+    }
+
+    function setStatValue(id, val, unit) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.innerHTML = val + '<span class="unit">' + unit + '</span>';
     }
 
     function renderTable() {
@@ -547,87 +595,122 @@ const WatchlistPage = (function () {
         disposeAllCharts();
 
         if (!state.list.length) {
-            tbody.innerHTML = '<tr><td colspan="14" class="text-center text-muted py-4">暂无自选股</td></tr>';
+            tbody.innerHTML =
+                '<tr><td colspan="9">' +
+                '<div class="wl-empty">' +
+                    '<i class="bi bi-star"></i>' +
+                    '<h5>自选股列表为空</h5>' +
+                    '<p>在上方搜索框输入股票代码或名称，加入自选</p>' +
+                '</div></td></tr>';
             return;
         }
 
         tbody.innerHTML = state.list.map(function (s) {
-            const code = s.code;
-            const upDown = getUpDownClass(s.changePercent);
-            const changeSign = (s.changeAmount != null && s.changeAmount >= 0) ? '+' : '';
-            const hasReminder = (s.targetPriceHigh != null && s.targetPriceHigh > 0) ||
-                                (s.targetPriceLow != null && s.targetPriceLow > 0);
-            const isSelected = state.selectedCodes.has(code);
-
-            return `
-                <tr data-code="${e(code)}" class="${isSelected ? 'row-selected' : ''}">
-                    <td class="col-checkbox" style="display: ${state.batchMode ? '' : 'none'};">
-                        <input type="checkbox" ${isSelected ? 'checked' : ''}
-                               onchange="WatchlistPage.toggleSelectOne('${e(code)}')">
-                    </td>
-                    <td>
-                        <a href="/stock/${e(code)}" class="stock-code-link" target="_blank">
-                            <code>${e(code)}</code>
-                        </a>
-                    </td>
-                    <td class="fw-medium">${e(s.name)}</td>
-                    <td><span class="text-muted">${e(s.industryName || '-')}</span></td>
-                    <td class="text-end stock-price" data-field="currentPrice">${formatNumber(s.currentPrice)}</td>
-                    <td class="text-end stock-change ${upDown}" data-field="changeAmount">${changeSign}${formatNumber(s.changeAmount)}</td>
-                    <td class="text-end stock-change ${upDown}" data-field="changePercent">${formatPercent(s.changePercent)}</td>
-                    <td class="text-end" data-field="totalMv">${formatMarketValue(s.totalMv)}</td>
-                    <td class="text-end" data-field="peTtm">${formatPePb(s.peTtm)}</td>
-                    <td class="text-end" data-field="pb">${formatPePb(s.pb)}</td>
-                    <td class="text-end" data-field="turnoverRate">${formatTurnoverRate(s.turnoverRate)}</td>
-                    <td class="text-center">
-                        <div class="mini-kline" data-code="${e(code)}"></div>
-                    </td>
-                    <td class="text-center">
-                        <button class="btn btn-sm btn-icon-only reminder-btn ${hasReminder ? 'reminder-active' : ''}"
-                                title="${hasReminder ? '已设置提醒' : '设置提醒'}"
-                                onclick="WatchlistPage.openReminderModal('${e(code)}', ${s.targetPriceHigh != null ? s.targetPriceHigh : 'null'}, ${s.targetPriceLow != null ? s.targetPriceLow : 'null'})">
-                            <i class="bi ${hasReminder ? 'bi-bell-fill' : 'bi-bell'}"></i>
-                        </button>
-                    </td>
-                    <td class="text-center">
-                        <div class="dropdown">
-                            <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="dropdown">
-                                <i class="bi bi-three-dots"></i>
-                            </button>
-                            <ul class="dropdown-menu dropdown-menu-end">
-                                <li><a class="dropdown-item" href="/stock/${e(code)}" target="_blank">
-                                    <i class="bi bi-graph-up me-2"></i>查看行情
-                                </a></li>
-                                <li><a class="dropdown-item" href="javascript:;" onclick="WatchlistPage.openMoveGroupModal('${e(code)}')">
-                                    <i class="bi bi-folder2-open me-2"></i>移动分组
-                                </a></li>
-                                <li><a class="dropdown-item" href="javascript:;" onclick="WatchlistPage.openReminderModal('${e(code)}', ${s.targetPriceHigh != null ? s.targetPriceHigh : 'null'}, ${s.targetPriceLow != null ? s.targetPriceLow : 'null'})">
-                                    <i class="bi bi-bell me-2"></i>设置提醒
-                                </a></li>
-                                <li><hr class="dropdown-divider"></li>
-                                <li><a class="dropdown-item text-danger" href="javascript:;" onclick="WatchlistPage.removeStock('${e(code)}')">
-                                    <i class="bi bi-trash me-2"></i>移除自选
-                                </a></li>
-                            </ul>
-                        </div>
-                    </td>
-                </tr>`;
+            return buildRow(s);
         }).join('');
 
         requestAnimationFrame(function () {
             initAllMiniKlines();
             bindRowDragEvents();
+            syncBatchColumnVisibility();
         });
     }
 
-    // ===================== 添加/移除自选股 =====================
+    function buildRow(s) {
+        const code = s.code;
+        const pulse = pulseLevel(s.changePercent);
+        const pctCls = pctCellClass(s.changePercent);
+        const hasReminder = (s.targetPriceHigh != null && s.targetPriceHigh > 0) ||
+                            (s.targetPriceLow != null && s.targetPriceLow > 0);
+        const isSelected = state.selectedCodes.has(code);
+
+        return '<tr data-code="' + e(code) + '"' + (isSelected ? ' class="row-selected"' : '') + '>' +
+            // 批量列（默认隐藏，批量模式下显示）
+            '<td class="wl-col-check" ' + (state.batchMode ? '' : 'hidden') + '>' +
+                '<input type="checkbox" ' + (isSelected ? 'checked' : '') +
+                    ' aria-label="选择 ' + e(code) + '"' +
+                    ' onchange="WatchlistPage.toggleSelectOne(\'' + e(code) + '\')">' +
+            '</td>' +
+            // 股票（脉冲指示器 + 代码 + 名称 + 行业）
+            '<td class="wl-col-stock">' +
+                '<div class="wl-stock-cell">' +
+                    '<span class="wl-pulse ' + pulse.dir + ' ' + pulse.level + '" data-code="' + e(code) + '" aria-hidden="true"></span>' +
+                    '<div class="wl-stock-info">' +
+                        '<div class="wl-stock-line1">' +
+                            '<a href="/stock/' + e(code) + '" class="wl-stock-code" target="_blank" rel="noopener">' + e(code) + '</a>' +
+                            '<a href="/stock/' + e(code) + '" class="wl-stock-name" target="_blank" rel="noopener">' + e(s.name) + '</a>' +
+                        '</div>' +
+                        (s.industryName
+                            ? '<span class="wl-stock-industry">' + e(s.industryName) + '</span>'
+                            : '') +
+                    '</div>' +
+                '</div>' +
+            '</td>' +
+            // 最新价
+            '<td class="text-end"><span class="wl-num" data-field="currentPrice">' + formatNumber(s.currentPrice) + '</span></td>' +
+            // 涨跌幅（涨跌额并入）
+            '<td class="text-end">' +
+                '<span class="wl-pct-cell ' + pctCls + '" data-field="changePercent">' +
+                    formatPercent(s.changePercent) +
+                '</span>' +
+                '<div class="wl-change-amount" data-field="changeAmount" style="font-size:11px;color:var(--text-muted);margin-top:2px;">' +
+                    (s.changeAmount != null
+                        ? (s.changeAmount >= 0 ? '+' : '') + formatNumber(s.changeAmount)
+                        : '-') +
+                '</div>' +
+            '</td>' +
+            // 总市值
+            '<td class="text-end"><span class="wl-num" data-field="totalMv">' + formatMarketValue(s.totalMv) + '</span></td>' +
+            // PE TTM
+            '<td class="text-end"><span class="wl-num" data-field="peTtm">' + formatPePb(s.peTtm) + '</span></td>' +
+            // 换手率
+            '<td class="text-end"><span class="wl-num" data-field="turnoverRate">' + formatTurnoverRate(s.turnoverRate) + '</span></td>' +
+            // 7日走势
+            '<td class="text-center wl-col-spark">' +
+                '<div class="wl-spark" data-code="' + e(code) + '"></div>' +
+            '</td>' +
+            // 操作
+            '<td class="text-center wl-col-ops">' +
+                '<div class="wl-row-ops">' +
+                    '<button class="wl-reminder-btn' + (hasReminder ? ' active' : '') + '"' +
+                        ' title="' + (hasReminder ? '已设置提醒，点击修改' : '设置价格提醒') + '"' +
+                        ' aria-label="价格提醒"' +
+                        ' onclick="WatchlistPage.openReminderModal(\'' + e(code) + '\',' +
+                            (s.targetPriceHigh != null ? s.targetPriceHigh : 'null') + ',' +
+                            (s.targetPriceLow != null ? s.targetPriceLow : 'null') + ')">' +
+                        '<i class="bi ' + (hasReminder ? 'bi-bell-fill' : 'bi-bell') + '"></i>' +
+                    '</button>' +
+                    '<button class="btn btn-sm btn-outline-secondary wl-ops-more"' +
+                        ' title="更多操作" aria-label="更多操作" data-bs-toggle="dropdown" aria-expanded="false">' +
+                        '<i class="bi bi-three-dots"></i>' +
+                    '</button>' +
+                    '<ul class="dropdown-menu dropdown-menu-end">' +
+                        '<li><a class="dropdown-item" href="/stock/' + e(code) + '" target="_blank" rel="noopener">' +
+                            '<i class="bi bi-graph-up me-2"></i>查看行情</a></li>' +
+                        '<li><a class="dropdown-item" href="javascript:;"' +
+                            ' onclick="WatchlistPage.openMoveGroupModal(\'' + e(code) + '\')">' +
+                            '<i class="bi bi-folder2-open me-2"></i>移动到分组</a></li>' +
+                        '<li><a class="dropdown-item" href="javascript:;"' +
+                            ' onclick="WatchlistPage.openReminderModal(\'' + e(code) + '\',' +
+                                (s.targetPriceHigh != null ? s.targetPriceHigh : 'null') + ',' +
+                                (s.targetPriceLow != null ? s.targetPriceLow : 'null') + ')">' +
+                            '<i class="bi bi-bell me-2"></i>设置提醒</a></li>' +
+                        '<li><hr class="dropdown-divider"></li>' +
+                        '<li><a class="dropdown-item text-danger" href="javascript:;"' +
+                            ' onclick="WatchlistPage.removeStock(\'' + e(code) + '\')">' +
+                            '<i class="bi bi-trash me-2"></i>移除自选</a></li>' +
+                    '</ul>' +
+                '</div>' +
+            '</td>' +
+        '</tr>';
+    }
+
+    // ===================== 添加 / 移除自选股 =====================
 
     function addStockToWatchlist(code) {
         StockApp.post('/watchlist/' + code, null, function (resp) {
             StockApp.toast(resp.message, resp.code === 200 ? 'success' : 'warning');
-            if (resp.code === 200) {
-                loadList();
-            }
+            if (resp.code === 200) loadList();
         });
     }
 
@@ -650,46 +733,53 @@ const WatchlistPage = (function () {
 
     function toggleBatchMode() {
         state.batchMode = !state.batchMode;
-        if (!state.batchMode) {
-            state.selectedCodes.clear();
-        }
+        if (!state.batchMode) state.selectedCodes.clear();
 
         const batchBar = document.getElementById('batchActionBar');
-        if (batchBar) batchBar.style.display = state.batchMode ? '' : 'none';
+        if (batchBar) batchBar.hidden = !state.batchMode;
 
-        const checkboxes = document.querySelectorAll('.col-checkbox');
-        checkboxes.forEach(function (el) {
-            el.style.display = state.batchMode ? '' : 'none';
-        });
-
-        const batchBtn = document.getElementById('batchModeBtn');
-        const batchBtnToolbar = document.getElementById('batchModeBtnToolbar');
-        if (batchBtn) {
-            batchBtn.className = state.batchMode ? 'btn btn-primary btn-sm' : 'btn btn-outline-primary btn-sm';
-        }
-        if (batchBtnToolbar) {
-            batchBtnToolbar.className = state.batchMode ? 'btn btn-sm btn-primary' : 'btn btn-sm btn-outline-primary';
-        }
-
+        syncBatchColumnVisibility();
         renderTable();
         updateSelectedCount();
+        syncBatchButton();
+    }
+
+    function syncBatchColumnVisibility() {
+        const cols = document.querySelectorAll('.wl-col-check');
+        cols.forEach(function (el) { el.hidden = !state.batchMode; });
+        const tableSelectAll = document.getElementById('tableSelectAll');
+        if (tableSelectAll) {
+            const th = tableSelectAll.closest('th');
+            if (th) th.hidden = !state.batchMode;
+        }
+    }
+
+    function syncBatchButton() {
+        const btn = document.getElementById('batchModeBtn');
+        if (!btn) return;
+        if (state.batchMode) {
+            btn.className = 'btn btn-sm btn-primary';
+            btn.innerHTML = '<i class="bi bi-check2-square"></i> 批量管理中';
+        } else {
+            btn.className = 'btn btn-sm btn-outline-secondary';
+            btn.innerHTML = '<i class="bi bi-check2-square"></i> 批量管理';
+        }
     }
 
     function toggleSelectAll() {
-        const allChecked = state.selectedCodes.size === state.list.length && state.list.length > 0;
+        const selectAllCb = document.getElementById('selectAllCheckbox');
+        const tableSelectAll = document.getElementById('tableSelectAll');
+
+        // 当前态反推：若已全选则清空，否则全选
+        const allChecked = state.list.length > 0 && state.selectedCodes.size === state.list.length;
         if (allChecked) {
             state.selectedCodes.clear();
         } else {
-            state.list.forEach(function (s) {
-                state.selectedCodes.add(s.code);
-            });
+            state.list.forEach(function (s) { state.selectedCodes.add(s.code); });
         }
-
-        const selectAllCb = document.getElementById('selectAllCheckbox');
-        const tableSelectAll = document.getElementById('tableSelectAll');
-        const checked = state.selectedCodes.size === state.list.length && state.list.length > 0;
-        if (selectAllCb) selectAllCb.checked = checked;
-        if (tableSelectAll) tableSelectAll.checked = checked;
+        const nowAllChecked = state.list.length > 0 && state.selectedCodes.size === state.list.length;
+        if (selectAllCb) selectAllCb.checked = nowAllChecked;
+        if (tableSelectAll) tableSelectAll.checked = nowAllChecked;
 
         renderTable();
         updateSelectedCount();
@@ -704,21 +794,17 @@ const WatchlistPage = (function () {
 
         const selectAllCb = document.getElementById('selectAllCheckbox');
         const tableSelectAll = document.getElementById('tableSelectAll');
-        const allChecked = state.selectedCodes.size === state.list.length && state.list.length > 0;
+        const allChecked = state.list.length > 0 && state.selectedCodes.size === state.list.length;
         if (selectAllCb) selectAllCb.checked = allChecked;
         if (tableSelectAll) tableSelectAll.checked = allChecked;
 
         const row = document.querySelector('tr[data-code="' + code + '"]');
         if (row) {
-            if (state.selectedCodes.has(code)) {
-                row.classList.add('row-selected');
-            } else {
-                row.classList.remove('row-selected');
-            }
-            const cb = row.querySelector('.col-checkbox input[type="checkbox"]');
+            if (state.selectedCodes.has(code)) row.classList.add('row-selected');
+            else row.classList.remove('row-selected');
+            const cb = row.querySelector('.wl-col-check input[type="checkbox"]');
             if (cb) cb.checked = state.selectedCodes.has(code);
         }
-
         updateSelectedCount();
     }
 
@@ -743,9 +829,7 @@ const WatchlistPage = (function () {
         const codes = Array.from(state.selectedCodes);
         StockApp.post('/watchlist/batch-delete', { stockCodes: codes }, function (resp) {
             StockApp.toast(resp.message, resp.code === 200 ? 'success' : 'danger');
-            if (resp.code === 200) {
-                loadList();
-            }
+            if (resp.code === 200) loadList();
         });
     }
 
@@ -772,7 +856,7 @@ const WatchlistPage = (function () {
         if (!sel) return;
         let html = '<option value="">未分组</option>';
         state.groups.forEach(function (g) {
-            html += `<option value="${e(g.id)}">${e(g.name)}</option>`;
+            html += '<option value="' + e(g.id) + '">' + e(g.name) + '</option>';
         });
         sel.innerHTML = html;
     }
@@ -794,39 +878,42 @@ const WatchlistPage = (function () {
                 .then(function (resp) {
                     StockApp.toast(resp.message, resp.code === 200 ? 'success' : 'danger');
                     if (resp.code === 200) {
-                        const modal = bootstrap.Modal.getInstance(document.getElementById('moveGroupModal'));
-                        if (modal) modal.hide();
+                        hideModal('moveGroupModal');
                         loadList();
                     }
                 })
                 .catch(err => StockApp.toast('请求失败: ' + err.message, 'danger'));
         } else {
-            const body = {
-                stockCodes: codes,
-                groupId: targetGroupId
-            };
+            const body = { stockCodes: codes, groupId: targetGroupId };
             StockApp.post('/watchlist/batch-move-group', body, function (resp) {
                 StockApp.toast(resp.message, resp.code === 200 ? 'success' : 'danger');
                 if (resp.code === 200) {
-                    const modal = bootstrap.Modal.getInstance(document.getElementById('moveGroupModal'));
-                    if (modal) modal.hide();
+                    hideModal('moveGroupModal');
                     loadList();
                 }
             });
         }
     }
 
+    function hideModal(id) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        const inst = bootstrap.Modal.getInstance(el);
+        if (inst) inst.hide();
+    }
+
     // ===================== 价格提醒 =====================
 
     function openReminderModal(stockCode, currentHigh, currentLow) {
         state.currentReminderStock = stockCode;
-        document.getElementById('reminderStockCode').value = stockCode;
+        const codeInput = document.getElementById('reminderStockCode');
+        if (codeInput) codeInput.textContent = stockCode;
         document.getElementById('reminderHighPrice').value = currentHigh != null ? currentHigh : '';
         document.getElementById('reminderLowPrice').value = currentLow != null ? currentLow : '';
 
         const clearBtn = document.getElementById('clearReminderBtn');
         const hasReminder = (currentHigh != null && currentHigh > 0) || (currentLow != null && currentLow > 0);
-        if (clearBtn) clearBtn.style.display = hasReminder ? '' : 'none';
+        if (clearBtn) clearBtn.hidden = !hasReminder;
 
         const modal = new bootstrap.Modal(document.getElementById('reminderModal'));
         modal.show();
@@ -847,8 +934,7 @@ const WatchlistPage = (function () {
         StockApp.post('/watchlist/' + code + '/reminder', body, function (resp) {
             StockApp.toast(resp.message, resp.code === 200 ? 'success' : 'danger');
             if (resp.code === 200) {
-                const modal = bootstrap.Modal.getInstance(document.getElementById('reminderModal'));
-                if (modal) modal.hide();
+                hideModal('reminderModal');
                 loadList();
             }
         });
@@ -866,13 +952,14 @@ const WatchlistPage = (function () {
             .then(function (resp) {
                 StockApp.toast(resp.message, resp.code === 200 ? 'success' : 'danger');
                 if (resp.code === 200) {
-                    const modal = bootstrap.Modal.getInstance(document.getElementById('reminderModal'));
-                    if (modal) modal.hide();
+                    hideModal('reminderModal');
                     loadList();
                 }
             })
             .catch(err => StockApp.toast('请求失败: ' + err.message, 'danger'));
     }
+
+    // ===================== 实时刷新：仅就地更新数字 =====================
 
     function refreshPrices() {
         const params = {};
@@ -887,8 +974,19 @@ const WatchlistPage = (function () {
         StockApp.get('/watchlist', params, function (resp) {
             if (resp.code !== 200) return;
             const newList = resp.data || [];
-            state.list = newList;
 
+            // 顺序变更（外部排序）则整表重渲
+            const oldOrder = state.list.map(function (s) { return s.code; }).join('|');
+            const newOrder = newList.map(function (s) { return s.code; }).join('|');
+            if (oldOrder !== newOrder) {
+                state.list = newList;
+                renderTable();
+                renderGroups();
+                updateStatStrip();
+                return;
+            }
+
+            state.list = newList;
             const tbody = document.getElementById('watchlistTable');
             if (!tbody) return;
 
@@ -896,62 +994,74 @@ const WatchlistPage = (function () {
                 const row = tbody.querySelector('tr[data-code="' + s.code + '"]');
                 if (!row) return;
 
-                const upDown = getUpDownClass(s.changePercent);
-                const changeSign = (s.changeAmount != null && s.changeAmount >= 0) ? '+' : '';
+                const prevPrice = state.lastPriceMap.get(s.code);
+                const priceChanged = prevPrice !== s.currentPrice;
 
-                const priceCell = row.querySelector('[data-field="currentPrice"]');
-                if (priceCell) priceCell.textContent = formatNumber(s.currentPrice);
+                updateCellText(row, 'currentPrice', formatNumber(s.currentPrice), priceChanged);
+                updateCellText(row, 'totalMv', formatMarketValue(s.totalMv));
+                updateCellText(row, 'peTtm', formatPePb(s.peTtm));
+                updateCellText(row, 'turnoverRate', formatTurnoverRate(s.turnoverRate));
 
-                const changeCell = row.querySelector('[data-field="changeAmount"]');
-                if (changeCell) {
-                    changeCell.textContent = changeSign + formatNumber(s.changeAmount);
-                    changeCell.className = 'text-end stock-change ' + upDown;
-                }
-
+                // 涨跌幅
+                const pctCls = pctCellClass(s.changePercent);
                 const pctCell = row.querySelector('[data-field="changePercent"]');
                 if (pctCell) {
                     pctCell.textContent = formatPercent(s.changePercent);
-                    pctCell.className = 'text-end stock-change ' + upDown;
+                    pctCell.className = 'wl-pct-cell ' + pctCls;
+                }
+                const amtCell = row.querySelector('[data-field="changeAmount"]');
+                if (amtCell) {
+                    amtCell.textContent = s.changeAmount != null
+                        ? (s.changeAmount >= 0 ? '+' : '') + formatNumber(s.changeAmount)
+                        : '-';
                 }
 
-                const mvCell = row.querySelector('[data-field="totalMv"]');
-                if (mvCell) mvCell.textContent = formatMarketValue(s.totalMv);
-
-                const peCell = row.querySelector('[data-field="peTtm"]');
-                if (peCell) peCell.textContent = formatPePb(s.peTtm);
-
-                const pbCell = row.querySelector('[data-field="pb"]');
-                if (pbCell) pbCell.textContent = formatPePb(s.pb);
-
-                const turnoverCell = row.querySelector('[data-field="turnoverRate"]');
-                if (turnoverCell) turnoverCell.textContent = formatTurnoverRate(s.turnoverRate);
-
-                const hasReminder = (s.targetPriceHigh != null && s.targetPriceHigh > 0) ||
-                                    (s.targetPriceLow != null && s.targetPriceLow > 0);
-                const reminderBtn = row.querySelector('.reminder-btn');
-                if (reminderBtn) {
-                    if (hasReminder) {
-                        reminderBtn.classList.add('reminder-active');
-                        reminderBtn.title = '已设置提醒';
-                        const icon = reminderBtn.querySelector('i');
-                        if (icon) {
-                            icon.classList.remove('bi-bell');
-                            icon.classList.add('bi-bell-fill');
-                        }
-                    } else {
-                        reminderBtn.classList.remove('reminder-active');
-                        reminderBtn.title = '设置提醒';
-                        const icon = reminderBtn.querySelector('i');
-                        if (icon) {
-                            icon.classList.remove('bi-bell-fill');
-                            icon.classList.add('bi-bell');
-                        }
+                // 脉冲指示器强度档同步
+                const pulse = pulseLevel(s.changePercent);
+                const pulseEl = row.querySelector('.wl-pulse');
+                if (pulseEl) {
+                    pulseEl.className = 'wl-pulse ' + pulse.dir + ' ' + pulse.level;
+                    if (priceChanged) {
+                        pulseEl.classList.remove('pulsing');
+                        // 强制 reflow 触发动画重启
+                        void pulseEl.offsetWidth;
+                        pulseEl.classList.add('pulsing');
+                        setTimeout(function () { pulseEl.classList.remove('pulsing'); }, 700);
                     }
                 }
+
+                // 提醒按钮态
+                const hasReminder = (s.targetPriceHigh != null && s.targetPriceHigh > 0) ||
+                                    (s.targetPriceLow != null && s.targetPriceLow > 0);
+                const reminderBtn = row.querySelector('.wl-reminder-btn');
+                if (reminderBtn) {
+                    reminderBtn.classList.toggle('active', hasReminder);
+                    reminderBtn.title = hasReminder ? '已设置提醒，点击修改' : '设置价格提醒';
+                    const icon = reminderBtn.querySelector('i');
+                    if (icon) {
+                        icon.className = hasReminder ? 'bi bi-bell-fill' : 'bi bi-bell';
+                    }
+                }
+
+                state.lastPriceMap.set(s.code, s.currentPrice);
             });
 
+            updateStatStrip();
+            renderGroups();
             checkPriceAlertsFromList();
         });
+    }
+
+    function updateCellText(row, field, text, flash) {
+        const cell = row.querySelector('[data-field="' + field + '"]');
+        if (!cell) return;
+        cell.textContent = text;
+        if (flash) {
+            cell.classList.remove('flash');
+            void cell.offsetWidth;
+            cell.classList.add('flash');
+            setTimeout(function () { cell.classList.remove('flash'); }, 600);
+        }
     }
 
     function checkPriceAlertsFromList() {
@@ -984,37 +1094,25 @@ const WatchlistPage = (function () {
 
     function triggerPriceAlert(item, type) {
         if (!item) return;
-        const code = item.code;
-        const name = item.name || code;
+        const name = item.name || item.code;
         const price = formatNumber(item.currentPrice);
-
         let message = '';
         if (type === 'high') {
-            message = name + ' 突破高位提醒：当前价 ' + price + ' 元';
+            message = name + ' 价格上穿提醒位：当前 ' + price + ' 元';
         } else if (type === 'low') {
-            message = name + ' 跌破低位提醒：当前价 ' + price + ' 元';
+            message = name + ' 价格下穿提醒位：当前 ' + price + ' 元';
         }
-
-        if (message) {
-            StockApp.toast(message, 'info');
-        }
-
-        state.lastReminderTimes.set(code, Date.now());
+        if (message) StockApp.toast(message, 'info');
+        state.lastReminderTimes.set(item.code, Date.now());
     }
 
     function startReminderPolling() {
         stopReminderPolling();
-
         const visibleInterval = 60 * 1000;
         const hiddenInterval = 300 * 1000;
 
-        function getInterval() {
-            return document.hidden ? hiddenInterval : visibleInterval;
-        }
-
-        function tick() {
-            refreshPrices();
-        }
+        function getInterval() { return document.hidden ? hiddenInterval : visibleInterval; }
+        function tick() { refreshPrices(); }
 
         state.reminderPollingTimer = setInterval(tick, getInterval());
 
@@ -1026,7 +1124,6 @@ const WatchlistPage = (function () {
 
         document.addEventListener('visibilitychange', onVisibilityChange);
         state._visibilityChangeListener = onVisibilityChange;
-
         tick();
     }
 
@@ -1042,9 +1139,7 @@ const WatchlistPage = (function () {
     }
 
     function resetReminderPolling() {
-        if (state.reminderPollingTimer) {
-            startReminderPolling();
-        }
+        if (state.reminderPollingTimer) startReminderPolling();
     }
 
     // ===================== 拖拽排序 =====================
@@ -1052,7 +1147,6 @@ const WatchlistPage = (function () {
     function bindRowDragEvents() {
         const tbody = document.getElementById('watchlistTable');
         if (!tbody) return;
-
         const rows = tbody.querySelectorAll('tr[data-code]');
         rows.forEach(function (row) {
             row.setAttribute('draggable', 'true');
@@ -1064,48 +1158,42 @@ const WatchlistPage = (function () {
         });
     }
 
-    function handleDragStart(e) {
-        const target = e.target;
+    function handleDragStart(ev) {
+        const target = ev.target;
         if (target.closest('a') || target.closest('button') || target.closest('input') ||
-            target.closest('.dropdown') || target.closest('.reminder-btn')) {
-            e.preventDefault();
+            target.closest('.dropdown') || target.closest('.wl-reminder-btn')) {
+            ev.preventDefault();
             return;
         }
-
-        const row = e.currentTarget;
+        const row = ev.currentTarget;
         const code = row.getAttribute('data-code');
         if (!code) return;
 
         state.dragState.draggingCode = code;
         state.dragState.originalList = state.list.slice();
-
         row.classList.add('dragging');
 
         try {
-            e.dataTransfer.effectAllowed = 'move';
-            e.dataTransfer.setData('text/plain', code);
-            e.dataTransfer.setData('application/x-stock-code', code);
+            ev.dataTransfer.effectAllowed = 'move';
+            ev.dataTransfer.setData('text/plain', code);
+            ev.dataTransfer.setData('application/x-stock-code', code);
         } catch (err) {}
     }
 
-    function handleDragOver(e) {
-        e.preventDefault();
-        const row = e.currentTarget;
+    function handleDragOver(ev) {
+        ev.preventDefault();
+        const row = ev.currentTarget;
         const targetCode = row.getAttribute('data-code');
         const draggingCode = state.dragState.draggingCode;
-
         if (!draggingCode || !targetCode || targetCode === draggingCode) return;
 
-        try {
-            e.dataTransfer.dropEffect = 'move';
-        } catch (err) {}
+        try { ev.dataTransfer.dropEffect = 'move'; } catch (err) {}
 
         const rect = row.getBoundingClientRect();
         const midY = rect.top + rect.height / 2;
-        const isTop = e.clientY < midY;
+        const isTop = ev.clientY < midY;
 
         clearDragOverStyles();
-
         if (isTop) {
             row.classList.add('drag-over-top');
             state.dragState.dropPosition = 'top';
@@ -1116,20 +1204,19 @@ const WatchlistPage = (function () {
         state.dragState.dropTargetCode = targetCode;
     }
 
-    function handleDragLeave(e) {
-        const row = e.currentTarget;
+    function handleDragLeave(ev) {
+        const row = ev.currentTarget;
         row.classList.remove('drag-over-top');
         row.classList.remove('drag-over-bottom');
     }
 
-    function handleDrop(e) {
-        e.preventDefault();
-        e.stopPropagation();
+    function handleDrop(ev) {
+        ev.preventDefault();
+        ev.stopPropagation();
 
         const targetCode = state.dragState.dropTargetCode;
         const draggingCode = state.dragState.draggingCode;
         const position = state.dragState.dropPosition;
-
         clearDragOverStyles();
 
         if (!draggingCode || !targetCode || targetCode === draggingCode) return;
@@ -1138,16 +1225,11 @@ const WatchlistPage = (function () {
         const list = state.list.slice();
         const dragIndex = list.findIndex(function (s) { return s.code === draggingCode; });
         if (dragIndex === -1) return;
-
         const [draggedItem] = list.splice(dragIndex, 1);
 
         let targetIndex = list.findIndex(function (s) { return s.code === targetCode; });
         if (targetIndex === -1) return;
-
-        if (position === 'bottom') {
-            targetIndex += 1;
-        }
-
+        if (position === 'bottom') targetIndex += 1;
         list.splice(targetIndex, 0, draggedItem);
 
         state.list = list;
@@ -1158,7 +1240,7 @@ const WatchlistPage = (function () {
 
     function handleDragEnd() {
         clearDragOverStyles();
-        const rows = document.querySelectorAll('.watchlist-table tbody tr.dragging');
+        const rows = document.querySelectorAll('.wl-table tbody tr.dragging');
         rows.forEach(function (row) { row.classList.remove('dragging'); });
         state.dragState.draggingCode = null;
         state.dragState.dropTargetCode = null;
@@ -1166,7 +1248,7 @@ const WatchlistPage = (function () {
     }
 
     function clearDragOverStyles() {
-        const rows = document.querySelectorAll('.watchlist-table tbody tr');
+        const rows = document.querySelectorAll('.wl-table tbody tr');
         rows.forEach(function (row) {
             row.classList.remove('drag-over-top');
             row.classList.remove('drag-over-bottom');
@@ -1178,11 +1260,9 @@ const WatchlistPage = (function () {
             return { code: s.code, sortOrder: index };
         });
 
-        let successCount = 0;
         let failCount = 0;
         let completed = 0;
         const total = codes.length;
-
         const originalList = state.dragState.originalList;
 
         codes.forEach(function (item) {
@@ -1193,11 +1273,7 @@ const WatchlistPage = (function () {
                 .then(r => r.json())
                 .then(function (resp) {
                     completed++;
-                    if (resp.code === 200) {
-                        successCount++;
-                    } else {
-                        failCount++;
-                    }
+                    if (resp.code !== 200) failCount++;
                     checkAllDone();
                 })
                 .catch(function () {
@@ -1208,14 +1284,12 @@ const WatchlistPage = (function () {
         });
 
         function checkAllDone() {
-            if (completed >= total) {
-                if (failCount > 0) {
-                    StockApp.toast('排序更新失败 ' + failCount + ' 项，已恢复原顺序', 'danger');
-                    if (originalList) {
-                        state.list = originalList;
-                        disposeAllCharts();
-                        renderTable();
-                    }
+            if (completed >= total && failCount > 0) {
+                StockApp.toast('排序更新失败 ' + failCount + ' 项，已恢复原顺序', 'danger');
+                if (originalList) {
+                    state.list = originalList;
+                    disposeAllCharts();
+                    renderTable();
                 }
             }
         }
@@ -1224,7 +1298,7 @@ const WatchlistPage = (function () {
     // ===================== 跨分组拖拽 =====================
 
     function bindGroupDropEvents() {
-        const groupItems = document.querySelectorAll('.group-item');
+        const groupItems = document.querySelectorAll('.wl-group-item');
         groupItems.forEach(function (item) {
             item.addEventListener('dragover', handleGroupDragOver);
             item.addEventListener('dragleave', handleGroupDragLeave);
@@ -1232,42 +1306,34 @@ const WatchlistPage = (function () {
         });
     }
 
-    function handleGroupDragOver(e) {
-        e.preventDefault();
-        const item = e.currentTarget;
-
+    function handleGroupDragOver(ev) {
+        ev.preventDefault();
+        const item = ev.currentTarget;
         try {
-            const hasStockCode = e.dataTransfer.types &&
-                (e.dataTransfer.types.includes('text/plain') ||
-                 e.dataTransfer.types.includes('application/x-stock-code'));
+            const hasStockCode = ev.dataTransfer.types &&
+                (ev.dataTransfer.types.includes('text/plain') ||
+                 ev.dataTransfer.types.includes('application/x-stock-code'));
             if (!hasStockCode) return;
         } catch (err) {}
-
-        try {
-            e.dataTransfer.dropEffect = 'move';
-        } catch (err2) {}
-
+        try { ev.dataTransfer.dropEffect = 'move'; } catch (err2) {}
         item.classList.add('drag-over');
     }
 
-    function handleGroupDragLeave(e) {
-        const item = e.currentTarget;
-        item.classList.remove('drag-over');
+    function handleGroupDragLeave(ev) {
+        ev.currentTarget.classList.remove('drag-over');
     }
 
-    function handleGroupDrop(e) {
-        e.preventDefault();
-        e.stopPropagation();
-
-        const item = e.currentTarget;
+    function handleGroupDrop(ev) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        const item = ev.currentTarget;
         item.classList.remove('drag-over');
 
         let stockCode = null;
         try {
-            stockCode = e.dataTransfer.getData('application/x-stock-code') ||
-                        e.dataTransfer.getData('text/plain');
+            stockCode = ev.dataTransfer.getData('application/x-stock-code') ||
+                        ev.dataTransfer.getData('text/plain');
         } catch (err) {}
-
         if (!stockCode) return;
 
         const groupId = item.getAttribute('data-group-id');
@@ -1279,19 +1345,14 @@ const WatchlistPage = (function () {
             (groupId !== 'all' && groupId !== 'ungrouped' && currentGroup && String(currentGroup) === String(groupId))) {
             return;
         }
-
         moveStockToGroup(stockCode, groupId);
     }
 
     function moveStockToGroup(stockCode, groupId) {
         let targetGroupId = null;
-        if (groupId === 'all') {
-            return;
-        } else if (groupId === 'ungrouped') {
-            targetGroupId = null;
-        } else {
-            targetGroupId = groupId;
-        }
+        if (groupId === 'all') return;
+        if (groupId === 'ungrouped') targetGroupId = null;
+        else targetGroupId = groupId;
 
         const url = '/watchlist/' + stockCode + '/group' +
             (targetGroupId != null ? '?groupId=' + targetGroupId : '?groupId=');
@@ -1303,9 +1364,7 @@ const WatchlistPage = (function () {
             .then(r => r.json())
             .then(function (resp) {
                 StockApp.toast(resp.message, resp.code === 200 ? 'success' : 'danger');
-                if (resp.code === 200) {
-                    loadList();
-                }
+                if (resp.code === 200) loadList();
             })
             .catch(function (err) {
                 StockApp.toast('移动失败: ' + err.message, 'danger');
@@ -1317,15 +1376,14 @@ const WatchlistPage = (function () {
     function updateSort(sortBy, order) {
         state.sortBy = sortBy;
         if (order) state.order = order;
-
         const sortSel = document.getElementById('sortBySelect');
         if (sortSel) sortSel.value = sortBy;
         updateOrderIcon();
-
         loadList();
     }
 
     // ===================== 公开 API =====================
+
     return {
         init: init,
         loadList: loadList,

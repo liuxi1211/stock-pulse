@@ -1,8 +1,6 @@
 <!DOCTYPE html>
 <html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
-<head th:replace="~{fragments/common :: head(${pageTitle})}">
-<link th:href="@{/css/sector.css?v=20260722}" rel="stylesheet">
-</head>
+<head th:replace="~{fragments/common :: head(${pageTitle})}"></head>
 <body>
 <div class="app-container">
     <nav th:replace="~{fragments/common :: sidebar}"></nav>
@@ -154,6 +152,7 @@
 </div>
 <div th:replace="~{fragments/common :: toastContainer}"></div>
 <div th:replace="~{fragments/common :: scripts}"></div>
+<link rel="stylesheet" th:href="@{/css/sector.css?v=20260722}">
 <script th:src="@{/js/sector.js?v=20260722}"></script>
 </body>
 </html>
