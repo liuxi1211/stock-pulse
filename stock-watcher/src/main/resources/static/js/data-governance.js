@@ -15,6 +15,40 @@ const DG = {
     rebuildCountdownTimer: null,
     tableListCache: [],
     keywordSearchTimer: null,
+    _btnLockMap: {},
+
+    // ==================== Button Debounce Helper ====================
+
+    withBtnLock(key, fn, btnEl) {
+        if (this._btnLockMap[key]) return;
+        this._btnLockMap[key] = true;
+        const originalHtml = btnEl ? btnEl.innerHTML : null;
+        const originalDisabled = btnEl ? btnEl.disabled : false;
+        if (btnEl) {
+            btnEl.disabled = true;
+            btnEl.style.opacity = '0.6';
+            btnEl.style.pointerEvents = 'none';
+        }
+        const release = () => {
+            this._btnLockMap[key] = false;
+            if (btnEl) {
+                btnEl.disabled = originalDisabled;
+                btnEl.style.opacity = '';
+                btnEl.style.pointerEvents = '';
+            }
+        };
+        try {
+            const result = fn(release);
+            if (result && typeof result.then === 'function') {
+                result.then(release, release);
+            } else if (result === false) {
+                release();
+            }
+        } catch (e) {
+            release();
+            throw e;
+        }
+    },
 
     // Datasource polling: enter page -> test once -> poll GET every 10s
     dsPollTimer: null,
@@ -32,6 +66,9 @@ const DG = {
     // ==================== Init ====================
 
     refreshAll() {
+        if (this._btnLockMap['refreshAll']) return;
+        this._btnLockMap['refreshAll'] = true;
+        setTimeout(() => { this._btnLockMap['refreshAll'] = false; }, 500);
         this.refreshOverview();
         this.loadTables();
         this.startDatasourcePolling();
@@ -157,7 +194,20 @@ const DG = {
     },
 
     testDatasource() {
+        if (this._btnLockMap['testDatasource']) return;
+        this._btnLockMap['testDatasource'] = true;
+        const btn = event?.target?.closest('button');
+        const originalHtml = btn ? btn.innerHTML : null;
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>测试中...';
+        }
         StockApp.post(this.apiBase + '/datasource/test', null, (resp) => {
+            this._btnLockMap['testDatasource'] = false;
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = originalHtml;
+            }
             if (resp.code !== 200) {
                 StockApp.toast(resp.message || '测试失败', 'danger');
                 return;
@@ -218,7 +268,7 @@ const DG = {
             const failedBadge = t.failedCount > 0
                 ? `<span class="badge bg-danger ms-1">${t.failedCount} 项</span>` : '';
             const adminButtons = this.isAdmin ? `
-                <button class="btn btn-outline-secondary btn-sm" onclick="DG.incrementalUpdate('${t.tableCode}')" title="增量更新">
+                <button class="btn btn-outline-secondary btn-sm" onclick="DG.incrementalUpdate('${t.tableCode}', event)" title="增量更新">
                     <i class="bi bi-arrow-up-circle ico-success"></i> 增量
                 </button>
                 <button class="btn btn-outline-secondary btn-sm" onclick="DG.openRebuildModal('${t.tableCode}', '${StockApp.escapeHtml(t.tableName)}')" title="全量重建">
@@ -247,7 +297,7 @@ const DG = {
                             <button class="btn btn-outline-secondary btn-sm" onclick="DG.openDetail('${t.tableCode}')" title="查看详情">
                                 <i class="bi bi-eye ico-primary"></i> 详情
                             </button>
-                            <button class="btn btn-outline-secondary btn-sm" onclick="DG.checkTable('${t.tableCode}')" title="手动检测">
+                            <button class="btn btn-outline-secondary btn-sm" onclick="DG.checkTable('${t.tableCode}', event)" title="手动检测">
                                 <i class="bi bi-clipboard-check ico-info"></i> 检测
                             </button>
                             <button class="btn btn-outline-secondary btn-sm" onclick="DG.openPullHistory('${t.tableCode}', '${StockApp.escapeHtml(t.tableName)}')" title="拉取日志">
@@ -282,8 +332,22 @@ const DG = {
 
     // ==================== Per-table Manual Check ====================
 
-    checkTable(tableCode) {
+    checkTable(tableCode, event) {
+        const lockKey = 'check_' + tableCode;
+        if (this._btnLockMap[lockKey]) return;
+        this._btnLockMap[lockKey] = true;
+        const btn = event?.target?.closest('button');
+        const originalHtml = btn ? btn.innerHTML : null;
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>检测中';
+        }
         StockApp.post(this.apiBase + '/check/' + tableCode, null, (resp) => {
+            this._btnLockMap[lockKey] = false;
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = originalHtml;
+            }
             if (resp.code !== 200) {
                 StockApp.toast(resp.message || '检测失败', 'danger');
                 return;
@@ -466,8 +530,22 @@ const DG = {
 
     // ==================== Incremental Update ====================
 
-    incrementalUpdate(tableCode) {
+    incrementalUpdate(tableCode, event) {
+        const lockKey = 'incr_' + tableCode;
+        if (this._btnLockMap[lockKey]) return;
+        this._btnLockMap[lockKey] = true;
+        const btn = event?.target?.closest('button');
+        const originalHtml = btn ? btn.innerHTML : null;
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>启动中';
+        }
         StockApp.post(this.apiBase + '/tables/' + tableCode + '/incremental-update', null, (resp) => {
+            this._btnLockMap[lockKey] = false;
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = originalHtml;
+            }
             if (resp.code !== 200) {
                 StockApp.toast(resp.message || '增量更新启动失败', 'danger');
                 return;
@@ -524,11 +602,24 @@ const DG = {
             StockApp.toast('表名不匹配', 'warning');
             return;
         }
+        if (this._btnLockMap['executeRebuild']) return;
+        this._btnLockMap['executeRebuild'] = true;
+        const btn = document.getElementById('rebuildConfirmBtn');
+        const originalHtml = btn ? btn.innerHTML : null;
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1 ico-white"></span>启动中...';
+        }
         const modal = bootstrap.Modal.getInstance(document.getElementById('rebuildModal'));
         modal.hide();
         clearInterval(this.rebuildCountdownTimer);
 
         StockApp.post(this.apiBase + '/tables/' + this.rebuildTableCode + '/full-rebuild', null, (resp) => {
+            this._btnLockMap['executeRebuild'] = false;
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = originalHtml;
+            }
             if (resp.code !== 200) {
                 StockApp.toast(resp.message || '全量重建启动失败', 'danger');
                 return;
@@ -540,8 +631,21 @@ const DG = {
 
     // ==================== Check All ====================
 
-    checkAll() {
+    checkAll(event) {
+        if (this._btnLockMap['checkAll']) return;
+        this._btnLockMap['checkAll'] = true;
+        const btn = event?.target?.closest('button');
+        const originalHtml = btn ? btn.innerHTML : null;
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1 ico-white"></span>检测中...';
+        }
         StockApp.post(this.apiBase + '/check/all', null, (resp) => {
+            this._btnLockMap['checkAll'] = false;
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = originalHtml;
+            }
             if (resp.code !== 200) {
                 StockApp.toast(resp.message || '检测失败', 'danger');
                 return;
@@ -561,6 +665,13 @@ const DG = {
         document.getElementById('progressOpBadge').textContent = this.getOperationTypeLabel(operationType);
         document.getElementById('progressStep').textContent = '处理中，请稍候...';
         document.getElementById('progressElapsed').textContent = '0s';
+
+        // Reset progress bar visibility
+        document.getElementById('progressSpinnerWrap').style.display = '';
+        document.getElementById('progressBarWrap').style.display = 'none';
+        document.getElementById('progressBar').style.width = '0%';
+        document.getElementById('progressCountText').textContent = '0 / 0';
+        document.getElementById('progressPercentText').textContent = '0%';
 
         const modal = new bootstrap.Modal(document.getElementById('progressModal'));
         modal.show();
@@ -584,6 +695,20 @@ const DG = {
             const elapsed = Math.floor((Date.now() - this.pollStartTime) / 1000);
             document.getElementById('progressElapsed').textContent = elapsed + 's';
 
+            // Update progress bar if totalCount is available
+            if (d.totalCount != null && d.totalCount > 0) {
+                const idx = d.currentIndex != null ? d.currentIndex : 0;
+                const percent = Math.min(100, Math.round((idx / d.totalCount) * 100));
+                document.getElementById('progressSpinnerWrap').style.display = 'none';
+                document.getElementById('progressBarWrap').style.display = '';
+                document.getElementById('progressBar').style.width = percent + '%';
+                document.getElementById('progressCountText').textContent = idx + ' / ' + d.totalCount;
+                document.getElementById('progressPercentText').textContent = percent + '%';
+            } else {
+                document.getElementById('progressSpinnerWrap').style.display = '';
+                document.getElementById('progressBarWrap').style.display = 'none';
+            }
+
             if (d.cancelled || d.status === 'CANCELLED') {
                 clearInterval(this.pollTimer);
                 StockApp.toast('任务已取消', 'warning');
@@ -605,7 +730,20 @@ const DG = {
 
     cancelTask() {
         if (!this.currentTaskId) return;
+        if (this._btnLockMap['cancelTask']) return;
+        this._btnLockMap['cancelTask'] = true;
+        const btn = document.getElementById('cancelTaskBtn');
+        const originalHtml = btn ? btn.innerHTML : null;
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>取消中...';
+        }
         StockApp.post(this.apiBase + '/tasks/' + this.currentTaskId + '/cancel', null, (resp) => {
+            this._btnLockMap['cancelTask'] = false;
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = originalHtml;
+            }
             if (resp.code === 200) {
                 StockApp.toast('取消请求已发送', 'info');
                 this.closeProgressModal();

@@ -17,4 +17,6 @@ public class TaskProgressVO {
     private String errorMessage;
     private boolean cancelled;
     private String lastUpdated;
+    private Integer currentIndex;
+    private Integer totalCount;
 }

@@ -98,6 +98,8 @@ public class DataGovernanceServiceImpl implements DataGovernanceService {
                 .errorMessage(null)
                 .cancelled(false)
                 .lastUpdated(LocalDateTime.now().format(CHECK_TIME_FMT))
+                .currentIndex(0)
+                .totalCount(totalTables)
                 .build();
         taskProgressCache.putProgress(taskId, initialProgress);
 
@@ -107,10 +109,10 @@ public class DataGovernanceServiceImpl implements DataGovernanceService {
                     InitStep step = steps[i];
                     if (taskProgressCache.isCancelled(taskId)) {
                         log.info("全表检测被取消，taskId={}, 已完成 {}/{}", taskId, i, totalTables);
-                        updateCheckCancelled(taskId, "用户取消");
+                        updateCheckCancelled(taskId, "用户取消", i, totalTables);
                         break;
                     }
-                    updateCheckRunning(taskId, "检测中: " + step.getLabel(), step.getCode());
+                    updateCheckRunning(taskId, "检测中: " + step.getLabel(), step.getCode(), i, totalTables);
                     try {
                         doCheckTable(step.getCode(), batchId, "MANUAL");
                     } catch (Exception e) {
@@ -118,7 +120,7 @@ public class DataGovernanceServiceImpl implements DataGovernanceService {
                     }
                 }
                 if (!taskProgressCache.isCancelled(taskId)) {
-                    updateCheckSuccess(taskId);
+                    updateCheckSuccess(taskId, totalTables);
                 }
                 log.info("全表检测完成, taskId={}, batchId={}", taskId, batchId);
             } catch (Exception e) {
@@ -152,7 +154,7 @@ public class DataGovernanceServiceImpl implements DataGovernanceService {
     /**
      * 更新检测任务状态 - 运行中。
      */
-    private void updateCheckRunning(String taskId, String currentStep, String tableCode) {
+    private void updateCheckRunning(String taskId, String currentStep, String tableCode, int currentIndex, int totalCount) {
         TaskProgress existing = taskProgressCache.getProgress(taskId);
         if (existing == null) {
             return;
@@ -165,11 +167,13 @@ public class DataGovernanceServiceImpl implements DataGovernanceService {
                 .errorMessage(null)
                 .cancelled(existing.isCancelled())
                 .lastUpdated(LocalDateTime.now().format(CHECK_TIME_FMT))
+                .currentIndex(currentIndex)
+                .totalCount(totalCount)
                 .build();
         taskProgressCache.putProgress(taskId, progress);
     }
 
-    private void updateCheckSuccess(String taskId) {
+    private void updateCheckSuccess(String taskId, int totalCount) {
         TaskProgress existing = taskProgressCache.getProgress(taskId);
         if (existing == null) {
             return;
@@ -182,6 +186,8 @@ public class DataGovernanceServiceImpl implements DataGovernanceService {
                 .errorMessage(null)
                 .cancelled(false)
                 .lastUpdated(LocalDateTime.now().format(CHECK_TIME_FMT))
+                .currentIndex(totalCount)
+                .totalCount(totalCount)
                 .build();
         taskProgressCache.putProgress(taskId, progress);
     }
@@ -199,11 +205,13 @@ public class DataGovernanceServiceImpl implements DataGovernanceService {
                 .errorMessage(errorMessage)
                 .cancelled(false)
                 .lastUpdated(LocalDateTime.now().format(CHECK_TIME_FMT))
+                .currentIndex(existing.getCurrentIndex())
+                .totalCount(existing.getTotalCount())
                 .build();
         taskProgressCache.putProgress(taskId, progress);
     }
 
-    private void updateCheckCancelled(String taskId, String reason) {
+    private void updateCheckCancelled(String taskId, String reason, int currentIndex, int totalCount) {
         TaskProgress existing = taskProgressCache.getProgress(taskId);
         if (existing == null) {
             return;
@@ -216,6 +224,8 @@ public class DataGovernanceServiceImpl implements DataGovernanceService {
                 .errorMessage(reason)
                 .cancelled(true)
                 .lastUpdated(LocalDateTime.now().format(CHECK_TIME_FMT))
+                .currentIndex(currentIndex)
+                .totalCount(totalCount)
                 .build();
         taskProgressCache.putProgress(taskId, progress);
     }

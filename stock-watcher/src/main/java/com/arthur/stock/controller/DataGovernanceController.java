@@ -227,6 +227,8 @@ public class DataGovernanceController {
                 .errorMessage(progress.getErrorMessage())
                 .cancelled(progress.isCancelled())
                 .lastUpdated(progress.getLastUpdated())
+                .currentIndex(progress.getCurrentIndex())
+                .totalCount(progress.getTotalCount())
                 .build());
     }
 

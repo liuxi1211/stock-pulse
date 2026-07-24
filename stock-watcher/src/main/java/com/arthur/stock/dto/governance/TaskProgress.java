@@ -17,4 +17,6 @@ public class TaskProgress {
     private String errorMessage;   // 失败时的错误信息
     private boolean cancelled;     // 是否已取消
     private String lastUpdated;    // 最后更新时间 yyyy-MM-dd HH:mm:ss
+    private Integer currentIndex;  // 当前处理索引（从 0 开始）
+    private Integer totalCount;    // 总数量
 }
