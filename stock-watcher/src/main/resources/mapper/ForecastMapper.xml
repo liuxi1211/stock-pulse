@@ -57,6 +57,11 @@
         SELECT MAX(ann_date) FROM forecast
     </select>
 
+    <!-- 一次性查出所有股票的最新公告日期（ts_code -> latest_ann_date），用于增量更新预加载 -->
+    <select id="selectMaxAnnDatePerStock" resultType="java.util.Map">
+        SELECT ts_code, MAX(ann_date) AS latest_ann_date FROM forecast GROUP BY ts_code
+    </select>
+
     <select id="countByAnnMonth" resultType="int">
         SELECT COUNT(*) FROM forecast
         WHERE ann_date LIKE CONCAT(#{annMonth}, '%')

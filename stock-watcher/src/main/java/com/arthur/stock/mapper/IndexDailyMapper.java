@@ -6,6 +6,7 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * 指数日线行情数据访问层，基于MyBatis-Plus BaseMapper提供对index_daily表的CRUD操作
@@ -27,6 +28,9 @@ public interface IndexDailyMapper extends BaseMapper<IndexDailyDO> {
      * 取表中最新的 trade_date（用于查询最新交易日数据）
      */
     String selectLatestTradeDate();
+
+    /** 一次性查出所有指数的最新交易日期（ts_code -> latest_trade_date），用于增量更新预加载 */
+    List<Map<String, Object>> selectMaxTradeDatePerIndex();
 
     /**
      * 按多指数代码 + 交易日查询

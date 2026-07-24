@@ -74,9 +74,9 @@
     </insert>
 
     <delete id="deleteBatchByKeys">
-        DELETE FROM income WHERE (ts_code, end_date, report_type) IN
-        <foreach collection="list" item="i" open="(" separator="," close=")">
-            (#{i.tsCode}, #{i.endDate}, #{i.reportType})
+        DELETE FROM income WHERE
+        <foreach collection="list" item="i" separator=" OR ">
+            (ts_code = #{i.tsCode} AND end_date = #{i.endDate} AND report_type = #{i.reportType})
         </foreach>
     </delete>
 
@@ -95,6 +95,11 @@
 
     <select id="selectMaxAnnDate" resultType="string">
         SELECT MAX(ann_date) FROM income
+    </select>
+
+    <!-- 一次性查出所有股票的最新公告日期（ts_code -> latest_ann_date），用于增量更新预加载 -->
+    <select id="selectMaxAnnDatePerStock" resultType="java.util.Map">
+        SELECT ts_code, MAX(ann_date) AS latest_ann_date FROM income GROUP BY ts_code
     </select>
 
     <select id="selectMaxEndDate" resultType="string">

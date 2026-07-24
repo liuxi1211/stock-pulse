@@ -15,6 +15,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.google.common.collect.Lists;
 
@@ -56,12 +57,14 @@ public class AdjFactorServiceImpl implements AdjFactorService, DataCheckable {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public List<AdjFactorDTO> fetchAndSaveAdjFactor(String tsCode) {
         String lastDate = getLastTradeDate(tsCode);
         return doFetchAndSaveAdjFactor(tsCode, lastDate);
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public List<AdjFactorDTO> fetchAndSaveAdjFactor(String tsCode, String knownLastDate) {
         return doFetchAndSaveAdjFactor(tsCode, knownLastDate);
     }
@@ -69,8 +72,7 @@ public class AdjFactorServiceImpl implements AdjFactorService, DataCheckable {
     private List<AdjFactorDTO> doFetchAndSaveAdjFactor(String tsCode, String lastDate) {
         String startDate;
         if (lastDate != null) {
-            LocalDate ld = LocalDate.parse(lastDate, DATE_FMT);
-            startDate = ld.plusDays(1).format(DATE_FMT);
+            startDate = lastDate;
         } else {
             startDate = LocalDate.now().minusYears(30).format(DATE_FMT);
         }
@@ -107,6 +109,7 @@ public class AdjFactorServiceImpl implements AdjFactorService, DataCheckable {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public List<AdjFactorDTO> fetchAndSaveByTradeDate(String tradeDate) {
         log.info("Fetching adj_factor for trade_date={}", tradeDate);
 

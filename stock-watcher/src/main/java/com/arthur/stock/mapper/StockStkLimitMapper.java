@@ -7,6 +7,7 @@ import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * 涨跌停价数据访问层，基于 MyBatis-Plus BaseMapper 提供对 stock_stk_limit 表的 CRUD 操作。
@@ -45,6 +46,9 @@ public interface StockStkLimitMapper extends BaseMapper<StockStkLimitDO> {
                                                    @Param("endDate") String endDate);
 
     String selectLatestTradeDate();
+
+    /** 一次性查出所有股票的最新交易日期（ts_code -> latest_trade_date），用于增量更新预加载 */
+    List<Map<String, Object>> selectLatestDatePerStock();
 
     int countPriceLogicErrors(@Param("startDate") String startDate);
 }

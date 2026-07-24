@@ -55,6 +55,7 @@ public interface StockNamechangeMapper extends BaseMapper<StockNamechangeDO> {
             + "</script>")
     List<StockNamechangeDO> selectByTsCodes(@Param("tsCodes") List<String> tsCodes);
 
+    /** 查询最大的 start_date，用于增量更新 */
     String selectMaxStartDate();
 
     int countDateLogicErrors();

@@ -669,6 +669,12 @@ public class TushareClient {
         if (param.getAnnDate() != null) {
             params.put("ann_date", param.getAnnDate());
         }
+        if (param.getStartDate() != null) {
+            params.put("start_date", param.getStartDate());
+        }
+        if (param.getEndDate() != null) {
+            params.put("end_date", param.getEndDate());
+        }
         if (param.getRecordDate() != null) {
             params.put("record_date", param.getRecordDate());
         }

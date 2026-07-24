@@ -6,6 +6,7 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * 现金流量表数据访问层（cashflow 表）。
@@ -30,6 +31,9 @@ public interface CashflowMapper extends BaseMapper<CashflowDO> {
 
     /** 取表中最大的 ann_date */
     String selectMaxAnnDate();
+
+    /** 一次性查出所有股票的最新公告日期（ts_code -> latest_ann_date），用于增量更新预加载 */
+    List<Map<String, Object>> selectMaxAnnDatePerStock();
 
     /** 取表中最大的 end_date（最新报告期） */
     String selectMaxEndDate();

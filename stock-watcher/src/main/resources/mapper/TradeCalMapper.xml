@@ -94,4 +94,9 @@
         AND a.is_open != b.is_open
     </select>
 
+    <!-- 查询最大的 cal_date，用于增量更新 -->
+    <select id="selectMaxCalDate" resultType="string">
+        SELECT MAX(cal_date) FROM trade_cal
+    </select>
+
 </mapper>

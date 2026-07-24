@@ -16,6 +16,7 @@ import com.google.common.collect.Lists;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
@@ -49,6 +50,7 @@ public class StockStkLimitServiceImpl implements StockStkLimitService, DataCheck
     private final StockStkLimitMapper stockStkLimitMapper;
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public int fetchAndSaveAll() {
         log.info("Fetching stock_stk_limit (paginated, size={})", PAGE_SIZE);
         List<StkLimitDTO> all = new ArrayList<>();
@@ -72,12 +74,24 @@ public class StockStkLimitServiceImpl implements StockStkLimitService, DataCheck
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public int fetchAndSaveIncremental(String tradeDate) {
         log.info("Fetching stock_stk_limit incremental for tradeDate={}", tradeDate);
         List<StkLimitDTO> rows = tushareClient.stkLimit(
                 StkLimitQueryDTO.builder().startDate(tradeDate).endDate(tradeDate).build(), null, null);
         int total = persistByBizKey(rows);
         log.info("Saved {} incremental stock_stk_limit records for {}", total, tradeDate);
+        return total;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public int fetchAndSaveByRange(String tsCode, String startDate, String endDate) {
+        log.info("Fetching stock_stk_limit for tsCode={}, {}~{}", tsCode, startDate, endDate);
+        List<StkLimitDTO> rows = tushareClient.stkLimit(
+                StkLimitQueryDTO.builder().tsCode(tsCode).startDate(startDate).endDate(endDate).build(), null, null);
+        int total = persistByBizKey(rows);
+        log.info("Saved {} stock_stk_limit records for tsCode={}, {}~{}", total, tsCode, startDate, endDate);
         return total;
     }
 

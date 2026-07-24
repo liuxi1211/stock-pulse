@@ -28,9 +28,9 @@
     </insert>
 
     <delete id="deleteBatchByKeys">
-        DELETE FROM fina_indicator WHERE (ts_code, end_date) IN
-        <foreach collection="list" item="i" open="(" separator="," close=")">
-            (#{i.tsCode}, #{i.endDate})
+        DELETE FROM fina_indicator WHERE
+        <foreach collection="list" item="i" separator=" OR ">
+            (ts_code = #{i.tsCode} AND end_date = #{i.endDate})
         </foreach>
     </delete>
 
@@ -48,6 +48,11 @@
 
     <select id="selectMaxAnnDate" resultType="string">
         SELECT MAX(ann_date) FROM fina_indicator
+    </select>
+
+    <!-- 一次性查出所有股票的最新公告日期（ts_code -> latest_ann_date），用于增量更新预加载 -->
+    <select id="selectMaxAnnDatePerStock" resultType="java.util.Map">
+        SELECT ts_code, MAX(ann_date) AS latest_ann_date FROM fina_indicator GROUP BY ts_code
     </select>
 
     <select id="selectMaxEndDate" resultType="string">

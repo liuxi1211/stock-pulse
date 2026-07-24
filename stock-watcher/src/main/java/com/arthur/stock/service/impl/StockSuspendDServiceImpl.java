@@ -16,6 +16,7 @@ import com.google.common.collect.Lists;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -47,6 +48,7 @@ public class StockSuspendDServiceImpl implements StockSuspendDService, DataCheck
     private final StockSuspendDMapper stockSuspendDMapper;
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public int fetchAndSaveAll() {
         log.info("Fetching stock_suspend_d (paginated, size={})", PAGE_SIZE);
         List<SuspendDDTO> all = new ArrayList<>();
@@ -70,6 +72,7 @@ public class StockSuspendDServiceImpl implements StockSuspendDService, DataCheck
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public int fetchAndSaveIncremental(String tradeDate) {
         log.info("Fetching stock_suspend_d incremental for tradeDate={}", tradeDate);
         List<SuspendDDTO> rows = tushareClient.suspendD(

@@ -6,6 +6,7 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * 业绩预告数据访问层（forecast 表）。
@@ -31,6 +32,9 @@ public interface ForecastMapper extends BaseMapper<ForecastDO> {
 
     /** 取表中最大的 ann_date */
     String selectMaxAnnDate();
+
+    /** 一次性查出所有股票的最新公告日期（ts_code -> latest_ann_date），用于增量更新预加载 */
+    List<Map<String, Object>> selectMaxAnnDatePerStock();
 
     /** 统计指定月份的预告记录数 */
     int countByAnnMonth(@Param("annMonth") String annMonth);

@@ -20,6 +20,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.google.common.collect.Lists;
 
@@ -71,15 +72,17 @@ public class DailyQuoteServiceImpl implements DailyQuoteService, DataCheckable {
 
     /**
      * 从Tushare增量获取日线数据并保存到本地数据库，
-     * 增量起点为该股票在数据库中的最新交易日期+1天
+     * 增量起点为该股票在数据库中的最新交易日期（含该日，delete+insert 幂等覆盖）
      */
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public List<DailyQuoteDTO> fetchAndSaveDailyQuotes(String tsCode) {
         String lastDate = getLastTradeDate(tsCode);
         return doFetchAndSaveDailyQuotes(tsCode, lastDate);
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public List<DailyQuoteDTO> fetchAndSaveDailyQuotes(String tsCode, String knownLastDate) {
         return doFetchAndSaveDailyQuotes(tsCode, knownLastDate);
     }
@@ -87,8 +90,7 @@ public class DailyQuoteServiceImpl implements DailyQuoteService, DataCheckable {
     private List<DailyQuoteDTO> doFetchAndSaveDailyQuotes(String tsCode, String lastDate) {
         String startDate;
         if (lastDate != null) {
-            LocalDate ld = LocalDate.parse(lastDate, DATE_FMT);
-            startDate = ld.plusDays(1).format(DATE_FMT);
+            startDate = lastDate;
         } else {
             startDate = LocalDate.now().minusYears(30).format(DATE_FMT);
         }
@@ -128,6 +130,7 @@ public class DailyQuoteServiceImpl implements DailyQuoteService, DataCheckable {
      * 按交易日期从Tushare获取全市场日线数据并保存到本地数据库
      */
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public List<DailyQuoteDTO> fetchAndSaveByTradeDate(String tradeDate) {
         log.info("Fetching daily quotes for trade_date={}", tradeDate);
 

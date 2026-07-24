@@ -63,6 +63,9 @@ public interface IndexWeightMapper extends BaseMapper<IndexWeightDO> {
      */
     String selectLatestTradeDate();
 
+    /** 一次性查出所有指数的最新交易日期（ts_code -> latest_trade_date），用于增量更新预加载 */
+    List<Map<String, Object>> selectMaxTradeDatePerIndex();
+
     /**
      * 按指数代码统计最新交易日的成分股数量。
      */

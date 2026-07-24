@@ -28,15 +28,20 @@
     </insert>
 
     <delete id="deleteBatchByKeys">
-        DELETE FROM index_daily WHERE (ts_code, trade_date) IN
-        <foreach collection="list" item="item" open="(" separator="," close=")">
-            (#{item.tsCode}, #{item.tradeDate})
+        DELETE FROM index_daily WHERE
+        <foreach collection="list" item="item" separator=" OR ">
+            (ts_code = #{item.tsCode} AND trade_date = #{item.tradeDate})
         </foreach>
     </delete>
 
     <!-- 取表中最新的 trade_date -->
     <select id="selectLatestTradeDate" resultType="string">
         SELECT MAX(trade_date) FROM index_daily
+    </select>
+
+    <!-- 一次性查出所有指数的最新交易日期（ts_code -> latest_trade_date），用于增量更新预加载 -->
+    <select id="selectMaxTradeDatePerIndex" resultType="java.util.Map">
+        SELECT ts_code, MAX(trade_date) AS latest_trade_date FROM index_daily GROUP BY ts_code
     </select>
 
     <!-- 按多指数代码 + 交易日查询 -->

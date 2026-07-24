@@ -29,6 +29,16 @@ public interface StockStkLimitService {
     int fetchAndSaveIncremental(String tradeDate);
 
     /**
+     * 按股票+日期范围增量拉取涨跌停价
+     *
+     * @param tsCode    股票代码
+     * @param startDate 起始日期（含，即 MAX(trade_date)）
+     * @param endDate   结束日期
+     * @return 落库记录数
+     */
+    int fetchAndSaveByRange(String tsCode, String startDate, String endDate);
+
+    /**
      * 批量取多只股票在 [startDate, endDate] 的涨跌停价，按 ts_code → {trade_date → DO} 双层 map（buildKlineData 用）。
      *
      * @param tsCodes   股票代码列表

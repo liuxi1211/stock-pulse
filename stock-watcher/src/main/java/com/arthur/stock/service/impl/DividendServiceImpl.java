@@ -15,6 +15,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.google.common.collect.Lists;
 
@@ -44,6 +45,7 @@ public class DividendServiceImpl implements DividendService, DataCheckable {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public List<DividendDTO> fetchAndSaveDividend(String tsCode) {
         log.info("Fetching dividend for {}", tsCode);
 
@@ -68,6 +70,7 @@ public class DividendServiceImpl implements DividendService, DataCheckable {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public List<DividendDTO> fetchAndSaveByAnnDate(String annDate) {
         log.info("Fetching dividend for ann_date={}", annDate);
 
@@ -88,6 +91,33 @@ public class DividendServiceImpl implements DividendService, DataCheckable {
 
         saveDividends(entities);
         log.info("Saved {} dividend records for ann_date={}", entities.size(), annDate);
+        return dividends;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public List<DividendDTO> fetchAndSaveDividendByRange(String tsCode, String startDate, String endDate) {
+        log.info("Fetching dividend for {} [{}~{}]", tsCode, startDate, endDate);
+
+        DividendQueryDTO param = DividendQueryDTO.builder()
+                .tsCode(tsCode)
+                .startDate(startDate)
+                .endDate(endDate)
+                .build();
+        List<DividendDTO> dividends = tushareClient.dividend(param);
+
+        if (dividends.isEmpty()) {
+            log.info("No dividend data returned for {} [{}~{}]", tsCode, startDate, endDate);
+            return Collections.emptyList();
+        }
+
+        List<DividendDO> entities = dividends.stream()
+                .map(this::toEntity)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+
+        saveDividends(entities);
+        log.info("Saved {} dividend records for {} [{}~{}]", entities.size(), tsCode, startDate, endDate);
         return dividends;
     }
 

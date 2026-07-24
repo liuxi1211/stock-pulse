@@ -29,11 +29,11 @@ import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.*;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
@@ -234,7 +234,7 @@ public class DataGovernanceServiceImpl implements DataGovernanceService {
      * 优化：用一次分组聚合查询替代 N 次单表查询，避免 N+1 问题。
      */
     private List<DataGovernanceMetricDO> getAllLatestMetrics() {
-        List<String> allTableCodes = java.util.Arrays.stream(InitStep.values())
+        List<String> allTableCodes = Arrays.stream(InitStep.values())
                 .map(InitStep::getCode)
                 .collect(Collectors.toList());
 
@@ -248,7 +248,7 @@ public class DataGovernanceServiceImpl implements DataGovernanceService {
         }
 
         // 转成 Map 便于查找
-        Map<String, DataGovernanceMetricDO> metricMap = new java.util.HashMap<>(
+        Map<String, DataGovernanceMetricDO> metricMap = new HashMap<>(
                 latestMetrics != null ? latestMetrics.size() * 2 : 16);
         if (latestMetrics != null) {
             for (DataGovernanceMetricDO m : latestMetrics) {

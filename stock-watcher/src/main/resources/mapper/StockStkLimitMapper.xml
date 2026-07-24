@@ -11,14 +11,19 @@
     </insert>
 
     <delete id="deleteBatchByKeys">
-        DELETE FROM stock_stk_limit WHERE (ts_code, trade_date) IN
-        <foreach collection="list" item="item" open="(" separator="," close=")">
-            (#{item.tsCode}, #{item.tradeDate})
+        DELETE FROM stock_stk_limit WHERE
+        <foreach collection="list" item="item" separator=" OR ">
+            (ts_code = #{item.tsCode} AND trade_date = #{item.tradeDate})
         </foreach>
     </delete>
 
     <select id="selectLatestTradeDate" resultType="string">
         SELECT MAX(trade_date) FROM stock_stk_limit
+    </select>
+
+    <!-- 一次性查出所有股票的最新交易日期（ts_code -> latest_trade_date），用于增量更新预加载 -->
+    <select id="selectLatestDatePerStock" resultType="java.util.Map">
+        SELECT ts_code, MAX(trade_date) AS latest_trade_date FROM stock_stk_limit GROUP BY ts_code
     </select>
 
     <select id="countPriceLogicErrors" resultType="int">

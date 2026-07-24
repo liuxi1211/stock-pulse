@@ -16,6 +16,11 @@
         SELECT MAX(trade_date) FROM index_weight
     </select>
 
+    <!-- 一次性查出所有指数的最新交易日期（ts_code -> latest_trade_date），用于增量更新预加载 -->
+    <select id="selectMaxTradeDatePerIndex" resultType="java.util.Map">
+        SELECT ts_code, MAX(trade_date) AS latest_trade_date FROM index_weight GROUP BY ts_code
+    </select>
+
     <select id="countByIndexCode" resultType="java.util.Map">
         SELECT ts_code AS tsCode, COUNT(*) AS cnt
         FROM index_weight

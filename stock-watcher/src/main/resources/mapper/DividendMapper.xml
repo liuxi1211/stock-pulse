@@ -15,9 +15,9 @@
     </insert>
 
     <delete id="deleteBatchByKeys">
-        DELETE FROM dividend WHERE (ts_code, end_date, ann_date) IN
-        <foreach collection="list" item="item" open="(" separator="," close=")">
-            (#{item.tsCode}, #{item.endDate}, #{item.annDate})
+        DELETE FROM dividend WHERE
+        <foreach collection="list" item="item" separator=" OR ">
+            (ts_code = #{item.tsCode} AND end_date = #{item.endDate} AND ann_date = #{item.annDate})
         </foreach>
     </delete>
 
@@ -25,6 +25,11 @@
 
     <select id="selectMaxAnnDate" resultType="string">
         SELECT MAX(ann_date) FROM dividend
+    </select>
+
+    <!-- 一次性查出所有股票的最新公告日期（ts_code -> latest_ann_date），用于增量更新预加载 -->
+    <select id="selectMaxAnnDatePerStock" resultType="java.util.Map">
+        SELECT ts_code, MAX(ann_date) AS latest_ann_date FROM dividend GROUP BY ts_code
     </select>
 
     <select id="countInvalidCashDiv" resultType="int">

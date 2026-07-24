@@ -18,6 +18,7 @@ import com.google.common.collect.Lists;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
@@ -42,6 +43,7 @@ public class CashflowServiceImpl implements CashflowService, DataCheckable {
     private final StockBasicService stockBasicService;
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public int fetchAndSaveCashflow(String tsCode, String startDate, String endDate) {
         log.info("拉取 cashflow {} [{}~{}]", tsCode, startDate, endDate);
         CashflowQueryDTO param = CashflowQueryDTO.builder()

@@ -30,4 +30,14 @@ public interface DividendService {
      * @param annDate 公告日，格式 yyyyMMdd
      */
     List<DividendDTO> fetchAndSaveByAnnDate(String annDate);
+
+    /**
+     * 按股票+公告日期范围增量拉取分红送股
+     *
+     * @param tsCode    股票代码
+     * @param startDate 起始公告日期（含，即 MAX(ann_date)）
+     * @param endDate   结束日期
+     * @return 拉取到的分红送股数据列表
+     */
+    List<DividendDTO> fetchAndSaveDividendByRange(String tsCode, String startDate, String endDate);
 }

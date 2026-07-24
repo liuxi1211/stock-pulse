@@ -54,6 +54,7 @@ public interface StockSuspendDMapper extends BaseMapper<StockSuspendDDO> {
                                                   @Param("startDate") String startDate,
                                                   @Param("endDate") String endDate);
 
+    /** 查询最大的 trade_date，用于增量更新 */
     String selectMaxTradeDate();
 
     int countDateLogicErrors();

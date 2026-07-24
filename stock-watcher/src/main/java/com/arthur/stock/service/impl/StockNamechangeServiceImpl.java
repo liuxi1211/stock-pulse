@@ -16,6 +16,7 @@ import com.google.common.collect.Lists;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -50,6 +51,7 @@ public class StockNamechangeServiceImpl implements StockNamechangeService, DataC
     private final StockNamechangeMapper stockNamechangeMapper;
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public int fetchAndSaveAll() {
         log.info("Fetching stock_namechange (paginated, size={})", PAGE_SIZE);
         List<NamechangeDTO> all = new ArrayList<>();
@@ -73,6 +75,7 @@ public class StockNamechangeServiceImpl implements StockNamechangeService, DataC
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public int fetchAndSaveIncremental(String tradeDate) {
         log.info("Fetching stock_namechange incremental for tradeDate={}", tradeDate);
         // namechange 按 start_date 增量：拉取 startDate=tradeDate 的记录

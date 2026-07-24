@@ -17,6 +17,7 @@ import com.google.common.collect.Lists;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
@@ -41,6 +42,7 @@ public class FinaIndicatorServiceImpl implements FinaIndicatorService, DataCheck
     private final StockBasicService stockBasicService;
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public int fetchAndSaveFinaIndicator(String tsCode, String startDate, String endDate) {
         log.info("拉取 fina_indicator {} [{}~{}]", tsCode, startDate, endDate);
         List<FinaIndicatorDTO> rows = tushareClient.finaIndicator(tsCode, startDate, endDate);

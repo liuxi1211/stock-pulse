@@ -22,6 +22,12 @@ public class DividendQueryDTO {
     /** 公告日，格式 yyyyMMdd（可选） */
     private String annDate;
 
+    /** 起始日期，格式 yyyyMMdd（可选） */
+    private String startDate;
+
+    /** 结束日期，格式 yyyyMMdd（可选） */
+    private String endDate;
+
     /** 股权登记日期，格式 yyyyMMdd（可选） */
     private String recordDate;
 

@@ -11,9 +11,9 @@
     </insert>
 
     <delete id="deleteBatchByKeys">
-        DELETE FROM stock_suspend_d WHERE (ts_code, trade_date) IN
-        <foreach collection="list" item="item" open="(" separator="," close=")">
-            (#{item.tsCode}, #{item.tradeDate})
+        DELETE FROM stock_suspend_d WHERE
+        <foreach collection="list" item="item" separator=" OR ">
+            (ts_code = #{item.tsCode} AND trade_date = #{item.tradeDate})
         </foreach>
     </delete>
 

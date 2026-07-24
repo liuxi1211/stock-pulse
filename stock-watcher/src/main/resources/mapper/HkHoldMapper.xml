@@ -21,9 +21,9 @@
     </insert>
 
     <delete id="deleteBatchByKeys">
-        DELETE FROM hk_hold WHERE (trade_date, code) IN
-        <foreach collection="list" item="i" open="(" separator="," close=")">
-            (#{i.tradeDate}, #{i.code})
+        DELETE FROM hk_hold WHERE
+        <foreach collection="list" item="i" separator=" OR ">
+            (trade_date = #{i.tradeDate} AND code = #{i.code})
         </foreach>
     </delete>
 

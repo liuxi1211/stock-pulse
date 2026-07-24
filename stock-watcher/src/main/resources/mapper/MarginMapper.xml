@@ -22,9 +22,9 @@
     </insert>
 
     <delete id="deleteBatchByKeys">
-        DELETE FROM margin WHERE (exchange_id, trade_date) IN
-        <foreach collection="list" item="i" open="(" separator="," close=")">
-            (#{i.exchangeId}, #{i.tradeDate})
+        DELETE FROM margin WHERE
+        <foreach collection="list" item="i" separator=" OR ">
+            (exchange_id = #{i.exchangeId} AND trade_date = #{i.tradeDate})
         </foreach>
     </delete>
 

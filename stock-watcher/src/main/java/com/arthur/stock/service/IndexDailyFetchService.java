@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
@@ -53,6 +54,7 @@ public class IndexDailyFetchService {
      * @param endDate   结束交易日 yyyyMMdd（含）
      * @return 落库记录数
      */
+    @Transactional(rollbackFor = Exception.class)
     public int fetchAndSaveIndexDaily(String tsCode, String startDate, String endDate) {
         log.info("Fetching index_daily: tsCode={}, {}~{}", tsCode, startDate, endDate);
 

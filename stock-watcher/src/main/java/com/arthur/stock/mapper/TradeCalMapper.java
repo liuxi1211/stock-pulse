@@ -55,4 +55,7 @@ public interface TradeCalMapper extends BaseMapper<TradeCalDO> {
      * 统计 SSE/SZSE 在指定日期后 is_open 不一致的记录数
      */
     int countSseSzseInconsistency(@Param("startDate") String startDate);
+
+    /** 查询最大的 cal_date，用于增量更新 */
+    String selectMaxCalDate();
 }
