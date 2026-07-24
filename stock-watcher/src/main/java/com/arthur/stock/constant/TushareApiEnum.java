@@ -54,7 +54,7 @@ public enum TushareApiEnum {
 
     /** 停复牌信息（doc_id=161） */
     SUSPEND_D("suspend_d",
-            "ts_code,trade_date,susp_reason,resump_date"),
+            "ts_code,trade_date,suspend_timing,suspend_type"),
 
     /** 涨跌停价（doc_id=183） */
     STK_LIMIT("stk_limit",

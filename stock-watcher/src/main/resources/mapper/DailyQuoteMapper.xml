@@ -237,7 +237,7 @@
         LEFT JOIN daily_basic db ON dq.ts_code = db.ts_code AND dq.trade_date = db.trade_date
         LEFT JOIN sw_industry_member sim
             ON dq.ts_code = sim.ts_code
-            AND sim.is_new = '1'
+            AND sim.is_new = 1
         LEFT JOIN sw_industry si
             ON sim.index_code = si.index_code
             AND si.level = 1
@@ -307,7 +307,7 @@
         INNER JOIN stock_basic b ON m.ts_code = b.ts_code
         LEFT JOIN daily_quote q ON m.ts_code = q.ts_code AND q.trade_date = #{tradeDate}
         WHERE m.index_code = #{indexCode}
-          AND m.is_new = '1'
+          AND m.is_new = 1
           <if test="keyword != null and keyword != ''">
           AND (b.name LIKE CONCAT('%', #{keyword}, '%') OR m.ts_code LIKE CONCAT('%', #{keyword}, '%'))
           </if>
@@ -321,7 +321,7 @@
         FROM sw_industry_member m
         INNER JOIN stock_basic b ON m.ts_code = b.ts_code
         WHERE m.index_code = #{indexCode}
-          AND m.is_new = '1'
+          AND m.is_new = 1
           <if test="keyword != null and keyword != ''">
           AND (b.name LIKE CONCAT('%', #{keyword}, '%') OR m.ts_code LIKE CONCAT('%', #{keyword}, '%'))
           </if>

@@ -20,7 +20,7 @@
     <!-- ==================== 数据管控检查 ==================== -->
 
     <select id="countCoveredStocks" resultType="int">
-        SELECT COUNT(DISTINCT ts_code) FROM sw_industry_member WHERE is_new = '1'
+        SELECT COUNT(DISTINCT ts_code) FROM sw_industry_member WHERE is_new = 1
     </select>
 
     <select id="countDateLogicErrors" resultType="int">

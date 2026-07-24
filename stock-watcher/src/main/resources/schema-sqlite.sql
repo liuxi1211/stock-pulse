@@ -315,7 +315,7 @@ CREATE TABLE IF NOT EXISTS sw_industry_member (
     index_name  TEXT,
     in_date     TEXT,
     out_date    TEXT,
-    is_new      TEXT,
+    is_new      INTEGER,
     src         TEXT NOT NULL DEFAULT 'SWS2021',
     update_date TEXT NOT NULL,
     PRIMARY KEY (ts_code, index_code, update_date)
@@ -334,12 +334,12 @@ CREATE TABLE IF NOT EXISTS stock_namechange (
 );
 CREATE INDEX IF NOT EXISTS idx_namechange_tscode ON stock_namechange (ts_code);
 
--- 22. 停复牌表（tushare suspend_d）
+-- 22. 停复牌表（tushare suspend_d，每日事件模型）
 CREATE TABLE IF NOT EXISTS stock_suspend_d (
-    ts_code      TEXT NOT NULL,
-    trade_date   TEXT NOT NULL,
-    susp_reason  TEXT,
-    resump_date  TEXT,
+    ts_code         TEXT NOT NULL,
+    trade_date      TEXT NOT NULL,
+    suspend_timing  TEXT,
+    suspend_type    TEXT NOT NULL,
     PRIMARY KEY (ts_code, trade_date)
 );
 CREATE INDEX IF NOT EXISTS idx_suspend_tscode_date ON stock_suspend_d (ts_code, trade_date);

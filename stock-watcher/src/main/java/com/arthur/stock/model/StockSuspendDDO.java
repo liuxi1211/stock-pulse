@@ -10,7 +10,8 @@ import lombok.NoArgsConstructor;
 /**
  * 股票停复牌数据对象，对应 stock_suspend_d 表（tushare suspend_d，doc_id=161）
  * <p>
- * 用于判定某日某标的是否停牌。
+ * 事件模型：每条记录代表某日某股票的停复牌事件（S=停牌，R=复牌）。
+ * 用于判定某日某标的是否处于停牌状态。
  */
 @Data
 @Builder
@@ -23,15 +24,15 @@ public class StockSuspendDDO {
     @TableField("ts_code")
     private String tsCode;
 
-    /** 停牌日期（YYYYMMDD） */
+    /** 交易日期（YYYYMMDD） */
     @TableField("trade_date")
     private String tradeDate;
 
-    /** 停牌原因 */
-    @TableField("susp_reason")
-    private String suspReason;
+    /** 停牌时段，空/NULL 表示全天，如 "10:09-10:19" 表示盘中临时停牌 */
+    @TableField("suspend_timing")
+    private String suspendTiming;
 
-    /** 复牌日期（YYYYMMDD，为空表示尚未复牌） */
-    @TableField("resump_date")
-    private String resumpDate;
+    /** 类型：S=停牌，R=复牌 */
+    @TableField("suspend_type")
+    private String suspendType;
 }

@@ -1,16 +1,19 @@
 package com.arthur.stock.service.impl;
 
 import com.arthur.stock.client.TushareClient;
+import com.arthur.stock.constant.ExchangeEnum;
 import com.arthur.stock.constant.InitStep;
 import com.arthur.stock.dto.governance.CheckLevel;
 import com.arthur.stock.dto.governance.DataCheckItem;
 import com.arthur.stock.dto.governance.DataCheckResult;
 import com.arthur.stock.dto.tushare.SuspendDDTO;
 import com.arthur.stock.dto.tushare.SuspendDQueryDTO;
+import com.arthur.stock.dto.tushare.TradeCalDTO;
 import com.arthur.stock.mapper.StockSuspendDMapper;
 import com.arthur.stock.model.StockSuspendDDO;
 import com.arthur.stock.service.DataCheckable;
 import com.arthur.stock.service.StockSuspendDService;
+import com.arthur.stock.service.TradeCalService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.google.common.collect.Lists;
 import lombok.RequiredArgsConstructor;
@@ -18,6 +21,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -28,24 +33,24 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * 股票停复牌服务实现。
+ * 股票停复牌服务实现（事件模型：S=停牌，R=复牌）。
  * <p>
- * 数据源：tushare suspend_d（doc_id=161），单次最大 10000 行（分页）。
+ * 数据源：tushare suspend_d（doc_id=161），单次最大 5000 行（分页）。
  * 落库策略：按业务键 (ts_code, trade_date) 单条 delete-then-insert，保证幂等。
+ * 停牌日期推导：基于 S/R 事件序列，用状态机计算每日实际停牌状态。
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class StockSuspendDServiceImpl implements StockSuspendDService, DataCheckable {
 
-    /** suspend_d 单次分页大小（Tushare 上限 10000） */
-    private static final int PAGE_SIZE = 10000;
-
-    /** 批量写入批次大小 */
+    private static final int PAGE_SIZE = 5000;
     private static final int BATCH_SIZE = 500;
+    private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("yyyyMMdd");
 
     private final TushareClient tushareClient;
     private final StockSuspendDMapper stockSuspendDMapper;
+    private final TradeCalService tradeCalService;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -87,22 +92,101 @@ public class StockSuspendDServiceImpl implements StockSuspendDService, DataCheck
         if (tsCodes == null || tsCodes.isEmpty() || startDate == null || endDate == null) {
             return Collections.emptyMap();
         }
-        List<StockSuspendDDO> rows = stockSuspendDMapper.selectByTsCodesAndRange(tsCodes, startDate, endDate);
+
+        List<StockSuspendDDO> allEvents = stockSuspendDMapper.selectEventsByTsCodesUpToDate(tsCodes, endDate);
+        if (allEvents.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        Map<String, List<StockSuspendDDO>> eventsByCode = allEvents.stream()
+                .collect(Collectors.groupingBy(StockSuspendDDO::getTsCode, LinkedHashMap::new, Collectors.toList()));
+
+        List<String> tradeDates = resolveTradeDates(tsCodes, startDate, endDate);
+        if (tradeDates.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
         Map<String, Set<String>> result = new LinkedHashMap<>();
-        for (StockSuspendDDO row : rows) {
-            if (row.getTsCode() == null || row.getTradeDate() == null) {
-                continue;
+        for (String tsCode : tsCodes) {
+            List<StockSuspendDDO> events = eventsByCode.get(tsCode);
+            Set<String> suspDates = computeSuspendDates(events, tradeDates);
+            if (!suspDates.isEmpty()) {
+                result.put(tsCode, suspDates);
             }
-            result.computeIfAbsent(row.getTsCode(), k -> new LinkedHashSet<>()).add(row.getTradeDate());
         }
         return result;
     }
 
-    // ==================== 内部方法 ====================
+    private Set<String> computeSuspendDates(List<StockSuspendDDO> events, List<String> tradeDates) {
+        Set<String> suspDates = new LinkedHashSet<>();
+        if (tradeDates.isEmpty()) {
+            return suspDates;
+        }
 
-    /**
-     * 按业务键 (ts_code, trade_date) 批量先删后插，保证幂等。
-     */
+        Map<String, String> eventMap = new LinkedHashMap<>();
+        if (events != null) {
+            for (StockSuspendDDO e : events) {
+                if (!isFullDayEvent(e)) {
+                    continue;
+                }
+                eventMap.put(e.getTradeDate(), e.getSuspendType());
+            }
+        }
+
+        boolean isSuspended = false;
+        for (String td : tradeDates) {
+            String type = eventMap.get(td);
+            if (type != null) {
+                if ("S".equals(type)) {
+                    isSuspended = true;
+                } else if ("R".equals(type)) {
+                    isSuspended = false;
+                }
+            }
+            if (isSuspended) {
+                suspDates.add(td);
+            }
+        }
+        return suspDates;
+    }
+
+    private boolean isFullDayEvent(StockSuspendDDO event) {
+        String timing = event.getSuspendTiming();
+        return timing == null || timing.isEmpty();
+    }
+
+    private List<String> resolveTradeDates(List<String> tsCodes, String startDate, String endDate) {
+        Set<String> exchanges = tsCodes.stream()
+                .map(this::inferExchange)
+                .filter(e -> e != null)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        if (exchanges.isEmpty()) {
+            exchanges.add(ExchangeEnum.SSE.getCode());
+        }
+        Set<String> allDates = new LinkedHashSet<>();
+        for (String exchange : exchanges) {
+            List<TradeCalDTO> calList = tradeCalService.queryLocal(exchange, startDate, endDate, "1");
+            for (TradeCalDTO cal : calList) {
+                allDates.add(cal.getCalDate());
+            }
+        }
+        return allDates.stream().sorted().collect(Collectors.toList());
+    }
+
+    private String inferExchange(String tsCode) {
+        if (tsCode == null) {
+            return null;
+        }
+        if (tsCode.endsWith(".SH")) {
+            return ExchangeEnum.SSE.getCode();
+        } else if (tsCode.endsWith(".SZ")) {
+            return ExchangeEnum.SZSE.getCode();
+        } else if (tsCode.endsWith(".BJ")) {
+            return "BSE";
+        }
+        return null;
+    }
+
     private int persistByBizKey(List<SuspendDDTO> rows) {
         if (rows.isEmpty()) {
             return 0;
@@ -123,11 +207,15 @@ public class StockSuspendDServiceImpl implements StockSuspendDService, DataCheck
         if (dto == null || dto.getTsCode() == null || dto.getTradeDate() == null) {
             return null;
         }
+        String suspendType = dto.getSuspendType();
+        if (suspendType == null || suspendType.isEmpty()) {
+            return null;
+        }
         return StockSuspendDDO.builder()
                 .tsCode(dto.getTsCode())
                 .tradeDate(dto.getTradeDate())
-                .suspReason(dto.getSuspReason())
-                .resumpDate(dto.getResumpDate())
+                .suspendTiming(dto.getSuspendTiming())
+                .suspendType(suspendType)
                 .build();
     }
 
@@ -147,38 +235,40 @@ public class StockSuspendDServiceImpl implements StockSuspendDService, DataCheck
 
             if (totalRows == 0) {
                 items.add(DataCheckItem.builder()
-                        .name("date_logic")
-                        .displayName("日期逻辑检测")
-                        .passed(true)
-                        .level(CheckLevel.ERROR)
-                        .message("表为空，跳过检测")
-                        .build());
-                items.add(DataCheckItem.builder()
-                        .name("date_overlap")
-                        .displayName("日期重叠检测")
+                        .name("empty_check")
+                        .displayName("表空检测")
                         .passed(true)
                         .level(CheckLevel.WARN)
                         .message("表为空，跳过检测")
                         .build());
             } else {
-                int dateLogicErrors = stockSuspendDMapper.countDateLogicErrors();
+                int invalidTypeCount = stockSuspendDMapper.countInvalidType();
                 items.add(DataCheckItem.builder()
-                        .name("date_logic")
-                        .displayName("日期逻辑检测")
-                        .passed(dateLogicErrors == 0)
+                        .name("type_validity")
+                        .displayName("类型合法性检测")
+                        .passed(invalidTypeCount == 0)
                         .level(CheckLevel.ERROR)
-                        .message(dateLogicErrors == 0 ? "通过，日期逻辑正常"
-                                : "停牌日期晚于复牌日期的记录 " + dateLogicErrors + " 条")
+                        .message(invalidTypeCount == 0 ? "通过，suspend_type 均为 S/R"
+                                : "suspend_type 异常记录 " + invalidTypeCount + " 条（非 S/R）")
                         .build());
 
-                int dateOverlap = stockSuspendDMapper.countDateOverlap();
+                int badSeqCount = countBadSequenceStocks();
                 items.add(DataCheckItem.builder()
-                        .name("date_overlap")
-                        .displayName("日期重叠检测")
-                        .passed(dateOverlap == 0)
+                        .name("event_sequence")
+                        .displayName("事件序列检测")
+                        .passed(badSeqCount == 0)
                         .level(CheckLevel.WARN)
-                        .message(dateOverlap == 0 ? "通过，无停牌日期重叠"
-                                : "同一股票停牌日期重叠记录 " + dateOverlap + " 条")
+                        .message(badSeqCount == 0 ? "通过，事件序列正常"
+                                : "事件序列异常股票 " + badSeqCount + " 只（连续 S 无 R 或首事件为 R）")
+                        .build());
+
+                items.add(DataCheckItem.builder()
+                        .name("latest_date_freshness")
+                        .displayName("最新日期新鲜度")
+                        .passed(isDateFresh(latestDate))
+                        .level(CheckLevel.WARN)
+                        .message(isDateFresh(latestDate) ? "通过，最新数据在 7 天内"
+                                : "最新数据日期 " + latestDate + " 超过 7 天未更新")
                         .build());
             }
 
@@ -206,5 +296,50 @@ public class StockSuspendDServiceImpl implements StockSuspendDService, DataCheck
                     .items(items)
                     .build();
         }
+    }
+
+    private boolean isDateFresh(String dateStr) {
+        if (dateStr == null || dateStr.isEmpty()) {
+            return false;
+        }
+        try {
+            LocalDate latest = LocalDate.parse(dateStr, DATE_FMT);
+            return !latest.isBefore(LocalDate.now().minusDays(7));
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private int countBadSequenceStocks() {
+        List<StockSuspendDDO> allEvents = stockSuspendDMapper.selectAllEventsOrderByCodeAndDate();
+        if (allEvents.isEmpty()) {
+            return 0;
+        }
+        Set<String> badStocks = new LinkedHashSet<>();
+        String prevCode = null;
+        String prevType = null;
+        for (StockSuspendDDO e : allEvents) {
+            if (!isFullDayEvent(e)) {
+                continue;
+            }
+            String code = e.getTsCode();
+            String type = e.getSuspendType();
+            if (code == null || type == null) {
+                continue;
+            }
+            if (!code.equals(prevCode)) {
+                if ("R".equals(type)) {
+                    badStocks.add(code);
+                }
+                prevCode = code;
+                prevType = type;
+            } else {
+                if ("S".equals(type) && "S".equals(prevType)) {
+                    badStocks.add(code);
+                }
+                prevType = type;
+            }
+        }
+        return badStocks.size();
     }
 }

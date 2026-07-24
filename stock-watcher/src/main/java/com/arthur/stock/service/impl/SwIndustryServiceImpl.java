@@ -354,7 +354,7 @@ public class SwIndustryServiceImpl implements SwIndustryService, DataCheckable {
                 .indexName(dto.getIndexName())
                 .inDate(dto.getInDate())
                 .outDate(dto.getOutDate())
-                .isNew(dto.getIsNew())
+                .isNew("Y".equalsIgnoreCase(dto.getIsNew()))
                 .src(src)
                 .updateDate(updateDate)
                 .build();

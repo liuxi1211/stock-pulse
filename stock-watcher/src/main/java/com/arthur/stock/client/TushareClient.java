@@ -303,11 +303,11 @@ public class TushareClient {
     /**
      * 股票停复牌信息（suspend_d，doc_id=161）。
      * <p>
-     * 单次最大 10000 行，需分页。
+     * 单次最大 5000 行，需分页。
      *
      * @param param  查询参数 tsCode/startDate/endDate 均可选
      * @param offset 偏移量（null 不传）
-     * @param limit  单页条数（null 不传，建议 ≤ 10000）
+     * @param limit  单页条数（null 不传，建议 ≤ 5000）
      * @return 停牌记录列表
      */
     public List<SuspendDDTO> suspendD(SuspendDQueryDTO param, Integer offset, Integer limit) {

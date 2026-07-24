@@ -38,7 +38,7 @@ import java.util.stream.Collectors;
 public class DailyQuoteServiceImpl implements DailyQuoteService, DataCheckable {
 
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("yyyyMMdd");
-    private static final int PAGE_SIZE = 6000;
+    private static final int PAGE_SIZE = 5000;
     private static final int BATCH_SIZE = 500;
 
     private final TushareClient tushareClient;

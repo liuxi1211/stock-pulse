@@ -37,9 +37,9 @@ public class SwIndustryMemberDO {
     @TableField("out_date")
     private String outDate;
 
-    /** 是否最新（1=是，0=否） */
+    /** 是否最新（true=是，false=否） */
     @TableField("is_new")
-    private String isNew;
+    private Boolean isNew;
 
     /** 分类版本（SWS2021） */
     @TableField("src")

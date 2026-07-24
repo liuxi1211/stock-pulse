@@ -40,8 +40,8 @@ public class StockStkLimitServiceImpl implements StockStkLimitService, DataCheck
 
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("yyyyMMdd");
 
-    /** stk_limit 分页大小（接口不限行数，分页更稳） */
-    private static final int PAGE_SIZE = 10000;
+    /** stk_limit 分页大小（建议 ≤ 5000，避免接口截断） */
+    private static final int PAGE_SIZE = 5000;
 
     /** 批量写入批次大小 */
     private static final int BATCH_SIZE = 500;

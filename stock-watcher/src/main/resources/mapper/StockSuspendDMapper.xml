@@ -4,9 +4,9 @@
 <mapper namespace="com.arthur.stock.mapper.StockSuspendDMapper">
 
     <insert id="insertBatch">
-        INSERT INTO stock_suspend_d (ts_code, trade_date, susp_reason, resump_date) VALUES
+        INSERT INTO stock_suspend_d (ts_code, trade_date, suspend_timing, suspend_type) VALUES
         <foreach collection="list" item="item" separator=",">
-            (#{item.tsCode}, #{item.tradeDate}, #{item.suspReason}, #{item.resumpDate})
+            (#{item.tsCode}, #{item.tradeDate}, #{item.suspendTiming}, #{item.suspendType})
         </foreach>
     </insert>
 
@@ -23,19 +23,10 @@
         SELECT MAX(trade_date) FROM stock_suspend_d
     </select>
 
-    <select id="countDateLogicErrors" resultType="int">
+    <select id="countInvalidType" resultType="int">
         SELECT COUNT(*) FROM stock_suspend_d
-        WHERE resump_date IS NOT NULL AND resump_date != '' AND trade_date &gt; resump_date
+        WHERE suspend_type IS NULL OR suspend_type NOT IN ('S', 'R')
     </select>
 
-    <select id="countDateOverlap" resultType="int">
-        SELECT COUNT(*) FROM stock_suspend_d a
-        WHERE EXISTS (
-            SELECT 1 FROM stock_suspend_d b
-            WHERE b.ts_code = a.ts_code
-              AND b.trade_date &lt; a.trade_date
-              AND (b.resump_date IS NULL OR b.resump_date = '' OR b.resump_date &gt;= a.trade_date)
-        )
-    </select>
 
 </mapper>

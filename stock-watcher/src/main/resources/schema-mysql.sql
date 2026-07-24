@@ -319,7 +319,7 @@ CREATE TABLE IF NOT EXISTS sw_industry_member (
     index_name  VARCHAR(64) COMMENT '行业名称',
     in_date     VARCHAR(8)  COMMENT '纳入日期（YYYYMMDD）',
     out_date    VARCHAR(8)  COMMENT '剔除日期（YYYYMMDD，为空表示当前在册）',
-    is_new      VARCHAR(4)  COMMENT '是否最新（1=是，0=否）',
+    is_new      TINYINT(1)  COMMENT '是否最新（1=是，0=否）',
     src         VARCHAR(16) NOT NULL DEFAULT 'SWS2021' COMMENT '分类版本（SWS2021）',
     update_date VARCHAR(8)  NOT NULL COMMENT '更新日期（YYYYMMDD）',
     PRIMARY KEY (ts_code, index_code, update_date),
@@ -338,15 +338,15 @@ CREATE TABLE IF NOT EXISTS stock_namechange (
     INDEX idx_namechange_tscode (ts_code)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='ST 戴帽摘帽表';
 
--- 22. 停复牌表（tushare suspend_d）
+-- 22. 停复牌表（tushare suspend_d，每日事件模型）
 CREATE TABLE IF NOT EXISTS stock_suspend_d (
-    ts_code      VARCHAR(16)   NOT NULL COMMENT '股票代码（如 000001.SZ）',
-    trade_date   VARCHAR(8)    NOT NULL COMMENT '停牌日期（YYYYMMDD）',
-    susp_reason  VARCHAR(128)  COMMENT '停牌原因',
-    resump_date  VARCHAR(8)    COMMENT '复牌日期（YYYYMMDD）',
+    ts_code         VARCHAR(16)  NOT NULL COMMENT '股票代码（如 000001.SZ）',
+    trade_date      VARCHAR(8)   NOT NULL COMMENT '交易日期（YYYYMMDD）',
+    suspend_timing  VARCHAR(32)  COMMENT '停牌时段（空/NULL=全天，如 10:09-10:19 表示盘中临时停牌）',
+    suspend_type    VARCHAR(4)   NOT NULL COMMENT '类型：S=停牌，R=复牌',
     PRIMARY KEY (ts_code, trade_date),
     INDEX idx_suspend_tscode_date (ts_code, trade_date)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='停复牌表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='停复牌表（每日事件）';
 
 -- 23. 涨跌停价表（tushare stk_limit）
 CREATE TABLE IF NOT EXISTS stock_stk_limit (

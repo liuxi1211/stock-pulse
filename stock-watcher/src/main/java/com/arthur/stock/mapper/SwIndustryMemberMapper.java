@@ -36,7 +36,7 @@ public interface SwIndustryMemberMapper extends BaseMapper<SwIndustryMemberDO> {
      */
     @Select("SELECT ts_code, index_code, index_name, in_date, out_date, is_new, src, update_date "
             + "FROM sw_industry_member "
-            + "WHERE ts_code = #{tsCode} AND is_new = '1' "
+            + "WHERE ts_code = #{tsCode} AND is_new = 1 "
             + "AND index_code IN (SELECT index_code FROM sw_industry WHERE level = 1) "
             + "LIMIT 1")
     SwIndustryMemberDO selectLatestL1ByTsCode(@Param("tsCode") String tsCode);
@@ -67,7 +67,7 @@ public interface SwIndustryMemberMapper extends BaseMapper<SwIndustryMemberDO> {
     @Select("<script>"
             + "SELECT ts_code, index_code, index_name, in_date, out_date, is_new, src, update_date "
             + "FROM sw_industry_member "
-            + "WHERE is_new = '1' "
+            + "WHERE is_new = 1 "
             + "AND index_code IN (SELECT index_code FROM sw_industry WHERE level = 1) "
             + "AND ts_code IN "
             + "<foreach item='c' collection='tsCodes' open='(' separator=',' close=')'>#{c}</foreach>"
@@ -98,7 +98,7 @@ public interface SwIndustryMemberMapper extends BaseMapper<SwIndustryMemberDO> {
      */
     @Select("SELECT ts_code, index_code, index_name, in_date, out_date, is_new, src, update_date "
             + "FROM sw_industry_member "
-            + "WHERE is_new = '1' AND src = #{src} "
+            + "WHERE is_new = 1 AND src = #{src} "
             + "AND index_code IN (SELECT index_code FROM sw_industry WHERE level = 1 AND src = #{src})")
     List<SwIndustryMemberDO> selectAllCurrentL1Members(@Param("src") String src);
 
@@ -107,7 +107,7 @@ public interface SwIndustryMemberMapper extends BaseMapper<SwIndustryMemberDO> {
      */
     @Select("SELECT ts_code, index_code, index_name, in_date, out_date, is_new, src, update_date "
             + "FROM sw_industry_member "
-            + "WHERE index_code = #{indexCode} AND is_new = '1' AND src = #{src}")
+            + "WHERE index_code = #{indexCode} AND is_new = 1 AND src = #{src}")
     List<SwIndustryMemberDO> selectMembersByIndexCode(@Param("indexCode") String indexCode, @Param("src") String src);
 
     // ==================== 数据管控检查 ====================
