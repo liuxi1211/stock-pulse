@@ -27,21 +27,21 @@ public class TopInstDO {
     /** 营业部名称 */
     private String exalter;
 
-    /** 买卖方向（Buy/Sell） */
+    /** 买卖方向（0：买入前5名，1：卖出前5名） */
     private String side;
 
-    /** 买入额（万元） */
+    /** 买入额（元） */
     private BigDecimal buy;
 
-    /** 买入占比（%） */
+    /** 买入占总成交比例（%） */
     private BigDecimal buyRate;
 
-    /** 卖出额（万元） */
+    /** 卖出额（元） */
     private BigDecimal sell;
 
-    /** 卖出占比（%） */
+    /** 卖出占总成交比例（%） */
     private BigDecimal sellRate;
 
-    /** 净买入额（万元） */
+    /** 净成交额（元） */
     private BigDecimal netBuy;
 }

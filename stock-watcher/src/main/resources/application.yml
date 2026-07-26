@@ -82,6 +82,22 @@ tushare:
       permits-per-minute: 200
     index_daily:
       permits-per-minute: 500
+    top_list:
+      permits-per-minute: 180
+    top_inst:
+      permits-per-minute: 180
+    moneyflow:
+      permits-per-minute: 180
+    daily_basic:
+      permits-per-minute: 180
+    block_trade:
+      permits-per-minute: 180
+    hk_hold:
+      permits-per-minute: 180
+    margin:
+      permits-per-minute: 180
+    margin_detail:
+      permits-per-minute: 180
 
 # ========== Auth Configuration ==========
 auth:

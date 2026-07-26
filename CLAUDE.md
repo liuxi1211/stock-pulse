@@ -136,10 +136,10 @@ node run.js logs watcher|engine   # tail 日志
 
 ### 4.3 业务指南（`business/`）
 
-| 场景 | 文档                                  | 内容要点 |
-|-----|-------------------------------------|---------|
-| 认证、权限相关 | `01-auth.md`                        | 认证相关 |
-| **对接 Tushare 新接口** | `02-tushare-integration-guide.md`、 `03-tushare-interface-summary.md` | ⭐ 完整指南：步骤概览→定义DTO→注册枚举→TushareClient方法→配置限流→数据库层→Service层→Controller层→接入初始化流程→接入定时任务→配置Mapper扫描→测试验证；Checklist；参考实现对照 |
+| 场景 | 文档                                                                                        | 内容要点 |
+|-----|-------------------------------------------------------------------------------------------|---------|
+| 认证、权限相关 | `01-auth.md`                                                                              | 认证相关 |
+| **对接 Tushare 新接口** | `02-tushare-integration-guide.md`、 `03-tushare-interface-summary.md`、`04-tushare 接口汇总.md` | ⭐ 完整指南：步骤概览→定义DTO→注册枚举→TushareClient方法→配置限流→数据库层→Service层→Controller层→接入初始化流程→接入定时任务→配置Mapper扫描→测试验证；Checklist；参考实现对照 |
 
 ---
 
@@ -217,6 +217,7 @@ node run.js logs watcher|engine   # tail 日志
 │       ├── 01-auth.md
 │       └── 02-tushare-integration-guide.md
 │       └── 03-tushare-interface-summary.md
+│       └── 04-tushare 接口汇总.md
 ├── stock-engine/
 │   └── python/                       # Python 计算服务规范
 │       ├── 01-python-coding-style.md

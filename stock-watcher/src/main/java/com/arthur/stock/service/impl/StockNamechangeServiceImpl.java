@@ -11,30 +11,26 @@ import com.arthur.stock.mapper.StockNamechangeMapper;
 import com.arthur.stock.model.StockNamechangeDO;
 import com.arthur.stock.service.DataCheckable;
 import com.arthur.stock.service.StockNamechangeService;
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.google.common.collect.Lists;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
  * 股票更名历史服务实现。
  * <p>
  * 数据源：tushare namechange（doc_id=160），单次最大 5000 行（分页）。
- * 落库策略：
- * <ul>
- *   <li>全量：接口返回某 ts_code 的全部历史，按 ts_code 先删后插（全量替换，幂等）；</li>
- *   <li>增量：按业务键 (ts_code, start_date) 单条先删后插，避免误删历史记录。</li>
- * </ul>
+ * 落库策略：全量与增量均按业务键 (ts_code, start_date) 先删后插，幂等，支持逐页流式调用。
+ * （流式逐页场景下不能按 ts_code 全删，否则会删掉前页已存记录，详见 persistByBizKey 注释。）
  */
 @Slf4j
 @Service
@@ -49,27 +45,53 @@ public class StockNamechangeServiceImpl implements StockNamechangeService, DataC
 
     private final TushareClient tushareClient;
     private final StockNamechangeMapper stockNamechangeMapper;
+    private final TransactionTemplate transactionTemplate;
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public int fetchAndSaveAll() {
-        log.info("Fetching stock_namechange (paginated, size={})", PAGE_SIZE);
-        List<NamechangeDTO> all = new ArrayList<>();
+        log.info("Fetching stock_namechange full (paginated, size={})", PAGE_SIZE);
+        return fetchAndSavePagesStreaming(NamechangeQueryDTO.builder().build());
+    }
+
+    @Override
+    public int fetchAndSaveByRange(String startDate, String endDate) {
+        log.info("Fetching stock_namechange by range: {}~{}", startDate, endDate);
+        return fetchAndSavePagesStreaming(NamechangeQueryDTO.builder()
+                .startDate(startDate)
+                .endDate(endDate)
+                .build());
+    }
+
+    /**
+     * 流式分页拉取并落库：拉一页存一页，每页一个独立事务，避免全量累积到内存。
+     * <p>
+     * 更名是稀疏事件，按日期区间 + 分页一次性拉取，仅按实际数据量发起少量分页请求，
+     * 替代按交易日逐日拉取（会产生大量空请求）。
+     * <p>
+     * 注意：全量与区间均用 persistByBizKey（按业务键删插），不能用 persistByTsCode
+     * （按 ts_code 全删），否则逐页流式会删掉前页已存的记录。
+     *
+     * @param baseParam 查询参数（tsCode/startDate/endDate 均可选，null 字段不传给 Tushare）
+     * @return 落库记录数
+     */
+    private int fetchAndSavePagesStreaming(NamechangeQueryDTO baseParam) {
+        int total = 0;
         int offset = 0;
         while (true) {
-            List<NamechangeDTO> page = tushareClient.namechange(
-                    NamechangeQueryDTO.builder().build(), offset, PAGE_SIZE);
+            List<NamechangeDTO> page = tushareClient.namechange(baseParam, offset, PAGE_SIZE);
             if (page.isEmpty()) {
                 break;
             }
-            all.addAll(page);
-            log.info("stock_namechange page fetched: offset={}, size={}, total={}", offset, page.size(), all.size());
+            // 流式落库：拉一页存一页，每页一个独立事务，避免全量累积到内存。
+            int saved = transactionTemplate.execute(status -> persistByBizKey(page));
+            total += saved;
+            log.info("stock_namechange page saved: offset={}, size={}, saved={}, total={}",
+                    offset, page.size(), saved, total);
             if (page.size() < PAGE_SIZE) {
                 break;
             }
             offset += PAGE_SIZE;
         }
-        int total = persistByTsCode(all);
         log.info("Saved {} stock_namechange records", total);
         return total;
     }
@@ -98,33 +120,7 @@ public class StockNamechangeServiceImpl implements StockNamechangeService, DataC
     // ==================== 内部方法 ====================
 
     /**
-     * 全量落库：按 ts_code 先删后插（接口返回某 ts_code 的全部历史，全量替换等价幂等）。
-     */
-    private int persistByTsCode(List<NamechangeDTO> rows) {
-        if (rows.isEmpty()) {
-            return 0;
-        }
-        Set<String> codes = rows.stream()
-                .map(NamechangeDTO::getTsCode)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toSet());
-        // 按 ts_code 批量删除（单条 IN 语句）
-        stockNamechangeMapper.delete(new LambdaQueryWrapper<StockNamechangeDO>()
-                .in(StockNamechangeDO::getTsCode, codes));
-
-        List<StockNamechangeDO> entities = rows.stream()
-                .map(this::toEntity)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toList());
-        int count = 0;
-        for (List<StockNamechangeDO> batch : Lists.partition(entities, BATCH_SIZE)) {
-            count += stockNamechangeMapper.insertBatch(batch);
-        }
-        return count;
-    }
-
-    /**
-     * 增量落库：按业务键 (ts_code, start_date) 批量先删后插，避免误删历史。
+     * 落库：按业务键 (ts_code, start_date) 批量先删后插，幂等，支持逐页流式调用。
      */
     private int persistByBizKey(List<NamechangeDTO> rows) {
         if (rows.isEmpty()) {

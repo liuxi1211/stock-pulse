@@ -9,7 +9,9 @@ import lombok.NoArgsConstructor;
 import java.math.BigDecimal;
 
 /**
- * 龙虎榜个股明细数据对象，对应 top_list 表（Tushare top_list：龙虎榜个股明细）。
+ * 龙虎榜个股明细数据对象，对应 top_list 表（Tushare top_list：龙虎榜每日明细）。
+ * <p>
+ * 注意：表无主键。Tushare 可能返回 trade_date+ts_code+name+reason 相同但金额不同的多条记录。
  */
 @Data
 @Builder
@@ -36,30 +38,30 @@ public class TopListDO {
     /** 换手率（%） */
     private BigDecimal turnoverRate;
 
-    /** 成交额（万元） */
+    /** 总成交额（元） */
     private BigDecimal amount;
 
-    /** 龙虎榜买入额（万元） */
-    private BigDecimal lBuy;
-
-    /** 龙虎榜卖出额（万元） */
+    /** 龙虎榜卖出额（元） */
     private BigDecimal lSell;
 
-    /** 龙虎榜买入净额（万元） */
-    private BigDecimal lBuyAmount;
+    /** 龙虎榜买入额（元） */
+    private BigDecimal lBuy;
 
-    /** 龙虎榜卖出净额（万元） */
-    private BigDecimal lSellAmount;
+    /** 龙虎榜成交额（元） */
+    private BigDecimal lAmount;
 
-    /** 净额（万元） */
+    /** 龙虎榜净买入额（元） */
     private BigDecimal netAmount;
 
-    /** 机构买入额（万元） */
-    private BigDecimal bAmount;
+    /** 龙虎榜净买额占比（%） */
+    private BigDecimal netRate;
 
-    /** 机构卖出额（万元） */
-    private BigDecimal sAmount;
+    /** 龙虎榜成交额占比（%） */
+    private BigDecimal amountRate;
 
-    /** 上榜原因 */
+    /** 当日流通市值（元） */
+    private BigDecimal floatValues;
+
+    /** 上榜理由 */
     private String reason;
 }

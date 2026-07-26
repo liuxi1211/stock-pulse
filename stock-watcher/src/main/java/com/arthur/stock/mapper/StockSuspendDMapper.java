@@ -23,7 +23,7 @@ public interface StockSuspendDMapper extends BaseMapper<StockSuspendDDO> {
     int insertBatch(@Param("list") List<StockSuspendDDO> list);
 
     /**
-     * 按 (ts_code, trade_date) 批量删除。
+     * 按业务键 (ts_code, trade_date, suspend_type) 批量删除。
      */
     int deleteBatchByKeys(@Param("list") List<StockSuspendDDO> list);
 
@@ -82,8 +82,21 @@ public interface StockSuspendDMapper extends BaseMapper<StockSuspendDDO> {
     /** 统计 suspend_type 非 S/R 的异常记录数（NULL 或其他值） */
     int countInvalidType();
 
-    /** 查询所有事件，按 ts_code, trade_date 升序（供 Java 层做事件序列检测） */
-    @Select("SELECT ts_code, trade_date, suspend_timing, suspend_type FROM stock_suspend_d "
-            + "ORDER BY ts_code, trade_date")
-    List<StockSuspendDDO> selectAllEventsOrderByCodeAndDate();
+    /** 查询所有不重复的股票代码（供分批检测使用） */
+    @Select("SELECT DISTINCT ts_code FROM stock_suspend_d ORDER BY ts_code")
+    List<String> selectDistinctTsCodes();
+
+    /**
+     * 按股票代码列表查询所有事件，按 ts_code, trade_date 升序（供分批事件序列检测）。
+     *
+     * @param tsCodes 股票代码列表
+     * @return 事件记录列表
+     */
+    @Select("<script>"
+            + "SELECT ts_code, trade_date, suspend_timing, suspend_type FROM stock_suspend_d "
+            + "WHERE ts_code IN "
+            + "<foreach item='c' collection='tsCodes' open='(' separator=',' close=')'>#{c}</foreach>"
+            + " ORDER BY ts_code, trade_date"
+            + "</script>")
+    List<StockSuspendDDO> selectEventsByTsCodes(@Param("tsCodes") List<String> tsCodes);
 }

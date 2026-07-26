@@ -412,9 +412,7 @@ public class DataGovernanceController {
                     && vo.getTableCode().toLowerCase().contains(kw);
             boolean matchName = vo.getTableName() != null
                     && vo.getTableName().toLowerCase().contains(kw);
-            if (!matchCode && !matchName) {
-                return false;
-            }
+            return matchCode || matchName;
         }
         return true;
     }

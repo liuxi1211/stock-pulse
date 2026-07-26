@@ -339,12 +339,13 @@ CREATE TABLE IF NOT EXISTS stock_namechange (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='ST 戴帽摘帽表';
 
 -- 22. 停复牌表（tushare suspend_d，每日事件模型）
+-- PK 含 suspend_type：同一股票同日可同时存在 S（停牌）和 R（复牌）事件
 CREATE TABLE IF NOT EXISTS stock_suspend_d (
     ts_code         VARCHAR(16)  NOT NULL COMMENT '股票代码（如 000001.SZ）',
     trade_date      VARCHAR(8)   NOT NULL COMMENT '交易日期（YYYYMMDD）',
-    suspend_timing  VARCHAR(32)  COMMENT '停牌时段（空/NULL=全天，如 10:09-10:19 表示盘中临时停牌）',
+    suspend_timing  VARCHAR(128) COMMENT '停牌时段（空/NULL=全天，如 09:30-10:31,14:29-14:57 表示多个盘中临时停牌时段）',
     suspend_type    VARCHAR(4)   NOT NULL COMMENT '类型：S=停牌，R=复牌',
-    PRIMARY KEY (ts_code, trade_date),
+    PRIMARY KEY (ts_code, trade_date, suspend_type),
     INDEX idx_suspend_tscode_date (ts_code, trade_date)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='停复牌表（每日事件）';
 
@@ -643,34 +644,34 @@ CREATE TABLE IF NOT EXISTS hk_hold (
 CREATE TABLE IF NOT EXISTS top_list (
     trade_date     VARCHAR(8)    NOT NULL COMMENT '交易日期（YYYYMMDD）',
     ts_code        VARCHAR(16)   NOT NULL COMMENT '股票代码',
-    name           VARCHAR(20)   COMMENT '股票名称',
+    name           VARCHAR(20)   NOT NULL COMMENT '股票名称',
     close          DECIMAL(20,4) COMMENT '收盘价',
     pct_change     DECIMAL(20,4) COMMENT '涨跌幅（%）',
     turnover_rate  DECIMAL(20,4) COMMENT '换手率（%）',
-    amount         DECIMAL(20,4) COMMENT '成交额（万元）',
-    l_buy          DECIMAL(20,4) COMMENT '龙虎榜买入额（万元）',
-    l_sell         DECIMAL(20,4) COMMENT '龙虎榜卖出额（万元）',
-    l_buy_amount   DECIMAL(20,4) COMMENT '龙虎榜买入净额（万元）',
-    l_sell_amount  DECIMAL(20,4) COMMENT '龙虎榜卖出净额（万元）',
-    net_amount     DECIMAL(20,4) COMMENT '净额（万元）',
-    b_amount       DECIMAL(20,4) COMMENT '机构买入额（万元）',
-    s_amount       DECIMAL(20,4) COMMENT '机构卖出额（万元）',
-    reason         VARCHAR(100) NOT NULL COMMENT '上榜原因',
-    PRIMARY KEY (trade_date, ts_code, reason),
-    INDEX idx_top_list_date (trade_date)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='龙虎榜个股明细表';
+    amount         DECIMAL(20,4) COMMENT '总成交额（元）',
+    l_sell         DECIMAL(20,4) COMMENT '龙虎榜卖出额（元）',
+    l_buy          DECIMAL(20,4) COMMENT '龙虎榜买入额（元）',
+    l_amount       DECIMAL(20,4) COMMENT '龙虎榜成交额（元）',
+    net_amount     DECIMAL(20,4) COMMENT '龙虎榜净买入额（元）',
+    net_rate       DECIMAL(20,4) COMMENT '龙虎榜净买额占比（%）',
+    amount_rate    DECIMAL(20,4) COMMENT '龙虎榜成交额占比（%）',
+    float_values   DECIMAL(20,4) COMMENT '当日流通市值（元）',
+    reason         VARCHAR(200)  NOT NULL COMMENT '上榜理由',
+    INDEX idx_top_list_date (trade_date),
+    INDEX idx_top_list_date_code (trade_date, ts_code)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='龙虎榜每日明细表（无主键，Tushare 同股同原因可能返回多条不同口径数据）';
 
 -- 33. 龙虎榜营业部席位明细表（tushare top_inst：龙虎榜营业部席位明细）
 CREATE TABLE IF NOT EXISTS top_inst (
     trade_date  VARCHAR(8)    NOT NULL COMMENT '交易日期（YYYYMMDD）',
     ts_code     VARCHAR(16)   NOT NULL COMMENT '股票代码',
     exalter     VARCHAR(200)  NOT NULL COMMENT '营业部名称',
-    side        VARCHAR(4)    NOT NULL COMMENT '买卖方向（Buy/Sell）',
-    buy         DECIMAL(20,4) COMMENT '买入额（万元）',
-    buy_rate    DECIMAL(20,4) COMMENT '买入占比（%）',
-    sell        DECIMAL(20,4) COMMENT '卖出额（万元）',
-    sell_rate   DECIMAL(20,4) COMMENT '卖出占比（%）',
-    net_buy     DECIMAL(20,4) COMMENT '净买入额（万元）',
+    side        VARCHAR(4)    NOT NULL COMMENT '买卖方向（0：买入前5名，1：卖出前5名）',
+    buy         DECIMAL(20,4) COMMENT '买入额（元）',
+    buy_rate    DECIMAL(20,4) COMMENT '买入占总成交比例（%）',
+    sell        DECIMAL(20,4) COMMENT '卖出额（元）',
+    sell_rate   DECIMAL(20,4) COMMENT '卖出占总成交比例（%）',
+    net_buy     DECIMAL(20,4) COMMENT '净成交额（元）',
     PRIMARY KEY (trade_date, ts_code, exalter, side),
     INDEX idx_top_inst_date (trade_date)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='龙虎榜营业部席位明细表';

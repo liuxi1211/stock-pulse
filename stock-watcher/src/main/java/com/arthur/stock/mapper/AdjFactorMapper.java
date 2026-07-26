@@ -26,7 +26,17 @@ public interface AdjFactorMapper extends BaseMapper<AdjFactorDO> {
 
     String selectLatestTradeDate();
 
-    int countInvalidFactor(@Param("startDate") String startDate);
+    /**
+     * 统计最近 N 天内关键字段为 NULL 或复权因子 <= 0 的异常记录数。
+     * 用于检测数据拉取/写入过程中是否有脏数据。
+     */
+    int countNullInvalidRecords(@Param("startDate") String startDate);
+
+    /**
+     * 统计最近 N 天内的重复主键记录数（同一 ts_code + trade_date 出现多次）。
+     * 正常应该为 0，大于 0 说明保存逻辑有 bug。
+     */
+    int countDuplicateRecords(@Param("startDate") String startDate);
 
     int countMissingInAdjFactor(@Param("startDate") String startDate);
 }

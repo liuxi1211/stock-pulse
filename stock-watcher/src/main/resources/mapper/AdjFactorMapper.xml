@@ -26,10 +26,22 @@
         SELECT MAX(trade_date) FROM adj_factor
     </select>
 
-    <select id="countInvalidFactor" resultType="int">
+    <!-- 统计最近 N 天内关键字段为 NULL 或复权因子 <= 0 的异常记录数 -->
+    <select id="countNullInvalidRecords" resultType="int">
         SELECT COUNT(*) FROM adj_factor
         WHERE trade_date &gt;= #{startDate}
-          AND (adj_factor &lt;= 0 OR adj_factor &gt; 10)
+          AND (ts_code IS NULL OR trade_date IS NULL OR adj_factor IS NULL OR adj_factor &lt;= 0)
+    </select>
+
+    <!-- 统计最近 N 天内的重复主键记录数（同一 ts_code + trade_date 出现多次） -->
+    <select id="countDuplicateRecords" resultType="int">
+        SELECT COUNT(*) FROM (
+            SELECT ts_code, trade_date, COUNT(*) AS cnt
+            FROM adj_factor
+            WHERE trade_date &gt;= #{startDate}
+            GROUP BY ts_code, trade_date
+            HAVING cnt &gt; 1
+        ) t
     </select>
 
     <select id="countMissingInAdjFactor" resultType="int">

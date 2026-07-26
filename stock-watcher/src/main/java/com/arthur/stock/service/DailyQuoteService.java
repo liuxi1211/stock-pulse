@@ -45,9 +45,13 @@ public interface DailyQuoteService {
     List<DailyQuoteDTO> fetchAndSaveDailyQuotes(String tsCode, String knownLastDate);
 
     /**
-     * 按交易日期拉取全市场日线行情并保存到数据库
+     * 按交易日期拉取全市场日线行情并保存到数据库。
+     * <p>
+     * 流式落库实现：为节省内存，当前实现不累积 DTO，返回空列表，调用方请勿依赖返回值。
+     * 如需查询已落库数据，请使用 {@link #queryByTradeDate} 或 {@link #queryLocalByTsCode}。
      *
      * @param tradeDate 交易日期，格式 yyyyMMdd
+     * @return 当前实现固定返回空列表（仅为保持接口兼容）
      */
     List<DailyQuoteDTO> fetchAndSaveByTradeDate(String tradeDate);
 

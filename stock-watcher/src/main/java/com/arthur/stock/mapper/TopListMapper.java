@@ -10,12 +10,13 @@ import java.util.List;
 /**
  * 龙虎榜个股明细数据访问层（top_list 表）。
  * <p>
- * 主键：(trade_date, ts_code, reason)
+ * 无主键。Tushare 可能返回 trade_date+ts_code+name+reason 相同但金额不同的多条记录（不同统计口径）。
+ * 幂等更新依赖 deleteBatchByKeys 按 (trade_date, ts_code, name, reason) 删除后重新插入。
  */
 @Mapper
 public interface TopListMapper extends BaseMapper<TopListDO> {
 
-    /** 按 (trade_date, ts_code, reason) 批量删除。 */
+    /** 按 (trade_date, ts_code, name, reason) 批量删除。 */
     int deleteBatchByKeys(@Param("list") List<TopListDO> list);
 
     /** 批量插入。 */
@@ -28,8 +29,6 @@ public interface TopListMapper extends BaseMapper<TopListDO> {
     String selectLatestTradeDate();
 
     int countInvalidAmount(@Param("startDate") String startDate);
-
-    int countInvalidPctChange(@Param("startDate") String startDate);
 
     int countNetAmountInconsistency(@Param("startDate") String startDate);
 }

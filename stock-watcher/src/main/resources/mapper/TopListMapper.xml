@@ -11,29 +11,29 @@
         <result column="pct_change"     property="pctChange"/>
         <result column="turnover_rate"  property="turnoverRate"/>
         <result column="amount"         property="amount"/>
-        <result column="l_buy"          property="lBuy"/>
         <result column="l_sell"         property="lSell"/>
-        <result column="l_buy_amount"   property="lBuyAmount"/>
-        <result column="l_sell_amount"  property="lSellAmount"/>
-        <result column="net_amount"      property="netAmount"/>
-        <result column="b_amount"       property="bAmount"/>
-        <result column="s_amount"       property="sAmount"/>
+        <result column="l_buy"          property="lBuy"/>
+        <result column="l_amount"       property="lAmount"/>
+        <result column="net_amount"     property="netAmount"/>
+        <result column="net_rate"       property="netRate"/>
+        <result column="amount_rate"    property="amountRate"/>
+        <result column="float_values"   property="floatValues"/>
         <result column="reason"         property="reason"/>
     </resultMap>
 
     <insert id="insertBatch">
         INSERT INTO top_list (trade_date, ts_code, name, close, pct_change, turnover_rate, amount,
-                              l_buy, l_sell, l_buy_amount, l_sell_amount, net_amount, b_amount, s_amount, reason) VALUES
+                              l_sell, l_buy, l_amount, net_amount, net_rate, amount_rate, float_values, reason) VALUES
         <foreach collection="list" item="i" separator=",">
             (#{i.tradeDate}, #{i.tsCode}, #{i.name}, #{i.close}, #{i.pctChange}, #{i.turnoverRate}, #{i.amount},
-             #{i.lBuy}, #{i.lSell}, #{i.lBuyAmount}, #{i.lSellAmount}, #{i.netAmount}, #{i.bAmount}, #{i.sAmount}, #{i.reason})
+             #{i.lSell}, #{i.lBuy}, #{i.lAmount}, #{i.netAmount}, #{i.netRate}, #{i.amountRate}, #{i.floatValues}, #{i.reason})
         </foreach>
     </insert>
 
     <delete id="deleteBatchByKeys">
         DELETE FROM top_list WHERE
         <foreach collection="list" item="i" separator=" OR ">
-            (trade_date = #{i.tradeDate} AND ts_code = #{i.tsCode} AND reason = #{i.reason})
+            (trade_date = #{i.tradeDate} AND ts_code = #{i.tsCode} AND name = #{i.name} AND reason = #{i.reason})
         </foreach>
     </delete>
 
@@ -53,17 +53,11 @@
           AND amount &lt;= 0
     </select>
 
-    <select id="countInvalidPctChange" resultType="int">
-        SELECT COUNT(*) FROM top_list
-        WHERE trade_date &gt;= #{startDate}
-          AND (pct_change &lt; -21 OR pct_change &gt; 21)
-    </select>
-
     <select id="countNetAmountInconsistency" resultType="int">
         SELECT COUNT(*) FROM top_list
         WHERE trade_date &gt;= #{startDate}
-          AND l_buy_amount &gt; 0
-          AND ABS(net_amount - (l_buy_amount - l_sell_amount)) / l_buy_amount &gt; 0.1
+          AND l_amount &gt; 0
+          AND ABS(net_amount - (l_buy - l_sell)) / l_amount &gt; 0.1
     </select>
 
 </mapper>

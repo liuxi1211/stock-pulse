@@ -37,26 +37,26 @@ public class TopListDTO {
 
     private BigDecimal amount;
 
-    @JSONField(name = "l_buy")
-    private BigDecimal lBuy;
-
     @JSONField(name = "l_sell")
     private BigDecimal lSell;
 
-    @JSONField(name = "l_buy_amount")
-    private BigDecimal lBuyAmount;
+    @JSONField(name = "l_buy")
+    private BigDecimal lBuy;
 
-    @JSONField(name = "l_sell_amount")
-    private BigDecimal lSellAmount;
+    @JSONField(name = "l_amount")
+    private BigDecimal lAmount;
 
     @JSONField(name = "net_amount")
     private BigDecimal netAmount;
 
-    @JSONField(name = "b_amount")
-    private BigDecimal bAmount;
+    @JSONField(name = "net_rate")
+    private BigDecimal netRate;
 
-    @JSONField(name = "s_amount")
-    private BigDecimal sAmount;
+    @JSONField(name = "amount_rate")
+    private BigDecimal amountRate;
+
+    @JSONField(name = "float_values")
+    private BigDecimal floatValues;
 
     private String reason;
 }

@@ -528,7 +528,14 @@ public class TushareClient {
         ResponseEntity<String> response = restTemplate.exchange(
                 tushareConfig.getBaseUrl(), HttpMethod.POST, entity, String.class);
 
-        return parseResponse(response.getBody(), clazz);
+        try {
+            return parseResponse(response.getBody(), clazz);
+        } catch (RuntimeException e) {
+            // 补充请求参数信息，便于排查 Tushare 参数错误（如 50101 查询数据失败）
+            // params 不含 token（token 在 body 顶层），打印安全
+            throw new RuntimeException("api_name=" + api.getApiName()
+                    + ", params=" + params + " -> " + e.getMessage(), e);
+        }
     }
 
     /**
@@ -654,6 +661,12 @@ public class TushareClient {
         }
         if (param.getEndDate() != null) {
             params.put("end_date", param.getEndDate());
+        }
+        if (param.getOffset() != null) {
+            params.put("offset", String.valueOf(param.getOffset()));
+        }
+        if (param.getLimit() != null) {
+            params.put("limit", String.valueOf(param.getLimit()));
         }
         return params;
     }

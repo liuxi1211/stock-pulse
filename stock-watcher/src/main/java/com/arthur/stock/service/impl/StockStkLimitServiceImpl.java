@@ -17,6 +17,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
@@ -48,12 +49,12 @@ public class StockStkLimitServiceImpl implements StockStkLimitService, DataCheck
 
     private final TushareClient tushareClient;
     private final StockStkLimitMapper stockStkLimitMapper;
+    private final TransactionTemplate transactionTemplate;
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public int fetchAndSaveAll() {
         log.info("Fetching stock_stk_limit (paginated, size={})", PAGE_SIZE);
-        List<StkLimitDTO> all = new ArrayList<>();
+        int total = 0;
         int offset = 0;
         while (true) {
             List<StkLimitDTO> page = tushareClient.stkLimit(
@@ -61,14 +62,16 @@ public class StockStkLimitServiceImpl implements StockStkLimitService, DataCheck
             if (page.isEmpty()) {
                 break;
             }
-            all.addAll(page);
-            log.info("stock_stk_limit page fetched: offset={}, size={}, total={}", offset, page.size(), all.size());
+            // 流式落库：拉一页存一页，每页一个独立事务，避免全量累积到内存
+            int saved = transactionTemplate.execute(status -> persistByBizKey(page));
+            total += saved;
+            log.info("stock_stk_limit page saved: offset={}, size={}, saved={}, total={}",
+                    offset, page.size(), saved, total);
             if (page.size() < PAGE_SIZE) {
                 break;
             }
             offset += PAGE_SIZE;
         }
-        int total = persistByBizKey(all);
         log.info("Saved {} stock_stk_limit records", total);
         return total;
     }

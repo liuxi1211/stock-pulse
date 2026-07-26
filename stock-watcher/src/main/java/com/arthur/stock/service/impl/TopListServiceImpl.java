@@ -146,13 +146,13 @@ public class TopListServiceImpl implements TopListService, DataCheckable {
                 .pctChange(d.getPctChange())
                 .turnoverRate(d.getTurnoverRate())
                 .amount(d.getAmount())
-                .lBuy(d.getLBuy())
                 .lSell(d.getLSell())
-                .lBuyAmount(d.getLBuyAmount())
-                .lSellAmount(d.getLSellAmount())
+                .lBuy(d.getLBuy())
+                .lAmount(d.getLAmount())
                 .netAmount(d.getNetAmount())
-                .bAmount(d.getBAmount())
-                .sAmount(d.getSAmount())
+                .netRate(d.getNetRate())
+                .amountRate(d.getAmountRate())
+                .floatValues(d.getFloatValues())
                 .reason(d.getReason())
                 .build();
     }
@@ -198,13 +198,6 @@ public class TopListServiceImpl implements TopListService, DataCheckable {
                         .message("表为空，跳过检测")
                         .build());
                 items.add(DataCheckItem.builder()
-                        .name("pct_change_validity")
-                        .displayName("涨跌幅合理性检测")
-                        .passed(true)
-                        .level(CheckLevel.WARN)
-                        .message("表为空，跳过检测")
-                        .build());
-                items.add(DataCheckItem.builder()
                         .name("net_amount_consistency")
                         .displayName("净额一致性检测")
                         .passed(true)
@@ -222,16 +215,6 @@ public class TopListServiceImpl implements TopListService, DataCheckable {
                         .level(CheckLevel.ERROR)
                         .message(invalidAmount == 0 ? "通过，最近30天成交额数据正常"
                                 : "最近30天成交额小于等于0的记录 " + invalidAmount + " 条")
-                        .build());
-
-                int invalidPctChange = topListMapper.countInvalidPctChange(thirtyDaysAgo);
-                items.add(DataCheckItem.builder()
-                        .name("pct_change_validity")
-                        .displayName("涨跌幅合理性检测")
-                        .passed(invalidPctChange == 0)
-                        .level(CheckLevel.WARN)
-                        .message(invalidPctChange == 0 ? "通过，最近30天涨跌幅数据正常"
-                                : "最近30天涨跌幅超出±21%的记录 " + invalidPctChange + " 条")
                         .build());
 
                 int netAmountInconsistency = topListMapper.countNetAmountInconsistency(thirtyDaysAgo);

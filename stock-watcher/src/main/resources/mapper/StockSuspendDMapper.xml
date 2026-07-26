@@ -13,7 +13,7 @@
     <delete id="deleteBatchByKeys">
         DELETE FROM stock_suspend_d WHERE
         <foreach collection="list" item="item" separator=" OR ">
-            (ts_code = #{item.tsCode} AND trade_date = #{item.tradeDate})
+            (ts_code = #{item.tsCode} AND trade_date = #{item.tradeDate} AND suspend_type = #{item.suspendType})
         </foreach>
     </delete>
 

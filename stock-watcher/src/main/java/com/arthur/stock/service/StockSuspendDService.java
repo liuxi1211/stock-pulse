@@ -13,19 +13,39 @@ import java.util.Set;
 public interface StockSuspendDService {
 
     /**
-     * 全量分页拉取并落库（按业务键 (ts_code, trade_date) 幂等 delete-then-insert）。
+     * 全量拉取并落库（按月拆分，月内分页；月内超 10w 自动降级按股票拉取）。
+     * <p>
+     * 落库策略：按业务键 (ts_code, trade_date, suspend_type) 幂等 delete-then-insert。
      *
      * @return 落库记录数
      */
     int fetchAndSaveAll();
 
     /**
-     * 增量拉取某日（tradeDate）的停复牌事件（按业务键 (ts_code, trade_date) 幂等 delete-then-insert）。
+     * 增量拉取某日（tradeDate）的停复牌事件。
+     * <p>
+     * 落库策略：按业务键 (ts_code, trade_date, suspend_type) 幂等 delete-then-insert。
      *
      * @param tradeDate 交易日 yyyyMMdd
      * @return 落库记录数
      */
     int fetchAndSaveIncremental(String tradeDate);
+
+    /**
+     * 按日期区间拉取全市场停复牌事件并落库（按月拆分，月内分页；月内超 10w 自动降级按股票拉取）。
+     * <p>
+     * 停复牌事件稀疏（并非每个交易日都有事件），按交易日逐日拉取会产生大量空请求、受限于 Tushare 限流。
+     * 按月拆分后单月数据量约 2000 条，远低于 offset 上限 10w，月内 1~2 页即可拉完；
+     * 极端月份（如股灾月）若超 10w，自动降级按股票逐只拉取兜底，确保数据不丢。
+     * <p>
+     * 落库策略：按业务键 (ts_code, trade_date, suspend_type) 幂等 delete-then-insert，
+     * 每页一个独立事务流式落库（拉一页存一页）。
+     *
+     * @param startDate 起始日期 yyyyMMdd（含）
+     * @param endDate   结束日期 yyyyMMdd（含）
+     * @return 落库记录数
+     */
+    int fetchAndSaveByRange(String startDate, String endDate);
 
     /**
      * 批量计算多只股票在 [startDate, endDate] 内的实际停牌日期，按 ts_code 分组（buildKlineData 用）。

@@ -48,6 +48,9 @@ public interface DataPullLogMapper extends BaseMapper<DataPullLogDO> {
     /** 删除早于指定时间的记录 */
     int deleteOlderThan(@Param("cutoffTime") String cutoffTime);
 
+    /** 将超时的 RUNNING 记录标记为 FAILED（进程崩溃或异常退出时兜底） */
+    int updateStaleRunningToFailed(@Param("cutoffTime") String cutoffTime, @Param("currentTime") String currentTime);
+
     /**
      * 批量查询各表最新一条拉取日志。
      * 使用 MAX(start_time) 分组取每组最大，再自连接回表，

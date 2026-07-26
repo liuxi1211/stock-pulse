@@ -104,6 +104,15 @@
         DELETE FROM data_pull_log WHERE start_time &lt; #{cutoffTime}
     </delete>
 
+    <update id="updateStaleRunningToFailed">
+        UPDATE data_pull_log
+        SET status = 'FAILED',
+            error_message = '任务超时未完成，可能进程异常退出',
+            end_time = #{currentTime}
+        WHERE status = 'RUNNING'
+        AND start_time &lt; #{cutoffTime}
+    </update>
+
     <select id="selectLatestPerTable" resultMap="logMap">
         SELECT l.*
         FROM data_pull_log l

@@ -131,7 +131,7 @@ public enum TushareApiEnum {
     /** 龙虎榜个股明细 */
     TOP_LIST("top_list",
             "trade_date,ts_code,name,close,pct_change,turnover_rate,amount,"
-                    + "l_buy,l_sell,l_buy_amount,l_sell_amount,net_amount,b_amount,s_amount,reason"),
+                    + "l_sell,l_buy,l_amount,net_amount,net_rate,amount_rate,float_values,reason"),
 
     /** 龙虎榜营业部席位明细 */
     TOP_INST("top_inst",

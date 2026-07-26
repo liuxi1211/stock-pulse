@@ -23,9 +23,9 @@
     </insert>
 
     <delete id="deleteBatchByKeys">
-        DELETE FROM top_inst WHERE (trade_date, ts_code, exalter, side) IN
-        <foreach collection="list" item="i" open="(" separator="," close=")">
-            (#{i.tradeDate}, #{i.tsCode}, #{i.exalter}, #{i.side})
+        DELETE FROM top_inst WHERE
+        <foreach collection="list" item="i" separator=" OR ">
+            (trade_date = #{i.tradeDate} AND ts_code = #{i.tsCode} AND exalter = #{i.exalter} AND side = #{i.side})
         </foreach>
     </delete>
 

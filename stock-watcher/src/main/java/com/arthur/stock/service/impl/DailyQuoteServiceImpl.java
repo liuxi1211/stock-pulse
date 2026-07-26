@@ -20,7 +20,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import com.google.common.collect.Lists;
 
@@ -45,6 +45,7 @@ public class DailyQuoteServiceImpl implements DailyQuoteService, DataCheckable {
     private final DailyQuoteMapper dailyQuoteMapper;
     private final StockBasicMapper stockBasicMapper;
     private final TradeCalendarService tradeCalendarService;
+    private final TransactionTemplate transactionTemplate;
 
     /**
      * 查询指定股票在日期范围内的日线行情（仅从Tushare获取，不保存）
@@ -75,14 +76,12 @@ public class DailyQuoteServiceImpl implements DailyQuoteService, DataCheckable {
      * 增量起点为该股票在数据库中的最新交易日期（含该日，delete+insert 幂等覆盖）
      */
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public List<DailyQuoteDTO> fetchAndSaveDailyQuotes(String tsCode) {
         String lastDate = getLastTradeDate(tsCode);
         return doFetchAndSaveDailyQuotes(tsCode, lastDate);
     }
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public List<DailyQuoteDTO> fetchAndSaveDailyQuotes(String tsCode, String knownLastDate) {
         return doFetchAndSaveDailyQuotes(tsCode, knownLastDate);
     }
@@ -104,54 +103,32 @@ public class DailyQuoteServiceImpl implements DailyQuoteService, DataCheckable {
 
         log.info("Fetching daily quotes for {} from {} to {}", tsCode, startDate, endDate);
 
-        DailyQueryDTO param = DailyQueryDTO.builder()
+        DailyQueryDTO baseParam = DailyQueryDTO.builder()
                 .tsCode(tsCode)
                 .startDate(startDate)
                 .endDate(endDate)
                 .build();
-        List<DailyQuoteDTO> quotes = fetchAllPages(param);
 
-        if (quotes.isEmpty()) {
-            log.info("No daily data returned for {}", tsCode);
-            return Collections.emptyList();
-        }
-
-        List<DailyQuoteDO> entities = quotes.stream()
-                .map(this::toEntity)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toList());
-
-        saveQuotes(entities);
-        log.info("Saved {} daily quotes for {}", entities.size(), tsCode);
-        return quotes;
+        // 流式拉取+落库：拉一页存一页，每页一个独立事务，避免全量累积到内存。
+        // 落库期间的自然耗时也起到限流间隔作用，降低触发 Tushare 限流的概率。
+        return fetchAndSavePagesStreaming(baseParam, tsCode, true);
     }
 
     /**
      * 按交易日期从Tushare获取全市场日线数据并保存到本地数据库
      */
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public List<DailyQuoteDTO> fetchAndSaveByTradeDate(String tradeDate) {
         log.info("Fetching daily quotes for trade_date={}", tradeDate);
 
-        DailyQueryDTO param = DailyQueryDTO.builder()
+        DailyQueryDTO baseParam = DailyQueryDTO.builder()
                 .tradeDate(tradeDate)
                 .build();
-        List<DailyQuoteDTO> quotes = fetchAllPages(param);
 
-        if (quotes.isEmpty()) {
-            log.info("No daily data returned for trade_date={}", tradeDate);
-            return Collections.emptyList();
-        }
-
-        List<DailyQuoteDO> entities = quotes.stream()
-                .map(this::toEntity)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toList());
-
-        saveQuotes(entities);
-        log.info("Saved {} daily quotes for trade_date={}", entities.size(), tradeDate);
-        return quotes;
+        // 流式拉取+落库：拉一页存一页，每页一个独立事务，避免全量累积到内存。
+        // 调用方（DataVerifyTask/DailyUpdateTask）均不使用返回值，collectResult=false 彻底避免 DTO 累积。
+        fetchAndSavePagesStreaming(baseParam, "trade_date=" + tradeDate, false);
+        return Collections.emptyList();
     }
 
     /**
@@ -278,13 +255,64 @@ public class DailyQuoteServiceImpl implements DailyQuoteService, DataCheckable {
     }
 
     /**
-     * 批量保存日线数据。先删除同主键（ts_code+trade_date）已存在记录，再插入；跨方言通用。
+     * 流式拉取+落库：分页从 Tushare 拉取日线，每拉一页立即落库（每页一个独立事务），避免全量累积到内存。
+     * 落库期间的自然耗时也起到限流间隔作用，降低触发 Tushare 限流的概率。
+     *
+     * @param baseParam     查询参数基础（不含 offset/limit）
+     * @param logKey        日志标识
+     * @param collectResult 是否累积返回 DTO（true=供调用方使用；false=不累积，节省内存）
+     * @return 当 collectResult=true 时返回全部 DTO；否则返回空列表
      */
-    private void saveQuotes(List<DailyQuoteDO> quotes) {
-        Lists.partition(quotes, BATCH_SIZE).forEach(batch -> {
-            dailyQuoteMapper.deleteBatchByKeys(batch);
-            dailyQuoteMapper.insertBatch(batch);
-        });
+    private List<DailyQuoteDTO> fetchAndSavePagesStreaming(DailyQueryDTO baseParam, String logKey, boolean collectResult) {
+        List<DailyQuoteDTO> allRows = collectResult ? new ArrayList<>() : Collections.emptyList();
+        int totalSaved = 0;
+        int offset = 0;
+
+        while (true) {
+            DailyQueryDTO param = DailyQueryDTO.builder()
+                    .tsCode(baseParam.getTsCode())
+                    .tradeDate(baseParam.getTradeDate())
+                    .startDate(baseParam.getStartDate())
+                    .endDate(baseParam.getEndDate())
+                    .offset(offset)
+                    .limit(PAGE_SIZE)
+                    .build();
+
+            List<DailyQuoteDTO> page = tushareClient.daily(param);
+            if (page.isEmpty()) {
+                break;
+            }
+
+            // 转换为实体并立即落库（每页一个独立事务）
+            List<DailyQuoteDO> entities = page.stream()
+                    .map(this::toEntity)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toList());
+
+            int saved = transactionTemplate.execute(status -> {
+                int count = 0;
+                for (List<DailyQuoteDO> batch : Lists.partition(entities, BATCH_SIZE)) {
+                    dailyQuoteMapper.deleteBatchByKeys(batch);
+                    count += dailyQuoteMapper.insertBatch(batch);
+                }
+                return count;
+            });
+
+            totalSaved += saved;
+            if (collectResult) {
+                allRows.addAll(page);
+            }
+            log.info("daily_quote page saved: {}, offset={}, size={}, saved={}, totalSaved={}",
+                    logKey, offset, page.size(), saved, totalSaved);
+
+            if (page.size() < PAGE_SIZE) {
+                break;
+            }
+            offset += PAGE_SIZE;
+        }
+
+        log.info("Saved {} daily quotes for {}", totalSaved, logKey);
+        return allRows;
     }
 
     // ==================== DataCheckable ====================

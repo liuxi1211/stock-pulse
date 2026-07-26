@@ -335,12 +335,13 @@ CREATE TABLE IF NOT EXISTS stock_namechange (
 CREATE INDEX IF NOT EXISTS idx_namechange_tscode ON stock_namechange (ts_code);
 
 -- 22. 停复牌表（tushare suspend_d，每日事件模型）
+-- PK 含 suspend_type：同一股票同日可同时存在 S（停牌）和 R（复牌）事件
 CREATE TABLE IF NOT EXISTS stock_suspend_d (
     ts_code         TEXT NOT NULL,
     trade_date      TEXT NOT NULL,
-    suspend_timing  TEXT,
+    suspend_timing  TEXT,  -- 停牌时段（空/NULL=全天，如 09:30-10:31,14:29-14:57 表示多个盘中临时停牌时段）
     suspend_type    TEXT NOT NULL,
-    PRIMARY KEY (ts_code, trade_date)
+    PRIMARY KEY (ts_code, trade_date, suspend_type)
 );
 CREATE INDEX IF NOT EXISTS idx_suspend_tscode_date ON stock_suspend_d (ts_code, trade_date);
 
@@ -636,25 +637,27 @@ CREATE TABLE IF NOT EXISTS hk_hold (
 CREATE INDEX IF NOT EXISTS idx_hk_hold_date ON hk_hold (trade_date);
 
 -- 32. 龙虎榜个股明细表（tushare top_list：龙虎榜个股明细）
+-- 注意：无主键。Tushare 可能返回 trade_date+ts_code+name+reason 相同但金额不同的两条记录（不同统计口径）。
+-- 幂等更新依赖 deleteBatchByKeys 按 (trade_date, ts_code, name, reason) 删除后重新插入。
 CREATE TABLE IF NOT EXISTS top_list (
     trade_date     TEXT    NOT NULL,
     ts_code        TEXT    NOT NULL,
-    name           TEXT,
+    name           TEXT    NOT NULL,
     close          REAL,
     pct_change     REAL,
     turnover_rate  REAL,
     amount         REAL,
-    l_buy          REAL,
     l_sell         REAL,
-    l_buy_amount   REAL,
-    l_sell_amount  REAL,
+    l_buy          REAL,
+    l_amount       REAL,
     net_amount     REAL,
-    b_amount       REAL,
-    s_amount       REAL,
-    reason         TEXT    NOT NULL,
-    PRIMARY KEY (trade_date, ts_code, reason)
+    net_rate       REAL,
+    amount_rate    REAL,
+    float_values   REAL,
+    reason         TEXT    NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_top_list_date ON top_list (trade_date);
+CREATE INDEX IF NOT EXISTS idx_top_list_date_code ON top_list (trade_date, ts_code);
 
 -- 33. 龙虎榜营业部席位明细表（tushare top_inst：龙虎榜营业部席位明细）
 CREATE TABLE IF NOT EXISTS top_inst (

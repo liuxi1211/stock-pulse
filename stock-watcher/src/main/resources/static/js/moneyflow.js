@@ -661,8 +661,8 @@ function renderToplistTable(data) {
     var html = '';
     data.forEach(function (s, i) {
         var net = Number(s.netAmount) || 0;
-        var lBuy = Number(s.lBuyAmount) || 0;
-        var lSell = Number(s.lSellAmount) || 0;
+        var lBuy = Number(s.lBuy) || 0;
+        var lSell = Number(s.lSell) || 0;
         var pct = s.pctChange;
         var sid = sanitizeId(s.tsCode);
 

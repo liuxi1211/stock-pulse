@@ -7,10 +7,12 @@ import com.arthur.stock.dto.governance.DataCheckItem;
 import com.arthur.stock.dto.governance.DataCheckResult;
 import com.arthur.stock.dto.tushare.AdjFactorDTO;
 import com.arthur.stock.dto.tushare.AdjFactorQueryDTO;
+import com.arthur.stock.dto.tushare.TradeCalDTO;
 import com.arthur.stock.mapper.AdjFactorMapper;
 import com.arthur.stock.model.AdjFactorDO;
 import com.arthur.stock.service.AdjFactorService;
 import com.arthur.stock.service.DataCheckable;
+import com.arthur.stock.service.TradeCalService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -34,9 +36,14 @@ public class AdjFactorServiceImpl implements AdjFactorService, DataCheckable {
 
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("yyyyMMdd");
     private static final int BATCH_SIZE = 500;
+    /** 每次按日期范围拉取的交易日数量，控制单次返回数据量避免分页截断。
+     *  Tushare 单次最大返回 5000 行，全市场约 5000 只股票，
+     *  10 个交易日约 5 万行，在 10 万行分页上限内安全。 */
+    private static final int DATE_RANGE_CHUNK_SIZE = 10;
 
     private final TushareClient tushareClient;
     private final AdjFactorMapper adjFactorMapper;
+    private final TradeCalService tradeCalService;
 
     @Override
     public List<AdjFactorDTO> queryByCodeAndDateRange(String tsCode, String startDate, String endDate) {
@@ -133,6 +140,77 @@ public class AdjFactorServiceImpl implements AdjFactorService, DataCheckable {
         return factors;
     }
 
+    @Override
+    public int fetchAndSaveByDateRange(String startDate, String endDate) {
+        if (startDate == null || endDate == null || startDate.compareTo(endDate) > 0) {
+            log.warn("Invalid date range for adj_factor: start={}, end={}", startDate, endDate);
+            return 0;
+        }
+
+        // 获取日期范围内的所有交易日（用于按 10 天一个窗口分段）
+        // 用 SSE（上交所）交易日历即可，沪深交易所交易日基本一致
+        List<TradeCalDTO> tradeCals = tradeCalService.queryLocal(
+                "SSE", startDate, endDate, "1");
+        if (tradeCals == null || tradeCals.isEmpty()) {
+            log.info("No trade dates between {} and {} for adj_factor", startDate, endDate);
+            return 0;
+        }
+
+        // 按 trade_date 升序排列（确保分段正确）
+        List<String> tradeDates = tradeCals.stream()
+                .map(TradeCalDTO::getCalDate)
+                .sorted()
+                .toList();
+
+        log.info("Fetching adj_factor by date range: {} ~ {}, total {} trade days, chunk size={}",
+                startDate, endDate, tradeDates.size(), DATE_RANGE_CHUNK_SIZE);
+
+        int totalSaved = 0;
+        int chunkIndex = 0;
+        for (int i = 0; i < tradeDates.size(); i += DATE_RANGE_CHUNK_SIZE) {
+            int endIdx = Math.min(i + DATE_RANGE_CHUNK_SIZE, tradeDates.size());
+            String chunkStart = tradeDates.get(i);
+            String chunkEnd = tradeDates.get(endIdx - 1);
+            chunkIndex++;
+
+            log.info("[AdjFactor chunk {}/{}] fetching {} ~ {}",
+                    chunkIndex,
+                    (tradeDates.size() + DATE_RANGE_CHUNK_SIZE - 1) / DATE_RANGE_CHUNK_SIZE,
+                    chunkStart, chunkEnd);
+
+            AdjFactorQueryDTO param = AdjFactorQueryDTO.builder()
+                    .startDate(chunkStart)
+                    .endDate(chunkEnd)
+                    .build();
+            List<AdjFactorDTO> factors = tushareClient.adjFactor(param);
+
+            if (factors.isEmpty()) {
+                log.info("[AdjFactor chunk {}/{}] no data returned for {} ~ {}",
+                        chunkIndex,
+                        (tradeDates.size() + DATE_RANGE_CHUNK_SIZE - 1) / DATE_RANGE_CHUNK_SIZE,
+                        chunkStart, chunkEnd);
+                continue;
+            }
+
+            List<AdjFactorDO> entities = factors.stream()
+                    .map(this::toEntity)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toList());
+
+            saveAdjFactors(entities);
+            totalSaved += entities.size();
+
+            log.info("[AdjFactor chunk {}/{}] saved {} records for {} ~ {}",
+                    chunkIndex,
+                    (tradeDates.size() + DATE_RANGE_CHUNK_SIZE - 1) / DATE_RANGE_CHUNK_SIZE,
+                    entities.size(), chunkStart, chunkEnd);
+        }
+
+        log.info("AdjFactor date range fetch completed: {} ~ {}, total saved {} records",
+                startDate, endDate, totalSaved);
+        return totalSaved;
+    }
+
     private String getLastTradeDate(String tsCode) {
         AdjFactorDO last = adjFactorMapper.selectOne(
                 new LambdaQueryWrapper<AdjFactorDO>()
@@ -198,22 +276,42 @@ public class AdjFactorServiceImpl implements AdjFactorService, DataCheckable {
                     .build());
 
             String thirtyDaysAgo = today.minusDays(30).format(DATE_FMT);
-            boolean factorPassed;
-            String factorMsg;
+            boolean nullValidPassed;
+            String nullValidMsg;
             if (totalRows == 0) {
-                factorPassed = true;
-                factorMsg = "表为空，跳过检测";
+                nullValidPassed = true;
+                nullValidMsg = "表为空，跳过检测";
             } else {
-                int invalidCount = adjFactorMapper.countInvalidFactor(thirtyDaysAgo);
-                factorPassed = invalidCount == 0;
-                factorMsg = factorPassed ? "通过，最近 30 天复权因子正常" : "最近 30 天异常复权因子 " + invalidCount + " 条";
+                int nullInvalidCount = adjFactorMapper.countNullInvalidRecords(thirtyDaysAgo);
+                nullValidPassed = nullInvalidCount == 0;
+                nullValidMsg = nullValidPassed ? "通过，最近 30 天无 NULL/无效值记录"
+                        : "最近 30 天 NULL/无效值记录 " + nullInvalidCount + " 条";
             }
             items.add(DataCheckItem.builder()
-                    .name("factor_validity")
-                    .displayName("复权因子有效性检测")
-                    .passed(factorPassed)
+                    .name("null_invalid_check")
+                    .displayName("空值/无效值检测")
+                    .passed(nullValidPassed)
                     .level(CheckLevel.ERROR)
-                    .message(factorMsg)
+                    .message(nullValidMsg)
+                    .build());
+
+            boolean dupPassed;
+            String dupMsg;
+            if (totalRows == 0) {
+                dupPassed = true;
+                dupMsg = "表为空，跳过检测";
+            } else {
+                int dupCount = adjFactorMapper.countDuplicateRecords(thirtyDaysAgo);
+                dupPassed = dupCount == 0;
+                dupMsg = dupPassed ? "通过，最近 30 天无重复记录"
+                        : "最近 30 天重复主键 " + dupCount + " 组";
+            }
+            items.add(DataCheckItem.builder()
+                    .name("duplicate_check")
+                    .displayName("重复记录检测")
+                    .passed(dupPassed)
+                    .level(CheckLevel.ERROR)
+                    .message(dupMsg)
                     .build());
 
             String sevenDaysAgo = today.minusDays(7).format(DATE_FMT);

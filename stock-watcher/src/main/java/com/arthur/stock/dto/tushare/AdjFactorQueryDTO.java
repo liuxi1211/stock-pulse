@@ -27,4 +27,10 @@ public class AdjFactorQueryDTO {
 
     /** 结束日期，格式 yyyyMMdd（可选） */
     private String endDate;
+
+    /** 分页偏移量（可选），Tushare 单次最大返回 5000 行 */
+    private Integer offset;
+
+    /** 单页条数（可选），建议 ≤ 5000 */
+    private Integer limit;
 }
