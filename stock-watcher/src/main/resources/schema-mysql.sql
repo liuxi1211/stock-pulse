@@ -104,7 +104,8 @@ CREATE TABLE IF NOT EXISTS adj_factor (
     adj_factor  DECIMAL(20,4)  COMMENT '复权因子',
     PRIMARY KEY (ts_code, trade_date)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='复权因子表';
-
+create index adj_factor_trade_date_index
+    on adj_factor (trade_date);
 -- 7. 分红送股表
 CREATE TABLE IF NOT EXISTS dividend (
     id            BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',

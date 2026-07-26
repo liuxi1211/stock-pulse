@@ -20,7 +20,11 @@ spring:
       minimum-idle: 10
       connection-timeout: 30000
       idle-timeout: 60000
-      max-lifetime: 1800000
+      max-lifetime: 180000
+      keepalive-time: 10000
+      connection-test-query: SELECT 1
+      validation-timeout: 5000
+      leak-detection-threshold: 60000
   thymeleaf:
     prefix: classpath:/templates/
     suffix: .html
@@ -79,7 +83,7 @@ tushare:
     forecast:
       permits-per-minute: 200
     express:
-      permits-per-minute: 200
+      permits-per-minute: 190
     index_daily:
       permits-per-minute: 500
     top_list:

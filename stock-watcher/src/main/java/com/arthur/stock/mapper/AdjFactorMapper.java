@@ -19,7 +19,7 @@ public interface AdjFactorMapper extends BaseMapper<AdjFactorDO> {
     int deleteBatchByKeys(@Param("list") List<AdjFactorDO> list);
 
     /**
-     * 一次性查出所有股票的最新交易日期（ts_code -&gt; latest_trade_date）。
+     * 一次性查出所有股票的最新交易日期（ts_code -> latest_trade_date）。
      * 用于增量更新前预加载，避免逐只股票 N+1 查询。
      */
     List<Map<String, Object>> selectLatestDatePerStock();
@@ -33,10 +33,22 @@ public interface AdjFactorMapper extends BaseMapper<AdjFactorDO> {
     int countNullInvalidRecords(@Param("startDate") String startDate);
 
     /**
-     * 统计最近 N 天内的重复主键记录数（同一 ts_code + trade_date 出现多次）。
-     * 正常应该为 0，大于 0 说明保存逻辑有 bug。
+     * 统计 adj_factor 表中 distinct 股票数量。
+     * 用于计算股票覆盖度。
      */
-    int countDuplicateRecords(@Param("startDate") String startDate);
+    int countDistinctStocks();
 
-    int countMissingInAdjFactor(@Param("startDate") String startDate);
+    /**
+     * 批量查询一组股票的复权因子实际记录数。
+     * 用于单只股票完整性抽样检测：actual_count vs expected_count。
+     *
+     * @param tsCodes  股票代码列表
+     * @param startDate 起始日期（yyyyMMdd，含），通常为上市日期
+     * @param endDate   结束日期（yyyyMMdd，含），通常为最新交易日或退市日期
+     * @return [{ts_code, cnt}, ...] 仅有记录的股票会返回
+     */
+    List<Map<String, Object>> countByTsCodesInRange(
+            @Param("tsCodes") List<String> tsCodes,
+            @Param("startDate") String startDate,
+            @Param("endDate") String endDate);
 }

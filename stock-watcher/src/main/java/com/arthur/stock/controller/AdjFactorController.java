@@ -32,11 +32,11 @@ public class AdjFactorController {
         return ApiResponse.success(adjFactorService.queryByCodeAndDateRange(tsCode, startDate, endDate));
     }
 
-    @Operation(summary = "初始化复权因子数据", description = "从 Tushare 全量拉取指定股票的复权因子并存入本地数据库")
+    @Operation(summary = "初始化复权因子数据", description = "从 Tushare 全量拉取指定股票的复权因子并存入本地数据库，分页拉取避免内存溢出")
     @PostMapping("/init/{tsCode}")
-    public ApiResponse<List<AdjFactorDTO>> initAdjFactor(
+    public ApiResponse<Integer> initAdjFactor(
             @Parameter(description = "股票代码，如 000001.SZ", required = true) @PathVariable String tsCode) {
-        List<AdjFactorDTO> factors = adjFactorService.fetchAndSaveAdjFactor(tsCode);
-        return ApiResponse.success("Fetched " + factors.size() + " records for " + tsCode, factors);
+        int count = adjFactorService.fetchAndSaveAdjFactor(tsCode);
+        return ApiResponse.success("Fetched " + count + " records for " + tsCode, count);
     }
 }

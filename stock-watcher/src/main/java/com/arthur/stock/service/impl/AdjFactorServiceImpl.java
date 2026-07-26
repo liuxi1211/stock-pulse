@@ -2,6 +2,7 @@ package com.arthur.stock.service.impl;
 
 import com.arthur.stock.client.TushareClient;
 import com.arthur.stock.constant.InitStep;
+import com.arthur.stock.constant.ListStatusEnum;
 import com.arthur.stock.dto.governance.CheckLevel;
 import com.arthur.stock.dto.governance.DataCheckItem;
 import com.arthur.stock.dto.governance.DataCheckResult;
@@ -9,15 +10,19 @@ import com.arthur.stock.dto.tushare.AdjFactorDTO;
 import com.arthur.stock.dto.tushare.AdjFactorQueryDTO;
 import com.arthur.stock.dto.tushare.TradeCalDTO;
 import com.arthur.stock.mapper.AdjFactorMapper;
+import com.arthur.stock.mapper.StockBasicMapper;
 import com.arthur.stock.model.AdjFactorDO;
+import com.arthur.stock.model.StockBasicDO;
 import com.arthur.stock.service.AdjFactorService;
 import com.arthur.stock.service.DataCheckable;
 import com.arthur.stock.service.TradeCalService;
+import com.arthur.stock.service.TradeCalendarService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import com.google.common.collect.Lists;
 
@@ -36,14 +41,26 @@ public class AdjFactorServiceImpl implements AdjFactorService, DataCheckable {
 
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("yyyyMMdd");
     private static final int BATCH_SIZE = 500;
-    /** 每次按日期范围拉取的交易日数量，控制单次返回数据量避免分页截断。
-     *  Tushare 单次最大返回 5000 行，全市场约 5000 只股票，
-     *  10 个交易日约 5 万行，在 10 万行分页上限内安全。 */
+    /** 每次按日期范围拉取的交易日数量（外层窗口）。
+     *  配合内层 offset/limit 分页使用：外层按 10 天切窗口控制单次查询的日期跨度，
+     *  内层在每个窗口内分页拉取（每页 5000 条），查一页存一页，
+     *  避免一次性加载大量数据导致内存溢出。 */
     private static final int DATE_RANGE_CHUNK_SIZE = 10;
+    /** Tushare adj_factor 单次最大返回行数（分页大小） */
+    private static final int PAGE_SIZE = 5000;
+    /** 单查询条件下最大分页页数（安全上限，防止无限循环） */
+    private static final int MAX_PAGES_PER_QUERY = 100;
+    /** 完整性抽样检测的样本量 */
+    private static final int COMPLETENESS_SAMPLE_SIZE = 50;
+    /** 完整性抽样检测的通过阈值（每只股票的记录完整率 >= 该值视为通过） */
+    private static final double COMPLETENESS_PASS_RATIO = 0.99;
 
     private final TushareClient tushareClient;
     private final AdjFactorMapper adjFactorMapper;
+    private final StockBasicMapper stockBasicMapper;
     private final TradeCalService tradeCalService;
+    private final TradeCalendarService tradeCalendarService;
+    private final TransactionTemplate transactionTemplate;
 
     @Override
     public List<AdjFactorDTO> queryByCodeAndDateRange(String tsCode, String startDate, String endDate) {
@@ -65,18 +82,18 @@ public class AdjFactorServiceImpl implements AdjFactorService, DataCheckable {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public List<AdjFactorDTO> fetchAndSaveAdjFactor(String tsCode) {
+    public int fetchAndSaveAdjFactor(String tsCode) {
         String lastDate = getLastTradeDate(tsCode);
         return doFetchAndSaveAdjFactor(tsCode, lastDate);
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public List<AdjFactorDTO> fetchAndSaveAdjFactor(String tsCode, String knownLastDate) {
+    public int fetchAndSaveAdjFactor(String tsCode, String knownLastDate) {
         return doFetchAndSaveAdjFactor(tsCode, knownLastDate);
     }
 
-    private List<AdjFactorDTO> doFetchAndSaveAdjFactor(String tsCode, String lastDate) {
+    private int doFetchAndSaveAdjFactor(String tsCode, String lastDate) {
         String startDate;
         if (lastDate != null) {
             startDate = lastDate;
@@ -88,7 +105,7 @@ public class AdjFactorServiceImpl implements AdjFactorService, DataCheckable {
 
         if (startDate.compareTo(endDate) > 0) {
             log.info("Stock {} adj_factor is up to date", tsCode);
-            return Collections.emptyList();
+            return 0;
         }
 
         log.info("Fetching adj_factor for {} from {} to {}", tsCode, startDate, endDate);
@@ -98,46 +115,25 @@ public class AdjFactorServiceImpl implements AdjFactorService, DataCheckable {
                 .startDate(startDate)
                 .endDate(endDate)
                 .build();
-        List<AdjFactorDTO> factors = tushareClient.adjFactor(param);
 
-        if (factors.isEmpty()) {
-            log.info("No adj_factor data returned for {}", tsCode);
-            return Collections.emptyList();
-        }
-
-        List<AdjFactorDO> entities = factors.stream()
-                .map(this::toEntity)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toList());
-
-        saveAdjFactors(entities);
-        log.info("Saved {} adj_factor records for {}", entities.size(), tsCode);
-        return factors;
+        int totalSaved = fetchAndSavePaginated(param, "Stock " + tsCode);
+        log.info("Finished fetching adj_factor for {}, total saved {} records", tsCode, totalSaved);
+        return totalSaved;
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public List<AdjFactorDTO> fetchAndSaveByTradeDate(String tradeDate) {
+    public int fetchAndSaveByTradeDate(String tradeDate) {
         log.info("Fetching adj_factor for trade_date={}", tradeDate);
 
         AdjFactorQueryDTO param = AdjFactorQueryDTO.builder()
                 .tradeDate(tradeDate)
                 .build();
-        List<AdjFactorDTO> factors = tushareClient.adjFactor(param);
 
-        if (factors.isEmpty()) {
-            log.info("No adj_factor data returned for trade_date={}", tradeDate);
-            return Collections.emptyList();
-        }
+        int totalSaved = fetchAndSavePaginated(param, "trade_date=" + tradeDate);
+        log.info("Finished fetching adj_factor for trade_date={}, total saved {} records", tradeDate, totalSaved);
 
-        List<AdjFactorDO> entities = factors.stream()
-                .map(this::toEntity)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toList());
-
-        saveAdjFactors(entities);
-        log.info("Saved {} adj_factor records for trade_date={}", entities.size(), tradeDate);
-        return factors;
+        return totalSaved;
     }
 
     @Override
@@ -162,8 +158,11 @@ public class AdjFactorServiceImpl implements AdjFactorService, DataCheckable {
                 .sorted()
                 .toList();
 
-        log.info("Fetching adj_factor by date range: {} ~ {}, total {} trade days, chunk size={}",
-                startDate, endDate, tradeDates.size(), DATE_RANGE_CHUNK_SIZE);
+        int totalChunks = (tradeDates.size() + DATE_RANGE_CHUNK_SIZE - 1) / DATE_RANGE_CHUNK_SIZE;
+        log.info("Fetching adj_factor by date range: {} ~ {}, total {} trade days, " +
+                        "chunk size={}, total chunks={}, page size={}",
+                startDate, endDate, tradeDates.size(),
+                DATE_RANGE_CHUNK_SIZE, totalChunks, PAGE_SIZE);
 
         int totalSaved = 0;
         int chunkIndex = 0;
@@ -174,36 +173,25 @@ public class AdjFactorServiceImpl implements AdjFactorService, DataCheckable {
             chunkIndex++;
 
             log.info("[AdjFactor chunk {}/{}] fetching {} ~ {}",
-                    chunkIndex,
-                    (tradeDates.size() + DATE_RANGE_CHUNK_SIZE - 1) / DATE_RANGE_CHUNK_SIZE,
-                    chunkStart, chunkEnd);
+                    chunkIndex, totalChunks, chunkStart, chunkEnd);
 
             AdjFactorQueryDTO param = AdjFactorQueryDTO.builder()
                     .startDate(chunkStart)
                     .endDate(chunkEnd)
                     .build();
-            List<AdjFactorDTO> factors = tushareClient.adjFactor(param);
 
-            if (factors.isEmpty()) {
-                log.info("[AdjFactor chunk {}/{}] no data returned for {} ~ {}",
-                        chunkIndex,
-                        (tradeDates.size() + DATE_RANGE_CHUNK_SIZE - 1) / DATE_RANGE_CHUNK_SIZE,
-                        chunkStart, chunkEnd);
-                continue;
-            }
+            String logPrefix = String.format("chunk %d/%d (%s~%s)",
+                    chunkIndex, totalChunks, chunkStart, chunkEnd);
 
-            List<AdjFactorDO> entities = factors.stream()
-                    .map(this::toEntity)
-                    .filter(Objects::nonNull)
-                    .collect(Collectors.toList());
+            // 注意：此处不包裹事务。fetchAndSavePaginated 内部每页独立事务，
+            // 避免 Tushare API 调用（外部 HTTP）期间持有数据库连接，
+            // 防止连接被 MySQL/代理因空闲超时而断开。
+            int chunkSaved = fetchAndSavePaginated(param, logPrefix);
 
-            saveAdjFactors(entities);
-            totalSaved += entities.size();
+            totalSaved += chunkSaved;
 
-            log.info("[AdjFactor chunk {}/{}] saved {} records for {} ~ {}",
-                    chunkIndex,
-                    (tradeDates.size() + DATE_RANGE_CHUNK_SIZE - 1) / DATE_RANGE_CHUNK_SIZE,
-                    entities.size(), chunkStart, chunkEnd);
+            log.info("[AdjFactor chunk {}/{}] completed, saved {} records for {} ~ {}",
+                    chunkIndex, totalChunks, chunkSaved, chunkStart, chunkEnd);
         }
 
         log.info("AdjFactor date range fetch completed: {} ~ {}, total saved {} records",
@@ -218,6 +206,71 @@ public class AdjFactorServiceImpl implements AdjFactorService, DataCheckable {
                         .orderByDesc(AdjFactorDO::getTradeDate)
                         .last("LIMIT 1"));
         return last != null ? last.getTradeDate() : null;
+    }
+
+    /**
+     * 分页拉取复权因子数据并保存（查一页存一页，内存中始终只有一页数据）。
+     * <p>
+     * adj_factor 接口数据按 trade_date 倒序返回，每页最大 5000 条。
+     *
+     * @param baseParam 基础查询参数（不含 offset/limit）
+     * @param logPrefix 日志前缀，用于区分不同调用场景
+     * @return 实际保存的记录总数
+     */
+    private int fetchAndSavePaginated(AdjFactorQueryDTO baseParam, String logPrefix) {
+        int totalSaved = 0;
+        int offset = 0;
+        int pageNum = 0;
+
+        while (true) {
+            pageNum++;
+            if (pageNum > MAX_PAGES_PER_QUERY) {
+                log.warn("[{}] reached max pages ({}), stopping early. total saved={}",
+                        logPrefix, MAX_PAGES_PER_QUERY, totalSaved);
+                break;
+            }
+
+            AdjFactorQueryDTO pageParam = AdjFactorQueryDTO.builder()
+                    .tsCode(baseParam.getTsCode())
+                    .tradeDate(baseParam.getTradeDate())
+                    .startDate(baseParam.getStartDate())
+                    .endDate(baseParam.getEndDate())
+                    .offset(offset)
+                    .limit(PAGE_SIZE)
+                    .build();
+
+            List<AdjFactorDTO> pageData = tushareClient.adjFactor(pageParam);
+
+            if (pageData == null || pageData.isEmpty()) {
+                log.debug("[{}] page {}: no data, finished. total saved={}",
+                        logPrefix, pageNum - 1, totalSaved);
+                break;
+            }
+
+            // 转实体并立即保存（每页一个独立短事务，不跨 Tushare API 调用）
+            List<AdjFactorDO> entities = pageData.stream()
+                    .map(this::toEntity)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toList());
+
+            transactionTemplate.execute(status -> {
+                saveAdjFactors(entities);
+                return null;
+            });
+            totalSaved += entities.size();
+
+            log.debug("[{}] page {}: fetched {}, saved {}, cumulative={}",
+                    logPrefix, pageNum, pageData.size(), entities.size(), totalSaved);
+
+            // 返回数据不足一页，说明已到最后一页
+            if (pageData.size() < PAGE_SIZE) {
+                break;
+            }
+
+            offset += PAGE_SIZE;
+        }
+
+        return totalSaved;
     }
 
     /**
@@ -265,16 +318,25 @@ public class AdjFactorServiceImpl implements AdjFactorService, DataCheckable {
             LocalDate today = LocalDate.now();
             String todayStr = today.format(DATE_FMT);
 
-            boolean isWeekday = today.getDayOfWeek().getValue() <= 5;
-            boolean freshnessPassed = !isWeekday || (latestDate != null && latestDate.compareTo(todayStr) >= 0);
+            // Check 1: 新鲜度 —— 以交易日历中最近一个交易日为基准，而非简单工作日判断
+            String lastTradeDate = tradeCalendarService.getLatestTradeDate();
+            boolean freshnessPassed = lastTradeDate != null && latestDate != null
+                    && latestDate.compareTo(lastTradeDate) >= 0;
+            String freshnessMsg;
+            if (freshnessPassed) {
+                freshnessMsg = "通过，最新数据 " + latestDate;
+            } else {
+                freshnessMsg = "最新交易日为 " + latestDate + "，最近交易日应为 " + lastTradeDate + "，疑似延迟";
+            }
             items.add(DataCheckItem.builder()
                     .name("freshness")
                     .displayName("新鲜度检测")
                     .passed(freshnessPassed)
                     .level(CheckLevel.ERROR)
-                    .message(freshnessPassed ? "通过，最新数据 " + latestDate : "最新交易日为 " + latestDate + "，疑似延迟")
+                    .message(freshnessMsg)
                     .build());
 
+            // Check 2: 空值/无效值检测 —— 成本极低的兜底检查
             String thirtyDaysAgo = today.minusDays(30).format(DATE_FMT);
             boolean nullValidPassed;
             String nullValidMsg;
@@ -295,42 +357,48 @@ public class AdjFactorServiceImpl implements AdjFactorService, DataCheckable {
                     .message(nullValidMsg)
                     .build());
 
-            boolean dupPassed;
-            String dupMsg;
-            if (totalRows == 0) {
-                dupPassed = true;
-                dupMsg = "表为空，跳过检测";
-            } else {
-                int dupCount = adjFactorMapper.countDuplicateRecords(thirtyDaysAgo);
-                dupPassed = dupCount == 0;
-                dupMsg = dupPassed ? "通过，最近 30 天无重复记录"
-                        : "最近 30 天重复主键 " + dupCount + " 组";
-            }
-            items.add(DataCheckItem.builder()
-                    .name("duplicate_check")
-                    .displayName("重复记录检测")
-                    .passed(dupPassed)
-                    .level(CheckLevel.ERROR)
-                    .message(dupMsg)
-                    .build());
-
-            String sevenDaysAgo = today.minusDays(7).format(DATE_FMT);
-            boolean coveragePassed;
+            // Check 3: 股票覆盖度 —— 在市股票中有复权因子数据的比例
+            long listedCount = stockBasicMapper.selectCount(
+                    new LambdaQueryWrapper<StockBasicDO>()
+                            .eq(StockBasicDO::getListStatus, ListStatusEnum.LISTED));
+            int adjStockCount = adjFactorMapper.countDistinctStocks();
+            double coverage = listedCount > 0 ? (double) adjStockCount / listedCount : 0;
+            int coveragePct = (int) (coverage * 100);
+            boolean coveragePassed = coverage >= 0.95;
             String coverageMsg;
             if (totalRows == 0) {
                 coveragePassed = true;
                 coverageMsg = "表为空，跳过检测";
             } else {
-                int missingCount = adjFactorMapper.countMissingInAdjFactor(sevenDaysAgo);
-                coveragePassed = missingCount == 0;
-                coverageMsg = coveragePassed ? "通过，最近 7 天行情覆盖完整" : "最近 7 天缺失复权因子的股票 " + missingCount + " 只";
+                coverageMsg = coveragePassed
+                        ? "通过，覆盖 " + adjStockCount + " / " + listedCount + " 只在市股票（" + coveragePct + "%）"
+                        : "覆盖度仅 " + coveragePct + "%（" + adjStockCount + " / " + listedCount + " 只在市股票）";
             }
             items.add(DataCheckItem.builder()
-                    .name("quote_coverage")
-                    .displayName("行情覆盖一致性检测")
+                    .name("stock_coverage")
+                    .displayName("股票覆盖度检测")
                     .passed(coveragePassed)
                     .level(CheckLevel.WARN)
                     .message(coverageMsg)
+                    .build());
+
+            // Check 4: 单只股票完整性抽样 —— 抽样验证实际记录数 vs 预期交易日数
+            String completenessMsg;
+            boolean completenessPassed;
+            if (totalRows == 0 || latestDate == null) {
+                completenessPassed = true;
+                completenessMsg = "表为空，跳过检测";
+            } else {
+                CompletenessSampleResult result = checkCompletenessBySampling(latestDate);
+                completenessPassed = result.passed;
+                completenessMsg = result.message;
+            }
+            items.add(DataCheckItem.builder()
+                    .name("per_stock_completeness")
+                    .displayName("单只股票完整性抽样")
+                    .passed(completenessPassed)
+                    .level(CheckLevel.WARN)
+                    .message(completenessMsg)
                     .build());
 
             return DataCheckResult.builder()
@@ -357,5 +425,130 @@ public class AdjFactorServiceImpl implements AdjFactorService, DataCheckable {
                     .items(items)
                     .build();
         }
+    }
+
+    /**
+     * 单只股票完整性抽样检测结果。
+     */
+    private static class CompletenessSampleResult {
+        boolean passed;
+        String message;
+
+        CompletenessSampleResult(boolean passed, String message) {
+            this.passed = passed;
+            this.message = message;
+        }
+    }
+
+    /**
+     * 抽样验证单只股票的复权因子记录完整性。
+     * <p>
+     * 逻辑：每只股票在 [上市日, 最新交易日]（或 [上市日, 退市日]）之间的每个交易日，
+     * 理论上都应该有一条复权因子记录。因此实际记录数应等于该区间内的交易日数量。
+     * <p>
+     * 通过抽样 N 只股票比较 actual_count vs expected_trade_days 来评估整体完整性。
+     * 只需要 count，不需要逐天比对，计算高效。
+     *
+     * @param latestDate adj_factor 表中的最新交易日
+     */
+    private CompletenessSampleResult checkCompletenessBySampling(String latestDate) {
+        // 1. 取所有在市股票（上市状态 L，且有上市日期）
+        List<StockBasicDO> listedStocks = stockBasicMapper.selectList(
+                new LambdaQueryWrapper<StockBasicDO>()
+                        .eq(StockBasicDO::getListStatus, ListStatusEnum.LISTED)
+                        .isNotNull(StockBasicDO::getListDate));
+
+        if (listedStocks.isEmpty()) {
+            return new CompletenessSampleResult(true, "无在市股票数据，跳过");
+        }
+
+        // 2. 随机抽样
+        List<StockBasicDO> shuffled = new ArrayList<>(listedStocks);
+        Collections.shuffle(shuffled);
+        int sampleSize = Math.min(COMPLETENESS_SAMPLE_SIZE, shuffled.size());
+        List<StockBasicDO> samples = shuffled.subList(0, sampleSize);
+
+        // 3. 取样本中最早的上市日期，一次性拉取 [最早上市日, latestDate] 的所有交易日
+        String earliestListDate = samples.stream()
+                .map(StockBasicDO::getListDate)
+                .filter(Objects::nonNull)
+                .min(String::compareTo)
+                .orElse(latestDate);
+
+        List<TradeCalDTO> allTradeDays = tradeCalService.queryLocal(
+                "SSE", earliestListDate, latestDate, "1");
+        if (allTradeDays == null || allTradeDays.isEmpty()) {
+            return new CompletenessSampleResult(true, "交易日历无数据，跳过");
+        }
+        List<String> tradeDateList = allTradeDays.stream()
+                .map(TradeCalDTO::getCalDate)
+                .sorted()
+                .toList();
+
+        // 4. 批量查询样本股票在各自日期范围内的实际记录数
+        List<String> sampleCodes = samples.stream()
+                .map(StockBasicDO::getTsCode)
+                .toList();
+        // 用全局日期范围查询（比逐只查询高效），后续按每只股票的上市日单独计数
+        List<Map<String, Object>> actualCounts = adjFactorMapper.countByTsCodesInRange(
+                sampleCodes, earliestListDate, latestDate);
+        Map<String, Integer> actualCountMap = new HashMap<>();
+        for (Map<String, Object> row : actualCounts) {
+            actualCountMap.put(
+                    (String) row.get("ts_code"),
+                    ((Number) row.get("cnt")).intValue());
+        }
+
+        // 5. 逐只比对：预期交易日数 vs 实际记录数
+        int passCount = 0;
+        String worstStock = null;
+        double worstRatio = 1.0;
+        int worstExpected = 0;
+        int worstActual = 0;
+
+        for (StockBasicDO stock : samples) {
+            String listDate = stock.getListDate();
+            if (listDate == null) continue;
+
+            // 预期交易日数：[listDate, latestDate] 区间内的交易日数量
+            long expected = tradeDateList.stream()
+                    .filter(d -> d.compareTo(listDate) >= 0 && d.compareTo(latestDate) <= 0)
+                    .count();
+
+            if (expected == 0) continue;
+
+            int actual = actualCountMap.getOrDefault(stock.getTsCode(), 0);
+            double ratio = (double) actual / expected;
+
+            if (ratio >= COMPLETENESS_PASS_RATIO) {
+                passCount++;
+            }
+
+            if (ratio < worstRatio) {
+                worstRatio = ratio;
+                worstStock = stock.getTsCode();
+                worstExpected = (int) expected;
+                worstActual = actual;
+            }
+        }
+
+        int totalSampled = (int) samples.stream()
+                .filter(s -> s.getListDate() != null)
+                .count();
+        int samplePassPct = totalSampled > 0 ? (int) ((double) passCount / totalSampled * 100) : 100;
+        boolean passed = passCount == totalSampled;
+
+        String msg;
+        if (passed) {
+            msg = "通过，抽样 " + totalSampled + " 只股票完整率均 ≥ "
+                    + (int) (COMPLETENESS_PASS_RATIO * 100) + "%";
+        } else {
+            int worstPct = (int) (worstRatio * 100);
+            msg = "抽样 " + totalSampled + " 只，" + passCount + " 只达标（" + samplePassPct
+                    + "%），最差 " + worstStock + "：" + worstActual + " / " + worstExpected
+                    + " 条（" + worstPct + "%）";
+        }
+
+        return new CompletenessSampleResult(passed, msg);
     }
 }

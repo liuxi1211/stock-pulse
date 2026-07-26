@@ -328,7 +328,17 @@ public class DataInitServiceImpl implements DataInitService {
                     adjStart = fullStart;
                 } else {
                     String maxDate = adjFactorMapper.selectLatestTradeDate();
-                    adjStart = maxDate != null ? maxDate : fullStart;
+                    if (maxDate == null) {
+                        adjStart = fullStart;
+                    } else {
+                        // 增量更新时起始日期往前回退 20 个自然日（约 14 个交易日，大于一个窗口 10 天）。
+                        // 原因：按日期窗口 + 倒序分页拉取时，窗口边界可能与本地最新日期对不齐，
+                        // 导致部分交易日数据遗漏。多回退一个窗口以上，配合 upsert（先删后插）语义，
+                        // 重复拉取无副作用，确保不丢数据。
+                        adjStart = LocalDate.parse(maxDate, DATE_FMT)
+                                .minusDays(20)
+                                .format(DATE_FMT);
+                    }
                 }
                 int total = adjFactorService.fetchAndSaveByDateRange(adjStart, today);
                 return new StepStats(1, total > 0 ? 1 : 0, total > 0 ? 0 : 1);

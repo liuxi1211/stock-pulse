@@ -29,34 +29,41 @@ public interface AdjFactorService {
     /**
      * 拉取某只股票的复权因子并保存到数据库。
      * 首次拉取最近30年数据，后续只拉取增量部分。
+     * 内部按 offset/limit 分页拉取（每页 5000 条），查一页存一页，避免内存溢出。
      *
      * @param tsCode 股票代码，如 000001.SZ
+     * @return 实际保存的记录数
      */
-    List<AdjFactorDTO> fetchAndSaveAdjFactor(String tsCode);
+    int fetchAndSaveAdjFactor(String tsCode);
 
     /**
      * 拉取某只股票的复权因子并保存到数据库（带已知最新日期，避免 N+1 查询）。
      * 当调用方已持有全量最新日期映射时使用，省去每只股票的单独查询。
+     * 内部按 offset/limit 分页拉取（每页 5000 条），查一页存一页，避免内存溢出。
      *
      * @param tsCode          股票代码
      * @param knownLastDate   已知的该股票最新交易日期（yyyyMMdd），可为 null（表示无数据）
+     * @return 实际保存的记录数
      */
-    List<AdjFactorDTO> fetchAndSaveAdjFactor(String tsCode, String knownLastDate);
+    int fetchAndSaveAdjFactor(String tsCode, String knownLastDate);
 
     /**
-     * 按交易日期拉取全市场复权因子并保存到数据库
+     * 按交易日期拉取全市场复权因子并保存到数据库。
+     * 内部按 offset/limit 分页拉取（每页 5000 条），查一页存一页，避免内存溢出。
      *
      * @param tradeDate 交易日期，格式 yyyyMMdd
+     * @return 实际保存的记录数
      */
-    List<AdjFactorDTO> fetchAndSaveByTradeDate(String tradeDate);
+    int fetchAndSaveByTradeDate(String tradeDate);
 
     /**
      * 按日期范围拉取全市场复权因子并保存到数据库。
-     * 内部按 10 个交易日为一个窗口分段拉取，避免单次返回数据量过大导致分页截断丢失。
+     * 双层分页：外层按 10 个交易日为一个窗口分段，内层每个窗口内 offset/limit 分页拉取，
+     * 查一页存一页，避免一次性加载大量数据导致内存溢出。
      *
      * @param startDate 开始日期，格式 yyyyMMdd（含）
      * @param endDate   结束日期，格式 yyyyMMdd（含）
-     * @return 实际拉取的总记录数
+     * @return 实际保存的总记录数
      */
     int fetchAndSaveByDateRange(String startDate, String endDate);
 

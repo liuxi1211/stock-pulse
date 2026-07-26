@@ -33,23 +33,22 @@
           AND (ts_code IS NULL OR trade_date IS NULL OR adj_factor IS NULL OR adj_factor &lt;= 0)
     </select>
 
-    <!-- 统计最近 N 天内的重复主键记录数（同一 ts_code + trade_date 出现多次） -->
-    <select id="countDuplicateRecords" resultType="int">
-        SELECT COUNT(*) FROM (
-            SELECT ts_code, trade_date, COUNT(*) AS cnt
-            FROM adj_factor
-            WHERE trade_date &gt;= #{startDate}
-            GROUP BY ts_code, trade_date
-            HAVING cnt &gt; 1
-        ) t
+    <!-- adj_factor 表中 distinct 股票数量 -->
+    <select id="countDistinctStocks" resultType="int">
+        SELECT COUNT(DISTINCT ts_code) FROM adj_factor
     </select>
 
-    <select id="countMissingInAdjFactor" resultType="int">
-        SELECT COUNT(DISTINCT d.ts_code)
-        FROM daily_quote d
-        LEFT JOIN adj_factor a ON d.ts_code = a.ts_code AND d.trade_date = a.trade_date
-        WHERE d.trade_date &gt;= #{startDate}
-          AND a.ts_code IS NULL
+    <!-- 批量查询一组股票在指定日期范围内的复权因子记录数 -->
+    <select id="countByTsCodesInRange" resultType="map">
+        SELECT ts_code, COUNT(*) AS cnt
+        FROM adj_factor
+        WHERE ts_code IN
+        <foreach collection="tsCodes" item="code" open="(" separator="," close=")">
+            #{code}
+        </foreach>
+          AND trade_date &gt;= #{startDate}
+          AND trade_date &lt;= #{endDate}
+        GROUP BY ts_code
     </select>
 
 </mapper>
