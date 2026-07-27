@@ -242,9 +242,10 @@ public class DataInitServiceImpl implements DataInitService {
             }
             case INDEX_WEIGHT -> {
                 int success = 0;
+                List<String> codes = IndexConstants.INDEX_WEIGHT_CODES;
                 Map<String, String> lastDateMap = isFull ? Collections.emptyMap() :
                         preloadLastDateMap(indexWeightMapper::selectMaxTradeDatePerIndex);
-                for (String code : INDEX_CODES) {
+                for (String code : codes) {
                     try {
                         String start = isFull ? indexWeightStart :
                                 lastDateMap.getOrDefault(code, indexWeightStart);
@@ -254,7 +255,7 @@ public class DataInitServiceImpl implements DataInitService {
                         log.warn("Index weight failed for {}: {}", code, e.getMessage());
                     }
                 }
-                return new StepStats(INDEX_CODES.size(), success, INDEX_CODES.size() - success);
+                return new StepStats(codes.size(), success, codes.size() - success);
             }
             case SW_INDUSTRY -> {
                 int swOk = 0;
@@ -433,7 +434,7 @@ public class DataInitServiceImpl implements DataInitService {
                                 today));
             }
             case INDEX_DAILY -> {
-                List<String> codes = IndexConstants.DEFAULT_INDEX_CODES;
+                List<String> codes = IndexConstants.CORE_BROAD_INDEX_CODES;
                 if (isFull) {
                     int success = 0;
                     for (String code : codes) {
@@ -801,9 +802,6 @@ public class DataInitServiceImpl implements DataInitService {
         e.printStackTrace(new PrintWriter(sw));
         return sw.toString();
     }
-
-    private static final List<String> INDEX_CODES = List.of(
-            "000300.SH", "000905.SH", "000016.SH", "000852.SH");
 
     /** D 类日频快照表：全量重建时不应 truncate，改为逐日拉取 */
     private static final Set<InitStep> DAILY_SNAPSHOT_STEPS = Set.of(

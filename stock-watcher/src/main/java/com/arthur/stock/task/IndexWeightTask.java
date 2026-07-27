@@ -1,5 +1,6 @@
 package com.arthur.stock.task;
 
+import com.arthur.stock.constant.IndexConstants;
 import com.arthur.stock.service.IndexWeightService;
 import com.arthur.stock.service.TradeCalendarService;
 import lombok.RequiredArgsConstructor;
@@ -14,14 +15,15 @@ import java.util.List;
  * <p>
  * 成分股每年 6/12 月定期调样 + 临时事件调整，需每日增量同步；
  * 幂等（同主键覆盖），重复执行无副作用。
+ * <p>
+ * 同步的指数列表由 {@link IndexConstants#INDEX_WEIGHT_CODES} 统一管理。
  */
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class IndexWeightTask {
 
-    private static final List<String> INDEX_CODES = List.of(
-            "000300.SH", "000905.SH", "000016.SH", "000852.SH");
+    private static final List<String> INDEX_CODES = IndexConstants.INDEX_WEIGHT_CODES;
 
     private final IndexWeightService indexWeightService;
     private final TradeCalendarService tradeCalendarService;

@@ -84,9 +84,15 @@
             SELECT '000001.SH' AS code UNION
             SELECT '399001.SZ' UNION
             SELECT '399006.SZ' UNION
+            SELECT '000688.SH' UNION
             SELECT '000300.SH' UNION
             SELECT '000905.SH' UNION
-            SELECT '000852.SH'
+            SELECT '000852.SH' UNION
+            SELECT '000016.SH' UNION
+            SELECT '000903.SH' UNION
+            SELECT '399330.SZ' UNION
+            SELECT '399673.SZ' UNION
+            SELECT '000010.SH'
         ) t
         WHERE t.code NOT IN (
             SELECT DISTINCT ts_code FROM index_daily WHERE trade_date &gt;= #{startDate}

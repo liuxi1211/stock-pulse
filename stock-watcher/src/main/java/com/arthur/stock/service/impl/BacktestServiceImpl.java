@@ -8,6 +8,7 @@ import com.arthur.stock.constant.BacktestErrorCodes;
 import com.arthur.stock.constant.BacktestModeEnum;
 import com.arthur.stock.constant.BacktestStatusEnum;
 import com.arthur.stock.constant.ExchangeEnum;
+import com.arthur.stock.constant.IndexConstants;
 import com.arthur.stock.constant.StrategySchemaConstants;
 import com.arthur.stock.constant.StrategyStatusEnum;
 import com.arthur.stock.dto.PageResult;
@@ -92,13 +93,8 @@ public class BacktestServiceImpl implements BacktestService {
     /** error_message 截断上限 */
     private static final int MAX_ERROR_MSG_LEN = 1024;
 
-    /** 候选基准白名单（code→name） */
-    private static final List<Map<String, String>> BENCHMARK_WHITELIST = List.of(
-            Map.of("code", "000300.SH", "name", "沪深300"),
-            Map.of("code", "000905.SH", "name", "中证500"),
-            Map.of("code", "000016.SH", "name", "上证50"),
-            Map.of("code", "000852.SH", "name", "中证1000")
-    );
+    /** 候选基准白名单（code→name），统一由 {@link IndexConstants#BENCHMARK_WHITELIST} 管理 */
+    private static final List<Map<String, String>> BENCHMARK_WHITELIST = IndexConstants.BENCHMARK_WHITELIST;
 
     private final QuantBacktestMapper backtestMapper;
     private final QuantBacktestReportMapper reportMapper;

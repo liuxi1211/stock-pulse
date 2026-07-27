@@ -1,6 +1,7 @@
 package com.arthur.stock.service.impl;
 
 import com.arthur.stock.client.TushareClient;
+import com.arthur.stock.constant.IndexConstants;
 import com.arthur.stock.constant.InitStep;
 import com.arthur.stock.dto.governance.CheckLevel;
 import com.arthur.stock.dto.governance.DataCheckItem;
@@ -250,6 +251,41 @@ public class IndexWeightServiceImpl implements IndexWeightService, DataCheckable
                 if (zz1000 == null || zz1000 < 950 || zz1000 > 1050) {
                     countPassed = false;
                     sb.append("中证1000=").append(zz1000 == null ? "缺失" : zz1000).append(" ");
+                }
+
+                // 上证50: 45-55
+                Integer sz50 = countMap.get("000016.SH");
+                if (sz50 == null || sz50 < 45 || sz50 > 55) {
+                    countPassed = false;
+                    sb.append("上证50=").append(sz50 == null ? "缺失" : sz50).append(" ");
+                }
+
+                // 中证100: 90-110
+                Integer zz100 = countMap.get("000903.SH");
+                if (zz100 == null || zz100 < 90 || zz100 > 110) {
+                    countPassed = false;
+                    sb.append("中证100=").append(zz100 == null ? "缺失" : zz100).append(" ");
+                }
+
+                // 创业板50: 45-55
+                Integer cyb50 = countMap.get("399673.SZ");
+                if (cyb50 == null || cyb50 < 45 || cyb50 > 55) {
+                    countPassed = false;
+                    sb.append("创业板50=").append(cyb50 == null ? "缺失" : cyb50).append(" ");
+                }
+
+                // 科创50: 45-55
+                Integer kc50 = countMap.get("000688.SH");
+                if (kc50 == null || kc50 < 45 || kc50 > 55) {
+                    countPassed = false;
+                    sb.append("科创50=").append(kc50 == null ? "缺失" : kc50).append(" ");
+                }
+
+                // 上证180: 160-200
+                Integer sz180 = countMap.get("000010.SH");
+                if (sz180 == null || sz180 < 160 || sz180 > 200) {
+                    countPassed = false;
+                    sb.append("上证180=").append(sz180 == null ? "缺失" : sz180).append(" ");
                 }
 
                 items.add(DataCheckItem.builder()
