@@ -40,4 +40,13 @@ public interface DividendService {
      * @return 拉取到的分红送股数据列表
      */
     List<DividendDTO> fetchAndSaveDividendByRange(String tsCode, String startDate, String endDate);
+
+    /**
+     * 按公告日期范围全市场批量增量拉取分红送股（替代按 ts_code 逐只拉取的高效入口）。
+     *
+     * @param startDate 起始公告日 yyyyMMdd（含）
+     * @param endDate   结束公告日 yyyyMMdd（含）
+     * @return 区间内拉取并保存的记录总数
+     */
+    int fetchAndSaveByAnnDateRange(String startDate, String endDate);
 }

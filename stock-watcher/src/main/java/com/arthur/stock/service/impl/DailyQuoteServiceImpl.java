@@ -39,7 +39,10 @@ public class DailyQuoteServiceImpl implements DailyQuoteService, DataCheckable {
 
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("yyyyMMdd");
     private static final int PAGE_SIZE = 5000;
+    private static final int MAX_PAGES_PER_QUERY = 100;   // 分页安全上限
     private static final int BATCH_SIZE = 500;
+    /** A 股市场起始日期（1990-12-19 上交所开市），全量拉取的起始时间 */
+    private static final String FULL_START_DATE = "19901219";
 
     private final TushareClient tushareClient;
     private final DailyQuoteMapper dailyQuoteMapper;
@@ -91,7 +94,7 @@ public class DailyQuoteServiceImpl implements DailyQuoteService, DataCheckable {
         if (lastDate != null) {
             startDate = lastDate;
         } else {
-            startDate = LocalDate.now().minusYears(30).format(DATE_FMT);
+            startDate = FULL_START_DATE;
         }
 
         String endDate = LocalDate.now().format(DATE_FMT);
@@ -201,8 +204,15 @@ public class DailyQuoteServiceImpl implements DailyQuoteService, DataCheckable {
     private List<DailyQuoteDTO> fetchAllPages(DailyQueryDTO baseParam) {
         List<DailyQuoteDTO> allRows = new ArrayList<>();
         int offset = 0;
+        int pageNum = 0;
 
         while (true) {
+            pageNum++;
+            if (pageNum > MAX_PAGES_PER_QUERY) {
+                log.warn("[fetchAllPages] reached max pages ({}), stopping early. total fetched={}",
+                        MAX_PAGES_PER_QUERY, allRows.size());
+                break;
+            }
             DailyQueryDTO param = DailyQueryDTO.builder()
                     .tsCode(baseParam.getTsCode())
                     .tradeDate(baseParam.getTradeDate())
@@ -267,8 +277,16 @@ public class DailyQuoteServiceImpl implements DailyQuoteService, DataCheckable {
         List<DailyQuoteDTO> allRows = collectResult ? new ArrayList<>() : Collections.emptyList();
         int totalSaved = 0;
         int offset = 0;
+        int pageNum = 0;
 
         while (true) {
+            pageNum++;
+            if (pageNum > MAX_PAGES_PER_QUERY) {
+                log.warn("[{}] reached max pages ({}), stopping early. total saved={}",
+                        logKey, MAX_PAGES_PER_QUERY, totalSaved);
+                break;
+            }
+
             DailyQueryDTO param = DailyQueryDTO.builder()
                     .tsCode(baseParam.getTsCode())
                     .tradeDate(baseParam.getTradeDate())

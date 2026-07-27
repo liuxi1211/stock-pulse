@@ -54,6 +54,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.*;
+import java.util.function.Consumer;
 
 /**
  * Tushare REST API 客户端，封装所有 Tushare 接口调用。
@@ -89,7 +90,25 @@ public class TushareClient {
      * @return 股票基础信息列表
      */
     public List<StockBasicDTO> stockBasic(StockBasicQueryDTO param) {
+        return stockBasic(param, null, null);
+    }
+
+    /**
+     * 股票基础信息接口（支持分页）。
+     *
+     * @param param  查询参数，所有字段均为可选
+     * @param offset 偏移量（null 不传）
+     * @param limit  单页条数（null 不传）
+     * @return 股票基础信息列表
+     */
+    public List<StockBasicDTO> stockBasic(StockBasicQueryDTO param, Integer offset, Integer limit) {
         JSONObject params = buildStockBasicParams(param);
+        if (offset != null) {
+            params.put("offset", String.valueOf(offset));
+        }
+        if (limit != null) {
+            params.put("limit", String.valueOf(limit));
+        }
         return query(TushareApiEnum.STOCK_BASIC, params, StockBasicDTO.class);
     }
 
@@ -100,7 +119,25 @@ public class TushareClient {
      * @return 交易日历列表
      */
     public List<TradeCalDTO> tradeCal(TradeCalQueryDTO param) {
+        return tradeCal(param, null, null);
+    }
+
+    /**
+     * 交易日历接口（支持分页）。
+     *
+     * @param param  查询参数，所有字段均为可选
+     * @param offset 偏移量（null 不传）
+     * @param limit  单页条数（null 不传）
+     * @return 交易日历列表
+     */
+    public List<TradeCalDTO> tradeCal(TradeCalQueryDTO param, Integer offset, Integer limit) {
         JSONObject params = buildTradeCalParams(param);
+        if (offset != null) {
+            params.put("offset", String.valueOf(offset));
+        }
+        if (limit != null) {
+            params.put("limit", String.valueOf(limit));
+        }
         return query(TushareApiEnum.TRADE_CAL, params, TradeCalDTO.class);
     }
 
@@ -127,19 +164,39 @@ public class TushareClient {
     }
 
     /**
+     * 分红送股接口（按 ann_date 全市场查询）。
+     * <p>
+     * 仅传 ann_date 时拉取该公告日全市场分红送股记录，便于增量同步。
+     *
+     * @param annDate 公告日期 yyyyMMdd
+     * @return 分红送股数据列表
+     */
+    public List<DividendDTO> dividendByAnnDate(String annDate) {
+        JSONObject params = new JSONObject();
+        if (annDate != null) {
+            params.put("ann_date", annDate);
+        }
+        return query(TushareApiEnum.DIVIDEND, params, DividendDTO.class);
+    }
+
+    /**
      * 每日基本面接口（估值/换手率/市值）。
      *
      * @param tradeDate 交易日期 yyyyMMdd；与 tsCode 至少传一个
      * @param tsCode    股票代码，可空（按交易日拉全市场时传 tradeDate 即可）
+     * @param limit     单页条数（null 不传，全市场拉取时建议传以避免超限）
      * @return 每日基本面列表
      */
-    public List<DailyBasicDTO> dailyBasic(String tradeDate, String tsCode) {
+    public List<DailyBasicDTO> dailyBasic(String tradeDate, String tsCode, Integer limit) {
         JSONObject params = new JSONObject();
         if (tradeDate != null) {
             params.put("trade_date", tradeDate);
         }
         if (tsCode != null) {
             params.put("ts_code", tsCode);
+        }
+        if (limit != null) {
+            params.put("limit", String.valueOf(limit));
         }
         return query(TushareApiEnum.DAILY_BASIC, params, DailyBasicDTO.class);
     }
@@ -211,6 +268,22 @@ public class TushareClient {
     }
 
     /**
+     * 业绩预告接口（按 ann_date 全市场查询）。
+     * <p>
+     * 仅传 ann_date 时拉取该公告日全市场业绩预告记录，便于增量同步。
+     *
+     * @param annDate 公告日期 yyyyMMdd
+     * @return 业绩预告数据列表
+     */
+    public List<ForecastDTO> forecastByAnnDate(String annDate) {
+        JSONObject params = new JSONObject();
+        if (annDate != null) {
+            params.put("ann_date", annDate);
+        }
+        return query(TushareApiEnum.FORECAST, params, ForecastDTO.class);
+    }
+
+    /**
      * 业绩快报接口（doc_id=46）。
      *
      * @param param 查询参数，tsCode / annDate / startDate / endDate / period 均可选
@@ -218,6 +291,22 @@ public class TushareClient {
      */
     public List<ExpressDTO> express(ExpressQueryDTO param) {
         JSONObject params = buildExpressParams(param);
+        return query(TushareApiEnum.EXPRESS, params, ExpressDTO.class);
+    }
+
+    /**
+     * 业绩快报接口（按 ann_date 全市场查询）。
+     * <p>
+     * 仅传 ann_date 时拉取该公告日全市场业绩快报记录，便于增量同步。
+     *
+     * @param annDate 公告日期 yyyyMMdd
+     * @return 业绩快报数据列表
+     */
+    public List<ExpressDTO> expressByAnnDate(String annDate) {
+        JSONObject params = new JSONObject();
+        if (annDate != null) {
+            params.put("ann_date", annDate);
+        }
         return query(TushareApiEnum.EXPRESS, params, ExpressDTO.class);
     }
 
@@ -371,6 +460,21 @@ public class TushareClient {
      * @return 指数日线行情列表
      */
     public List<IndexDailyDO> fetchIndexDaily(String tsCode, String startDate, String endDate) {
+        return fetchIndexDaily(tsCode, startDate, endDate, null, null);
+    }
+
+    /**
+     * 指数日线行情接口（index_daily，支持分页）。
+     *
+     * @param tsCode    指数代码（如 000001.SH）
+     * @param startDate 起始交易日 yyyyMMdd（可空）
+     * @param endDate   结束交易日 yyyyMMdd（可空）
+     * @param offset    偏移量（null 不传）
+     * @param limit     单页条数（null 不传）
+     * @return 指数日线行情列表
+     */
+    public List<IndexDailyDO> fetchIndexDaily(String tsCode, String startDate, String endDate,
+                                              Integer offset, Integer limit) {
         JSONObject params = new JSONObject();
         if (tsCode != null) {
             params.put("ts_code", tsCode);
@@ -381,6 +485,12 @@ public class TushareClient {
         if (endDate != null) {
             params.put("end_date", endDate);
         }
+        if (offset != null) {
+            params.put("offset", String.valueOf(offset));
+        }
+        if (limit != null) {
+            params.put("limit", String.valueOf(limit));
+        }
         return query(TushareApiEnum.INDEX_DAILY, params, IndexDailyDO.class);
     }
 
@@ -389,15 +499,19 @@ public class TushareClient {
      *
      * @param tradeDate 交易日期 yyyyMMdd
      * @param tsCode    股票代码
+     * @param limit     单页条数（null 不传，全市场拉取时建议传以避免超限）
      * @return 个股资金流向列表
      */
-    public List<MoneyflowDTO> moneyflow(String tradeDate, String tsCode) {
+    public List<MoneyflowDTO> moneyflow(String tradeDate, String tsCode, Integer limit) {
         JSONObject params = new JSONObject();
         if (tradeDate != null) {
             params.put("trade_date", tradeDate);
         }
         if (tsCode != null) {
             params.put("ts_code", tsCode);
+        }
+        if (limit != null) {
+            params.put("limit", String.valueOf(limit));
         }
         return query(TushareApiEnum.MONEYFLOW, params, MoneyflowDTO.class);
     }
@@ -407,15 +521,19 @@ public class TushareClient {
      *
      * @param tradeDate 交易日期 yyyyMMdd
      * @param tsCode    股票代码
+     * @param limit     单页条数（null 不传，全市场拉取时建议传以避免超限）
      * @return 沪深港通持股明细列表
      */
-    public List<HkHoldDTO> hkHold(String tradeDate, String tsCode) {
+    public List<HkHoldDTO> hkHold(String tradeDate, String tsCode, Integer limit) {
         JSONObject params = new JSONObject();
         if (tradeDate != null) {
             params.put("trade_date", tradeDate);
         }
         if (tsCode != null) {
             params.put("ts_code", tsCode);
+        }
+        if (limit != null) {
+            params.put("limit", String.valueOf(limit));
         }
         return query(TushareApiEnum.HK_HOLD, params, HkHoldDTO.class);
     }
@@ -497,15 +615,19 @@ public class TushareClient {
      *
      * @param tradeDate 交易日期 yyyyMMdd
      * @param tsCode    股票代码
+     * @param limit     单页条数（null 不传，全市场拉取时建议传以避免超限）
      * @return 融资融券个股明细列表
      */
-    public List<MarginDetailDTO> marginDetail(String tradeDate, String tsCode) {
+    public List<MarginDetailDTO> marginDetail(String tradeDate, String tsCode, Integer limit) {
         JSONObject params = new JSONObject();
         if (tradeDate != null) {
             params.put("trade_date", tradeDate);
         }
         if (tsCode != null) {
             params.put("ts_code", tsCode);
+        }
+        if (limit != null) {
+            params.put("limit", String.valueOf(limit));
         }
         return query(TushareApiEnum.MARGIN_DETAIL, params, MarginDetailDTO.class);
     }
@@ -571,6 +693,40 @@ public class TushareClient {
             list.add(row.toJavaObject(clazz));
         }
         return list;
+    }
+
+    /**
+     * 统一回调式分页查询：自动 offset+=batchSize 循环，每页回调 handler 处理（如落库），
+     * 返回 < batchSize 时终止。强制 limit 上限 100000 校验 + MAX_PAGES 防护。
+     */
+    public <T> int queryWithPaging(TushareApiEnum api, JSONObject params, Class<T> clazz,
+                                  int batchSize, Consumer<List<T>> handler) {
+        final int MAX_PAGES = 100;
+        final int LIMIT_CEILING = 100_000;
+        if (batchSize <= 0 || batchSize > LIMIT_CEILING) {
+            throw new IllegalArgumentException("batchSize must be in (0, " + LIMIT_CEILING + "]");
+        }
+        int offset = 0;
+        int page = 0;
+        int total = 0;
+        while (page < MAX_PAGES) {
+            JSONObject pageParams = new JSONObject();
+            pageParams.putAll(params);   // shallow copy base params
+            pageParams.put("offset", offset);
+            pageParams.put("limit", batchSize);
+            List<T> rows = query(api, pageParams, clazz);
+            if (rows.isEmpty()) { break; }
+            handler.accept(rows);
+            total += rows.size();
+            if (rows.size() < batchSize) { break; }
+            offset += batchSize;
+            page++;
+        }
+        if (page >= MAX_PAGES) {
+            log.warn("queryWithPaging[{}] reached MAX_PAGES={}, total={}, possible truncation",
+                    api.getApiName(), MAX_PAGES, total);
+        }
+        return total;
     }
 
     /**

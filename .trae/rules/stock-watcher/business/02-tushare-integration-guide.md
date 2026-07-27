@@ -1,12 +1,12 @@
 # Tushare 接口对接完整指南
 
-> **面向 AI**：对接新 Tushare 接口时，按本指南的 11 个步骤依次执行。每一步都有可直接复制的代码模板。
+> **面向 AI**：对接新 Tushare 接口时，按本指南的 13 个步骤依次执行。每一步都有可直接复制的代码模板。
 > **目标**：新增一个 Tushare 接口（如 `daily_basic`、`income` 等），使其可以：
 > 1. 从 Tushare REST API 拉取数据
 > 2. 持久化到 SQLite
 > 3. 通过 REST API 供前端查询
 > 4. 支持定时任务每日更新
-> 5. 支持全量数据初始化
+> 5. 支持数据管控中心统一管理（数据校验 / 增量更新 / 全量重建 / 拉取日志）
 
 ---
 
@@ -23,17 +23,21 @@
     ↓
 ⑤ 数据库层           ← schema.sql + XxxDO + XxxMapper + XML
     ↓
-⑥ Service 层         ← XxxService 接口 + XxxServiceImpl 实现
+⑥ Service 层（基础）  ← XxxService 接口 + XxxServiceImpl 实现
     ↓
-⑦ Controller 层      ← REST 查询接口
+⑦ Service 层（校验）  ← 实现 DataCheckable 接口
     ↓
-⑧ 接入初始化流程     ← InitStep + DataInitServiceImpl
+⑧ Controller 层      ← REST 查询接口
     ↓
-⑨ 接入定时任务       ← DailyUpdateTask（每日增量）
+⑨ InitStep 注册      ← 表元数据注册（分组/更新频率/是否日线）
     ↓
-⑩ 配置 Mapper 扫描   ← 检查 Mapper 目录已有 @MapperScan
+⑩ 数据管控中心接入   ← DataInitService（增量/全量）+ 拉取日志
     ↓
-⑪ 测试验证           ← curl 验证 fetch + query
+⑪ 接入定时任务       ← DailyUpdateTask（每日增量）
+    ↓
+⑫ 配置 Mapper 扫描   ← 检查 Mapper 目录已有 @MapperScan
+    ↓
+⑬ 测试验证           ← curl 验证 fetch + query + 数据校验
 ```
 
 ---
@@ -370,7 +374,7 @@ public interface XxxMapper extends BaseMapper<XxxDO> {
 
 ---
 
-## Step 6：Service 层
+## Step 6：Service 层（基础功能）
 
 ### 6.1 Service 接口
 
@@ -561,7 +565,119 @@ public class XxxServiceImpl implements XxxService {
 
 ---
 
-## Step 7：Controller 层
+## Step 7：Service 层（数据校验）
+
+每张业务表的 Service 都必须实现 `DataCheckable` 接口，接入数据管控中心的统一校验体系。
+
+**接口定义**：`src/main/java/com/arthur/stock/service/DataCheckable.java`
+
+```java
+public interface DataCheckable {
+    /** 执行校验，返回所有检测项结果（含通过的和不通过的） */
+    DataCheckResult checkData();
+    /** 表代码，对应 InitStep.code */
+    String getTableCode();
+}
+```
+
+### 7.1 修改 Service 接口
+
+```java
+public interface XxxService extends DataCheckable {
+    // ... 原有方法不变 ...
+}
+```
+
+### 7.2 在 Service 实现类中添加校验方法
+
+```java
+@Override
+public String getTableCode() {
+    return "xxx";   // 与 InitStep.code 一致
+}
+
+@Override
+public DataCheckResult checkData() {
+    List<DataCheckItem> items = new ArrayList<>();
+
+    // 1. 查询总记录数
+    long total = xxxMapper.selectCount(null);
+    if (total == 0) {
+        items.add(DataCheckItem.builder()
+                .name("empty")
+                .displayName("空表检测")
+                .passed(false)
+                .level(CheckLevel.ERROR)
+                .message("表中无数据")
+                .build());
+        return DataCheckResult.builder()
+                .tableCode("xxx")
+                .tableName("xxx数据")
+                .totalRows(0)
+                .latestDate(null)
+                .items(items)
+                .build();
+    }
+
+    // 2. 查询最新日期
+    XxxDO latest = xxxMapper.selectOne(
+            new LambdaQueryWrapper<XxxDO>()
+                    .orderByDesc(XxxDO::getTradeDate)
+                    .last("LIMIT 1"));
+    String latestDate = latest != null ? latest.getTradeDate() : null;
+
+    // 3. 自定义检测项：价格逻辑检测（行情类表才需要，按需添加）
+    // 示例：抽样检查最新 100 条数据的价格逻辑
+    // List<XxxDO> recent = xxxMapper.selectList(
+    //         new LambdaQueryWrapper<XxxDO>()
+    //                 .orderByDesc(XxxDO::getTradeDate)
+    //                 .last("LIMIT 100"));
+    // boolean priceValid = recent.stream().allMatch(d ->
+    //         d.getHigh().compareTo(d.getLow()) >= 0
+    //                 && d.getHigh().compareTo(d.getOpen()) >= 0
+    //                 && d.getHigh().compareTo(d.getClose()) >= 0
+    //                 && d.getLow().compareTo(d.getOpen()) <= 0
+    //                 && d.getLow().compareTo(d.getClose()) <= 0);
+    // items.add(DataCheckItem.builder()
+    //         .name("price_logic")
+    //         .displayName("价格逻辑检测")
+    //         .passed(priceValid)
+    //         .level(CheckLevel.ERROR)
+    //         .message(priceValid ? "价格高低关系正常" : "存在价格逻辑异常数据")
+    //         .build());
+
+    // 4. 自定义检测项：数据完整性（财务类表可检查关键字段非空率）
+    // ...
+
+    // 5. 所有自定义检测通过后，添加一个通用的"自定义检测通过"项（可选）
+    items.add(DataCheckItem.builder()
+            .name("custom_check")
+            .displayName("自定义检测")
+            .passed(true)
+            .level(CheckLevel.WARN)
+            .message("所有自定义检测项通过")
+            .build());
+
+    return DataCheckResult.builder()
+            .tableCode("xxx")
+            .tableName("xxx数据")
+            .totalRows(total)
+            .latestDate(latestDate)
+            .items(items)
+            .build();
+}
+```
+
+### 7.3 注意事项
+
+- **自动发现**：Spring 会自动注入所有 `DataCheckable` 实现，无需手动注册到 `DataGovernanceService`
+- **通用检测项**：空表检测、行数变动检测、数据延迟检测等由 `DataGovernanceServiceImpl` 统一处理，Service 中**不需要重复实现**
+- **自定义检测项**：Service 的 `checkData()` 只返回业务相关的自定义检测项
+- **参考实现**：`DailyQuoteServiceImpl.checkData()` —— 日线行情的完整检测示例
+
+---
+
+## Step 8：Controller 层
 
 **位置**：`src/main/java/com/arthur/stock/controller/XxxController.java`
 
@@ -606,23 +722,140 @@ public class XxxController {
 
 ---
 
-## Step 8：接入初始化流程
+## Step 9：InitStep 表元数据注册
 
-### 8.1 InitStep 枚举追加
+在 `InitStep` 枚举中注册新表的元数据，这是接入数据管控中心的第一步。
 
 **文件**：`src/main/java/com/arthur/stock/constant/InitStep.java`
 
 ```java
-XXX("xxx", "xxx 数据", "xxx"),   // code, label, tableName
+/**
+ * xxx 数据
+ */
+XXX("xxx",                      // code：表代码（唯一标识，全小写下划线）
+    "xxx数据",                   // label：中文名（展示用）
+    "xxx",                       // tableName：数据库表名
+    TableGroup.MARKET,           // group：所属分组（BASIC/MARKET/FINANCE/EVENT/INDEX）
+    "每个交易日 16:00",          // updateFrequency：更新频率描述
+    "16:00",                     // expectedUpdateTime：期望更新时间点
+    true,                        // isDaily：是否为日线表（影响延迟检测）
+    "xxx"),                      // tushareApi：对应 Tushare 接口名
 ```
 
-### 8.2 DataInitServiceImpl 修改
+**各字段说明**：
+
+| 字段 | 说明 | 示例 |
+|------|------|------|
+| `code` | 表代码，全小写下划线，唯一标识 | `daily_quote` |
+| `label` | 表中文名，用于前端展示 | "日线行情" |
+| `tableName` | 数据库表名 | `daily_quote` |
+| `group` | 所属分组，`TableGroup` 枚举 | `TableGroup.MARKET` |
+| `updateFrequency` | 更新频率描述（展示用） | "每个交易日 16:00" |
+| `expectedUpdateTime` | 期望更新时间点（展示用） | "16:00" |
+| `isDaily` | 是否为日线表——**日线表会参与数据延迟检测** | `true` / `false` |
+| `tushareApi` | 对应 Tushare 接口名 | `daily` |
+
+**五大分组选择参考**：
+
+| 分组 | 适用场景 |
+|------|---------|
+| `BASIC` | 基础参考数据（股票列表、交易日历等） |
+| `MARKET` | 行情与交易数据（日线、复权、涨跌停、资金流等） |
+| `FINANCE` | 财务报表与指标（利润表、资产负债表、财务指标等） |
+| `EVENT` | 事件驱动类数据（分红、停复牌、龙虎榜、大宗交易等） |
+| `INDEX` | 指数、板块、互联互通（指数权重、行业分类、港股通、融资融券等） |
+
+---
+
+## Step 10：数据管控中心接入
+
+接入 `DataInitService`（统一更新入口）和 `DataPullLog`（拉取日志），使新表支持增量更新、全量重建、操作日志。
+
+### 10.1 DataInitService 接入
 
 **文件**：`src/main/java/com/arthur/stock/service/impl/DataInitServiceImpl.java`
 
-**修改 1**：`EXECUTION_ORDER` 列表中追加 `InitStep.XXX`（位置根据接口依赖顺序放，如放在 daily 之后）
+**修改 1**：注入 XxxService（如果还没有）：
 
-**修改 2**：`CREATE_TABLE_SQL` Map 中追加表结构：
+```java
+@RequiredArgsConstructor
+public class DataInitServiceImpl implements DataInitService, DataVerifyService {
+    // ... 其他注入 ...
+    private final XxxService xxxService;
+```
+
+**修改 2**：在增量更新 switch 中追加 case：
+
+```java
+case XXX -> {
+    updateStep("增量更新 xxx 数据");
+    xxxService.fetchAndSaveXxxAll();   // 或 per-stock 模式，根据实际接口特点选择
+}
+```
+
+**修改 3**：在全量重建 switch 中追加 case：
+
+```java
+case XXX -> {
+    updateStep("全量重建 xxx 数据");
+    xxxMapper.delete(null);  // 清空表
+    xxxService.fetchAndSaveXxxAll();
+}
+```
+
+**⚠️ 注意**：
+- per-stock 模式（如 daily、adj_factor）需要遍历股票列表逐只拉取
+- 一次性全量模式（如 stock_basic、trade_cal）直接调用全量拉取方法
+- 全量重建前**务空清空表**，避免旧数据残留
+
+### 10.2 拉取日志记录
+
+在定时任务或手动更新的入口处记录 `DataPullLog`，用于审计和问题排查。
+
+**参考模式**（以定时任务为例）：
+
+```java
+// 定时任务中
+String taskId = UUID.randomUUID().toString();
+DataPullLogDO log = DataPullLogDO.builder()
+        .taskId(taskId)
+        .tableCode("xxx")
+        .tableName("xxx数据")
+        .operationType(OperationTypeEnum.SCHEDULED.name())
+        .status(PullStatusEnum.RUNNING.name())
+        .startTime(LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")))
+        .operator("SYSTEM")
+        .build();
+dataPullLogMapper.insert(log);
+
+try {
+    // 执行拉取
+    List<XxxDTO> result = xxxService.fetchAndSaveByTradeDate(tradeDate);
+    
+    // 更新日志（成功）
+    log.setStatus(PullStatusEnum.SUCCESS.name());
+    log.setEndTime(LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
+    log.setTotalCount((long) result.size());
+    log.setSuccessCount((long) result.size());
+    log.setFailCount(0L);
+    dataPullLogMapper.updateById(log);
+} catch (Exception e) {
+    // 更新日志（失败）
+    log.setStatus(PullStatusEnum.FAILED.name());
+    log.setEndTime(LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
+    log.setErrorMessage(e.getMessage());
+    dataPullLogMapper.updateById(log);
+    throw e;
+}
+```
+
+**位置**：
+- DO：`src/main/java/com/arthur/stock/model/DataPullLogDO.java`
+- Mapper：`src/main/java/com/arthur/stock/mapper/DataPullLogMapper.java`
+
+### 10.3 建表 SQL（如果需要）
+
+如果新表需要通过数据管控中心动态建表（而不是 schema.sql），在 `DataInitServiceImpl` 的 `CREATE_TABLE_SQL` 中追加：
 
 ```java
 "xxx", "CREATE TABLE IF NOT EXISTS xxx ("
@@ -630,49 +863,9 @@ XXX("xxx", "xxx 数据", "xxx"),   // code, label, tableName
         + "PRIMARY KEY (ts_code, trade_date))",
 ```
 
-**修改 3**：`for` 循环的 switch 中追加 case：
-
-```java
-case XXX -> executeXxx(stocks);
-```
-
-**修改 4**：添加 `executeXxx` 方法：
-
-```java
-// 【模式 A】per-stock 拉取（如 daily、adj_factor、dividend）
-private void executeXxx(List<StockBasicDTO> stocks) {
-    updateStep("拉取 xxx 数据");
-    progressRef.updateAndGet(p -> p.toBuilder().totalStocks(stocks.size()).processedStocks(0).build());
-    for (int i = 0; i < stocks.size(); i++) {
-        String tsCode = stocks.get(i).getTsCode();
-        try {
-            xxxService.fetchAndSaveXxx(tsCode);
-        } catch (Exception e) {
-            log.warn("Failed to fetch xxx for {}: {}", tsCode, e.getMessage(), e);
-        }
-        reportProgress("拉取 xxx 数据", i + 1, stocks.size());
-    }
-}
-
-// 【模式 B】一次性全量拉取（如 stock_basic、trade_cal）
-private void executeXxx() {
-    updateStep("拉取 xxx 数据");
-    try {
-        xxxService.fetchAndSaveXxxAll();
-    } catch (Exception e) {
-        log.warn("Failed to fetch xxx: {}", e.getMessage(), e);
-    }
-}
-```
-
-**⚠️ 注意事项**：
-- 注入 `@RequiredArgsConstructor private final XxxService xxxService;`
-- `log.warn` 中 `e` 作为最后一个参数，确保异常堆栈能完整输出到日志
-- 如果新接口不需要 per-stock 拉取模式（如 stock_basic），写一个单独的 `fetchAndSaveXxxAll()` 方法
-
 ---
 
-## Step 9：接入定时任务
+## Step 11：接入定时任务
 
 **文件**：`src/main/java/com/arthur/stock/task/DailyUpdateTask.java`
 
@@ -689,11 +882,13 @@ try {
 }
 ```
 
-如果需要数据校验补漏（DailyUpdateTask 之外的 DataVerifyTask），参考 `verifyDailyQuotes` 的实现模式。
+**注意**：定时任务的更新操作建议写入 `DataPullLog`（操作类型 `SCHEDULED`，操作人 `SYSTEM`）。
+
+如果需要数据校验补漏（DailyUpdateTask 之外的专项校验任务），参考 `DataVerifyTask` 的实现模式。
 
 ---
 
-## Step 10：验证 Mapper 扫描（自动完成）
+## Step 12：验证 Mapper 扫描（自动完成）
 
 **文件**：`src/main/java/com/arthur/stock/config/MyBatisPlusConfig.java`
 
@@ -701,14 +896,15 @@ try {
 
 ---
 
-## Step 11：测试验证
+## Step 13：测试验证
 
-### 11.1 启动验证
+### 13.1 启动验证
 1. 启动应用，观察日志
 2. 检查 schema.sql 建表是否成功
 3. 检查 DTO 字段解析是否正确（看日志有没有解析异常）
+4. 检查 `DataCheckable` 自动注册是否成功（看启动日志有没有 bean 注入异常）
 
-### 11.2 手动测试
+### 13.2 基础功能测试
 
 ```bash
 # 单只股票拉取（触发 Tushare 请求 + 保存）
@@ -719,15 +915,34 @@ curl -X POST http://localhost:8080/api/xxx/fetch/date/20240115
 
 # 查询本地数据
 curl http://localhost:8080/api/xxx/000001.SZ
-
-# 全量初始化（异步执行，需要登录）
-curl -X POST "http://localhost:8080/api/tushare/data-init?steps=xxx"
-
-# 查询初始化进度
-curl http://localhost:8080/api/tushare/data-init/status
 ```
 
-### 11.3 常见问题排查
+### 13.3 数据管控中心测试
+
+```bash
+# 数据管控概览
+curl http://localhost:8080/api/data-governance/overview
+
+# 查询全部表状态（看新表是否在列表中）
+curl http://localhost:8080/api/data-governance/tables
+
+# 查询单表详情
+curl http://localhost:8080/api/data-governance/tables/xxx
+
+# 同步检测单表（验证 DataCheckable 是否工作）
+curl -X POST http://localhost:8080/api/data-governance/check/xxx
+
+# 增量更新单表
+curl -X POST http://localhost:8080/api/data-governance/tables/xxx/incremental-update
+
+# 全量重建单表
+curl -X POST http://localhost:8080/api/data-governance/tables/xxx/full-rebuild
+
+# 查询拉取日志
+curl "http://localhost:8080/api/data-governance/logs?tableCode=xxx"
+```
+
+### 13.4 常见问题排查
 
 | 问题 | 可能原因 | 解决方法 |
 |------|---------|---------|
@@ -736,6 +951,8 @@ curl http://localhost:8080/api/tushare/data-init/status
 | 限流超时 | permits-per-minute 配置过高或请求太频繁 | 调小限流配置；或在 Service 中添加重试逻辑 |
 | 批量保存失败 | schema.sql 字段名与 DO 字段不匹配 | 检查表字段名；注意 Java 侧写驼峰，DB 侧写下划线 |
 | SQLite 主键冲突 | 用了 INSERT OR REPLACE 但实际应 INSERT OR IGNORE | 增量更新用 `insertOrIgnoreBatch`，全量覆盖用 `insertOrReplaceBatch` |
+| 数据管控中心看不到新表 | `InitStep` 枚举未注册，或 `DataCheckable` 实现未被 Spring 扫描 | 检查 InitStep 是否有对应枚举值；检查 Service 是否加了 `@Service` 注解 |
+| 检测一直显示 UPDATING | 任务锁未释放，或 TaskProgressCache 有残留 | 等待 2 小时锁自动超时；或重启应用清空内存缓存 |
 
 ---
 
@@ -750,12 +967,13 @@ curl http://localhost:8080/api/tushare/data-init/status
 - [ ] `model/XxxDO.java` —— `@TableName("表名")` + 字段与 DB 列对应
 - [ ] `mapper/XxxMapper.java` —— `extends BaseMapper<XxxDO>` + `insertOrReplaceBatch` / `insertOrIgnoreBatch`
 - [ ] `resources/mapper/XxxMapper.xml` —— SQL 中 `#{item.tsCode}` 写 Java 驼峰字段名（OGNL）
-- [ ] `service/XxxService.java` —— 接口定义
-- [ ] `service/impl/XxxServiceImpl.java` —— `@Service @RequiredArgsConstructor @Slf4j`
+- [ ] `service/XxxService.java` —— 接口定义，**继承 `DataCheckable`**
+- [ ] `service/impl/XxxServiceImpl.java` —— `@Service @RequiredArgsConstructor @Slf4j`，实现 `checkData()` + `getTableCode()`
 - [ ] `controller/XxxController.java` —— REST 接口
-- [ ] `constant/InitStep.java` —— 新增初始化步骤（可选：如果支持全量初始化）
-- [ ] `service/impl/DataInitServiceImpl.java` —— `EXECUTION_ORDER` + `CREATE_TABLE_SQL` + `executeXxx` 方法（可选）
-- [ ] `task/DailyUpdateTask.java` —— 每日更新任务追加（可选：如果支持按日期拉取）
+- [ ] `constant/InitStep.java` —— 新增枚举值（8 个字段完整填写）
+- [ ] `service/impl/DataInitServiceImpl.java` —— 增量更新 + 全量重建 switch case
+- [ ] `task/DailyUpdateTask.java` —— 每日更新任务追加（如适用）
+- [ ] **数据治理测试**：数据管控中心列表可见、单表检测通过、增量更新可用
 - [ ] 手动测试：`curl` 验证 fetch + query
 
 ---

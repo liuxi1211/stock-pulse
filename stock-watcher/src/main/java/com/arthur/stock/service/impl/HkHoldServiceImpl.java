@@ -15,7 +15,7 @@ import com.google.common.collect.Lists;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
@@ -35,16 +35,18 @@ public class HkHoldServiceImpl implements HkHoldService, DataCheckable {
 
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("yyyyMMdd");
     private static final int BATCH_SIZE = 500;
+    /** 全市场单次拉取上限（沪深港通约 4000 行，预防性封顶） */
+    private static final int FULL_MARKET_LIMIT = 10000;
 
     private final TushareClient tushareClient;
     private final HkHoldMapper hkHoldMapper;
+    private final TransactionTemplate transactionTemplate;
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public int fetchAndSave(String tradeDate) {
         log.info("Fetching hk_hold for trade_date={}", tradeDate);
 
-        List<HkHoldDTO> dtos = tushareClient.hkHold(tradeDate, null);
+        List<HkHoldDTO> dtos = tushareClient.hkHold(tradeDate, null, FULL_MARKET_LIMIT);
         if (dtos.isEmpty()) {
             log.info("No hk_hold data returned for trade_date={}", tradeDate);
             return 0;
@@ -55,7 +57,10 @@ public class HkHoldServiceImpl implements HkHoldService, DataCheckable {
                 .filter(Objects::nonNull)
                 .collect(Collectors.toList());
 
-        saveBatch(entities);
+        transactionTemplate.execute(status -> {
+            saveBatch(entities);
+            return null;
+        });
         log.info("Saved {} hk_hold records for trade_date={}", entities.size(), tradeDate);
         return entities.size();
     }

@@ -41,11 +41,8 @@ public class AdjFactorServiceImpl implements AdjFactorService, DataCheckable {
 
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("yyyyMMdd");
     private static final int BATCH_SIZE = 500;
-    /** 每次按日期范围拉取的交易日数量（外层窗口）。
-     *  配合内层 offset/limit 分页使用：外层按 10 天切窗口控制单次查询的日期跨度，
-     *  内层在每个窗口内分页拉取（每页 5000 条），查一页存一页，
-     *  避免一次性加载大量数据导致内存溢出。 */
-    private static final int DATE_RANGE_CHUNK_SIZE = 10;
+    /** A 股市场起始日期（1990-12-19 上交所开市），全量拉取的起始时间 */
+    private static final String FULL_START_DATE = "19901219";
     /** Tushare adj_factor 单次最大返回行数（分页大小） */
     private static final int PAGE_SIZE = 5000;
     /** 单查询条件下最大分页页数（安全上限，防止无限循环） */
@@ -98,7 +95,7 @@ public class AdjFactorServiceImpl implements AdjFactorService, DataCheckable {
         if (lastDate != null) {
             startDate = lastDate;
         } else {
-            startDate = LocalDate.now().minusYears(30).format(DATE_FMT);
+            startDate = FULL_START_DATE;
         }
 
         String endDate = LocalDate.now().format(DATE_FMT);
@@ -133,69 +130,6 @@ public class AdjFactorServiceImpl implements AdjFactorService, DataCheckable {
         int totalSaved = fetchAndSavePaginated(param, "trade_date=" + tradeDate);
         log.info("Finished fetching adj_factor for trade_date={}, total saved {} records", tradeDate, totalSaved);
 
-        return totalSaved;
-    }
-
-    @Override
-    public int fetchAndSaveByDateRange(String startDate, String endDate) {
-        if (startDate == null || endDate == null || startDate.compareTo(endDate) > 0) {
-            log.warn("Invalid date range for adj_factor: start={}, end={}", startDate, endDate);
-            return 0;
-        }
-
-        // 获取日期范围内的所有交易日（用于按 10 天一个窗口分段）
-        // 用 SSE（上交所）交易日历即可，沪深交易所交易日基本一致
-        List<TradeCalDTO> tradeCals = tradeCalService.queryLocal(
-                "SSE", startDate, endDate, "1");
-        if (tradeCals == null || tradeCals.isEmpty()) {
-            log.info("No trade dates between {} and {} for adj_factor", startDate, endDate);
-            return 0;
-        }
-
-        // 按 trade_date 升序排列（确保分段正确）
-        List<String> tradeDates = tradeCals.stream()
-                .map(TradeCalDTO::getCalDate)
-                .sorted()
-                .toList();
-
-        int totalChunks = (tradeDates.size() + DATE_RANGE_CHUNK_SIZE - 1) / DATE_RANGE_CHUNK_SIZE;
-        log.info("Fetching adj_factor by date range: {} ~ {}, total {} trade days, " +
-                        "chunk size={}, total chunks={}, page size={}",
-                startDate, endDate, tradeDates.size(),
-                DATE_RANGE_CHUNK_SIZE, totalChunks, PAGE_SIZE);
-
-        int totalSaved = 0;
-        int chunkIndex = 0;
-        for (int i = 0; i < tradeDates.size(); i += DATE_RANGE_CHUNK_SIZE) {
-            int endIdx = Math.min(i + DATE_RANGE_CHUNK_SIZE, tradeDates.size());
-            String chunkStart = tradeDates.get(i);
-            String chunkEnd = tradeDates.get(endIdx - 1);
-            chunkIndex++;
-
-            log.info("[AdjFactor chunk {}/{}] fetching {} ~ {}",
-                    chunkIndex, totalChunks, chunkStart, chunkEnd);
-
-            AdjFactorQueryDTO param = AdjFactorQueryDTO.builder()
-                    .startDate(chunkStart)
-                    .endDate(chunkEnd)
-                    .build();
-
-            String logPrefix = String.format("chunk %d/%d (%s~%s)",
-                    chunkIndex, totalChunks, chunkStart, chunkEnd);
-
-            // 注意：此处不包裹事务。fetchAndSavePaginated 内部每页独立事务，
-            // 避免 Tushare API 调用（外部 HTTP）期间持有数据库连接，
-            // 防止连接被 MySQL/代理因空闲超时而断开。
-            int chunkSaved = fetchAndSavePaginated(param, logPrefix);
-
-            totalSaved += chunkSaved;
-
-            log.info("[AdjFactor chunk {}/{}] completed, saved {} records for {} ~ {}",
-                    chunkIndex, totalChunks, chunkSaved, chunkStart, chunkEnd);
-        }
-
-        log.info("AdjFactor date range fetch completed: {} ~ {}, total saved {} records",
-                startDate, endDate, totalSaved);
         return totalSaved;
     }
 

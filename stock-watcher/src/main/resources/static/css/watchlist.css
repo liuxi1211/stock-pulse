@@ -99,9 +99,15 @@
     gap: 6px;
     font-size: 13px;
     min-width: 0;
+    flex: 0 1 auto;
+}
+
+.wl-group-name > span:last-child,
+.wl-group-name-text {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    min-width: 0;
 }
 
 .wl-group-icon {

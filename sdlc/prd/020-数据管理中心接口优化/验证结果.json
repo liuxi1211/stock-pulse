@@ -1,0 +1,1807 @@
+{
+  "income": {
+    "api_name": "income",
+    "validate_time": "2026-07-27T17:52:13.348798",
+    "required_params_probe": {
+      "base_call_success": true,
+      "base_params": {
+        "ts_code": "000001.SZ",
+        "ann_date": "20240430",
+        "start_date": "20200101",
+        "end_date": "20241231",
+        "report_type": "1",
+        "comp_type": "1"
+      },
+      "base_rows": 0,
+      "required_params": [
+        "ts_code"
+      ],
+      "optional_params": [
+        "ann_date",
+        "start_date",
+        "end_date",
+        "report_type",
+        "comp_type"
+      ],
+      "param_details": {
+        "ts_code": {
+          "status": "required",
+          "error": "必填参数, ts_code",
+          "note": "移除后报错: 必填参数, ts_code"
+        },
+        "ann_date": {
+          "status": "optional",
+          "rows_without": 0,
+          "note": "移除后返回 0 条（基准 0 条）"
+        },
+        "start_date": {
+          "status": "optional",
+          "rows_without": 0,
+          "note": "移除后返回 0 条（基准 0 条）"
+        },
+        "end_date": {
+          "status": "optional",
+          "rows_without": 0,
+          "note": "移除后返回 0 条（基准 0 条）"
+        },
+        "report_type": {
+          "status": "optional",
+          "rows_without": 0,
+          "note": "移除后返回 0 条（基准 0 条）"
+        },
+        "comp_type": {
+          "status": "optional",
+          "rows_without": 0,
+          "note": "移除后返回 0 条（基准 0 条）"
+        }
+      }
+    },
+    "pagination_probe": {
+      "base_rows": 0,
+      "supports_paging": true,
+      "limit_works": true,
+      "truncation_suspected": false,
+      "details": {
+        "limit_test": {
+          "requested": 5,
+          "returned": 0,
+          "correct": true
+        }
+      },
+      "note": ""
+    },
+    "volume_estimate": {
+      "single_stock_5y": {
+        "rows": 28,
+        "params": {
+          "ts_code": "000001.SZ",
+          "start_date": "20200101",
+          "end_date": "20241231"
+        }
+      },
+      "single_stock_30y_estimated": {
+        "rows_estimated": 168,
+        "exceeds_10w": false,
+        "exceeds_5k": false
+      }
+    }
+  },
+  "balancesheet": {
+    "api_name": "balancesheet",
+    "validate_time": "2026-07-27T17:52:15.781890",
+    "required_params_probe": {
+      "base_call_success": true,
+      "base_params": {
+        "ts_code": "000001.SZ",
+        "ann_date": "20240430",
+        "start_date": "20200101",
+        "end_date": "20241231",
+        "report_type": "1",
+        "comp_type": "1"
+      },
+      "base_rows": 0,
+      "required_params": [
+        "ts_code"
+      ],
+      "optional_params": [
+        "ann_date",
+        "start_date",
+        "end_date",
+        "report_type",
+        "comp_type"
+      ],
+      "param_details": {
+        "ts_code": {
+          "status": "required",
+          "error": "必填参数, ts_code",
+          "note": "移除后报错: 必填参数, ts_code"
+        },
+        "ann_date": {
+          "status": "optional",
+          "rows_without": 0,
+          "note": "移除后返回 0 条（基准 0 条）"
+        },
+        "start_date": {
+          "status": "optional",
+          "rows_without": 0,
+          "note": "移除后返回 0 条（基准 0 条）"
+        },
+        "end_date": {
+          "status": "optional",
+          "rows_without": 0,
+          "note": "移除后返回 0 条（基准 0 条）"
+        },
+        "report_type": {
+          "status": "optional",
+          "rows_without": 0,
+          "note": "移除后返回 0 条（基准 0 条）"
+        },
+        "comp_type": {
+          "status": "optional",
+          "rows_without": 0,
+          "note": "移除后返回 0 条（基准 0 条）"
+        }
+      }
+    },
+    "pagination_probe": {
+      "base_rows": 0,
+      "supports_paging": true,
+      "limit_works": true,
+      "truncation_suspected": false,
+      "details": {
+        "limit_test": {
+          "requested": 5,
+          "returned": 0,
+          "correct": true
+        }
+      },
+      "note": ""
+    },
+    "volume_estimate": {
+      "single_stock_5y": {
+        "rows": 31,
+        "params": {
+          "ts_code": "000001.SZ",
+          "start_date": "20200101",
+          "end_date": "20241231"
+        }
+      },
+      "single_stock_30y_estimated": {
+        "rows_estimated": 186,
+        "exceeds_10w": false,
+        "exceeds_5k": false
+      }
+    }
+  },
+  "cashflow": {
+    "api_name": "cashflow",
+    "validate_time": "2026-07-27T17:52:18.126263",
+    "required_params_probe": {
+      "base_call_success": true,
+      "base_params": {
+        "ts_code": "000001.SZ",
+        "ann_date": "20240430",
+        "start_date": "20200101",
+        "end_date": "20241231",
+        "report_type": "1",
+        "comp_type": "1"
+      },
+      "base_rows": 0,
+      "required_params": [
+        "ts_code"
+      ],
+      "optional_params": [
+        "ann_date",
+        "start_date",
+        "end_date",
+        "report_type",
+        "comp_type"
+      ],
+      "param_details": {
+        "ts_code": {
+          "status": "required",
+          "error": "必填参数, ts_code",
+          "note": "移除后报错: 必填参数, ts_code"
+        },
+        "ann_date": {
+          "status": "optional",
+          "rows_without": 0,
+          "note": "移除后返回 0 条（基准 0 条）"
+        },
+        "start_date": {
+          "status": "optional",
+          "rows_without": 0,
+          "note": "移除后返回 0 条（基准 0 条）"
+        },
+        "end_date": {
+          "status": "optional",
+          "rows_without": 0,
+          "note": "移除后返回 0 条（基准 0 条）"
+        },
+        "report_type": {
+          "status": "optional",
+          "rows_without": 0,
+          "note": "移除后返回 0 条（基准 0 条）"
+        },
+        "comp_type": {
+          "status": "optional",
+          "rows_without": 0,
+          "note": "移除后返回 0 条（基准 0 条）"
+        }
+      }
+    },
+    "pagination_probe": {
+      "base_rows": 0,
+      "supports_paging": true,
+      "limit_works": true,
+      "truncation_suspected": false,
+      "details": {
+        "limit_test": {
+          "requested": 5,
+          "returned": 0,
+          "correct": true
+        }
+      },
+      "note": ""
+    },
+    "volume_estimate": {
+      "single_stock_5y": {
+        "rows": 27,
+        "params": {
+          "ts_code": "000001.SZ",
+          "start_date": "20200101",
+          "end_date": "20241231"
+        }
+      },
+      "single_stock_30y_estimated": {
+        "rows_estimated": 162,
+        "exceeds_10w": false,
+        "exceeds_5k": false
+      }
+    }
+  },
+  "forecast": {
+    "api_name": "forecast",
+    "validate_time": "2026-07-27T17:52:20.538546",
+    "required_params_probe": {
+      "base_call_success": true,
+      "base_params": {
+        "ts_code": "000001.SZ",
+        "ann_date": "20240430",
+        "start_date": "20200101",
+        "end_date": "20241231",
+        "period": "20231231",
+        "type": "1"
+      },
+      "base_rows": 0,
+      "required_params": [],
+      "optional_params": [
+        "ts_code",
+        "ann_date",
+        "start_date",
+        "end_date",
+        "period",
+        "type"
+      ],
+      "param_details": {
+        "ts_code": {
+          "status": "optional",
+          "rows_without": 0,
+          "note": "移除后返回 0 条（基准 0 条）"
+        },
+        "ann_date": {
+          "status": "optional",
+          "rows_without": 0,
+          "note": "移除后返回 0 条（基准 0 条）"
+        },
+        "start_date": {
+          "status": "optional",
+          "rows_without": 0,
+          "note": "移除后返回 0 条（基准 0 条）"
+        },
+        "end_date": {
+          "status": "optional",
+          "rows_without": 0,
+          "note": "移除后返回 0 条（基准 0 条）"
+        },
+        "period": {
+          "status": "optional",
+          "rows_without": 0,
+          "note": "移除后返回 0 条（基准 0 条）"
+        },
+        "type": {
+          "status": "optional",
+          "rows_without": 0,
+          "note": "移除后返回 0 条（基准 0 条）"
+        }
+      }
+    },
+    "pagination_probe": {
+      "base_rows": 0,
+      "supports_paging": true,
+      "limit_works": true,
+      "truncation_suspected": false,
+      "details": {
+        "limit_test": {
+          "requested": 5,
+          "returned": 0,
+          "correct": true
+        }
+      },
+      "note": ""
+    },
+    "volume_estimate": {
+      "single_stock_5y": {
+        "rows": 0,
+        "params": {
+          "ts_code": "000001.SZ",
+          "start_date": "20220101",
+          "end_date": "20241231"
+        }
+      }
+    }
+  },
+  "express": {
+    "api_name": "express",
+    "validate_time": "2026-07-27T17:52:22.851073",
+    "required_params_probe": {
+      "base_call_success": true,
+      "base_params": {
+        "ts_code": "000001.SZ",
+        "ann_date": "20240430",
+        "start_date": "20200101",
+        "end_date": "20241231",
+        "period": "20231231"
+      },
+      "base_rows": 0,
+      "required_params": [],
+      "optional_params": [
+        "ts_code",
+        "ann_date",
+        "start_date",
+        "end_date",
+        "period"
+      ],
+      "param_details": {
+        "ts_code": {
+          "status": "optional",
+          "rows_without": 0,
+          "note": "移除后返回 0 条（基准 0 条）"
+        },
+        "ann_date": {
+          "status": "optional",
+          "rows_without": 0,
+          "note": "移除后返回 0 条（基准 0 条）"
+        },
+        "start_date": {
+          "status": "optional",
+          "rows_without": 0,
+          "note": "移除后返回 0 条（基准 0 条）"
+        },
+        "end_date": {
+          "status": "optional",
+          "rows_without": 0,
+          "note": "移除后返回 0 条（基准 0 条）"
+        },
+        "period": {
+          "status": "optional",
+          "rows_without": 0,
+          "note": "移除后返回 0 条（基准 0 条）"
+        }
+      }
+    },
+    "pagination_probe": {
+      "base_rows": 0,
+      "supports_paging": true,
+      "limit_works": true,
+      "truncation_suspected": false,
+      "details": {
+        "limit_test": {
+          "requested": 5,
+          "returned": 0,
+          "correct": true
+        }
+      },
+      "note": ""
+    },
+    "volume_estimate": {
+      "single_stock_5y": {
+        "rows": 3,
+        "params": {
+          "ts_code": "000001.SZ",
+          "start_date": "20200101",
+          "end_date": "20241231"
+        }
+      },
+      "single_stock_30y_estimated": {
+        "rows_estimated": 18,
+        "exceeds_10w": false,
+        "exceeds_5k": false
+      }
+    }
+  },
+  "dividend": {
+    "api_name": "dividend",
+    "validate_time": "2026-07-27T17:52:25.003303",
+    "required_params_probe": {
+      "base_call_success": true,
+      "base_params": {
+        "ts_code": "000001.SZ",
+        "ann_date": "20240430",
+        "start_date": "20200101",
+        "end_date": "20241231"
+      },
+      "base_rows": 0,
+      "required_params": [],
+      "optional_params": [
+        "ts_code",
+        "ann_date",
+        "start_date",
+        "end_date",
+        "record_date",
+        "ex_date",
+        "imp_ann_date"
+      ],
+      "param_details": {
+        "ts_code": {
+          "status": "optional",
+          "rows_without": 0,
+          "note": "移除后返回 0 条（基准 0 条）"
+        },
+        "ann_date": {
+          "status": "optional",
+          "rows_without": 3,
+          "note": "移除后返回 3 条（基准 0 条）"
+        },
+        "start_date": {
+          "status": "optional",
+          "rows_without": 0,
+          "note": "移除后返回 0 条（基准 0 条）"
+        },
+        "end_date": {
+          "status": "optional",
+          "rows_without": 0,
+          "note": "移除后返回 0 条（基准 0 条）"
+        },
+        "record_date": {
+          "status": "skipped",
+          "note": "基准中无此参数"
+        },
+        "ex_date": {
+          "status": "skipped",
+          "note": "基准中无此参数"
+        },
+        "imp_ann_date": {
+          "status": "skipped",
+          "note": "基准中无此参数"
+        }
+      }
+    },
+    "pagination_probe": {
+      "base_rows": 0,
+      "supports_paging": true,
+      "limit_works": true,
+      "truncation_suspected": false,
+      "details": {
+        "limit_test": {
+          "requested": 5,
+          "returned": 0,
+          "correct": true
+        }
+      },
+      "note": ""
+    },
+    "volume_estimate": {
+      "single_stock_5y": {
+        "rows": 3,
+        "params": {
+          "ts_code": "000001.SZ",
+          "start_date": "20200101",
+          "end_date": "20241231"
+        }
+      },
+      "single_stock_30y_estimated": {
+        "rows_estimated": 18,
+        "exceeds_10w": false,
+        "exceeds_5k": false
+      }
+    }
+  },
+  "fina_indicator": {
+    "api_name": "fina_indicator",
+    "validate_time": "2026-07-27T17:52:26.878211",
+    "required_params_probe": {
+      "base_call_success": true,
+      "base_params": {
+        "ts_code": "000001.SZ",
+        "start_date": "20200101",
+        "end_date": "20241231",
+        "period": "20231231"
+      },
+      "base_rows": 1,
+      "required_params": [
+        "ts_code"
+      ],
+      "optional_params": [
+        "ann_date",
+        "start_date",
+        "end_date",
+        "period"
+      ],
+      "param_details": {
+        "ts_code": {
+          "status": "required",
+          "error": "必填参数, ts_code",
+          "note": "移除后报错: 必填参数, ts_code"
+        },
+        "ann_date": {
+          "status": "skipped",
+          "note": "基准中无此参数"
+        },
+        "start_date": {
+          "status": "optional",
+          "rows_without": 1,
+          "note": "移除后返回 1 条（基准 1 条）"
+        },
+        "end_date": {
+          "status": "optional",
+          "rows_without": 1,
+          "note": "移除后返回 1 条（基准 1 条）"
+        },
+        "period": {
+          "status": "optional",
+          "rows_without": 34,
+          "note": "移除后返回 34 条（基准 1 条）"
+        }
+      }
+    },
+    "pagination_probe": {
+      "base_rows": 1,
+      "supports_paging": true,
+      "limit_works": true,
+      "truncation_suspected": false,
+      "details": {
+        "limit_test": {
+          "requested": 1,
+          "returned": 1,
+          "correct": true
+        }
+      },
+      "note": ""
+    },
+    "volume_estimate": {
+      "single_stock_5y": {
+        "rows": 34,
+        "params": {
+          "ts_code": "000001.SZ",
+          "start_date": "20200101",
+          "end_date": "20241231"
+        }
+      },
+      "single_stock_30y_estimated": {
+        "rows_estimated": 204,
+        "exceeds_10w": false,
+        "exceeds_5k": false
+      }
+    }
+  },
+  "daily": {
+    "api_name": "daily",
+    "validate_time": "2026-07-27T17:52:28.770913",
+    "required_params_probe": {
+      "base_call_success": true,
+      "base_params": {
+        "ts_code": "000001.SZ",
+        "trade_date": "20240102",
+        "start_date": "20240101",
+        "end_date": "20241231"
+      },
+      "base_rows": 1,
+      "required_params": [],
+      "optional_params": [
+        "ts_code",
+        "trade_date",
+        "start_date",
+        "end_date"
+      ],
+      "param_details": {
+        "ts_code": {
+          "status": "optional",
+          "rows_without": 5329,
+          "note": "移除后返回 5329 条（基准 1 条）"
+        },
+        "trade_date": {
+          "status": "optional",
+          "rows_without": 242,
+          "note": "移除后返回 242 条（基准 1 条）"
+        },
+        "start_date": {
+          "status": "optional",
+          "rows_without": 1,
+          "note": "移除后返回 1 条（基准 1 条）"
+        },
+        "end_date": {
+          "status": "optional",
+          "rows_without": 1,
+          "note": "移除后返回 1 条（基准 1 条）"
+        }
+      }
+    },
+    "pagination_probe": {
+      "base_rows": 1,
+      "supports_paging": true,
+      "limit_works": true,
+      "truncation_suspected": false,
+      "details": {
+        "limit_test": {
+          "requested": 1,
+          "returned": 1,
+          "correct": true
+        }
+      },
+      "note": ""
+    },
+    "volume_estimate": {
+      "single_stock_5y": {
+        "rows": 242,
+        "params": {
+          "ts_code": "000001.SZ",
+          "start_date": "20240101",
+          "end_date": "20241231"
+        }
+      },
+      "single_stock_30y_estimated": {
+        "rows_estimated": 1452,
+        "exceeds_10w": false,
+        "exceeds_5k": false
+      }
+    }
+  },
+  "adj_factor": {
+    "api_name": "adj_factor",
+    "validate_time": "2026-07-27T17:52:30.854262",
+    "required_params_probe": {
+      "base_call_success": true,
+      "base_params": {
+        "ts_code": "000001.SZ",
+        "trade_date": "20240102",
+        "start_date": "20240101",
+        "end_date": "20241231"
+      },
+      "base_rows": 1,
+      "required_params": [],
+      "optional_params": [
+        "ts_code",
+        "trade_date",
+        "start_date",
+        "end_date"
+      ],
+      "param_details": {
+        "ts_code": {
+          "status": "optional",
+          "rows_without": 5364,
+          "note": "移除后返回 5364 条（基准 1 条）"
+        },
+        "trade_date": {
+          "status": "optional",
+          "rows_without": 242,
+          "note": "移除后返回 242 条（基准 1 条）"
+        },
+        "start_date": {
+          "status": "optional",
+          "rows_without": 1,
+          "note": "移除后返回 1 条（基准 1 条）"
+        },
+        "end_date": {
+          "status": "optional",
+          "rows_without": 1,
+          "note": "移除后返回 1 条（基准 1 条）"
+        }
+      }
+    },
+    "pagination_probe": {
+      "base_rows": 1,
+      "supports_paging": true,
+      "limit_works": true,
+      "truncation_suspected": false,
+      "details": {
+        "limit_test": {
+          "requested": 1,
+          "returned": 1,
+          "correct": true
+        }
+      },
+      "note": ""
+    },
+    "volume_estimate": {
+      "single_stock_5y": {
+        "rows": 242,
+        "params": {
+          "ts_code": "000001.SZ",
+          "start_date": "20240101",
+          "end_date": "20241231"
+        }
+      },
+      "single_stock_30y_estimated": {
+        "rows_estimated": 1452,
+        "exceeds_10w": false,
+        "exceeds_5k": false
+      }
+    }
+  },
+  "daily_basic": {
+    "api_name": "daily_basic",
+    "validate_time": "2026-07-27T17:52:32.817829",
+    "required_params_probe": {
+      "base_call_success": true,
+      "base_params": {
+        "ts_code": "000001.SZ",
+        "trade_date": "20240102"
+      },
+      "base_rows": 1,
+      "required_params": [],
+      "optional_params": [
+        "ts_code",
+        "trade_date",
+        "start_date",
+        "end_date"
+      ],
+      "param_details": {
+        "ts_code": {
+          "status": "optional",
+          "rows_without": 5329,
+          "note": "移除后返回 5329 条（基准 1 条）"
+        },
+        "trade_date": {
+          "status": "optional",
+          "rows_without": 6000,
+          "note": "移除后返回 6000 条（基准 1 条）"
+        },
+        "start_date": {
+          "status": "skipped",
+          "note": "基准中无此参数"
+        },
+        "end_date": {
+          "status": "skipped",
+          "note": "基准中无此参数"
+        }
+      }
+    },
+    "pagination_probe": {
+      "base_rows": 1,
+      "supports_paging": true,
+      "limit_works": true,
+      "truncation_suspected": false,
+      "details": {
+        "limit_test": {
+          "requested": 1,
+          "returned": 1,
+          "correct": true
+        }
+      },
+      "note": ""
+    },
+    "volume_estimate": {
+      "single_stock_5y": {
+        "rows": 242,
+        "params": {
+          "ts_code": "000001.SZ",
+          "start_date": "20240101",
+          "end_date": "20241231"
+        }
+      },
+      "single_stock_30y_estimated": {
+        "rows_estimated": 1452,
+        "exceeds_10w": false,
+        "exceeds_5k": false
+      }
+    }
+  },
+  "moneyflow": {
+    "api_name": "moneyflow",
+    "validate_time": "2026-07-27T17:52:34.879360",
+    "required_params_probe": {
+      "base_call_success": true,
+      "base_params": {
+        "ts_code": "000001.SZ",
+        "trade_date": "20240102"
+      },
+      "base_rows": 1,
+      "required_params": [],
+      "optional_params": [
+        "ts_code",
+        "trade_date",
+        "start_date",
+        "end_date"
+      ],
+      "param_details": {
+        "ts_code": {
+          "status": "optional",
+          "rows_without": 5088,
+          "note": "移除后返回 5088 条（基准 1 条）"
+        },
+        "trade_date": {
+          "status": "optional",
+          "rows_without": 3949,
+          "note": "移除后返回 3949 条（基准 1 条）"
+        },
+        "start_date": {
+          "status": "skipped",
+          "note": "基准中无此参数"
+        },
+        "end_date": {
+          "status": "skipped",
+          "note": "基准中无此参数"
+        }
+      }
+    },
+    "pagination_probe": {
+      "base_rows": 1,
+      "supports_paging": true,
+      "limit_works": true,
+      "truncation_suspected": false,
+      "details": {
+        "limit_test": {
+          "requested": 1,
+          "returned": 1,
+          "correct": true
+        }
+      },
+      "note": ""
+    },
+    "volume_estimate": {
+      "single_stock_5y": {
+        "rows": 242,
+        "params": {
+          "ts_code": "000001.SZ",
+          "start_date": "20240101",
+          "end_date": "20241231"
+        }
+      },
+      "single_stock_30y_estimated": {
+        "rows_estimated": 1452,
+        "exceeds_10w": false,
+        "exceeds_5k": false
+      }
+    }
+  },
+  "stk_limit": {
+    "api_name": "stk_limit",
+    "validate_time": "2026-07-27T17:52:36.978342",
+    "required_params_probe": {
+      "base_call_success": true,
+      "base_params": {
+        "ts_code": "000001.SZ",
+        "trade_date": "20240102",
+        "start_date": "20240101",
+        "end_date": "20241231"
+      },
+      "base_rows": 1,
+      "required_params": [],
+      "optional_params": [
+        "ts_code",
+        "trade_date",
+        "start_date",
+        "end_date"
+      ],
+      "param_details": {
+        "ts_code": {
+          "status": "optional",
+          "rows_without": 6716,
+          "note": "移除后返回 6716 条（基准 1 条）"
+        },
+        "trade_date": {
+          "status": "optional",
+          "rows_without": 242,
+          "note": "移除后返回 242 条（基准 1 条）"
+        },
+        "start_date": {
+          "status": "optional",
+          "rows_without": 1,
+          "note": "移除后返回 1 条（基准 1 条）"
+        },
+        "end_date": {
+          "status": "optional",
+          "rows_without": 1,
+          "note": "移除后返回 1 条（基准 1 条）"
+        }
+      }
+    },
+    "pagination_probe": {
+      "base_rows": 1,
+      "supports_paging": true,
+      "limit_works": true,
+      "truncation_suspected": false,
+      "details": {
+        "limit_test": {
+          "requested": 1,
+          "returned": 1,
+          "correct": true
+        }
+      },
+      "note": ""
+    },
+    "volume_estimate": {
+      "single_stock_5y": {
+        "rows": 242,
+        "params": {
+          "ts_code": "000001.SZ",
+          "start_date": "20240101",
+          "end_date": "20241231"
+        }
+      },
+      "single_stock_30y_estimated": {
+        "rows_estimated": 1452,
+        "exceeds_10w": false,
+        "exceeds_5k": false
+      }
+    }
+  },
+  "stock_basic": {
+    "api_name": "stock_basic",
+    "validate_time": "2026-07-27T17:52:38.970886",
+    "required_params_probe": {
+      "base_call_success": true,
+      "base_params": {
+        "ts_code": "000001.SZ",
+        "list_status": "L",
+        "exchange": "SSE"
+      },
+      "base_rows": 0,
+      "required_params": [],
+      "optional_params": [
+        "ts_code",
+        "list_status",
+        "exchange",
+        "market",
+        "is_hs"
+      ],
+      "param_details": {
+        "ts_code": {
+          "status": "optional",
+          "rows_without": 2310,
+          "note": "移除后返回 2310 条（基准 0 条）"
+        },
+        "list_status": {
+          "status": "optional",
+          "rows_without": 0,
+          "note": "移除后返回 0 条（基准 0 条）"
+        },
+        "exchange": {
+          "status": "optional",
+          "rows_without": 1,
+          "note": "移除后返回 1 条（基准 0 条）"
+        },
+        "market": {
+          "status": "skipped",
+          "note": "基准中无此参数"
+        },
+        "is_hs": {
+          "status": "skipped",
+          "note": "基准中无此参数"
+        }
+      }
+    },
+    "pagination_probe": {
+      "base_rows": 0,
+      "supports_paging": true,
+      "limit_works": true,
+      "truncation_suspected": false,
+      "details": {
+        "limit_test": {
+          "requested": 5,
+          "returned": 0,
+          "correct": true
+        }
+      },
+      "note": ""
+    },
+    "volume_estimate": {}
+  },
+  "trade_cal": {
+    "api_name": "trade_cal",
+    "validate_time": "2026-07-27T17:52:40.547107",
+    "required_params_probe": {
+      "base_call_success": true,
+      "base_params": {
+        "exchange": "SSE",
+        "start_date": "20200101",
+        "end_date": "20241231",
+        "is_open": "1"
+      },
+      "base_rows": 1212,
+      "required_params": [],
+      "optional_params": [
+        "exchange",
+        "start_date",
+        "end_date",
+        "is_open"
+      ],
+      "param_details": {
+        "exchange": {
+          "status": "optional",
+          "rows_without": 1212,
+          "note": "移除后返回 1212 条（基准 1212 条）"
+        },
+        "start_date": {
+          "status": "optional",
+          "rows_without": 8312,
+          "note": "移除后返回 8312 条（基准 1212 条）"
+        },
+        "end_date": {
+          "status": "optional",
+          "rows_without": 1697,
+          "note": "移除后返回 1697 条（基准 1212 条）"
+        },
+        "is_open": {
+          "status": "optional",
+          "rows_without": 1827,
+          "note": "移除后返回 1827 条（基准 1212 条）"
+        }
+      }
+    },
+    "pagination_probe": {
+      "base_rows": 1212,
+      "supports_paging": true,
+      "limit_works": true,
+      "truncation_suspected": false,
+      "details": {
+        "limit_test": {
+          "requested": 5,
+          "returned": 5,
+          "correct": true
+        },
+        "offset_test": {
+          "offset_value": 2,
+          "works": true,
+          "note": "offset 偏移正确"
+        }
+      },
+      "note": ""
+    },
+    "volume_estimate": {}
+  },
+  "namechange": {
+    "api_name": "namechange",
+    "validate_time": "2026-07-27T17:52:42.818318",
+    "required_params_probe": {
+      "base_call_success": true,
+      "base_params": {
+        "ts_code": "000001.SZ",
+        "start_date": "20000101",
+        "end_date": "20241231"
+      },
+      "base_rows": 3,
+      "required_params": [],
+      "optional_params": [
+        "ts_code",
+        "start_date",
+        "end_date"
+      ],
+      "param_details": {
+        "ts_code": {
+          "status": "optional",
+          "rows_without": 10000,
+          "note": "移除后返回 10000 条（基准 3 条）"
+        },
+        "start_date": {
+          "status": "optional",
+          "rows_without": 4,
+          "note": "移除后返回 4 条（基准 3 条）"
+        },
+        "end_date": {
+          "status": "optional",
+          "rows_without": 3,
+          "note": "移除后返回 3 条（基准 3 条）"
+        }
+      }
+    },
+    "pagination_probe": {
+      "base_rows": 3,
+      "supports_paging": true,
+      "limit_works": true,
+      "truncation_suspected": false,
+      "details": {
+        "limit_test": {
+          "requested": 1,
+          "returned": 1,
+          "correct": true
+        }
+      },
+      "note": ""
+    },
+    "volume_estimate": {
+      "single_stock_5y": {
+        "rows": 3,
+        "params": {
+          "ts_code": "000001.SZ",
+          "start_date": "20000101",
+          "end_date": "20241231"
+        }
+      },
+      "single_stock_30y_estimated": {
+        "rows_estimated": 18,
+        "exceeds_10w": false,
+        "exceeds_5k": false
+      }
+    }
+  },
+  "suspend_d": {
+    "api_name": "suspend_d",
+    "validate_time": "2026-07-27T17:52:44.689671",
+    "required_params_probe": {
+      "base_call_success": true,
+      "base_params": {
+        "ts_code": "000001.SZ",
+        "start_date": "20200101",
+        "end_date": "20241231",
+        "suspend_type": "S"
+      },
+      "base_rows": 0,
+      "required_params": [],
+      "optional_params": [
+        "ts_code",
+        "trade_date",
+        "start_date",
+        "end_date",
+        "suspend_type"
+      ],
+      "param_details": {
+        "ts_code": {
+          "status": "optional",
+          "rows_without": 5000,
+          "note": "移除后返回 5000 条（基准 0 条）"
+        },
+        "trade_date": {
+          "status": "skipped",
+          "note": "基准中无此参数"
+        },
+        "start_date": {
+          "status": "optional",
+          "rows_without": 213,
+          "note": "移除后返回 213 条（基准 0 条）"
+        },
+        "end_date": {
+          "status": "optional",
+          "rows_without": 0,
+          "note": "移除后返回 0 条（基准 0 条）"
+        },
+        "suspend_type": {
+          "status": "optional",
+          "rows_without": 0,
+          "note": "移除后返回 0 条（基准 0 条）"
+        }
+      }
+    },
+    "pagination_probe": {
+      "base_rows": 0,
+      "supports_paging": true,
+      "limit_works": true,
+      "truncation_suspected": false,
+      "details": {
+        "limit_test": {
+          "requested": 5,
+          "returned": 0,
+          "correct": true
+        }
+      },
+      "note": ""
+    },
+    "volume_estimate": {
+      "single_stock_5y": {
+        "rows": 0,
+        "params": {
+          "ts_code": "000001.SZ",
+          "start_date": "20200101",
+          "end_date": "20241231"
+        }
+      }
+    }
+  },
+  "index_daily": {
+    "api_name": "index_daily",
+    "validate_time": "2026-07-27T17:52:47.157447",
+    "required_params_probe": {
+      "base_call_success": true,
+      "base_params": {
+        "ts_code": "000300.SH",
+        "trade_date": "20240102",
+        "start_date": "20240101",
+        "end_date": "20241231"
+      },
+      "base_rows": 1,
+      "required_params": [],
+      "optional_params": [
+        "ts_code",
+        "trade_date",
+        "start_date",
+        "end_date"
+      ],
+      "param_details": {
+        "ts_code": {
+          "status": "optional",
+          "rows_without": 8000,
+          "note": "移除后返回 8000 条（基准 1 条）"
+        },
+        "trade_date": {
+          "status": "optional",
+          "rows_without": 242,
+          "note": "移除后返回 242 条（基准 1 条）"
+        },
+        "start_date": {
+          "status": "optional",
+          "rows_without": 1,
+          "note": "移除后返回 1 条（基准 1 条）"
+        },
+        "end_date": {
+          "status": "optional",
+          "rows_without": 1,
+          "note": "移除后返回 1 条（基准 1 条）"
+        }
+      }
+    },
+    "pagination_probe": {
+      "base_rows": 1,
+      "supports_paging": true,
+      "limit_works": true,
+      "truncation_suspected": false,
+      "details": {
+        "limit_test": {
+          "requested": 1,
+          "returned": 1,
+          "correct": true
+        }
+      },
+      "note": ""
+    },
+    "volume_estimate": {
+      "single_stock_5y": {
+        "rows": 242,
+        "params": {
+          "ts_code": "000300.SH",
+          "start_date": "20240101",
+          "end_date": "20241231"
+        }
+      },
+      "single_stock_30y_estimated": {
+        "rows_estimated": 1452,
+        "exceeds_10w": false,
+        "exceeds_5k": false
+      }
+    }
+  },
+  "index_weight": {
+    "api_name": "index_weight",
+    "validate_time": "2026-07-27T17:52:49.276624",
+    "required_params_probe": {
+      "base_call_success": true,
+      "base_params": {
+        "index_code": "000300.SH",
+        "ts_code": "000001.SZ",
+        "trade_date": "20240102"
+      },
+      "base_rows": 0,
+      "required_params": [],
+      "optional_params": [
+        "index_code",
+        "ts_code",
+        "trade_date",
+        "start_date",
+        "end_date"
+      ],
+      "param_details": {
+        "index_code": {
+          "status": "optional",
+          "rows_without": 1,
+          "note": "移除后返回 1 条（基准 0 条）"
+        },
+        "ts_code": {
+          "status": "optional",
+          "rows_without": 0,
+          "note": "移除后返回 0 条（基准 0 条）"
+        },
+        "trade_date": {
+          "status": "optional",
+          "rows_without": 255,
+          "note": "移除后返回 255 条（基准 0 条）"
+        },
+        "start_date": {
+          "status": "skipped",
+          "note": "基准中无此参数"
+        },
+        "end_date": {
+          "status": "skipped",
+          "note": "基准中无此参数"
+        }
+      }
+    },
+    "pagination_probe": {
+      "base_rows": 0,
+      "supports_paging": true,
+      "limit_works": true,
+      "truncation_suspected": false,
+      "details": {
+        "limit_test": {
+          "requested": 5,
+          "returned": 0,
+          "correct": true
+        }
+      },
+      "note": ""
+    },
+    "volume_estimate": {}
+  },
+  "index_member_all": {
+    "api_name": "index_member_all",
+    "validate_time": "2026-07-27T17:52:50.886795",
+    "required_params_probe": {
+      "base_call_success": true,
+      "base_params": {
+        "ts_code": "000001.SZ",
+        "index_code": "000300.SH",
+        "src": "SW2021"
+      },
+      "base_rows": 0,
+      "required_params": [],
+      "optional_params": [
+        "ts_code",
+        "index_code",
+        "src"
+      ],
+      "param_details": {
+        "ts_code": {
+          "status": "optional",
+          "rows_without": 0,
+          "note": "移除后返回 0 条（基准 0 条）"
+        },
+        "index_code": {
+          "status": "optional",
+          "rows_without": 0,
+          "note": "移除后返回 0 条（基准 0 条）"
+        },
+        "src": {
+          "status": "optional",
+          "rows_without": 1,
+          "note": "移除后返回 1 条（基准 0 条）"
+        }
+      }
+    },
+    "pagination_probe": {
+      "base_rows": 0,
+      "supports_paging": true,
+      "limit_works": true,
+      "truncation_suspected": false,
+      "details": {
+        "limit_test": {
+          "requested": 5,
+          "returned": 0,
+          "correct": true
+        }
+      },
+      "note": ""
+    },
+    "volume_estimate": {}
+  },
+  "hk_hold": {
+    "api_name": "hk_hold",
+    "validate_time": "2026-07-27T17:52:52.289108",
+    "required_params_probe": {
+      "base_call_success": true,
+      "base_params": {
+        "ts_code": "000001.SZ",
+        "trade_date": "20240102",
+        "exchange": "SH"
+      },
+      "base_rows": 0,
+      "required_params": [],
+      "optional_params": [
+        "ts_code",
+        "trade_date",
+        "start_date",
+        "end_date",
+        "exchange"
+      ],
+      "param_details": {
+        "ts_code": {
+          "status": "optional",
+          "rows_without": 1513,
+          "note": "移除后返回 1513 条（基准 0 条）"
+        },
+        "trade_date": {
+          "status": "optional",
+          "rows_without": 0,
+          "note": "移除后返回 0 条（基准 0 条）"
+        },
+        "start_date": {
+          "status": "skipped",
+          "note": "基准中无此参数"
+        },
+        "end_date": {
+          "status": "skipped",
+          "note": "基准中无此参数"
+        },
+        "exchange": {
+          "status": "optional",
+          "rows_without": 1,
+          "note": "移除后返回 1 条（基准 0 条）"
+        }
+      }
+    },
+    "pagination_probe": {
+      "base_rows": 0,
+      "supports_paging": true,
+      "limit_works": true,
+      "truncation_suspected": false,
+      "details": {
+        "limit_test": {
+          "requested": 5,
+          "returned": 0,
+          "correct": true
+        }
+      },
+      "note": ""
+    },
+    "volume_estimate": {
+      "single_stock_5y": {
+        "rows": 188,
+        "params": {
+          "ts_code": "000001.SZ",
+          "start_date": "20240101",
+          "end_date": "20241231"
+        }
+      },
+      "single_stock_30y_estimated": {
+        "rows_estimated": 1128,
+        "exceeds_10w": false,
+        "exceeds_5k": false
+      }
+    }
+  },
+  "top_list": {
+    "api_name": "top_list",
+    "validate_time": "2026-07-27T17:52:54.002493",
+    "required_params_probe": {
+      "base_call_success": true,
+      "base_params": {
+        "ts_code": "000001.SZ",
+        "trade_date": "20240102"
+      },
+      "base_rows": 0,
+      "required_params": [
+        "trade_date"
+      ],
+      "optional_params": [
+        "ts_code",
+        "start_date",
+        "end_date"
+      ],
+      "param_details": {
+        "ts_code": {
+          "status": "optional",
+          "rows_without": 64,
+          "note": "移除后返回 64 条（基准 0 条）"
+        },
+        "trade_date": {
+          "status": "required",
+          "error": "必填参数, trade_date",
+          "note": "移除后报错: 必填参数, trade_date"
+        },
+        "start_date": {
+          "status": "skipped",
+          "note": "基准中无此参数"
+        },
+        "end_date": {
+          "status": "skipped",
+          "note": "基准中无此参数"
+        }
+      }
+    },
+    "pagination_probe": {
+      "base_rows": 0,
+      "supports_paging": true,
+      "limit_works": true,
+      "truncation_suspected": false,
+      "details": {
+        "limit_test": {
+          "requested": 5,
+          "returned": 0,
+          "correct": true
+        }
+      },
+      "note": ""
+    },
+    "volume_estimate": {}
+  },
+  "top_inst": {
+    "api_name": "top_inst",
+    "validate_time": "2026-07-27T17:52:55.420039",
+    "required_params_probe": {
+      "base_call_success": true,
+      "base_params": {
+        "ts_code": "000001.SZ",
+        "trade_date": "20240102"
+      },
+      "base_rows": 0,
+      "required_params": [
+        "trade_date"
+      ],
+      "optional_params": [
+        "ts_code",
+        "start_date",
+        "end_date"
+      ],
+      "param_details": {
+        "ts_code": {
+          "status": "optional",
+          "rows_without": 740,
+          "note": "移除后返回 740 条（基准 0 条）"
+        },
+        "trade_date": {
+          "status": "required",
+          "error": "必填参数, trade_date",
+          "note": "移除后报错: 必填参数, trade_date"
+        },
+        "start_date": {
+          "status": "skipped",
+          "note": "基准中无此参数"
+        },
+        "end_date": {
+          "status": "skipped",
+          "note": "基准中无此参数"
+        }
+      }
+    },
+    "pagination_probe": {
+      "base_rows": 0,
+      "supports_paging": true,
+      "limit_works": true,
+      "truncation_suspected": false,
+      "details": {
+        "limit_test": {
+          "requested": 5,
+          "returned": 0,
+          "correct": true
+        }
+      },
+      "note": ""
+    },
+    "volume_estimate": {}
+  },
+  "block_trade": {
+    "api_name": "block_trade",
+    "validate_time": "2026-07-27T17:52:56.866921",
+    "required_params_probe": {
+      "base_call_success": true,
+      "base_params": {
+        "ts_code": "000001.SZ",
+        "trade_date": "20240102"
+      },
+      "base_rows": 0,
+      "required_params": [],
+      "optional_params": [
+        "ts_code",
+        "trade_date",
+        "start_date",
+        "end_date"
+      ],
+      "param_details": {
+        "ts_code": {
+          "status": "optional",
+          "rows_without": 124,
+          "note": "移除后返回 124 条（基准 0 条）"
+        },
+        "trade_date": {
+          "status": "optional",
+          "rows_without": 273,
+          "note": "移除后返回 273 条（基准 0 条）"
+        },
+        "start_date": {
+          "status": "skipped",
+          "note": "基准中无此参数"
+        },
+        "end_date": {
+          "status": "skipped",
+          "note": "基准中无此参数"
+        }
+      }
+    },
+    "pagination_probe": {
+      "base_rows": 0,
+      "supports_paging": true,
+      "limit_works": true,
+      "truncation_suspected": false,
+      "details": {
+        "limit_test": {
+          "requested": 5,
+          "returned": 0,
+          "correct": true
+        }
+      },
+      "note": ""
+    },
+    "volume_estimate": {
+      "single_stock_5y": {
+        "rows": 15,
+        "params": {
+          "ts_code": "000001.SZ",
+          "start_date": "20240101",
+          "end_date": "20241231"
+        }
+      },
+      "single_stock_30y_estimated": {
+        "rows_estimated": 90,
+        "exceeds_10w": false,
+        "exceeds_5k": false
+      }
+    }
+  },
+  "margin": {
+    "api_name": "margin",
+    "validate_time": "2026-07-27T17:52:58.270728",
+    "required_params_probe": {
+      "base_call_success": true,
+      "base_params": {
+        "trade_date": "20240102",
+        "exchange_id": "SH"
+      },
+      "base_rows": 0,
+      "required_params": [],
+      "optional_params": [
+        "trade_date",
+        "exchange_id"
+      ],
+      "param_details": {
+        "trade_date": {
+          "status": "optional",
+          "rows_without": 0,
+          "note": "移除后返回 0 条（基准 0 条）"
+        },
+        "exchange_id": {
+          "status": "optional",
+          "rows_without": 3,
+          "note": "移除后返回 3 条（基准 0 条）"
+        }
+      }
+    },
+    "pagination_probe": {
+      "base_rows": 0,
+      "supports_paging": true,
+      "limit_works": true,
+      "truncation_suspected": false,
+      "details": {
+        "limit_test": {
+          "requested": 5,
+          "returned": 0,
+          "correct": true
+        }
+      },
+      "note": ""
+    },
+    "volume_estimate": {
+      "single_date": {
+        "rows": 3,
+        "params": {
+          "trade_date": "20240430"
+        },
+        "exceeds_5k": false
+      }
+    }
+  },
+  "margin_detail": {
+    "api_name": "margin_detail",
+    "validate_time": "2026-07-27T17:52:59.675629",
+    "required_params_probe": {
+      "base_call_success": true,
+      "base_params": {
+        "ts_code": "000001.SZ",
+        "trade_date": "20240102"
+      },
+      "base_rows": 1,
+      "required_params": [],
+      "optional_params": [
+        "ts_code",
+        "trade_date",
+        "start_date",
+        "end_date"
+      ],
+      "param_details": {
+        "ts_code": {
+          "status": "optional",
+          "rows_without": 3841,
+          "note": "移除后返回 3841 条（基准 1 条）"
+        },
+        "trade_date": {
+          "status": "optional",
+          "rows_without": 3963,
+          "note": "移除后返回 3963 条（基准 1 条）"
+        },
+        "start_date": {
+          "status": "skipped",
+          "note": "基准中无此参数"
+        },
+        "end_date": {
+          "status": "skipped",
+          "note": "基准中无此参数"
+        }
+      }
+    },
+    "pagination_probe": {
+      "base_rows": 1,
+      "supports_paging": true,
+      "limit_works": true,
+      "truncation_suspected": false,
+      "details": {
+        "limit_test": {
+          "requested": 1,
+          "returned": 1,
+          "correct": true
+        }
+      },
+      "note": ""
+    },
+    "volume_estimate": {
+      "single_stock_5y": {
+        "rows": 242,
+        "params": {
+          "ts_code": "000001.SZ",
+          "start_date": "20240101",
+          "end_date": "20241231"
+        }
+      },
+      "single_stock_30y_estimated": {
+        "rows_estimated": 1452,
+        "exceeds_10w": false,
+        "exceeds_5k": false
+      }
+    }
+  },
+  "index_classify": {
+    "api_name": "index_classify",
+    "validate_time": "2026-07-27T17:53:01.460654",
+    "required_params_probe": {
+      "base_call_success": true,
+      "base_params": {
+        "src": "SW2021",
+        "level": "L1"
+      },
+      "base_rows": 31,
+      "required_params": [],
+      "optional_params": [
+        "src",
+        "level"
+      ],
+      "param_details": {
+        "src": {
+          "status": "optional",
+          "rows_without": 28,
+          "note": "移除后返回 28 条（基准 31 条）"
+        },
+        "level": {
+          "status": "optional",
+          "rows_without": 511,
+          "note": "移除后返回 511 条（基准 31 条）"
+        }
+      }
+    },
+    "pagination_probe": {
+      "base_rows": 31,
+      "supports_paging": true,
+      "limit_works": true,
+      "truncation_suspected": false,
+      "details": {
+        "limit_test": {
+          "requested": 5,
+          "returned": 5,
+          "correct": true
+        },
+        "offset_test": {
+          "offset_value": 2,
+          "works": true,
+          "note": "offset 偏移正确"
+        }
+      },
+      "note": ""
+    },
+    "volume_estimate": {}
+  }
+}

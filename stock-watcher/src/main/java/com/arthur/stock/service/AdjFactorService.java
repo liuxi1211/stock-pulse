@@ -57,17 +57,6 @@ public interface AdjFactorService {
     int fetchAndSaveByTradeDate(String tradeDate);
 
     /**
-     * 按日期范围拉取全市场复权因子并保存到数据库。
-     * 双层分页：外层按 10 个交易日为一个窗口分段，内层每个窗口内 offset/limit 分页拉取，
-     * 查一页存一页，避免一次性加载大量数据导致内存溢出。
-     *
-     * @param startDate 开始日期，格式 yyyyMMdd（含）
-     * @param endDate   结束日期，格式 yyyyMMdd（含）
-     * @return 实际保存的总记录数
-     */
-    int fetchAndSaveByDateRange(String startDate, String endDate);
-
-    /**
      * 从本地数据库查询指定股票的全部复权因子（按日期升序）
      *
      * @param tsCode 股票代码，如 000001.SZ

@@ -18,13 +18,17 @@ import com.google.common.collect.Lists;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Semaphore;
 import java.util.stream.Collectors;
 
 /**
@@ -38,12 +42,17 @@ public class BalancesheetServiceImpl implements BalancesheetService, DataCheckab
     private static final int BATCH_SIZE = 500;
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("yyyyMMdd");
 
+    /** I/O 密集型任务使用虚拟线程，避免占用 ForkJoinPool.commonPool */
+    private static final Executor IO_EXECUTOR = Executors.newVirtualThreadPerTaskExecutor();
+    /** 限流信号量：控制对 Tushare API 的并发请求数，避免触发限流 */
+    private static final Semaphore API_SEMAPHORE = new Semaphore(30);
+
     private final TushareClient tushareClient;
     private final BalancesheetMapper balancesheetMapper;
     private final StockBasicService stockBasicService;
+    private final TransactionTemplate transactionTemplate;
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public int fetchAndSaveBalancesheet(String tsCode, String startDate, String endDate) {
         log.info("拉取 balancesheet {} [{}~{}]", tsCode, startDate, endDate);
         BalancesheetQueryDTO param = BalancesheetQueryDTO.builder()
@@ -51,6 +60,7 @@ public class BalancesheetServiceImpl implements BalancesheetService, DataCheckab
                 .startDate(startDate)
                 .endDate(endDate)
                 .build();
+        // ⚠️ API 调用在事务外执行，避免限流等待时长时间占用数据库连接
         List<BalancesheetDTO> rows = tushareClient.balancesheet(param);
         if (rows == null || rows.isEmpty()) {
             log.info("balancesheet {} 无数据", tsCode);
@@ -68,7 +78,11 @@ public class BalancesheetServiceImpl implements BalancesheetService, DataCheckab
                 .values()
                 .stream()
                 .collect(Collectors.toList());
-        saveBatch(entities);
+        // 数据库写入才开启事务，尽量缩短连接持有时间
+        transactionTemplate.execute(status -> {
+            saveBatch(entities);
+            return null;
+        });
         log.info("balancesheet {} 保存 {} 条", tsCode, entities.size());
         return entities.size();
     }
@@ -81,17 +95,26 @@ public class BalancesheetServiceImpl implements BalancesheetService, DataCheckab
             return 0;
         }
         log.info("拉取 balancesheet [{}~{}], 共 {} 只股票", startDate, endDate, stocks.size());
-        int total = 0;
-        int batch = 0;
-        for (StockBasicDTO s : stocks) {
-            try {
-                total += fetchAndSaveBalancesheet(s.getTsCode(), startDate, endDate);
-                batch++;
-            } catch (Exception e) {
-                log.warn("balancesheet {} 拉取失败: {}", s.getTsCode(), e.getMessage());
-            }
-        }
-        log.info("balancesheet 拉取完成，{} 只股票成功，共 {} 条记录", batch, total);
+        List<CompletableFuture<Integer>> futures = stocks.stream()
+                .map(s -> CompletableFuture.supplyAsync(() -> {
+                    try {
+                        API_SEMAPHORE.acquire();
+                        return fetchAndSaveBalancesheet(s.getTsCode(), startDate, endDate);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        log.error("拉取 {} 被中断", s.getTsCode(), e);
+                        return 0;
+                    } catch (Exception e) {
+                        // 保持串行版的容错语义：单股失败不中断整体
+                        log.warn("balancesheet {} 拉取失败: {}", s.getTsCode(), e.getMessage());
+                        return 0;
+                    } finally {
+                        API_SEMAPHORE.release();
+                    }
+                }, IO_EXECUTOR))
+                .toList();
+        int total = futures.stream().mapToInt(CompletableFuture::join).sum();
+        log.info("balancesheet fetchAndSaveAllByRange 区间 {}~{} 并发拉取完成, 共 {} 条", startDate, endDate, total);
         return total;
     }
 

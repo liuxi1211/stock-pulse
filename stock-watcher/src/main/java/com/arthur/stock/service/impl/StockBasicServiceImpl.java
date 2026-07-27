@@ -17,6 +17,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import com.google.common.collect.Lists;
 
@@ -36,49 +37,72 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class StockBasicServiceImpl implements StockBasicService, DataCheckable {
 
-    private static final int BATCH_SIZE = 500;
+    private static final int DB_BATCH_SIZE = 500;
+    private static final int BATCH_SIZE = 5000;
+    private static final int MAX_PAGES = 10;
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("yyyyMMdd");
 
     private final TushareClient tushareClient;
     private final StockBasicMapper stockBasicMapper;
     private final StockCodeCache stockCodeCache;
+    private final TransactionTemplate transactionTemplate;
 
     /**
-     * 从Tushare获取全量股票基础信息（含上市/退市/暂停上市）并保存到本地数据库，已存在的记录会更新
+     * 从Tushare获取全量股票基础信息（含上市/退市/暂停上市）并保存到本地数据库，已存在的记录会更新。
+     * 采用分页拉取 + 流式持久化：每个 list_status 按 offset/limit 翻页，每页拉取后立即落库，避免单次超 5000 截断与全量内存堆积。
      */
     @Override
     public List<StockBasicDTO> fetchAndSaveStockBasic() {
         log.info("Fetching stock_basic (all statuses) from Tushare");
 
-        List<StockBasicDTO> allStocks = new ArrayList<>();
+        int total = 0;
+        List<StockBasicDTO> allFetched = new ArrayList<>();
         for (ListStatusEnum status : List.of(
                 ListStatusEnum.LISTED, ListStatusEnum.DELISTED, ListStatusEnum.SUSPENDED)) {
             try {
                 StockBasicQueryDTO param = StockBasicQueryDTO.builder()
                         .listStatus(status.getCode())
                         .build();
-                List<StockBasicDTO> stocks = tushareClient.stockBasic(param);
-                log.info("stock_basic list_status={} returned {} records", status.getCode(), stocks.size());
-                allStocks.addAll(stocks);
+                int offset = 0;
+                int page = 0;
+                while (true) {
+                    page++;
+                    if (page > MAX_PAGES) {
+                        log.warn("stock_basic list_status={} exceeded MAX_PAGES={}, total so far={}",
+                                status.getCode(), MAX_PAGES, total);
+                        break;
+                    }
+                    List<StockBasicDTO> stocks = tushareClient.stockBasic(param, offset, BATCH_SIZE);
+                    if (stocks == null || stocks.isEmpty()) {
+                        break;
+                    }
+                    List<StockBasicDO> entities = stocks.stream()
+                            .map(this::toEntity)
+                            .filter(Objects::nonNull)
+                            .collect(Collectors.toList());
+                    saveStocks(entities);
+                    allFetched.addAll(stocks);
+                    total += stocks.size();
+                    log.info("stock_basic list_status={} page={} offset={} fetched {} records (total={})",
+                            status.getCode(), page, offset, stocks.size(), total);
+                    if (stocks.size() < BATCH_SIZE) {
+                        break;
+                    }
+                    offset += BATCH_SIZE;
+                }
             } catch (Exception e) {
                 log.warn("Failed to fetch stock_basic for list_status={}: {}", status.getCode(), e.getMessage());
             }
         }
 
-        if (allStocks.isEmpty()) {
+        if (total == 0) {
             log.info("No stock_basic data returned");
-            return Collections.emptyList();
+            return allFetched;
         }
 
-        List<StockBasicDO> entities = allStocks.stream()
-                .map(this::toEntity)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toList());
-
-        saveStocks(entities);
         stockCodeCache.refresh();
-        log.info("Saved {} stock_basic records (all statuses)", entities.size());
-        return allStocks;
+        log.info("Saved {} stock_basic records (all statuses)", total);
+        return allFetched;
     }
 
     /**
@@ -150,11 +174,15 @@ public class StockBasicServiceImpl implements StockBasicService, DataCheckable {
 
     /**
      * 批量保存股票基础信息。先删除同 ts_code 已存在记录，再插入；跨方言通用。
+     * 整个 saveBatch 的 delete+insert 包裹在一个 TransactionTemplate 中，保证原子性。
      */
     private void saveStocks(List<StockBasicDO> stocks) {
-        Lists.partition(stocks, BATCH_SIZE).forEach(batch -> {
-            stockBasicMapper.deleteBatchByKeys(batch);
-            stockBasicMapper.insertBatch(batch);
+        transactionTemplate.execute(status -> {
+            Lists.partition(stocks, DB_BATCH_SIZE).forEach(batch -> {
+                stockBasicMapper.deleteBatchByKeys(batch);
+                stockBasicMapper.insertBatch(batch);
+            });
+            return null;
         });
     }
 

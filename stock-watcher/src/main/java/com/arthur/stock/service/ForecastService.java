@@ -41,4 +41,13 @@ public interface ForecastService {
      * @param tradeDate 交易日期 yyyyMMdd
      */
     ForecastDO selectLatestAnnouncedBefore(String tsCode, String tradeDate);
+
+    /**
+     * 按公告日 ann_date 全市场批量增量拉取业绩预告（替代按 ts_code 逐只拉取的高效入口）。
+     *
+     * @param startDate 起始公告日 yyyyMMdd（含）
+     * @param endDate   结束公告日 yyyyMMdd（含）
+     * @return 区间内拉取并保存的记录总数
+     */
+    int fetchAndSaveByAnnDateRange(String startDate, String endDate);
 }

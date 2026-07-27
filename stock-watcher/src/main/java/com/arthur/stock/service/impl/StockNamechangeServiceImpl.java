@@ -1,7 +1,9 @@
 package com.arthur.stock.service.impl;
 
+import com.alibaba.fastjson2.JSONObject;
 import com.arthur.stock.client.TushareClient;
 import com.arthur.stock.constant.InitStep;
+import com.arthur.stock.constant.TushareApiEnum;
 import com.arthur.stock.dto.governance.CheckLevel;
 import com.arthur.stock.dto.governance.DataCheckItem;
 import com.arthur.stock.dto.governance.DataCheckResult;
@@ -75,25 +77,35 @@ public class StockNamechangeServiceImpl implements StockNamechangeService, DataC
      * @return 落库记录数
      */
     private int fetchAndSavePagesStreaming(NamechangeQueryDTO baseParam) {
-        int total = 0;
-        int offset = 0;
-        while (true) {
-            List<NamechangeDTO> page = tushareClient.namechange(baseParam, offset, PAGE_SIZE);
-            if (page.isEmpty()) {
-                break;
-            }
-            // 流式落库：拉一页存一页，每页一个独立事务，避免全量累积到内存。
-            int saved = transactionTemplate.execute(status -> persistByBizKey(page));
-            total += saved;
-            log.info("stock_namechange page saved: offset={}, size={}, saved={}, total={}",
-                    offset, page.size(), saved, total);
-            if (page.size() < PAGE_SIZE) {
-                break;
-            }
-            offset += PAGE_SIZE;
+        // 构造查询参数：仅设非空字段（ts_code/start_date/end_date），与 TushareClient.namechange 口径一致。
+        JSONObject params = new JSONObject();
+        if (baseParam.getTsCode() != null) {
+            params.put("ts_code", baseParam.getTsCode());
         }
-        log.info("Saved {} stock_namechange records", total);
-        return total;
+        if (baseParam.getStartDate() != null) {
+            params.put("start_date", baseParam.getStartDate());
+        }
+        if (baseParam.getEndDate() != null) {
+            params.put("end_date", baseParam.getEndDate());
+        }
+
+        // 累计实际落库条数（persistByBizKey 会过滤掉 ts_code/start_date 为空的脏数据，
+        // 与原 while 循环语义一致，故返回 saved 而非 fetched）。
+        final int[] savedTotal = {0};
+        tushareClient.queryWithPaging(
+                TushareApiEnum.NAMECHANGE,
+                params,
+                NamechangeDTO.class,
+                PAGE_SIZE,
+                page -> {
+                    // 流式落库：拉一页存一页，每页一个独立事务，避免全量累积到内存。
+                    int saved = transactionTemplate.execute(status -> persistByBizKey(page));
+                    savedTotal[0] += saved;
+                    log.info("stock_namechange page saved: size={}, saved={}, total={}",
+                            page.size(), saved, savedTotal[0]);
+                });
+        log.info("Saved {} stock_namechange records", savedTotal[0]);
+        return savedTotal[0];
     }
 
     @Override

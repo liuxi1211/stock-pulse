@@ -14,7 +14,7 @@ import com.google.common.collect.Lists;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
@@ -33,22 +33,27 @@ import java.util.stream.Collectors;
 public class MoneyflowServiceImpl implements MoneyflowService, DataCheckable {
 
     private static final int BATCH_SIZE = 500;
+    /** 单次拉取 moneyflow 的最大条数（Tushare 单次返回上限），避免默认 limit 截断。 */
+    private static final int MONEYFLOW_FETCH_LIMIT = 10000;
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("yyyyMMdd");
 
     private final MoneyflowMapper moneyflowMapper;
     private final TushareClient tushareClient;
+    private final TransactionTemplate transactionTemplate;
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public int fetchAndSave(String tradeDate) {
         log.info("拉取 moneyflow tradeDate={}", tradeDate);
-        List<MoneyflowDTO> rows = tushareClient.moneyflow(tradeDate, null);
+        List<MoneyflowDTO> rows = tushareClient.moneyflow(tradeDate, null, MONEYFLOW_FETCH_LIMIT);
         if (rows == null || rows.isEmpty()) {
             log.info("moneyflow {} 无数据", tradeDate);
             return 0;
         }
         List<MoneyflowDO> entities = rows.stream().map(this::toEntity).filter(Objects::nonNull).collect(Collectors.toList());
-        saveBatch(entities);
+        transactionTemplate.execute(status -> {
+            saveBatch(entities);
+            return null;
+        });
         log.info("moneyflow {} 保存 {} 条", tradeDate, entities.size());
         return entities.size();
     }

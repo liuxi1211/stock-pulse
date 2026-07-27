@@ -24,9 +24,11 @@ import java.math.BigDecimal;
 public class IndexDailyDO {
 
     /** 指数代码，如 000001.SH */
+    @JSONField(name = "ts_code")
     private String tsCode;
 
     /** 交易日期，格式 yyyyMMdd */
+    @JSONField(name = "trade_date")
     private String tradeDate;
 
     /** 收盘价 */
@@ -42,6 +44,7 @@ public class IndexDailyDO {
     private BigDecimal low;
 
     /** 昨收价 */
+    @JSONField(name = "pre_close")
     private BigDecimal preClose;
 
     /** 涨跌额（DB 列名为 change，MySQL 中为保留字；Java 属性用 changeValue 规避歧义） */
@@ -50,6 +53,7 @@ public class IndexDailyDO {
     private BigDecimal changeValue;
 
     /** 涨跌幅（%） */
+    @JSONField(name = "pct_chg")
     private BigDecimal pctChg;
 
     /** 成交量（万手） */

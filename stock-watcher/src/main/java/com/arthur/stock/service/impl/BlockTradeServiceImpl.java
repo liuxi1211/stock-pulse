@@ -16,7 +16,7 @@ import com.google.common.collect.Lists;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -42,9 +42,9 @@ public class BlockTradeServiceImpl implements BlockTradeService, DataCheckable {
 
     private final TushareClient tushareClient;
     private final BlockTradeMapper blockTradeMapper;
+    private final TransactionTemplate transactionTemplate;
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public int fetchAndSave(String tradeDate) {
         log.info("Fetching block_trade for tradeDate={}", tradeDate);
         List<BlockTradeDTO> rows = tushareClient.blockTrade(tradeDate, null);
@@ -56,11 +56,14 @@ public class BlockTradeServiceImpl implements BlockTradeService, DataCheckable {
                 .map(this::toEntity)
                 .filter(e -> e != null)
                 .toList();
-        int count = 0;
-        for (List<BlockTradeDO> batch : Lists.partition(entities, BATCH_SIZE)) {
-            blockTradeMapper.deleteBatchByKeys(batch);
-            count += blockTradeMapper.insertBatch(batch);
-        }
+        int count = transactionTemplate.execute(status -> {
+            int cnt = 0;
+            for (List<BlockTradeDO> batch : Lists.partition(entities, BATCH_SIZE)) {
+                blockTradeMapper.deleteBatchByKeys(batch);
+                cnt += blockTradeMapper.insertBatch(batch);
+            }
+            return cnt;
+        });
         log.info("Saved {} block_trade records for {}", count, tradeDate);
         return count;
     }

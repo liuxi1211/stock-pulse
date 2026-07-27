@@ -14,6 +14,7 @@ import com.google.common.collect.Lists;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.Collections;
 import java.util.List;
@@ -30,11 +31,14 @@ import java.util.stream.Collectors;
 public class BasicDataServiceImpl implements BasicDataService {
 
     private static final int BATCH_SIZE = 500;
+    /** 单日全市场 daily_basic 行数约 5301，Tushare 默认 5000 会截断，故显式放大 limit。 */
+    private static final int FULL_MARKET_LIMIT = 10000;
 
     private final TushareClient tushareClient;
     private final DailyBasicMapper dailyBasicMapper;
     private final FinaIndicatorMapper finaIndicatorMapper;
     private final StockBasicService stockBasicService;
+    private final TransactionTemplate transactionTemplate;
 
     @Override
     public int fetchAndSaveDailyBasic(String tradeDate) {
@@ -43,7 +47,7 @@ public class BasicDataServiceImpl implements BasicDataService {
             return 0;
         }
         log.info("拉取 daily_basic tradeDate={}", tradeDate);
-        List<DailyBasicDTO> rows = tushareClient.dailyBasic(tradeDate, null);
+        List<DailyBasicDTO> rows = tushareClient.dailyBasic(tradeDate, null, FULL_MARKET_LIMIT);
         if (rows == null || rows.isEmpty()) {
             log.info("daily_basic tradeDate={} 无数据", tradeDate);
             return 0;
@@ -85,16 +89,22 @@ public class BasicDataServiceImpl implements BasicDataService {
     // ==================== 内部 ====================
 
     private void saveDailyBasic(List<DailyBasicDO> list) {
-        Lists.partition(list, BATCH_SIZE).forEach(batch -> {
-            dailyBasicMapper.deleteBatchByKeys(batch);
-            dailyBasicMapper.insertBatch(batch);
+        transactionTemplate.execute(status -> {
+            Lists.partition(list, BATCH_SIZE).forEach(batch -> {
+                dailyBasicMapper.deleteBatchByKeys(batch);
+                dailyBasicMapper.insertBatch(batch);
+            });
+            return null;
         });
     }
 
     private void saveFinaIndicator(List<FinaIndicatorDO> list) {
-        Lists.partition(list, BATCH_SIZE).forEach(batch -> {
-            finaIndicatorMapper.deleteBatchByKeys(batch);
-            finaIndicatorMapper.insertBatch(batch);
+        transactionTemplate.execute(status -> {
+            Lists.partition(list, BATCH_SIZE).forEach(batch -> {
+                finaIndicatorMapper.deleteBatchByKeys(batch);
+                finaIndicatorMapper.insertBatch(batch);
+            });
+            return null;
         });
     }
 

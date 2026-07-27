@@ -15,10 +15,12 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import com.google.common.collect.Lists;
 
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -31,9 +33,13 @@ import java.util.stream.Collectors;
 public class DividendServiceImpl implements DividendService, DataCheckable {
 
     private static final int BATCH_SIZE = 500;
+    private static final String DATE_FORMAT_PATTERN = "yyyyMMdd";
+    private static final DateTimeFormatter DATE_FORMATTER =
+            DateTimeFormatter.ofPattern(DATE_FORMAT_PATTERN);
 
     private final TushareClient tushareClient;
     private final DividendMapper dividendMapper;
+    private final TransactionTemplate transactionTemplate;
 
     @Override
     public List<DividendDTO> queryByTsCode(String tsCode) {
@@ -45,7 +51,6 @@ public class DividendServiceImpl implements DividendService, DataCheckable {
     }
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public List<DividendDTO> fetchAndSaveDividend(String tsCode) {
         log.info("Fetching dividend for {}", tsCode);
 
@@ -70,7 +75,6 @@ public class DividendServiceImpl implements DividendService, DataCheckable {
     }
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public List<DividendDTO> fetchAndSaveByAnnDate(String annDate) {
         log.info("Fetching dividend for ann_date={}", annDate);
 
@@ -95,7 +99,6 @@ public class DividendServiceImpl implements DividendService, DataCheckable {
     }
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public List<DividendDTO> fetchAndSaveDividendByRange(String tsCode, String startDate, String endDate) {
         log.info("Fetching dividend for {} [{}~{}]", tsCode, startDate, endDate);
 
@@ -119,6 +122,61 @@ public class DividendServiceImpl implements DividendService, DataCheckable {
         saveDividends(entities);
         log.info("Saved {} dividend records for {} [{}~{}]", entities.size(), tsCode, startDate, endDate);
         return dividends;
+    }
+
+    /**
+     * 按公告日期范围全市场批量拉取分红送股数据并保存。
+     * <p>
+     * 遍历 [startDate, endDate] 内每个公告日，调用全市场 ann_date 批量接口
+     * ({@link TushareClient#dividendByAnnDate(String)})。HTTP 在事务外，仅持久化
+     * （delete+insert）包裹在 {@link TransactionTemplate} 内（A-class）。
+     * 分红公告稀疏，多数公告日返回空，直接跳过；每个有数据的公告日独立提交一次。
+     * <p>
+     * 与 {@link #fetchAndSaveDividendByRange} 的 per-stock 增量路径互为补充：
+     * 该方法面向"按 ann_date 全市场批量"的增量/补数据场景，由调度层按需选用。
+     *
+     * @param startDate 起始公告日期（含，格式 yyyyMMdd）
+     * @param endDate   结束公告日期（含，格式 yyyyMMdd）
+     * @return 区间内拉取并保存的记录总数
+     */
+    @Override
+    public int fetchAndSaveByAnnDateRange(String startDate, String endDate) {
+        LocalDate start = LocalDate.parse(startDate, DATE_FORMATTER);
+        LocalDate end = LocalDate.parse(endDate, DATE_FORMATTER);
+        if (start.isAfter(end)) {
+            log.warn("dividend ann_date 增量拉取：startDate={} 晚于 endDate={}，跳过", startDate, endDate);
+            return 0;
+        }
+        log.info("Fetching dividend by ann_date range [{}~{}]", startDate, endDate);
+
+        int total = 0;
+        int hitDays = 0;
+        for (LocalDate date = start; !date.isAfter(end); date = date.plusDays(1)) {
+            String annDate = date.format(DATE_FORMATTER);
+            List<DividendDTO> dividends;
+            try {
+                // ⚠️ API 调用在事务外执行，避免限流等待时长时间占用数据库连接
+                dividends = tushareClient.dividendByAnnDate(annDate);
+            } catch (Exception e) {
+                log.warn("dividend ann_date={} 拉取失败: {}", annDate, e.getMessage());
+                continue;
+            }
+            if (dividends == null || dividends.isEmpty()) {
+                continue;
+            }
+            hitDays++;
+            List<DividendDO> entities = dividends.stream()
+                    .map(this::toEntity)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toList());
+            saveDividends(entities);
+            total += entities.size();
+            log.info("Saved {} dividend records for ann_date={}", entities.size(), annDate);
+        }
+
+        log.info("Fetched total {} dividend records for ann_date range [{}~{}], hit {} days",
+                total, startDate, endDate, hitDays);
+        return total;
     }
 
     private DividendDO toEntity(DividendDTO dto) {
@@ -165,11 +223,15 @@ public class DividendServiceImpl implements DividendService, DataCheckable {
 
     /**
      * 批量保存分红数据。先删除同唯一键（ts_code+end_date+ann_date）已存在记录，再插入；跨方言通用。
+     * 持久化（delete+insert）包裹在 {@link TransactionTemplate} 内，HTTP 已在事务外完成（A-class）。
      */
     private void saveDividends(List<DividendDO> dividends) {
-        Lists.partition(dividends, BATCH_SIZE).forEach(batch -> {
-            dividendMapper.deleteBatchByKeys(batch);
-            dividendMapper.insertBatch(batch);
+        transactionTemplate.execute(status -> {
+            Lists.partition(dividends, BATCH_SIZE).forEach(batch -> {
+                dividendMapper.deleteBatchByKeys(batch);
+                dividendMapper.insertBatch(batch);
+            });
+            return null;
         });
     }
 

@@ -17,7 +17,7 @@ import com.google.common.collect.Lists;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
@@ -50,9 +50,9 @@ public class TopListServiceImpl implements TopListService, DataCheckable {
     private final TushareClient tushareClient;
     private final TopListMapper topListMapper;
     private final TopInstMapper topInstMapper;
+    private final TransactionTemplate transactionTemplate;
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public int fetchAndSaveTopList(String tradeDate) {
         log.info("拉取 top_list tradeDate={}", tradeDate);
         List<TopListDTO> rows = tushareClient.topList(tradeDate, null);
@@ -61,13 +61,15 @@ public class TopListServiceImpl implements TopListService, DataCheckable {
             return 0;
         }
         List<TopListDO> entities = rows.stream().map(this::toEntity).filter(Objects::nonNull).collect(Collectors.toList());
-        saveBatchTopList(entities);
+        transactionTemplate.execute(status -> {
+            saveBatchTopList(entities);
+            return null;
+        });
         log.info("top_list {} 保存 {} 条", tradeDate, entities.size());
         return entities.size();
     }
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public int fetchAndSaveTopInst(String tradeDate) {
         log.info("拉取 top_inst tradeDate={}", tradeDate);
         List<TopInstDTO> rows = tushareClient.topInst(tradeDate, null);
@@ -76,7 +78,10 @@ public class TopListServiceImpl implements TopListService, DataCheckable {
             return 0;
         }
         List<TopInstDO> entities = rows.stream().map(this::toEntity).filter(Objects::nonNull).collect(Collectors.toList());
-        saveBatchTopInst(entities);
+        transactionTemplate.execute(status -> {
+            saveBatchTopInst(entities);
+            return null;
+        });
         log.info("top_inst {} 保存 {} 条", tradeDate, entities.size());
         return entities.size();
     }

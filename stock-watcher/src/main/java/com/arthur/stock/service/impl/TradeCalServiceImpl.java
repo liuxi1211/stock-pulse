@@ -19,12 +19,13 @@ import com.google.common.collect.Lists;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.time.temporal.IsoFields;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -44,19 +45,34 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class TradeCalServiceImpl implements TradeCalService, DataCheckable {
 
-    private static final int BATCH_SIZE = 500;
+    /** DB 批量操作分片大小（delete/insert/update 分批，控制单次 SQL 体积）。 */
+    private static final int DB_BATCH_SIZE = 500;
+
+    /** Tushare 分页拉取每页条数（trade_cal 单次返回上限，30 年约 11323 行需多页）。 */
+    private static final int BATCH_SIZE = 5000;
+
+    /** 分页拉取最大页数保护，超出即告警（防止异常死循环）。 */
+    private static final int MAX_PAGES = 10;
+
+    /** A 股交易所开市日，用于 completeness 校验的起始基准。 */
+    private static final LocalDate SSE_OPEN_DATE = LocalDate.of(1990, 12, 19);
+    private static final LocalDate SZSE_OPEN_DATE = LocalDate.of(1991, 7, 3);
 
     private final TushareClient tushareClient;
     private final TradeCalMapper tradeCalMapper;
+    private final TransactionTemplate transactionTemplate;
 
     /**
      * 从Tushare获取交易日历数据并保存到本地数据库，已存在的记录会更新。
      * <p>
-     * 整个流程（拉取→删除旧记录→插入新记录→预计算调仓标记）在一个事务内，
-     * 任何一步失败都会回滚，保证数据一致性。
+     * 三段式执行（互不共享事务）：
+     * <ol>
+     *   <li>HTTP 分页拉取（事务外）：Tushare trade_cal 单次返回有上限，30 年日历约 11323 行需分页。</li>
+     *   <li>落库（短事务）：按 exchange 分组先删后插。</li>
+     *   <li>预计算调仓标记（独立事务）：全表 select + 批量 update。</li>
+     * </ol>
      */
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public List<TradeCalDTO> fetchAndSaveTradeCal(String exchange, String startDate, String endDate) {
         log.info("Fetching trade_cal from Tushare: exchange={}, startDate={}, endDate={}", exchange, startDate, endDate);
 
@@ -65,7 +81,27 @@ public class TradeCalServiceImpl implements TradeCalService, DataCheckable {
                 .startDate(startDate)
                 .endDate(endDate)
                 .build();
-        List<TradeCalDTO> calendars = tushareClient.tradeCal(param);
+
+        // ① HTTP 分页拉取（事务外）
+        List<TradeCalDTO> calendars = new ArrayList<>();
+        int offset = 0;
+        boolean maybeTruncated = false;
+        for (int page = 0; page < MAX_PAGES; page++) {
+            List<TradeCalDTO> pageRows = tushareClient.tradeCal(param, offset, BATCH_SIZE);
+            if (pageRows == null || pageRows.isEmpty()) {
+                break;
+            }
+            calendars.addAll(pageRows);
+            if (pageRows.size() < BATCH_SIZE) {
+                break; // 末页，已取完
+            }
+            offset += BATCH_SIZE;
+            maybeTruncated = (page == MAX_PAGES - 1);
+        }
+        if (maybeTruncated) {
+            log.warn("trade_cal 达到 MAX_PAGES={} 上限，可能存在截断；exchange={}, {}~{}",
+                    MAX_PAGES, exchange, startDate, endDate);
+        }
 
         if (calendars.isEmpty()) {
             log.info("No trade_cal data returned");
@@ -78,11 +114,18 @@ public class TradeCalServiceImpl implements TradeCalService, DataCheckable {
                 .sorted(Comparator.comparing(TradeCalDO::getCalDate))
                 .collect(Collectors.toList());
 
-        saveCalendars(entities);
+        // ② 落库（短事务，HTTP 拉取已在外部完成）
+        transactionTemplate.execute(status -> {
+            saveCalendars(entities);
+            return null;
+        });
         log.info("Saved {} trade_cal records", entities.size());
 
-        // 同步后预计算 6 个调仓标记（周/月/季的 first/last），供 engine 调仓日判定使用。
-        computeAndSaveRebalanceFlags();
+        // ③ 预计算 6 个调仓标记（周/月/季的 first/last），独立事务，供 engine 调仓日判定使用。
+        transactionTemplate.execute(status -> {
+            computeAndSaveRebalanceFlags();
+            return null;
+        });
         return calendars;
     }
 
@@ -147,7 +190,7 @@ public class TradeCalServiceImpl implements TradeCalService, DataCheckable {
             ExchangeEnum exchange = entry.getKey();
             List<TradeCalDO> exCalendars = entry.getValue();
 
-            Lists.partition(exCalendars, BATCH_SIZE).forEach(batch -> {
+            Lists.partition(exCalendars, DB_BATCH_SIZE).forEach(batch -> {
                 List<String> calDates = batch.stream()
                         .map(TradeCalDO::getCalDate)
                         .filter(Objects::nonNull)
@@ -285,7 +328,7 @@ public class TradeCalServiceImpl implements TradeCalService, DataCheckable {
 
             // 批量 update（CASE WHEN 构造，跨方言通用）；分批降低单次 SQL 体积
             int updated = 0;
-            for (List<TradeCalDO> batch : Lists.partition(toUpdate, BATCH_SIZE)) {
+            for (List<TradeCalDO> batch : Lists.partition(toUpdate, DB_BATCH_SIZE)) {
                 updated += tradeCalMapper.updateRebalanceFlagsBatch(batch);
             }
             totalUpdated += updated;
@@ -342,44 +385,40 @@ public class TradeCalServiceImpl implements TradeCalService, DataCheckable {
         try {
             long totalRows = tradeCalMapper.selectCount(null);
             LocalDate today = LocalDate.now();
-
-            // Check 1: Calendar covers the latest expected trade date (ERROR)
             // 以每日 18:00 为界：18:00 前期望最新交易日为昨天，18:00 后期望为今天
-            TradeCalDO latest = tradeCalMapper.selectOne(
-                    new LambdaQueryWrapper<TradeCalDO>()
-                            .select(TradeCalDO::getCalDate)
-                            .orderByDesc(TradeCalDO::getCalDate)
-                            .last("LIMIT 1"));
-            String maxCalDate = latest != null ? latest.getCalDate() : null;
             LocalDateTime now = LocalDateTime.now();
-            LocalDate expectedDate = now.getHour() >= 18 ? today : today.minusDays(1);
-            String expectedCalDate = expectedDate.format(CAL_DATE_FMT);
-            boolean coveragePassed = maxCalDate != null && maxCalDate.compareTo(expectedCalDate) >= 0;
+            LocalDate expectedEndDate = now.getHour() >= 18 ? today : today.minusDays(1);
+            String expectedEndCalDate = expectedEndDate.format(CAL_DATE_FMT);
+
+            // Check 1: calendar completeness (ERROR)
+            // trade_cal 表应包含开市日至今的全部日历日（含周末/节假日，is_open=0 也有记录）。
+            // 按 exchange 分别比对预期天数与实际记录数，任一不一致即判失败。
+            long sseExpected = ChronoUnit.DAYS.between(SSE_OPEN_DATE, expectedEndDate) + 1;
+            long sseActual = tradeCalMapper.selectCount(
+                    new LambdaQueryWrapper<TradeCalDO>()
+                            .eq(TradeCalDO::getExchange, ExchangeEnum.SSE)
+                            .ge(TradeCalDO::getCalDate, SSE_OPEN_DATE.format(CAL_DATE_FMT))
+                            .le(TradeCalDO::getCalDate, expectedEndCalDate));
+            long szseExpected = ChronoUnit.DAYS.between(SZSE_OPEN_DATE, expectedEndDate) + 1;
+            long szseActual = tradeCalMapper.selectCount(
+                    new LambdaQueryWrapper<TradeCalDO>()
+                            .eq(TradeCalDO::getExchange, ExchangeEnum.SZSE)
+                            .ge(TradeCalDO::getCalDate, SZSE_OPEN_DATE.format(CAL_DATE_FMT))
+                            .le(TradeCalDO::getCalDate, expectedEndCalDate));
+            boolean completenessPassed = sseExpected == sseActual && szseExpected == szseActual;
             items.add(DataCheckItem.builder()
-                    .name("future_coverage")
-                    .displayName("最新交易日覆盖检测")
-                    .passed(coveragePassed)
+                    .name("calendar_completeness")
+                    .displayName("交易日历完整性")
+                    .passed(completenessPassed)
                     .level(CheckLevel.ERROR)
-                    .message(coveragePassed ? "通过，日历覆盖至 " + maxCalDate
-                            : "交易日历仅覆盖至 " + maxCalDate + "，未达到期望日期 " + expectedCalDate)
+                    .message(String.format("SSE 预期 %d / 实际 %d%s；SZSE 预期 %d / 实际 %d%s",
+                            sseExpected, sseActual,
+                            sseExpected == sseActual ? "" : "(差 " + Math.abs(sseExpected - sseActual) + ")",
+                            szseExpected, szseActual,
+                            szseExpected == szseActual ? "" : "(差 " + Math.abs(szseExpected - szseActual) + ")"))
                     .build());
 
-            // Check 2: Missing exchange (ERROR)
-            long sseCount = tradeCalMapper.selectCount(
-                    new LambdaQueryWrapper<TradeCalDO>().eq(TradeCalDO::getExchange, ExchangeEnum.SSE));
-            long szseCount = tradeCalMapper.selectCount(
-                    new LambdaQueryWrapper<TradeCalDO>().eq(TradeCalDO::getExchange, ExchangeEnum.SZSE));
-            boolean exchangePassed = sseCount > 0 && szseCount > 0;
-            items.add(DataCheckItem.builder()
-                    .name("exchange_coverage")
-                    .displayName("交易所覆盖检测")
-                    .passed(exchangePassed)
-                    .level(CheckLevel.ERROR)
-                    .message(exchangePassed ? "通过，SSE " + sseCount + " 条，SZSE " + szseCount + " 条"
-                            : "交易所覆盖缺失，SSE " + sseCount + " 条，SZSE " + szseCount + " 条")
-                    .build());
-
-            // Check 3: SSE/SZSE inconsistency last 30 days (WARN)
+            // Check 2: SSE/SZSE consistency last 30 days (WARN)
             String thirtyDaysAgo = today.minusDays(30).format(CAL_DATE_FMT);
             int inconsistency = tradeCalMapper.countSseSzseInconsistency(thirtyDaysAgo);
             items.add(DataCheckItem.builder()
@@ -391,7 +430,8 @@ public class TradeCalServiceImpl implements TradeCalService, DataCheckable {
                             : "最近 30 天沪深交易日不一致 " + inconsistency + " 天")
                     .build());
 
-            // Check 4: Weekend marked as trading day (ERROR)
+            // Check 3: weekend marked as trading day (ERROR)
+            // A 股从未在周六/周日开市（即使法定调休补班日也不开市），周末 is_open=1 属于明确数据故障。
             List<TradeCalDO> openDays = tradeCalMapper.selectList(
                     new LambdaQueryWrapper<TradeCalDO>().eq(TradeCalDO::getIsOpen, TradeDayStatusEnum.OPEN));
             int weekendCount = 0;

@@ -91,6 +91,57 @@ public class ForecastServiceImpl implements ForecastService, DataCheckable {
         return total;
     }
 
+    /**
+     * 按公告日 ann_date 全市场批量增量拉取业绩预告（替代按 ts_code 逐只拉取的高效入口）。
+     * <p>
+     * 遍历 [startDate, endDate] 区间内每个自然日，调用 {@link TushareClient#forecastByAnnDate(String)}
+     * 拉取该公告日全市场预告记录；空结果跳过，命中即按 A 类事务模式（TransactionTemplate 包裹 saveBatch）落库。
+     * <p>
+     * 入口定位：与 {@link #fetchAndSaveAllByRange} 互为补充——后者按 ts_code 逐只拉取（兼容历史 dispatch），
+     * 本方法按 ann_date 全市场拉取（增量同步推荐入口；预告稀疏，单日全市场远低于 5000 行截断阈值）。
+     *
+     * @param startDate 起始公告日 yyyyMMdd（含）
+     * @param endDate   结束公告日 yyyyMMdd（含）
+     * @return 区间内拉取并保存的记录总数
+     */
+    @Override
+    public int fetchAndSaveByAnnDateRange(String startDate, String endDate) {
+        LocalDate start = LocalDate.parse(startDate, DATE_FMT);
+        LocalDate end = LocalDate.parse(endDate, DATE_FMT);
+        if (start.isAfter(end)) {
+            log.warn("forecast ann_date 增量拉取：startDate={} 晚于 endDate={}，跳过", startDate, endDate);
+            return 0;
+        }
+        log.info("按 ann_date 增量拉取 forecast [{}~{}]", startDate, endDate);
+        int total = 0;
+        int hitDays = 0;
+        for (LocalDate d = start; !d.isAfter(end); d = d.plusDays(1)) {
+            String annDate = d.format(DATE_FMT);
+            List<ForecastDTO> rows;
+            try {
+                // ⚠️ API 调用在事务外执行，避免限流等待时长时间占用数据库连接
+                rows = tushareClient.forecastByAnnDate(annDate);
+            } catch (Exception e) {
+                log.warn("forecast ann_date={} 拉取失败: {}", annDate, e.getMessage());
+                continue;
+            }
+            if (rows == null || rows.isEmpty()) {
+                continue;
+            }
+            hitDays++;
+            List<ForecastDO> entities = rows.stream().map(this::toEntity).collect(Collectors.toList());
+            // 数据库写入才开启事务，尽量缩短连接持有时间
+            transactionTemplate.execute(status -> {
+                saveBatch(entities);
+                return null;
+            });
+            total += entities.size();
+            log.info("forecast ann_date={} 保存 {} 条", annDate, entities.size());
+        }
+        log.info("forecast ann_date 增量拉取完成，命中 {} 个公告日，共 {} 条记录", hitDays, total);
+        return total;
+    }
+
     @Override
     public List<ForecastDO> queryLocalByTsCode(String tsCode) {
         return forecastMapper.selectList(

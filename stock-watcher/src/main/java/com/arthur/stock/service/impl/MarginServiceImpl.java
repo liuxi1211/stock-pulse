@@ -17,7 +17,7 @@ import com.google.common.collect.Lists;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
@@ -39,6 +39,8 @@ import java.util.stream.Collectors;
 public class MarginServiceImpl implements MarginService, DataCheckable {
 
     private static final int BATCH_SIZE = 500;
+    /** 单日全市场 margin_detail 行数约 3880（临界），显式传 limit 提前规避随股票数增长超 5000 截断 */
+    private static final int FULL_MARKET_LIMIT = 10000;
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("yyyyMMdd");
 
     /** sortBy 白名单 */
@@ -49,9 +51,9 @@ public class MarginServiceImpl implements MarginService, DataCheckable {
     private final TushareClient tushareClient;
     private final MarginMapper marginMapper;
     private final MarginDetailMapper marginDetailMapper;
+    private final TransactionTemplate transactionTemplate;
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public int fetchAndSaveMargin(String tradeDate) {
         log.info("Fetching margin: tradeDate={}", tradeDate);
 
@@ -67,17 +69,16 @@ public class MarginServiceImpl implements MarginService, DataCheckable {
                 .filter(e -> e != null)
                 .collect(Collectors.toList());
 
-        int saved = persistMargin(entities);
+        int saved = transactionTemplate.execute(status -> persistMargin(entities));
         log.info("Saved {} margin records for tradeDate={}", saved, tradeDate);
         return saved;
     }
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public int fetchAndSaveMarginDetail(String tradeDate) {
         log.info("Fetching margin_detail: tradeDate={}", tradeDate);
 
-        List<MarginDetailDTO> rows = tushareClient.marginDetail(tradeDate, null);
+        List<MarginDetailDTO> rows = tushareClient.marginDetail(tradeDate, null, FULL_MARKET_LIMIT);
 
         if (rows == null || rows.isEmpty()) {
             log.info("No margin_detail data for tradeDate={}", tradeDate);
@@ -89,7 +90,7 @@ public class MarginServiceImpl implements MarginService, DataCheckable {
                 .filter(e -> e != null)
                 .collect(Collectors.toList());
 
-        int saved = persistMarginDetail(entities);
+        int saved = transactionTemplate.execute(status -> persistMarginDetail(entities));
         log.info("Saved {} margin_detail records for tradeDate={}", saved, tradeDate);
         return saved;
     }

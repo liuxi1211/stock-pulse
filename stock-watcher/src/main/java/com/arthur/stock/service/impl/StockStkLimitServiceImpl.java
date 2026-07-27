@@ -44,6 +44,9 @@ public class StockStkLimitServiceImpl implements StockStkLimitService, DataCheck
     /** stk_limit 分页大小（建议 ≤ 5000，避免接口截断） */
     private static final int PAGE_SIZE = 5000;
 
+    /** 分页安全上限 */
+    private static final int MAX_PAGES_PER_QUERY = 100;
+
     /** 批量写入批次大小 */
     private static final int BATCH_SIZE = 500;
 
@@ -56,7 +59,14 @@ public class StockStkLimitServiceImpl implements StockStkLimitService, DataCheck
         log.info("Fetching stock_stk_limit (paginated, size={})", PAGE_SIZE);
         int total = 0;
         int offset = 0;
+        int pageNum = 0;
         while (true) {
+            pageNum++;
+            if (pageNum > MAX_PAGES_PER_QUERY) {
+                log.warn("[stock_stk_limit] reached max pages ({}), stopping early. total saved={}",
+                        MAX_PAGES_PER_QUERY, total);
+                break;
+            }
             List<StkLimitDTO> page = tushareClient.stkLimit(
                     StkLimitQueryDTO.builder().build(), offset, PAGE_SIZE);
             if (page.isEmpty()) {

@@ -10,8 +10,6 @@ import com.arthur.stock.dto.tushare.StockBasicDTO;
 import com.arthur.stock.exception.BusinessException;
 import com.arthur.stock.exception.ErrorCode;
 import com.arthur.stock.mapper.DataPullLogMapper;
-import com.arthur.stock.mapper.DailyQuoteMapper;
-import com.arthur.stock.mapper.AdjFactorMapper;
 import com.arthur.stock.mapper.IndexDailyMapper;
 import com.arthur.stock.mapper.StockStkLimitMapper;
 import com.arthur.stock.mapper.DividendMapper;
@@ -61,6 +59,9 @@ public class DataInitServiceImpl implements DataInitService {
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("yyyyMMdd");
     private static final DateTimeFormatter DATETIME_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
+    /** A 股市场起始日期（1990-12-19 上交所开市），全量拉取的统一起始时间 */
+    private static final String FULL_START_DATE = "19901219";
+
     /** I/O 密集型任务使用虚拟线程，避免占用 ForkJoinPool.commonPool */
     private static final Executor IO_EXECUTOR = Executors.newVirtualThreadPerTaskExecutor();
 
@@ -70,9 +71,7 @@ public class DataInitServiceImpl implements DataInitService {
     private final IndexWeightService indexWeightService;
     private final SwIndustryService swIndustryService;
     private final DailyQuoteService dailyQuoteService;
-    private final DailyQuoteMapper dailyQuoteMapper;
     private final AdjFactorService adjFactorService;
-    private final AdjFactorMapper adjFactorMapper;
     private final IndexDailyMapper indexDailyMapper;
     private final StockStkLimitMapper stockStkLimitMapper;
     private final DividendMapper dividendMapper;
@@ -175,8 +174,14 @@ public class DataInitServiceImpl implements DataInitService {
         long startMs = System.currentTimeMillis();
         StepStats stats = StepStats.empty();
         try {
-            updateTaskRunning(taskId, "重建表: " + step.getLabel());
-            rebuildTable(step);
+            // 非 D 类日频快照表：全量重建前清空表（D 类逐日覆盖，不 truncate 防数据丢失）
+            if (!DAILY_SNAPSHOT_STEPS.contains(step)) {
+                List<String> tables = collectRebuildTables(step);
+                for (String table : tables) {
+                    jdbcTemplate.execute("TRUNCATE TABLE " + table);
+                    log.info("Truncated table: {}", table);
+                }
+            }
 
             updateTaskRunning(taskId, "全量拉取: " + step.getLabel());
             stats = executeSingleStep(step, taskId, true);
@@ -208,7 +213,7 @@ public class DataInitServiceImpl implements DataInitService {
 
     private StepStats executeSingleStep(InitStep step, String taskId, boolean isFull) {
         String today = LocalDate.now().format(DATE_FMT);
-        String fullStart = LocalDate.now().minusYears(30).format(DATE_FMT);
+        String fullStart = FULL_START_DATE;
         String indexWeightStart = LocalDate.now().minusYears(5).format(DATE_FMT);
 
         switch (step) {
@@ -275,7 +280,7 @@ public class DataInitServiceImpl implements DataInitService {
                 // 更名是稀疏事件（非每个交易日都有更名），按日期区间 + 分页 5000 一次性拉取，
                 // 替代按交易日逐日拉取（会产生大量空请求，受 Tushare 限流，耗时极长）
                 String maxDate = stockNamechangeMapper.selectMaxStartDate();
-                String startDate = maxDate != null ? maxDate : LocalDate.now().minusYears(30).format(DATE_FMT);
+                String startDate = maxDate != null ? maxDate : FULL_START_DATE;
                 stockNamechangeService.fetchAndSaveByRange(startDate, today);
                 return StepStats.single();
             }
@@ -287,7 +292,7 @@ public class DataInitServiceImpl implements DataInitService {
                 // 停复牌事件稀疏（非每个交易日都有事件），按日期区间 + 分页 5000 一次性拉取，
                 // 替代按交易日逐日拉取（会产生大量空请求，受 Tushare 限流，耗时极长）
                 String maxDate = stockSuspendDMapper.selectMaxTradeDate();
-                String startDate = maxDate != null ? maxDate : LocalDate.now().minusYears(30).format(DATE_FMT);
+                String startDate = maxDate != null ? maxDate : FULL_START_DATE;
                 stockSuspendDService.fetchAndSaveByRange(startDate, today);
                 return StepStats.single();
             }
@@ -299,7 +304,7 @@ public class DataInitServiceImpl implements DataInitService {
                 Map<String, String> lastDateMap = preloadLastDateMap(stockStkLimitMapper::selectLatestDatePerStock);
                 return executePerStockStep(step, taskId, tsCode ->
                         stockStkLimitService.fetchAndSaveByRange(tsCode,
-                                lastDateMap.getOrDefault(tsCode, LocalDate.now().minusYears(30).format(DATE_FMT)),
+                                lastDateMap.getOrDefault(tsCode, FULL_START_DATE),
                                 today));
             }
             case DIVIDEND -> {
@@ -310,38 +315,24 @@ public class DataInitServiceImpl implements DataInitService {
                 Map<String, String> lastAnnDateMap = preloadLastDateMap(dividendMapper::selectMaxAnnDatePerStock);
                 return executePerStockStep(step, taskId, tsCode ->
                         dividendService.fetchAndSaveDividendByRange(tsCode,
-                                lastAnnDateMap.getOrDefault(tsCode, LocalDate.now().minusYears(30).format(DATE_FMT)),
+                                lastAnnDateMap.getOrDefault(tsCode, FULL_START_DATE),
                                 today));
             }
             case DAILY -> {
-                Map<String, String> lastDateMap = isFull ? null : preloadLastDateMap(dailyQuoteMapper);
-                return executePerStockStep(step, taskId, tsCode ->
-                        dailyQuoteService.fetchAndSaveDailyQuotes(tsCode,
-                                lastDateMap != null ? lastDateMap.get(tsCode) : null));
+                // 按交易日迭代拉取全市场行情（每日约 5000 只股票，1-2 页完成），
+                // 替代原按股票逐一拉取（5000+ 次 API 调用）。
+                // 全量：从 19901219 起逐日拉取；增量：从全局 MAX(trade_date) 起逐日补充。
+                // 增量按日期查询 + upsert（先删后插），即使中途失败，下次仍从同一日期继续，不丢数据。
+                return executeDailySnapshotStep(step, taskId, isFull, FULL_START_DATE,
+                        date -> dailyQuoteService.fetchAndSaveByTradeDate(date));
             }
             case ADJ_FACTOR -> {
-                // 复权因子按日期范围批量拉取（10个交易日为一个窗口），替代原按股票逐一拉取
-                // 全市场 5000+ 只股票逐一拉取需 5000+ 次 API 调用，受 Tushare 限流极慢；
-                // 按日期范围拉取只需约 总交易日/10 次调用，性能提升数十倍。
-                String adjStart;
-                if (isFull) {
-                    adjStart = fullStart;
-                } else {
-                    String maxDate = adjFactorMapper.selectLatestTradeDate();
-                    if (maxDate == null) {
-                        adjStart = fullStart;
-                    } else {
-                        // 增量更新时起始日期往前回退 20 个自然日（约 14 个交易日，大于一个窗口 10 天）。
-                        // 原因：按日期窗口 + 倒序分页拉取时，窗口边界可能与本地最新日期对不齐，
-                        // 导致部分交易日数据遗漏。多回退一个窗口以上，配合 upsert（先删后插）语义，
-                        // 重复拉取无副作用，确保不丢数据。
-                        adjStart = LocalDate.parse(maxDate, DATE_FMT)
-                                .minusDays(20)
-                                .format(DATE_FMT);
-                    }
-                }
-                int total = adjFactorService.fetchAndSaveByDateRange(adjStart, today);
-                return new StepStats(1, total > 0 ? 1 : 0, total > 0 ? 0 : 1);
+                // 按交易日迭代拉取全市场复权因子（每日约 5000 只股票，1-2 页完成），
+                // 替代原按 10 天窗口范围拉取。
+                // 全量：从 19901219 起逐日拉取；增量：从全局 MAX(trade_date) 起逐日补充。
+                // 按日期查询 + upsert（先删后插），即使中途失败，下次仍从同一日期继续，不丢数据。
+                return executeDailySnapshotStep(step, taskId, isFull, FULL_START_DATE,
+                        date -> adjFactorService.fetchAndSaveByTradeDate(date));
             }
             case INCOME -> {
                 if (isFull) {
@@ -658,31 +649,14 @@ public class DataInitServiceImpl implements DataInitService {
         taskProgressCache.putProgress(taskId, progress);
     }
 
-    private void rebuildTable(InitStep step) {
-        // D 类日频快照表不 truncate，改为逐日拉取覆盖（防止数据丢失）
-        if (DAILY_SNAPSHOT_STEPS.contains(step)) {
-            log.info("Skipping truncate for daily snapshot table: {}", step.getTableName());
-            return;
-        }
-        String table = step.getTableName();
-        truncateTable(table);
+    /** 全量重建需要处理的表列表（SW_INDUSTRY 额外包含成员表） */
+    private List<String> collectRebuildTables(InitStep step) {
+        List<String> tables = new ArrayList<>();
+        tables.add(step.getTableName());
         if (step == InitStep.SW_INDUSTRY) {
-            truncateTable("sw_industry_member");
+            tables.add("sw_industry_member");
         }
-    }
-
-    private void truncateTable(String table) {
-        if ("sqlite".equalsIgnoreCase(dbType)) {
-            jdbcTemplate.execute("DELETE FROM " + table);
-            try {
-                jdbcTemplate.execute("DELETE FROM sqlite_sequence WHERE name = '" + table + "'");
-            } catch (Exception e) {
-                log.debug("sqlite_sequence not updated for {}: {}", table, e.getMessage());
-            }
-        } else {
-            jdbcTemplate.execute("TRUNCATE TABLE " + table);
-        }
-        log.info("Truncated table: {}", table);
+        return tables;
     }
 
     private List<StockBasicDTO> resolveStockListForSingleStep() {
@@ -721,30 +695,36 @@ public class DataInitServiceImpl implements DataInitService {
         return result;
     }
 
-    /**
-     * 适配 DailyQuoteMapper 的 preloadLastDateMap 重载
-     */
-    private Map<String, String> preloadLastDateMap(DailyQuoteMapper mapper) {
-        return preloadLastDateMap(mapper::selectLatestDatePerStock);
-    }
-
-    /**
-     * 适配 AdjFactorMapper 的 preloadLastDateMap 重载
-     */
-    private Map<String, String> preloadLastDateMap(AdjFactorMapper mapper) {
-        return preloadLastDateMap(mapper::selectLatestDatePerStock);
-    }
-
     /** D 类日频快照表的日期范围补全：从 MAX(trade_date) 或回溯期开始，逐日拉取 */
     private StepStats executeDailySnapshotStep(InitStep step, String taskId, boolean isFull,
+                                               java.util.function.Consumer<String> fetchFn) {
+        return executeDailySnapshotStep(step, taskId, isFull,
+                LocalDate.now().minusYears(3).format(DATE_FMT), fetchFn);
+    }
+
+    /**
+     * D 类日频快照表的日期范围补全（自定义全量起始日期）。
+     * <p>
+     * 全量更新使用传入的 {@code fullStartDate} 作为起始日期（如日线行情从 19901219 起）；
+     * 增量更新从 {@code MAX(trade_date)} 起逐日补充。按日期查询 + upsert 语义，
+     * 即使中途失败，下次增量仍从同一日期继续，不丢数据。
+     *
+     * @param step           步骤枚举
+     * @param taskId         任务 ID
+     * @param isFull         是否全量更新
+     * @param fullStartDate  全量更新的起始日期（yyyyMMdd）
+     * @param fetchFn        每个交易日的拉取函数
+     */
+    private StepStats executeDailySnapshotStep(InitStep step, String taskId, boolean isFull,
+                                               String fullStartDate,
                                                java.util.function.Consumer<String> fetchFn) {
         String today = LocalDate.now().format(DATE_FMT);
         String startDate;
         if (isFull) {
-            startDate = LocalDate.now().minusYears(3).format(DATE_FMT);
+            startDate = fullStartDate;
         } else {
             String maxDate = queryMaxTradeDate(step.getTableName());
-            startDate = maxDate != null ? maxDate : LocalDate.now().minusYears(3).format(DATE_FMT);
+            startDate = maxDate != null ? maxDate : fullStartDate;
         }
 
         List<String> tradeDates = queryTradeDates(startDate, today);
