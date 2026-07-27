@@ -1,6 +1,6 @@
 """不触库硬约束验证（spec AC-12 / TR-12.1）。
 
-扫描因子库模块源码，确认不出现任何数据库操作（sqlite3 / sqlalchemy / 直连 .db）。
+扫描因子库模块源码，确认不出现任何数据库操作（数据库驱动 / 直连 .db）。
 engine 数据单源性在 watcher，禁止 engine 侧落业务库。
 """
 import re

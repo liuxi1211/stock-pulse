@@ -265,7 +265,7 @@
         行情中心股票列表：13 列 + amplitude（振幅，仅用于排序）。
         change_value = close - pre_close（涨跌额）；amplitude = (high-low)/pre_close*100，NULLIF 防除零。
         sortClause 由 Service 白名单拼装后以 ${} 注入（非预编译，故必须经严格校验）。
-        分页用 LIMIT/OFFSET（MySQL/SQLite 均支持）。
+        分页用 LIMIT/OFFSET。
     -->
     <select id="selectStockList" resultMap="stockListMap">
         SELECT

@@ -56,15 +56,15 @@ node run.js logs watcher|engine   # tail 日志
 | **stock-engine** | Python 3.12 + FastAPI + AKQuant[Rust 核心] | :8085 | 计算服务——技术/基本面/情绪面指标、策略回测、因子库。API 文档 :8085/docs |
 
 
-### 2.2 ⚠️ 硬约束：engine 绝不读写 SQLite（分层，spec 010 修订）
+### 2.2 ⚠️ 硬约束：engine 绝不读写数据库（分层，spec 010 修订）
 
 > 「engine 不回调 watcher」的单向约束已**分层化放宽**（spec 010-rotation-data-governance）：行情/基本面/数据库仍强约束单向；仅**成分股身份等参考数据**允许 engine 按需查询 watcher 的只读内部接口。
 
-- **数据单源性（强，无例外）**：watcher 独占数据库（SQLite/MySQL）读写；engine 需要数据时由 watcher 通过 HTTP 传入，engine 只返回 JSON。
+- **数据单源性（强，无例外）**：watcher 独占数据库（MySQL）读写；engine 需要数据时由 watcher 通过 HTTP 传入，engine 只返回 JSON。
 - **行情/基本面（强，无例外）**：行情与基本面由 watcher 预传，engine 不反向拉取。
 - **参考数据（弱，spec 010 新增例外）**：成分股身份等「参考数据」允许 engine 在回测期间按需查询 watcher 的只读内部接口 `/api/internal/*`（幂等、无副作用）。watcher 与 engine **同机部署**，engine 经 `http://localhost:<port>` 调用（端口可变，由 engine 侧 `WATCHER_BASE_URL` 指定），**无鉴权**；典型场景：rebalance 范式 point-in-time 成分股过滤（`stock-engine/services/backtest/watcher_client.py`）。
-- **AI 约束（无变化）**：engine（Python 侧）**禁止**出现 `sqlite3` / `sqlalchemy` / 直连 `.db` 的代码（经 HTTP 调 watcher 只读接口**不算**触库）。
-- 运行时闭环：① watcher 每日 16:00 定时任务拉 Tushare → SQLite → ② 前复权清洗（price × adj_factor）/ 剔除停牌涨跌停 ST → ③ watcher 读行情 HTTP 传 engine 算指标 → JSON → Caffeine 缓存 → ④ 策略回测同理（AKQuant 模拟 T+1/涨跌停）→ ⑤ 收盘后跑策略生成买卖信号 + 原因 → 推送（企微/钉钉/邮件/网页）→ ⑥ 模拟交易 / 风控检查。
+- **AI 约束（无变化）**：engine（Python 侧）**禁止**出现任何数据库驱动/ORM / 直连 `.db` 的代码（经 HTTP 调 watcher 只读接口**不算**触库）。
+- 运行时闭环：① watcher 每日 16:00 定时任务拉 Tushare -> MySQL -> ② 前复权清洗（price × adj_factor）/ 剔除停牌涨跌停 ST -> ③ watcher 读行情 HTTP 传 engine 算指标 -> JSON -> Caffeine 缓存 -> ④ 策略回测同理（AKQuant 模拟 T+1/涨跌停）-> ⑤ 收盘后跑策略生成买卖信号 + 原因 -> 推送（企微/钉钉/邮件/网页）-> ⑥ 模拟交易 / 风控检查。
 
 ---
 
@@ -76,7 +76,7 @@ node run.js logs watcher|engine   # tail 日志
 |---|---|---|
 | **API 参数 >5 个未封装对象** | HTTP 接口方法中 `@RequestParam` + `@PathVariable` **合计 >5 个**时，必须封装为 DTO 对象（POST→`*RequestDTO` / GET→`*QueryDTO`）。**计数口径**：仅统计 `@RequestParam`/`@PathVariable`，`@RequestBody DTO`/`HttpSession`/`Model` 不计入。违反即违规，无例外。 | [`04-api-design.md` §11.1](./.trae/rules/stock-watcher/java/04-api-design.md) |
 | **API 请求/返回体用 Map** | 接口的**请求体、返回体禁止 `Map<?,?>`**（含 `Map<String,Object>`）。必须用显式类型 `*RequestDTO`/`*ResponseDTO`/`*VO`。仅跨系统透传 / 纯键值缓存返回 / Service 内部传输 3 种例外。 | [`04-api-design.md` §11.2`](./.trae/rules/stock-watcher/java/04-api-design.md) |
-| **engine 代码触库** | engine（Python 侧）**禁止** `sqlite3`/`sqlalchemy`/直连 `.db`。数据由 watcher HTTP 传入。 | §2.2 上方 |
+| **engine 代码触库** | engine（Python 侧）**禁止** 任何数据库驱动/ORM/直连 `.db`。数据由 watcher HTTP 传入。 | §2.2 上方 |
 | **engine 回调 watcher（分层例外）** | 「engine 不回调 watcher」已分层化（spec 010）：行情/基本面/数据库仍强约束单向；仅成分股身份等**参考数据**允许 engine 查 watcher 只读 `/api/internal/*`（同机 localhost 调用、无鉴权，如 `watcher_client.py`）。**不要**把这类只读查询误判为违规。 | §2.2 |
 | **akquant 滑点用裸 float** | `slippage` **一律用 dict** `{"type":"percent","value":0.0002}`。裸 `0.2` 会被当 **20%** 滑点。 | [`09-pitfalls-conventions.md`](./.trae/rules/akquant/09-pitfalls-conventions.md) |
 | **akquant broker_profile 漏 T+1** | `broker_profile` 三个模板**都不含 `t_plus_one`**，必须单独传 `t_plus_one=True`。 | [`09-pitfalls-conventions.md`](./.trae/rules/akquant/09-pitfalls-conventions.md) |
@@ -112,7 +112,7 @@ node run.js logs watcher|engine   # tail 日志
 | 写 Java 代码、代码风格、命名规范 | `01-java-coding-style.md` | 包命名；类/接口命名（*DO/*DTO/*VO/*Service/*Controller/*Mapper/*Config/*Exception/*Util/枚举）；方法命名；变量命名；常量命名；代码格式；导入规范；注释规范；异常处理规范；日志规范；Lombok 使用；构造器注入；避免魔法值；空值处理 |
 | **常量与常量组使用（避免魔法值）** | `08-constants-usage.md` | ⭐ 常量 vs 常量组；常量类全大写定义；常量组必须定义成 DisplayableEnum 枚举；`GET /constants` + `StockApp.loadConstants` 用法；engine Schema 字面量前端集中维护；禁止事项与自查清单 |
 | Spring Boot 开发、分层架构、依赖注入 | `02-spring-boot-best-practices.md` | 分层架构（Controller→Service→Mapper）；依赖注入（构造器注入+Lombok）；配置管理；Controller 规范（统一返回 ApiResponse）；Service 规范（接口+impl/事务管理）；AOP 使用；缓存规范；定时任务规范；全局异常处理；Maven 依赖管理（starter优先/版本统一/范围管理/排除冲突/不重复造轮子） |
-| 数据库设计、SQL、MyBatis-Plus | `03-database-design.md` | 表设计（命名/字段/类型/主键）；索引设计（原则/类型/命名/常用示例）；SQL 编写（查询/插入/避免N+1）；MyBatis-Plus 使用（实体类/Mapper/Service/QueryWrapper/批量操作）；事务规范；数据迁移；SQLite 特定注意事项（WAL模式/分页/UPSERT） |
+| 数据库设计、SQL、MyBatis-Plus | `03-database-design.md` | 表设计（命名/字段/类型/主键）；索引设计（原则/类型/命名/常用示例）；SQL 编写（查询/插入/避免N+1）；MyBatis-Plus 使用（实体类/Mapper/Service/QueryWrapper/批量操作）；事务规范；数据迁移 |
 | API 设计、RESTful、接口规范 | `04-api-design.md` | RESTful 设计原则（资源导向/HTTP方法语义/URL层级）；URL 命名规范（kebab-case/无/api前缀）；统一返回格式（ApiResponse）；错误码设计；分页规范；参数校验；Controller 规范；跨系统接口规范（watcher↔engine）；参数对象化与类型规范（>5个参数必须封装/禁止Map用DTO/命名规范） |
 | Java 性能优化 | `05-java-performance.md` | Java 性能优化 |
 | Java 安全开发 | `06-java-security.md` | Java 安全开发 |

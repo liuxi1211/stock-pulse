@@ -7,7 +7,7 @@
 - 快照选股请求/响应（FR-4）
 - 区间选股请求/响应（FR-5）
 
-约束（spec AC-11）：engine 不触库，本模块仅做参数建模，无 sqlite3/sqlalchemy。
+约束（spec AC-11）：engine 不触库，本模块仅做参数建模，无数据库依赖。
 """
 from typing import Any, Literal, Optional
 

@@ -11,7 +11,7 @@
 - 上市天数过滤为保守策略：``list_date`` 缺失/不可解析且 ``min_list_days > 0`` 时排除该股
   （次新股过滤场景下宁可误杀，避免数据缺失的次新股穿透）。
 - ``filters`` 为 None 时使用全默认值（与 Schema 默认对齐）。
-- 约束（spec AC-11）：engine 不触库，本模块纯内存计算，无 sqlite3/sqlalchemy。
+- 约束（spec AC-11）：engine 不触库，本模块纯内存计算，无数据库依赖。
 """
 from datetime import date
 from typing import Any, Optional

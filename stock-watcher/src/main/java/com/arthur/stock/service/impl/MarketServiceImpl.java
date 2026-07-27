@@ -66,7 +66,7 @@ public class MarketServiceImpl implements MarketService {
     );
 
     /**
-     * 来自 LEFT JOIN daily_basic 的排序字段，可能为 NULL；NULL 一律排最后（兼容 MySQL/SQLite 的 {@code (col IS NULL)} 写法）。
+     * 来自 LEFT JOIN daily_basic 的排序字段，可能为 NULL；NULL 一律排最后（兼容 MySQL 的 {@code (col IS NULL)} 写法）。
      */
     private static final Set<String> NULL_LAST_SORT_FIELDS = Set.of(
             "turnoverRate", "totalMv", "peTtm", "pb", "volumeRatio"

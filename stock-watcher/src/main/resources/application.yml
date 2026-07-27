@@ -107,10 +107,6 @@ tushare:
 auth:
   admin-skip-totp: true
 
-# ========== App Database Type (mysql / sqlite) ==========
-app:
-  db-type: ${DB_TYPE:mysql}
-
 management:
   endpoints:
     web:

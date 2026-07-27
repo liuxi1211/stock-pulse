@@ -4,7 +4,7 @@
 - TR-4.1 POST 合法 config → 200 + {valid:true, errors:[]}
 - TR-4.2 POST 缺 signals/rebalance → 200 + {valid:false, errors 含 MISSING_SIGNALS_OR_REBALANCE}
 - TR-4.3 POST 非法结构（顶层非 dict / 缺 config 字段）→ 422（pydantic 请求体校验）
-- TR-4.4 engine services/strategy/ 目录源码无 sqlite3/sqlalchemy/.db 匹配（不触库）
+- TR-4.4 engine services/strategy/ 目录源码无数据库依赖/.db 匹配（不触库）
 - TR-4.5 TestClient 路径整体可跑通
 - TR-4.6 /docs 页面返回 200
 
@@ -172,7 +172,7 @@ _FORBIDDEN_PATTERNS = [
 
 
 def _strip_code(text: str) -> str:
-    """剥离注释与 docstring（避免模块头"无 sqlite3/sqlalchemy"声明误报）。"""
+    """剥离注释与 docstring（避免模块头"无数据库依赖"声明误报）。"""
     stripped = []
     try:
         tokens = tokenize.generate_tokens(io.StringIO(text).readline)

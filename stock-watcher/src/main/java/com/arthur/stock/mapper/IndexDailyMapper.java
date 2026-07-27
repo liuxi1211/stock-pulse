@@ -15,7 +15,7 @@ import java.util.Map;
 public interface IndexDailyMapper extends BaseMapper<IndexDailyDO> {
 
     /**
-     * 批量插入指数日线行情（UPSERT 语义由 service 层先删后插实现，跨 SQLite/MySQL 通用）
+     * 批量插入指数日线行情（UPSERT 语义由 service 层先删后插实现）
      */
     int insertBatch(@Param("list") List<IndexDailyDO> list);
 

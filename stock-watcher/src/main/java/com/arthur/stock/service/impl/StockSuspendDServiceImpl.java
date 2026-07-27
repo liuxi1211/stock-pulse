@@ -20,7 +20,6 @@ import com.google.common.collect.Lists;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -63,9 +62,6 @@ public class StockSuspendDServiceImpl implements StockSuspendDService, DataCheck
     private final TransactionTemplate transactionTemplate;
     private final JdbcTemplate jdbcTemplate;
 
-    @Value("${app.db-type:mysql}")
-    private String dbType;
-
     /**
      * 启动时自动迁移：将 suspend_timing 列从 VARCHAR(32) 扩展为 VARCHAR(128)。
      * <p>
@@ -75,9 +71,6 @@ public class StockSuspendDServiceImpl implements StockSuspendDService, DataCheck
     @PostConstruct
     public void migrateSuspendTimingColumnLength() {
         try {
-            if ("sqlite".equalsIgnoreCase(dbType)) {
-                return; // SQLite TEXT 无长度限制，无需迁移
-            }
             Integer charLength = jdbcTemplate.queryForObject(
                     "SELECT CHARACTER_MAXIMUM_LENGTH FROM information_schema.COLUMNS " +
                             "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'stock_suspend_d' " +

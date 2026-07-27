@@ -174,8 +174,8 @@ public class TradeCalServiceImpl implements TradeCalService, DataCheckable {
     /**
      * 批量保存交易日历数据。
      * 按 exchange 分组后分别删除+插入：
-     * - 删除用 {@code exchange = ? AND cal_date IN (...)}（单字段 IN，MySQL/SQLite 双方言兼容）
-     * - 插入用多值 INSERT（双方言通用）
+     * - 删除用 {@code exchange = ? AND cal_date IN (...)}（单字段 IN）
+     * - 插入用多值 INSERT
      */
     private void saveCalendars(List<TradeCalDO> calendars) {
         if (calendars == null || calendars.isEmpty()) {
@@ -253,7 +253,7 @@ public class TradeCalServiceImpl implements TradeCalService, DataCheckable {
      *   <li>季：(month-1)/3 + 1，year + quarter。</li>
      * </ul>
      * 计算后逐条 update（trade_cal 为低频全量初始化数据，单条 update 可接受；
-     * 且单条 SQL 跨 MySQL/SQLite 方言通用）。
+     * 且单条 SQL 通用）。
      */
     void computeAndSaveRebalanceFlags() {
         LambdaQueryWrapper<TradeCalDO> wrapper = new LambdaQueryWrapper<>();

@@ -25,7 +25,7 @@ import java.util.stream.Collectors;
  * 指数日线行情抓取与定时同步服务。
  * <p>
  * 数据源：tushare index_daily 接口（指数日线 OHLCV）。
- * 落库策略：按 (ts_code, trade_date) 先删后插，实现幂等 upsert（跨 SQLite/MySQL 通用）。
+ * 落库策略：按 (ts_code, trade_date) 先删后插，实现幂等 upsert。
  * <p>
  * 定时任务：每个交易日 16:30 盘后同步以下指数当日行情：
  * <ul>

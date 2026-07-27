@@ -10,12 +10,11 @@ import org.springframework.stereotype.Component;
 
 import java.sql.DatabaseMetaData;
 import java.sql.ResultSet;
-import java.util.Locale;
 
 /**
  * 策略模块存量表结构迁移。
  *
- * <p>{@code schema-*.sql} 使用 {@code CREATE TABLE IF NOT EXISTS}，只能初始化新库，
+ * <p>{@code schema-mysql.sql} 使用 {@code CREATE TABLE IF NOT EXISTS}，只能初始化新库，
  * 无法把旧库中的 {@code quant_strategy.strategy_id} 自动升级为 {@code uuid}。
  * 本迁移在数据库初始化完成后、应用对外提供服务前幂等执行，并保留已有策略与回测数据。</p>
  */
@@ -39,12 +38,11 @@ public class StrategySchemaMigration implements InitializingBean {
             return;
         }
 
-        DatabaseType databaseType = detectDatabaseType();
-        migrateStrategyUuidColumn(databaseType);
-        migrateBacktestStrategyReferences(databaseType);
+        migrateStrategyUuidColumn();
+        migrateBacktestStrategyReferences();
     }
 
-    private void migrateStrategyUuidColumn(DatabaseType databaseType) {
+    private void migrateStrategyUuidColumn() {
         boolean hasUuid = columnExists(STRATEGY_TABLE, UUID_COLUMN);
         boolean hasLegacyStrategyId = columnExists(STRATEGY_TABLE, LEGACY_STRATEGY_ID_COLUMN);
 
@@ -56,28 +54,21 @@ public class StrategySchemaMigration implements InitializingBean {
                     "quant_strategy 同时缺少 uuid 与 strategy_id，无法自动迁移");
         }
 
-        String renameSql = switch (databaseType) {
-            case MYSQL -> """
-                    ALTER TABLE quant_strategy
-                    CHANGE COLUMN strategy_id uuid VARCHAR(64) NOT NULL
-                    COMMENT '策略业务标识（UUID，仅用于前端交互，防止id遍历）'
-                    """;
-            case SQLITE -> "ALTER TABLE quant_strategy RENAME COLUMN strategy_id TO uuid";
-        };
-        jdbcTemplate.execute(renameSql);
+        jdbcTemplate.execute("""
+                ALTER TABLE quant_strategy
+                CHANGE COLUMN strategy_id uuid VARCHAR(64) NOT NULL
+                COMMENT '策略业务标识（UUID，仅用于前端交互，防止id遍历）'
+                """);
         log.info("数据库迁移完成：quant_strategy.strategy_id -> uuid");
     }
 
-    private void migrateBacktestStrategyReferences(DatabaseType databaseType) {
+    private void migrateBacktestStrategyReferences() {
         if (!tableExists(BACKTEST_TABLE)
                 || !columnExists(BACKTEST_TABLE, LEGACY_STRATEGY_ID_COLUMN)) {
             return;
         }
 
-        int migratedRows = switch (databaseType) {
-            case MYSQL -> migrateMysqlBacktestReferences();
-            case SQLITE -> migrateSqliteBacktestReferences();
-        };
+        int migratedRows = migrateMysqlBacktestReferences();
         if (migratedRows > 0) {
             log.info("数据库迁移完成：quant_backtest.strategy_id 已转换为策略主键，共 {} 行",
                     migratedRows);
@@ -113,61 +104,6 @@ public class StrategySchemaMigration implements InitializingBean {
         return migratedRows;
     }
 
-    private int migrateSqliteBacktestReferences() {
-        Long invalidRows = jdbcTemplate.queryForObject("""
-                SELECT COUNT(*)
-                FROM quant_backtest b
-                LEFT JOIN quant_strategy s
-                  ON CAST(b.strategy_id AS TEXT) = s.uuid
-                WHERE s.id IS NULL
-                  AND (
-                    CAST(b.strategy_id AS TEXT) = ''
-                    OR CAST(b.strategy_id AS TEXT) GLOB '*[^0-9]*'
-                  )
-                """, Long.class);
-        if (invalidRows != null && invalidRows > 0) {
-            throw new IllegalStateException(
-                    "quant_backtest 存在 " + invalidRows + " 条无法关联策略的历史记录，请先修复数据");
-        }
-
-        int migratedRows = jdbcTemplate.update("""
-                UPDATE quant_backtest
-                SET strategy_id = (
-                    SELECT s.id
-                    FROM quant_strategy s
-                    WHERE s.uuid = CAST(quant_backtest.strategy_id AS TEXT)
-                )
-                WHERE EXISTS (
-                    SELECT 1
-                    FROM quant_strategy s
-                    WHERE s.uuid = CAST(quant_backtest.strategy_id AS TEXT)
-                )
-                """);
-        jdbcTemplate.update("""
-                UPDATE quant_backtest
-                SET strategy_id = CAST(strategy_id AS INTEGER)
-                WHERE CAST(strategy_id AS TEXT) <> ''
-                  AND CAST(strategy_id AS TEXT) NOT GLOB '*[^0-9]*'
-                """);
-        return migratedRows;
-    }
-
-    private DatabaseType detectDatabaseType() {
-        String productName = jdbcTemplate.execute(
-                (ConnectionCallback<String>) connection ->
-                        connection.getMetaData().getDatabaseProductName());
-        String normalizedName = productName == null
-                ? ""
-                : productName.toLowerCase(Locale.ROOT);
-        if (normalizedName.contains("mysql") || normalizedName.contains("mariadb")) {
-            return DatabaseType.MYSQL;
-        }
-        if (normalizedName.contains("sqlite")) {
-            return DatabaseType.SQLITE;
-        }
-        throw new IllegalStateException("不支持的数据库类型: " + productName);
-    }
-
     private boolean tableExists(String tableName) {
         return findColumn(tableName, null) != null;
     }
@@ -200,11 +136,6 @@ public class StrategySchemaMigration implements InitializingBean {
             }
             return null;
         });
-    }
-
-    private enum DatabaseType {
-        MYSQL,
-        SQLITE
     }
 
     private record ColumnMetadata(String name, String typeName) {

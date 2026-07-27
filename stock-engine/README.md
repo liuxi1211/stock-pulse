@@ -37,7 +37,7 @@ Java 业务服务位于 `stock-watcher/`，两个项目合并在同一仓库中�
 | 技术指标计算 | ⏳ 待重写（基于 AKQuant） | ❌ |
 | 因子计算 | ✅ **已实现**（标准因子库，走 `akquant.talib`） | ❌ |
 | 策略回测 | ⏳ 待重写（基于 AKQuant 引擎） | ❌ |
-| 数据库写入 | ❌ 仅返回数据 | ✅ 独占写入 SQLite |
+| 数据库写入 | ❌ 仅返回数据 | ✅ 独占写入 MySQL |
 | 缓存管理 | ❌ | ✅ Caffeine 本地缓存 |
 | 定时任务 | ❌ | ✅ Quartz 调度 |
 | 用户界面 | ❌ | ✅ Thymeleaf 前端 |
@@ -203,7 +203,7 @@ cd stock-watcher && mvn spring-boot:run
 
 ### ⚠️ 重要限制
 
-1. **不操作数据库**：Python 服务不直接读写 SQLite 数据库，所有数据通过 API 返回给 Java 服务处理
+1. **不操作数据库**：Python 服务不直接读写 MySQL 数据库，所有数据通过 API 返回给 Java 服务处理
 2. **数据一致性**：由 Java 服务保证数据库事务一致性和并发控制
 
 ### ✅ 最佳实践

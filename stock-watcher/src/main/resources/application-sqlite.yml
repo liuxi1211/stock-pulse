@@ -1,7 +1,0 @@
-spring:
-  datasource:
-    url: jdbc:sqlite:./data/stock_watcher.db
-    driver-class-name: org.sqlite.JDBC
-
-app:
-  db-type: sqlite

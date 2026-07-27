@@ -4,7 +4,7 @@ POST /python/v1/strategies/validate
 两段式校验：① Pydantic 解析（可能短路）→ 失败返回 200+valid:false；
 ② StrategyValidator 业务规则校验（非短路）→ 200+ValidateResponse。
 
-约束：engine 不触库，本模块无 sqlite3/sqlalchemy。
+约束：engine 不触库，本模块无数据库依赖。
 """
 from fastapi import APIRouter
 from pydantic import ValidationError

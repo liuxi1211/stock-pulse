@@ -17,7 +17,7 @@
         <result column="amount" property="amount"/>
     </resultMap>
 
-    <!-- 批量插入；change 列在 MySQL 中为保留字，统一用反引号转义（SQLite 兼容） -->
+    <!-- 批量插入；change 列在 MySQL 中为保留字，统一用反引号转义 -->
     <insert id="insertBatch">
         INSERT INTO index_daily (ts_code, trade_date, close, open, high, low, pre_close,
                                  `change`, pct_chg, vol, amount) VALUES

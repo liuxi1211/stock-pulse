@@ -51,7 +51,7 @@
 └──────────────┬───────────────┘
                │
 ┌──────────────▼───────────────┐    ┌────────────────────┐
-│  stock-watcher（Java）       │───▶│  MySQL / SQLite    │
+│  stock-watcher（Java）       │───▶│  MySQL             │
 │  业务编排 · 数据中台         │    └────────────────────┘
 └──────────────┬───────────────┘
                │ HTTP/JSON
@@ -69,7 +69,7 @@
 ### 环境要求
 - JDK 21+ · Node.js 16+
 - Conda（Miniforge / Miniconda / Anaconda，用于 stock-engine 的 `stock` 环境）
-- MySQL 8+（或用 sqlite profile）
+- MySQL 8+
 - Tushare Pro 账号 + Token
 
 > Maven 无需全局安装，项目自带 `mvnw` / `mvnw.cmd` Wrapper。详细启动手册见 [.trae/rules/startup.md](./.trae/rules/startup.md)。

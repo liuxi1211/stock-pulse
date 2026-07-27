@@ -360,7 +360,7 @@ const FactorLib = (function () {
             <div class="fund-card">
                 <div class="fh"><i class="bi bi-building-fill-exclamation"></i>${e(f.factorKey)} 由 watcher 提供，engine 不计算</div>
                 <div class="fb">
-                    ${e(f.factorKey)} 属于基本面因子，由 <strong style="color:var(--text-primary);">stock-watcher</strong> 从 SQLite 的
+                    ${e(f.factorKey)} 属于基本面因子，由 <strong style="color:var(--text-primary);">stock-watcher</strong> 从 MySQL 的
                     <code>${e(f.dataSource || 'daily_basic')}</code> 表读取后经 HTTP 传入。engine 仅注册其元数据（参数、描述、分类），不提供实时计算能力。
                     <div class="err-code"><i class="bi bi-x-octagon"></i>调用计算接口 → 400 FACTOR_NOT_COMPUTABLE</div>
                 </div>

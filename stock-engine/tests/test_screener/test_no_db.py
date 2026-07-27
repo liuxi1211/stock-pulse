@@ -1,7 +1,7 @@
 """选股中心不触库硬约束验证（spec AC-11 / TR-12.6）。
 
 扫描选股中心全部模块源码，确认不出现任何数据库操作
-（sqlite3 / sqlalchemy / 直连 .db / DB connect / cursor / SQL 关键字）。
+（数据库驱动 / 直连 .db / DB connect / cursor / SQL 关键字）。
 engine 数据单源性在 watcher，禁止 engine 侧落业务库。
 """
 import re
@@ -32,9 +32,9 @@ _FORBIDDEN_PATTERNS = [
 
 
 def _strip_code(text: str) -> str:
-    """剥离注释与三引号 docstring，避免 docstring 里出现 "无 sqlite3/sqlalchemy"
+    """剥离注释与三引号 docstring，避免 docstring 里出现 "无数据库依赖"
     等说明性字样被误判为 DB 操作（与 test_factor 同款约束保持一致口径，
-    但选股中心多个模块的 docstring 显式写了 "无 sqlite3/sqlalchemy" 约束声明，
+    但选股中心多个模块的 docstring 显式写了 "无数据库依赖" 约束声明，
     必须剥离后扫描）。
     """
     import io
@@ -58,7 +58,7 @@ def _strip_code(text: str) -> str:
 def test_no_database_code_in_screener_module():
     """选股中心模块源码不得出现任何数据库操作代码（违反 engine 不触库硬约束）。
 
-    扫描前先剥离注释/docstring，避免模块头部的 "无 sqlite3/sqlalchemy" 约束声明被误报。
+    扫描前先剥离注释/docstring，避免模块头部的 "无数据库依赖" 约束声明被误报。
     """
     violations = []
     for target in _SCREENER_SOURCES:

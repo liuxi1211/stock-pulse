@@ -32,7 +32,7 @@
 - 计算异常 / 缺失历史 → 该因子 NaN + logger.warning（不阻断批量）。
 - factorKey 未知（registry.exists False）→ 抛 ``UnknownFactorError``（400）。
 
-约束（spec AC-11）：engine 不触库，本模块只用内存计算，无 sqlite3/sqlalchemy。
+约束（spec AC-11）：engine 不触库，本模块只用内存计算，无数据库依赖。
 """
 import math
 from typing import Any, Optional, Union

@@ -12,7 +12,7 @@
 - 排序打分：复用 :func:`services.screener.ranking.rank_stocks`。
 
 硬约束（分层，spec 010-rotation-data-governance §5.1.2）：
-- 数据单源性（强）：engine 永不直接读写业务数据库（SQLite/MySQL）；源码不含任何数据库驱动 import / 连接 / 路径字面量。
+- 数据单源性（强）：engine 永不直接读写业务数据库；源码不含任何数据库驱动 import / 连接 / 路径字面量。
 - 行情/基本面（强）：行情与基本面数据由 watcher 预传，engine 不反向拉取。
 - 参考数据（弱，例外）：成分股身份等「参考数据」允许 engine 在回测期间按需查询 watcher 的只读内部接口（/api/internal/*，幂等无副作用）。
   **spec 011 P1-1**：point-in-time 成分股过滤已从「可选+降级」收紧为「强制+失败即报错」，

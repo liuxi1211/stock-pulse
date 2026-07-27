@@ -17,7 +17,7 @@
   技术面因子（签名形如 ``MA(timeperiod=5)#0``）。Schema single 模式只给 factorKey 不给 params，
   采用「精确命中 → 前缀匹配（找以 ``factorKey(`` 开头的签名，取第一个）」的取值策略。
 - NaN 安全：所有排序 NaN 排末尾；返回结构 score / factor_values 中的 NaN 一律转 None（JSON 友好）。
-- 约束（spec AC-11）：engine 不触库，本模块纯内存计算，无 sqlite3/sqlalchemy。
+- 约束（spec AC-11）：engine 不触库，本模块纯内存计算，无数据库依赖。
 """
 import math
 from typing import Any, Optional

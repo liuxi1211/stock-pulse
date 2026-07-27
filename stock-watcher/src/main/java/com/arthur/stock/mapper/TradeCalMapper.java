@@ -19,7 +19,7 @@ public interface TradeCalMapper extends BaseMapper<TradeCalDO> {
     /**
      * 按 (exchange, cal_date) 批量删除。
      * <p>
-     * 注意：为兼容 SQLite（不支持行值 IN 语法），本方法在 Service 层
+     * 注意：本方法在 Service 层
      * 按 exchange 分组后调用 {@link #deleteByExchangeAndCalDates} 实现，
      * 此处保留方法名作为门面（已废弃，请勿直接使用）。
      *
@@ -29,7 +29,7 @@ public interface TradeCalMapper extends BaseMapper<TradeCalDO> {
     int deleteBatchByKeys(@Param("list") List<TradeCalDO> list);
 
     /**
-     * 按 exchange + cal_date IN 删除，单字段 IN 语法 MySQL/SQLite 双方言通用。
+     * 按 exchange + cal_date IN 删除，单字段 IN 语法。
      *
      * @param exchange 交易所枚举
      * @param calDates 日期列表（yyyyMMdd）
@@ -40,12 +40,12 @@ public interface TradeCalMapper extends BaseMapper<TradeCalDO> {
 
     /**
      * 按 (exchange, cal_date) 更新 6 个调仓标记字段。
-     * 单条更新，供 Service 层循环/批量调用，跨 MySQL/SQLite 通用。
+     * 单条更新，供 Service 层循环/批量调用。
      */
     int updateRebalanceFlags(TradeCalDO entity);
 
     /**
-     * 批量更新 6 个调仓标记字段（CASE WHEN 构造，跨 MySQL/SQLite 通用）。
+     * 批量更新 6 个调仓标记字段（CASE WHEN 构造）。
      */
     int updateRebalanceFlagsBatch(@Param("list") List<TradeCalDO> list);
 

@@ -16,7 +16,7 @@ filters → precompute → engine → rank → 封装统一响应。业务异常
    conditions 为 None 时 hit_symbols = passed_symbols（仅过滤）。
 5. ``rank_stocks(hit_symbols, factor_values, ranking, top_n)`` —— 排序打分 + 截断。
 
-约束（spec AC-11）：engine 不触库，本模块无 sqlite3/sqlalchemy。
+约束（spec AC-11）：engine 不触库，本模块无数据库依赖。
 """
 from typing import Optional
 

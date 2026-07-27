@@ -480,7 +480,7 @@ def run_grid_optimize(
     backtest_kwargs = build_backtest_kwargs(bt_config)
     backtest_kwargs["symbols"] = symbols
 
-    # 6.1 强约束：即便上层透传了 SQLite 续传参数也必须丢弃（engine 禁触库）
+    # 6.1 强约束：即便上层透传了 akquant 续传参数也必须丢弃（engine 禁触库）
     backtest_kwargs.pop("db_path", None)
 
     # 7. max_workers：cgroup 感知
