@@ -356,8 +356,7 @@ CREATE TABLE IF NOT EXISTS stock_stk_limit (
     pre_close   DOUBLE      COMMENT '前收盘价',
     up_limit    DOUBLE      COMMENT '涨停价',
     down_limit  DOUBLE      COMMENT '跌停价',
-    PRIMARY KEY (ts_code, trade_date),
-    INDEX idx_limit_tscode_date (ts_code, trade_date)
+    PRIMARY KEY (ts_code, trade_date)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='涨跌停价表';
 
 -- 24. 利润表（tushare income，doc_id=33）

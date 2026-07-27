@@ -72,8 +72,9 @@ public class StockStkLimitServiceImpl implements StockStkLimitService, DataCheck
             if (page.isEmpty()) {
                 break;
             }
-            // 每页一个独立短事务，不跨 Tushare API 调用
-            int saved = transactionTemplate.execute(status -> persistByBizKey(page));
+            // 每批次独立短事务（500 行/事务），避免单事务持有连接过久触发 HikariCP 泄漏告警。
+            // upsert 语义保证幂等：即使中途失败，下次重跑不会产生重复数据。
+            int saved = persistByBatches(page);
             total += saved;
             log.info("stock_stk_limit page saved: range={}~{}, offset={}, size={}, saved={}, total={}",
                     startDate, endDate, offset, page.size(), saved, total);
@@ -121,11 +122,11 @@ public class StockStkLimitServiceImpl implements StockStkLimitService, DataCheck
     /**
      * 按业务键 (ts_code, trade_date) 批量幂等写入，利用主键冲突 ON DUPLICATE KEY UPDATE。
      * <p>
-     * 替代原 delete-then-insert 两步操作，消除大表上 500 OR 条件 DELETE 的性能瓶颈，
-     * 将每页事务耗时减半，避免 HikariCP 连接泄漏告警。
-     * 事务内按 {@value #BATCH_SIZE} 分批执行，避免单次 SQL 过大。
+     * 每个批次（{@value #BATCH_SIZE} 行）独立事务提交，连接持有时间控制在秒级，
+     * 避免 HikariCP 连接泄漏告警（leak-detection-threshold=60s）。
+     * upsert 语义保证幂等：即使中途某批次失败，下次重跑不会产生重复数据。
      */
-    private int persistByBizKey(List<StkLimitDTO> rows) {
+    private int persistByBatches(List<StkLimitDTO> rows) {
         if (rows.isEmpty()) {
             return 0;
         }
@@ -135,7 +136,7 @@ public class StockStkLimitServiceImpl implements StockStkLimitService, DataCheck
                 .collect(Collectors.toList());
         int count = 0;
         for (List<StockStkLimitDO> batch : Lists.partition(entities, BATCH_SIZE)) {
-            count += stockStkLimitMapper.upsertBatch(batch);
+            count += transactionTemplate.execute(status -> stockStkLimitMapper.upsertBatch(batch));
         }
         return count;
     }
