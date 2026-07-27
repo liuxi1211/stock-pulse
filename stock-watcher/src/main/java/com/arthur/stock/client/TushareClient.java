@@ -434,6 +434,9 @@ public class TushareClient {
         if (param.getTsCode() != null) {
             params.put("ts_code", param.getTsCode());
         }
+        if (param.getTradeDate() != null) {
+            params.put("trade_date", param.getTradeDate());
+        }
         if (param.getStartDate() != null) {
             params.put("start_date", param.getStartDate());
         }

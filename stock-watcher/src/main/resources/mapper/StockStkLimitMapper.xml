@@ -17,6 +17,18 @@
         </foreach>
     </delete>
 
+    <!-- 幂等 upsert：利用主键 (ts_code, trade_date) 冲突时更新，避免慢 DELETE -->
+    <insert id="upsertBatch">
+        INSERT INTO stock_stk_limit (ts_code, trade_date, pre_close, up_limit, down_limit) VALUES
+        <foreach collection="list" item="item" separator=",">
+            (#{item.tsCode}, #{item.tradeDate}, #{item.preClose}, #{item.upLimit}, #{item.downLimit})
+        </foreach>
+        ON DUPLICATE KEY UPDATE
+            pre_close = VALUES(pre_close),
+            up_limit  = VALUES(up_limit),
+            down_limit = VALUES(down_limit)
+    </insert>
+
     <select id="selectLatestTradeDate" resultType="string">
         SELECT MAX(trade_date) FROM stock_stk_limit
     </select>

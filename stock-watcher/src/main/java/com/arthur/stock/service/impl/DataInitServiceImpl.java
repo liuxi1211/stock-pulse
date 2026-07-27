@@ -11,7 +11,6 @@ import com.arthur.stock.exception.BusinessException;
 import com.arthur.stock.exception.ErrorCode;
 import com.arthur.stock.mapper.DataPullLogMapper;
 import com.arthur.stock.mapper.IndexDailyMapper;
-import com.arthur.stock.mapper.StockStkLimitMapper;
 import com.arthur.stock.mapper.DividendMapper;
 import com.arthur.stock.mapper.StockNamechangeMapper;
 import com.arthur.stock.mapper.StockSuspendDMapper;
@@ -69,7 +68,6 @@ public class DataInitServiceImpl implements DataInitService {
     private final DailyQuoteService dailyQuoteService;
     private final AdjFactorService adjFactorService;
     private final IndexDailyMapper indexDailyMapper;
-    private final StockStkLimitMapper stockStkLimitMapper;
     private final DividendMapper dividendMapper;
     private final StockNamechangeMapper stockNamechangeMapper;
     private final StockSuspendDMapper stockSuspendDMapper;
@@ -294,15 +292,13 @@ public class DataInitServiceImpl implements DataInitService {
                 return StepStats.single();
             }
             case STK_LIMIT -> {
-                if (isFull) {
-                    stockStkLimitService.fetchAndSaveAll();
-                    return StepStats.single();
-                }
-                Map<String, String> lastDateMap = preloadLastDateMap(stockStkLimitMapper::selectLatestDatePerStock);
-                return executePerStockStep(step, taskId, tsCode ->
-                        stockStkLimitService.fetchAndSaveByRange(tsCode,
-                                lastDateMap.getOrDefault(tsCode, FULL_START_DATE),
-                                today));
+                // 按月迭代拉取全市场涨跌停价，每月一次 start_date/end_date 范围查询 + offset/limit 分页 5000。
+                // 涨跌停价每日数据稀疏（非每只股票每天都有），按日查询会产生大量空请求，
+                // 改为按月聚合查询大幅减少 API 调用次数。
+                // 全量：从 19901219 起按月迭代；增量：从 MAX(trade_date) 起按月补充。
+                // 按日期范围查询 + upsert（先删后插），即使中途失败，下次仍从同一月份继续，不丢数据。
+                return executeMonthlySnapshotStep(step, taskId, isFull, FULL_START_DATE,
+                        (start, end) -> stockStkLimitService.fetchAndSaveByRange(start, end));
             }
             case DIVIDEND -> {
                 if (isFull) {
@@ -760,6 +756,101 @@ public class DataInitServiceImpl implements DataInitService {
                     "%s: 全部 %d 个交易日拉取失败", step.getLabel(), fail));
         }
         return new StepStats(total, success, fail);
+    }
+
+    /**
+     * 按月迭代拉取数据（适合每日数据稀疏的表，如涨跌停价）。
+     * <p>
+     * 将 [startDate, today] 按自然月切分为若干区间，每月一次范围查询 + 分页落库。
+     * 全量使用传入的 {@code fullStartDate}；增量从 {@code MAX(trade_date)} 起。
+     * 按日期范围查询 + upsert 语义，即使中途失败，下次增量仍从同一月份继续，不丢数据。
+     *
+     * @param step          步骤枚举
+     * @param taskId        任务 ID
+     * @param isFull        是否全量更新
+     * @param fullStartDate 全量更新的起始日期（yyyyMMdd）
+     * @param fetchFn       每个月份区间的拉取函数 (startDate, endDate)
+     */
+    private StepStats executeMonthlySnapshotStep(InitStep step, String taskId, boolean isFull,
+                                                 String fullStartDate,
+                                                 java.util.function.BiConsumer<String, String> fetchFn) {
+        String today = LocalDate.now().format(DATE_FMT);
+        String startDate;
+        if (isFull) {
+            startDate = fullStartDate;
+        } else {
+            String maxDate = queryMaxTradeDate(step.getTableName());
+            startDate = maxDate != null ? maxDate : fullStartDate;
+        }
+
+        List<String[]> monthRanges = splitByMonth(startDate, today);
+        if (monthRanges.isEmpty()) {
+            log.warn("No month ranges between {} and {} for {}", startDate, today, step.getLabel());
+            return StepStats.empty();
+        }
+
+        int total = monthRanges.size();
+        int success = 0;
+        int fail = 0;
+        for (int i = 0; i < monthRanges.size(); i++) {
+            String[] range = monthRanges.get(i);
+            if (taskProgressCache.isCancelled(taskId)) {
+                log.info("Task cancelled during {} month iteration at {}~{}", step.getLabel(), range[0], range[1]);
+                break;
+            }
+            // 每 20 个月刷新一次进度缓存（续期 30 分钟 TTL），避免长任务缓存过期导致前端 404
+            if (i > 0 && i % 20 == 0) {
+                updateTaskRunning(taskId, step.getLabel() + ": " + i + "/" + total);
+            }
+            try {
+                fetchFn.accept(range[0], range[1]);
+                success++;
+            } catch (Exception e) {
+                fail++;
+                log.warn("{} failed for month {}~{}: {}", step.getLabel(), range[0], range[1], e.getMessage());
+            }
+        }
+        log.info("{} completed: success={}, fail={}, total months={}",
+                step.getLabel(), success, fail, total);
+
+        // 全部失败时抛异常，让外层 catch 将任务标记为 FAILED
+        if (success == 0 && fail > 0) {
+            throw new RuntimeException(String.format(
+                    "%s: 全部 %d 个月拉取失败", step.getLabel(), fail));
+        }
+        return new StepStats(total, success, fail);
+    }
+
+    /**
+     * 将 [startDate, endDate] 按自然月切分为若干区间。
+     * <p>
+     * 每个区间为 [月初或startDate, 月末或endDate]，确保覆盖完整日期范围且不重叠。
+     * 例如 startDate=19901219, endDate=20260727 → [19901219,19901231], [19910101,19910131], ..., [20260701,20260727]
+     *
+     * @param startDate 起始日期 yyyyMMdd
+     * @param endDate   结束日期 yyyyMMdd
+     * @return 每个元素为 String[]{月初yyyyMMdd, 月末yyyyMMdd}
+     */
+    private List<String[]> splitByMonth(String startDate, String endDate) {
+        List<String[]> result = new ArrayList<>();
+        LocalDate start = LocalDate.parse(startDate, DATE_FMT);
+        LocalDate end = LocalDate.parse(endDate, DATE_FMT);
+        if (start.isAfter(end)) {
+            return result;
+        }
+        LocalDate monthStart = start;
+        while (!monthStart.isAfter(end)) {
+            LocalDate monthEnd = monthStart.withDayOfMonth(monthStart.lengthOfMonth());
+            if (monthEnd.isAfter(end)) {
+                monthEnd = end;
+            }
+            result.add(new String[]{
+                    monthStart.format(DATE_FMT),
+                    monthEnd.format(DATE_FMT)
+            });
+            monthStart = monthEnd.plusDays(1);
+        }
+        return result;
     }
 
     private String queryMaxTradeDate(String tableName) {

@@ -28,6 +28,13 @@ public interface StockStkLimitMapper extends BaseMapper<StockStkLimitDO> {
     int deleteBatchByKeys(@Param("list") List<StockStkLimitDO> list);
 
     /**
+     * 批量幂等写入（INSERT ... ON DUPLICATE KEY UPDATE），利用主键 (ts_code, trade_date) 冲突更新。
+     * <p>
+     * 替代 delete+insert 两步操作，消除大表上 OR 条件 DELETE 的性能瓶颈。
+     */
+    int upsertBatch(@Param("list") List<StockStkLimitDO> list);
+
+    /**
      * 区间批量：取多只股票在 [startDate, endDate] 的涨跌停价（供 buildKlineData 精确判定）。
      *
      * @param tsCodes   股票代码列表

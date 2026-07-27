@@ -19,6 +19,9 @@ public class StkLimitQueryDTO {
     /** 股票代码，如 000001.SZ（可选） */
     private String tsCode;
 
+    /** 交易日期，格式 yyyyMMdd（可选，优先于 startDate/endDate） */
+    private String tradeDate;
+
     /** 起始日期（可选） */
     private String startDate;
 

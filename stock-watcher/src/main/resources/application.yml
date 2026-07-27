@@ -73,7 +73,7 @@ tushare:
     suspend_d:
       permits-per-minute: 200
     stk_limit:
-      permits-per-minute: 500
+      permits-per-minute: 180
     income:
       permits-per-minute: 200
     balancesheet:

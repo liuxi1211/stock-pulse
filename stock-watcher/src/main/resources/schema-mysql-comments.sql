@@ -85,7 +85,7 @@ ALTER TABLE trade_cal COMMENT = '交易日历表';
 ALTER TABLE trade_cal MODIFY COLUMN exchange       VARCHAR(16) COMMENT '交易所代码（SSE/SZSE/CFFEX 等）';
 ALTER TABLE trade_cal MODIFY COLUMN cal_date       VARCHAR(8)  NOT NULL COMMENT '日历日期（YYYYMMDD）';
 ALTER TABLE trade_cal MODIFY COLUMN is_open        VARCHAR(4)  COMMENT '是否交易：0=休市，1=交易';
-ALTER TABLE trade_cal MODIFY COLUMN pretrade_date  VARCHAR(8)  COMMENT '上一交易日（YYYYMMDD）';
+ALTER TABLE trade_cal MODIFY COLUMN pretrade_date  VARCHAR(8)  COMMENT '上一交易日（YYYYMMDD），交易所首个交易日为 NULL';
 
 -- -----------------------------------------------------------
 -- 6. adj_factor 复权因子表

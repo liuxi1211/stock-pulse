@@ -456,7 +456,7 @@ public class TradeCalServiceImpl implements TradeCalService, DataCheckable {
                     .tableCode(getTableCode())
                     .tableName(InitStep.TRADE_CAL.getLabel())
                     .totalRows(totalRows)
-                    .latestDate(null)
+                    .latestDate(tradeCalMapper.selectMaxCalDate())
                     .items(items)
                     .build();
         } catch (Exception e) {

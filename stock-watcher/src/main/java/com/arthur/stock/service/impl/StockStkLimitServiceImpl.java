@@ -11,12 +11,10 @@ import com.arthur.stock.mapper.StockStkLimitMapper;
 import com.arthur.stock.model.StockStkLimitDO;
 import com.arthur.stock.service.DataCheckable;
 import com.arthur.stock.service.StockStkLimitService;
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.google.common.collect.Lists;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDate;
@@ -31,8 +29,9 @@ import java.util.stream.Collectors;
 /**
  * 涨跌停价服务实现。
  * <p>
- * 数据源：tushare stk_limit（doc_id=183），接口单次不限行数，但分页更稳。
- * 落库策略：按业务键 (ts_code, trade_date) 单条 delete-then-insert，保证幂等。
+ * 数据源：tushare stk_limit（doc_id=183）。
+ * 落库策略：按日期范围（start_date ~ end_date）查询，内部 offset/limit 分页（每页 {@value #PAGE_SIZE}），
+ * 每查到一页立即用一个独立短事务落库（事务内按 {@value #BATCH_SIZE} 批次 upsert），保证幂等。
  */
 @Slf4j
 @Service
@@ -55,8 +54,8 @@ public class StockStkLimitServiceImpl implements StockStkLimitService, DataCheck
     private final TransactionTemplate transactionTemplate;
 
     @Override
-    public int fetchAndSaveAll() {
-        log.info("Fetching stock_stk_limit (paginated, size={})", PAGE_SIZE);
+    public int fetchAndSaveByRange(String startDate, String endDate) {
+        log.info("Fetching stock_stk_limit for {}~{}", startDate, endDate);
         int total = 0;
         int offset = 0;
         int pageNum = 0;
@@ -68,44 +67,36 @@ public class StockStkLimitServiceImpl implements StockStkLimitService, DataCheck
                 break;
             }
             List<StkLimitDTO> page = tushareClient.stkLimit(
-                    StkLimitQueryDTO.builder().build(), offset, PAGE_SIZE);
+                    StkLimitQueryDTO.builder().startDate(startDate).endDate(endDate).build(),
+                    offset, PAGE_SIZE);
             if (page.isEmpty()) {
                 break;
             }
-            // 流式落库：拉一页存一页，每页一个独立事务，避免全量累积到内存
+            // 每页一个独立短事务，不跨 Tushare API 调用
             int saved = transactionTemplate.execute(status -> persistByBizKey(page));
             total += saved;
-            log.info("stock_stk_limit page saved: offset={}, size={}, saved={}, total={}",
-                    offset, page.size(), saved, total);
+            log.info("stock_stk_limit page saved: range={}~{}, offset={}, size={}, saved={}, total={}",
+                    startDate, endDate, offset, page.size(), saved, total);
             if (page.size() < PAGE_SIZE) {
                 break;
             }
             offset += PAGE_SIZE;
         }
-        log.info("Saved {} stock_stk_limit records", total);
+        log.info("Saved {} stock_stk_limit records for {}~{}", total, startDate, endDate);
         return total;
     }
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
-    public int fetchAndSaveIncremental(String tradeDate) {
-        log.info("Fetching stock_stk_limit incremental for tradeDate={}", tradeDate);
-        List<StkLimitDTO> rows = tushareClient.stkLimit(
-                StkLimitQueryDTO.builder().startDate(tradeDate).endDate(tradeDate).build(), null, null);
-        int total = persistByBizKey(rows);
-        log.info("Saved {} incremental stock_stk_limit records for {}", total, tradeDate);
-        return total;
-    }
-
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    public int fetchAndSaveByRange(String tsCode, String startDate, String endDate) {
-        log.info("Fetching stock_stk_limit for tsCode={}, {}~{}", tsCode, startDate, endDate);
-        List<StkLimitDTO> rows = tushareClient.stkLimit(
-                StkLimitQueryDTO.builder().tsCode(tsCode).startDate(startDate).endDate(endDate).build(), null, null);
-        int total = persistByBizKey(rows);
-        log.info("Saved {} stock_stk_limit records for tsCode={}, {}~{}", total, tsCode, startDate, endDate);
-        return total;
+    public int fetchAndSaveIncremental() {
+        String maxDate = stockStkLimitMapper.selectLatestTradeDate();
+        String today = LocalDate.now().format(DATE_FMT);
+        if (maxDate != null && maxDate.compareTo(today) >= 0) {
+            log.info("stock_stk_limit is up to date (maxDate={})", maxDate);
+            return 0;
+        }
+        String startDate = maxDate != null ? maxDate : today;
+        log.info("stock_stk_limit incremental: {}~{}", startDate, today);
+        return fetchAndSaveByRange(startDate, today);
     }
 
     @Override
@@ -128,7 +119,11 @@ public class StockStkLimitServiceImpl implements StockStkLimitService, DataCheck
     // ==================== 内部方法 ====================
 
     /**
-     * 按业务键 (ts_code, trade_date) 批量先删后插，保证幂等。
+     * 按业务键 (ts_code, trade_date) 批量幂等写入，利用主键冲突 ON DUPLICATE KEY UPDATE。
+     * <p>
+     * 替代原 delete-then-insert 两步操作，消除大表上 500 OR 条件 DELETE 的性能瓶颈，
+     * 将每页事务耗时减半，避免 HikariCP 连接泄漏告警。
+     * 事务内按 {@value #BATCH_SIZE} 分批执行，避免单次 SQL 过大。
      */
     private int persistByBizKey(List<StkLimitDTO> rows) {
         if (rows.isEmpty()) {
@@ -140,8 +135,7 @@ public class StockStkLimitServiceImpl implements StockStkLimitService, DataCheck
                 .collect(Collectors.toList());
         int count = 0;
         for (List<StockStkLimitDO> batch : Lists.partition(entities, BATCH_SIZE)) {
-            stockStkLimitMapper.deleteBatchByKeys(batch);
-            count += stockStkLimitMapper.insertBatch(batch);
+            count += stockStkLimitMapper.upsertBatch(batch);
         }
         return count;
     }
