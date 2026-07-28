@@ -1,0 +1,594 @@
+.sd-page {
+    min-width: 0;
+}
+
+.sd-page-header {
+    align-items: flex-end;
+}
+
+.sd-page-eyebrow,
+.sd-section-kicker {
+    font-family: var(--font-display);
+    color: var(--accent-cyan);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+}
+
+.sd-page-code {
+    display: inline-flex;
+    margin-left: 10px;
+    padding: 3px 9px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-full);
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    vertical-align: middle;
+}
+
+.sd-summary {
+    display: grid;
+    grid-template-columns: auto minmax(180px, 0.8fr) minmax(520px, 2fr);
+    align-items: center;
+    gap: 18px;
+    margin-bottom: 18px;
+    padding: 18px 20px;
+    overflow: hidden;
+}
+
+.sd-summary-mark {
+    display: grid;
+    width: 48px;
+    height: 48px;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-md);
+    background: color-mix(in srgb, var(--accent-blue) 10%, transparent);
+    color: var(--accent-blue);
+    font-size: 22px;
+    place-items: center;
+}
+
+.sd-summary-heading {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.sd-summary-label,
+.sd-summary-item span {
+    color: var(--text-muted);
+    font-size: 11px;
+}
+
+.sd-summary-heading strong {
+    overflow: hidden;
+    color: var(--text-primary);
+    font-family: var(--font-display);
+    font-size: 18px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.sd-summary-heading > span:last-child,
+.sd-summary-item strong {
+    color: var(--text-secondary);
+    font-family: var(--font-mono);
+    font-size: 12px;
+}
+
+.sd-summary-metrics {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(100px, 1fr));
+    border-left: 1px solid var(--border-light);
+}
+
+.sd-summary-item {
+    display: flex;
+    min-width: 0;
+    padding: 4px 18px;
+    border-right: 1px solid var(--border-light);
+    flex-direction: column;
+    gap: 5px;
+}
+
+.sd-summary-item:last-child {
+    border-right: 0;
+}
+
+.sd-workbench {
+    overflow: hidden;
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-md);
+    background: var(--bg-card);
+    box-shadow: var(--shadow-sm);
+}
+
+.sd-tabs {
+    display: flex;
+    padding: 0 14px;
+    border-bottom: 1px solid var(--border-light);
+    gap: 2px;
+    overflow-x: auto;
+}
+
+.sd-tab {
+    position: relative;
+    display: inline-flex;
+    min-width: max-content;
+    padding: 13px 16px;
+    border: 0;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 13px;
+    font-weight: 600;
+    align-items: center;
+    gap: 7px;
+    transition: color var(--transition-fast), background-color var(--transition-fast);
+}
+
+.sd-tab:hover,
+.sd-tab:focus-visible {
+    background: color-mix(in srgb, var(--accent-blue) 7%, transparent);
+    color: var(--accent-blue);
+    outline: none;
+}
+
+.sd-tab:focus-visible {
+    box-shadow: inset 0 0 0 2px var(--accent-cyan);
+}
+
+.sd-tab.is-active {
+    color: var(--accent-blue);
+}
+
+.sd-tab.is-active::after {
+    position: absolute;
+    right: 10px;
+    bottom: -1px;
+    left: 10px;
+    height: 2px;
+    border-radius: var(--radius-full);
+    background: var(--gradient-primary);
+    content: '';
+}
+
+.sd-panels {
+    padding: 20px;
+}
+
+.sd-panel.is-active {
+    animation: sd-panel-enter 0.2s ease-out;
+}
+
+.sd-panel-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.7fr) minmax(280px, 0.8fr);
+    gap: 16px;
+}
+
+.sd-section-card {
+    position: relative;
+    min-width: 0;
+    min-height: 260px;
+    overflow: hidden;
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-md);
+    background: var(--bg-tertiary);
+}
+
+.sd-section-head {
+    display: flex;
+    min-height: 60px;
+    padding: 13px 16px;
+    border-bottom: 1px solid var(--border-light);
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.sd-section-head h2 {
+    margin: 2px 0 0;
+    color: var(--text-primary);
+    font-size: 14px;
+    font-weight: 650;
+}
+
+.sd-section-meta {
+    color: var(--text-muted);
+    font-size: 11px;
+}
+
+.sd-section-body {
+    min-height: 340px;
+    padding: 20px;
+}
+
+.sd-chart-placeholder {
+    display: flex;
+    height: 300px;
+    padding: 24px 16px 20px;
+    border-radius: var(--radius-sm);
+    background-image: linear-gradient(var(--border-light) 1px, transparent 1px), linear-gradient(90deg, var(--border-light) 1px, transparent 1px);
+    background-size: 100% 25%, 12.5% 100%;
+    align-items: flex-end;
+    justify-content: space-around;
+    gap: 8px;
+}
+
+.sd-chart-placeholder span {
+    width: 7%;
+    min-width: 8px;
+    border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+    background: color-mix(in srgb, var(--accent-cyan) 24%, transparent);
+}
+
+.sd-chart-placeholder span:nth-child(1) { height: 34%; }
+.sd-chart-placeholder span:nth-child(2) { height: 58%; }
+.sd-chart-placeholder span:nth-child(3) { height: 45%; }
+.sd-chart-placeholder span:nth-child(4) { height: 76%; }
+.sd-chart-placeholder span:nth-child(5) { height: 64%; }
+
+.sd-section-state,
+.sd-section-empty,
+.sd-section-error {
+    position: absolute;
+    inset: 61px 0 0;
+    display: flex;
+    padding: 32px;
+    background: color-mix(in srgb, var(--bg-card) 92%, transparent);
+    color: var(--text-muted);
+    text-align: center;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 8px;
+    backdrop-filter: blur(5px);
+}
+
+.sd-section-state[hidden],
+.sd-section-empty[hidden],
+.sd-section-error[hidden] {
+    display: none;
+}
+
+.sd-section-state i,
+.sd-section-empty i,
+.sd-section-error i {
+    color: var(--accent-cyan);
+    font-size: 26px;
+}
+
+.sd-section-error i {
+    color: var(--rise-color);
+}
+
+.sd-section-state strong,
+.sd-section-empty strong,
+.sd-section-error strong {
+    color: var(--text-secondary);
+    font-size: 14px;
+}
+
+.sd-section-state span {
+    max-width: 420px;
+    font-size: 12px;
+}
+
+.sd-table-scroll {
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: auto;
+}
+
+.sd-table-scroll table {
+    min-width: 520px;
+    color: var(--text-secondary);
+    font-size: 12px;
+}
+
+.sd-table-scroll th {
+    color: var(--text-muted);
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.sd-table-scroll td {
+    color: var(--text-muted);
+}
+
+.sd-not-found {
+    display: flex;
+    min-height: 360px;
+    padding: 48px 24px;
+    text-align: center;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+}
+
+.sd-not-found > i {
+    margin-bottom: 18px;
+    color: var(--accent-cyan);
+    font-size: 48px;
+}
+
+.sd-not-found h2 {
+    margin-bottom: 8px;
+    color: var(--text-primary);
+    font-size: 20px;
+}
+
+.sd-not-found p {
+    max-width: 540px;
+    margin-bottom: 20px;
+    color: var(--text-muted);
+    font-size: 13px;
+}
+
+@keyframes sd-panel-enter {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 1199.98px) {
+    .sd-summary {
+        grid-template-columns: auto 1fr;
+    }
+
+    .sd-summary-metrics {
+        grid-column: 1 / -1;
+        border-top: 1px solid var(--border-light);
+        border-left: 0;
+        padding-top: 14px;
+    }
+
+    .sd-panel-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 767.98px) {
+    .sd-page-header {
+        align-items: flex-start;
+    }
+
+    .sd-page-code {
+        display: flex;
+        width: max-content;
+        margin: 8px 0 0;
+    }
+
+    .sd-summary {
+        grid-template-columns: auto 1fr;
+        padding: 16px;
+    }
+
+    .sd-summary-metrics {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .sd-summary-item:nth-child(2) {
+        border-right: 0;
+    }
+
+    .sd-summary-item:nth-child(n + 3) {
+        margin-top: 10px;
+        border-top: 1px solid var(--border-light);
+        padding-top: 12px;
+    }
+
+    .sd-panels {
+        padding: 12px;
+    }
+
+    .sd-section-body {
+        min-height: 280px;
+        padding: 12px;
+    }
+
+    .sd-chart-placeholder {
+        height: 240px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .sd-panel.is-active {
+        animation: none;
+    }
+}
+
+/* ========== Task 8 新增：摘要操作按钮 ========== */
+.sd-summary-actions {
+    display: flex;
+    margin-top: 8px;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.sd-summary-actions .btn {
+    padding: 2px 10px;
+    font-size: 12px;
+}
+
+/* ========== K 线工具栏 ========== */
+.sd-kline-toolbar {
+    display: flex;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border-light);
+    gap: 12px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.sd-kline-toolbar .btn-group .btn {
+    padding: 3px 10px;
+    font-size: 12px;
+    transition: color var(--transition-fast), background-color var(--transition-fast), border-color var(--transition-fast);
+}
+
+/* 选中态：提升特异性覆盖 Bootstrap .btn-outline-secondary，加粗 + 高亮背景 + 强边框 */
+.sd-kline-toolbar .btn-group .btn.active,
+.sd-cards-grid .btn-group .btn.active {
+    color: var(--accent-cyan);
+    border-color: var(--accent-cyan);
+    background: color-mix(in srgb, var(--accent-cyan) 14%, transparent);
+    font-weight: 600;
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-cyan) 40%, transparent);
+}
+
+/* 选中态 hover 保持高亮，不被 Bootstrap hover 态覆盖 */
+.sd-kline-toolbar .btn-group .btn.active:hover,
+.sd-cards-grid .btn-group .btn.active:hover {
+    color: var(--accent-cyan);
+    border-color: var(--accent-cyan);
+    background: color-mix(in srgb, var(--accent-cyan) 22%, transparent);
+}
+
+/* 非选中态 hover 轻微反馈 */
+.sd-kline-toolbar .btn-group .btn:not(.active):hover,
+.sd-cards-grid .btn-group .btn:not(.active):hover {
+    color: var(--text-primary);
+    border-color: var(--border-strong);
+    background: color-mix(in srgb, var(--accent-blue) 6%, transparent);
+}
+
+/* 资金面范围按钮组（北向持股 3M/1Y/ALL）也复用同一选中态 */
+.sd-mf-hk .btn-group .btn {
+    padding: 2px 10px;
+    font-size: 12px;
+}
+
+/* ========== K 线图表区 ========== */
+.sd-kline-area {
+    display: grid;
+    grid-template-columns: minmax(0, 1.7fr) minmax(280px, 0.8fr);
+    gap: 16px;
+    padding: 16px;
+}
+
+.sd-chart-card .sd-chart-body {
+    display: flex;
+    min-height: 420px;
+    padding: 8px;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.sd-chart-main {
+    flex: 1 1 300px;
+    min-height: 300px;
+}
+
+.sd-chart-sub {
+    flex: 0 0 130px;
+    min-height: 130px;
+}
+
+.sd-chart-sub:empty {
+    display: none;
+}
+
+/* ========== 多卡片网格（基本面/资金面/风险面）========== */
+.sd-cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+    padding: 16px;
+    gap: 16px;
+}
+
+.sd-cards-grid .sd-section-card {
+    min-height: 220px;
+}
+
+.sd-cards-grid .sd-section-body {
+    min-height: 160px;
+    padding: 14px;
+}
+
+/* ========== 卡片内通用数据展示 ========== */
+.sd-metric-row {
+    display: flex;
+    margin-bottom: 8px;
+    color: var(--text-secondary);
+    font-size: 12px;
+    align-items: baseline;
+    justify-content: space-between;
+}
+
+.sd-metric-row strong {
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+    font-size: 13px;
+}
+
+.sd-mini-table {
+    width: 100%;
+    color: var(--text-secondary);
+    font-size: 12px;
+}
+
+.sd-mini-table th {
+    color: var(--text-muted);
+    font-weight: 600;
+    white-space: nowrap;
+    padding: 6px 8px;
+    text-align: right;
+}
+
+.sd-mini-table th:first-child {
+    text-align: left;
+}
+
+.sd-mini-table td {
+    padding: 6px 8px;
+    text-align: right;
+    border-top: 1px solid var(--border-light);
+}
+
+.sd-mini-table td:first-child {
+    color: var(--text-muted);
+    text-align: left;
+}
+
+.sd-percentile-bar {
+    position: relative;
+    height: 6px;
+    margin: 4px 0 12px;
+    border-radius: var(--radius-full);
+    background: var(--border-light);
+}
+
+.sd-percentile-bar::after {
+    position: absolute;
+    top: -3px;
+    width: 3px;
+    height: 12px;
+    border-radius: var(--radius-full);
+    background: var(--accent-cyan);
+    content: '';
+}
+
+/* 涨跌色（统一主题变量） */
+.sd-rise { color: var(--rise-color); }
+.sd-fall { color: var(--fall-color); }
+
+/* ========== 响应式补充 ========== */
+@media (max-width: 1199.98px) {
+    .sd-kline-area {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 767.98px) {
+    .sd-kline-toolbar {
+        gap: 8px;
+    }
+    .sd-cards-grid {
+        grid-template-columns: 1fr;
+    }
+    .sd-chart-card .sd-chart-body {
+        min-height: 320px;
+    }
+}

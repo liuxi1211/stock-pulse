@@ -1,5 +1,6 @@
 package com.arthur.stock.dto;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.Data;
 
 import java.math.BigDecimal;
@@ -26,4 +27,8 @@ public class BlockTradeWithCloseVO {
 
     /** 收盘价（来自 daily_quote.close JOIN） */
     private BigDecimal closePrice;
+
+    /** 折溢价率（%）：(成交价 - 收盘价) / 收盘价 * 100，收盘价为空或0时为 null */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private BigDecimal premiumRate;
 }

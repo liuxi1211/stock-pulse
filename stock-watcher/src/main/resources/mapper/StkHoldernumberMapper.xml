@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.arthur.stock.mapper.StkHoldernumberMapper">
+
+    <resultMap id="stkHoldernumberMap" type="com.arthur.stock.model.StkHoldernumberDO">
+        <id column="id" property="id"/>
+        <result column="ts_code" property="tsCode"/>
+        <result column="ann_date" property="annDate"/>
+        <result column="end_date" property="endDate"/>
+        <result column="holder_num" property="holderNum"/>
+    </resultMap>
+
+    <insert id="insertBatch">
+        INSERT INTO stk_holdernumber (ts_code, ann_date, end_date, holder_num) VALUES
+        <foreach collection="list" item="i" separator=",">
+            (#{i.tsCode}, #{i.annDate}, #{i.endDate}, #{i.holderNum})
+        </foreach>
+    </insert>
+
+    <delete id="deleteBatchByKeys">
+        DELETE FROM stk_holdernumber WHERE
+        <foreach collection="list" item="i" separator=" OR ">
+            (ts_code = #{i.tsCode} AND end_date = #{i.endDate})
+        </foreach>
+    </delete>
+
+    <select id="selectRecentByTsCode" resultMap="stkHoldernumberMap">
+        SELECT id, ts_code, ann_date, end_date, holder_num
+        FROM stk_holdernumber
+        WHERE ts_code = #{tsCode}
+        ORDER BY end_date DESC, ann_date DESC
+        LIMIT #{limit}
+    </select>
+
+    <select id="selectMaxAnnDate" resultType="java.lang.String">
+        SELECT MAX(ann_date) FROM stk_holdernumber
+    </select>
+
+    <select id="countInvalidHolderNum" resultType="int">
+        SELECT COUNT(*) FROM stk_holdernumber WHERE holder_num IS NULL OR holder_num &lt;= 0
+    </select>
+
+    <select id="countMissingEndDate" resultType="int">
+        SELECT COUNT(*) FROM stk_holdernumber WHERE end_date IS NULL OR end_date = ''
+    </select>
+
+</mapper>

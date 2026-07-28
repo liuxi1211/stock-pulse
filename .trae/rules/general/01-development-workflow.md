@@ -138,7 +138,7 @@ description: "当用户涉及新功能开发、需求分析、方案设计、编
 
 ### 5.1 双系统协作约束 ✅ MUST
 
-- watcher（Java）是数据唯一来源，独占 SQLite 读写
+- watcher（Java）是数据唯一来源，独占 MySQL 读写
 - engine（Python）不直接读写数据库，所有数据通过 HTTP API 获取/返回
 - 跨系统接口变更需同步更新双方代码和文档
 

@@ -181,7 +181,7 @@ lsof -i :8080
 | JDK | **21** | stock-watcher 编译运行 | `java -version` |
 | Node.js | 16+ | 跑 run.js（跨平台编排） | `node -v` |
 | Conda | Miniforge / Miniconda / Anaconda | stock-engine 用 conda env `stock` | `conda --version` |
-| MySQL | 8+ | watcher 默认数据源（或用 sqlite profile） | - |
+| MySQL | 8+ | watcher 数据源 | - |
 | Tushare Pro | - | 行情数据 token | 注册 https://tushare.pro |
 
 > Maven **无需全局安装**，项目自带 `mvnw` / `mvnw.cmd` Wrapper。

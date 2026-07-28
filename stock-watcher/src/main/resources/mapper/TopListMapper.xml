@@ -41,6 +41,14 @@
         SELECT * FROM top_list WHERE trade_date = #{tradeDate} ORDER BY net_amount DESC
     </select>
 
+    <select id="selectByCodeAndDateRange" resultMap="topListMap">
+        SELECT * FROM top_list
+        WHERE ts_code = #{tsCode}
+          AND trade_date &gt;= #{startDate}
+          AND trade_date &lt;= #{endDate}
+        ORDER BY trade_date DESC
+    </select>
+
     <select id="selectLatestTradeDate" resultType="string">
         SELECT MAX(trade_date) FROM top_list
     </select>

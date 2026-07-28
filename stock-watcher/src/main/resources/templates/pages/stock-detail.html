@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/common :: head(${pageTitle})}"></head>
+<body>
+<div class="app-container">
+    <nav th:replace="~{fragments/common :: sidebar}"></nav>
+    <div th:replace="~{fragments/common :: sidebarOverlay}"></div>
+    <div class="main-content">
+        <header th:replace="~{fragments/common :: topNavbar}"></header>
+        <main id="stockDetailPage" class="content-area sd-page" th:attr="data-stock-code=${code},data-stock-exists=${stockExists}">
+            <div class="page-header sd-page-header">
+                <div>
+                    <div class="sd-page-eyebrow">STOCK DIAGNOSIS</div>
+                    <h1 class="page-title">
+                        <span th:text="${stockName} ?: '个股诊断'">个股诊断</span>
+                        <span class="sd-page-code" th:text="${code}">000001.SZ</span>
+                    </h1>
+                    <p class="text-muted mb-0">从价格、经营、资金与风险四个维度梳理公开数据</p>
+                </div>
+                <a class="btn btn-outline-secondary btn-sm" th:href="@{/page/stock-list}">
+                    <i class="bi bi-arrow-left"></i> 返回行情中心
+                </a>
+            </div>
+
+            <!-- ========== 顶部摘要条 ========== -->
+            <section class="card card-glow sd-summary" aria-labelledby="summaryTitle">
+                <div class="sd-summary-mark" aria-hidden="true">
+                    <i class="bi bi-activity"></i>
+                </div>
+                <div class="sd-summary-heading">
+                    <span id="summaryTitle" class="sd-summary-label">诊断标的</span>
+                    <strong th:text="${stockName != null ? stockName : code}">股票名称</strong>
+                    <span th:text="${code}">000001.SZ</span>
+                    <div class="sd-summary-actions" id="sdSummaryActions">
+                        <button type="button" class="btn btn-sm btn-outline-primary" id="sdWatchlistBtn" data-action="toggle-watchlist">
+                            <i class="bi bi-star"></i> <span>加入自选</span>
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" id="sdReminderBtn" data-action="set-reminder">
+                            <i class="bi bi-bell"></i> 价格提醒
+                        </button>
+                    </div>
+                </div>
+                <div class="sd-summary-metrics" id="sdSummaryMetrics">
+                    <div class="sd-summary-item"><span>最新价</span><strong data-field="price">--</strong></div>
+                    <div class="sd-summary-item"><span>涨跌幅</span><strong data-field="pctChg">--</strong></div>
+                    <div class="sd-summary-item"><span>涨跌额</span><strong data-field="change">--</strong></div>
+                    <div class="sd-summary-item"><span>总市值</span><strong data-field="totalMv">--</strong></div>
+                    <div class="sd-summary-item"><span>PE(TTM)</span><strong data-field="peTtm">--</strong></div>
+                    <div class="sd-summary-item"><span>PB</span><strong data-field="pb">--</strong></div>
+                    <div class="sd-summary-item"><span>换手率</span><strong data-field="turnoverRate">--</strong></div>
+                    <div class="sd-summary-item"><span>行业</span><strong data-field="industry">--</strong></div>
+                    <div class="sd-summary-item"><span>数据日期</span><strong data-field="dataDate">--</strong></div>
+                </div>
+            </section>
+
+            <!-- ========== 诊断分区 ========== -->
+            <section th:if="${stockExists}" class="sd-workbench" aria-label="个股诊断分区">
+                <nav class="sd-tabs" role="tablist" aria-label="诊断维度">
+                    <button id="sd-tab-kline" class="sd-tab is-active" type="button" role="tab" data-tab="kline" aria-controls="sd-panel-kline" aria-selected="true">
+                        <i class="bi bi-graph-up-arrow"></i><span>技术面</span>
+                    </button>
+                    <button id="sd-tab-fundamental" class="sd-tab" type="button" role="tab" data-tab="fundamental" aria-controls="sd-panel-fundamental" aria-selected="false" tabindex="-1">
+                        <i class="bi bi-building"></i><span>基本面</span>
+                    </button>
+                    <button id="sd-tab-moneyflow" class="sd-tab" type="button" role="tab" data-tab="moneyflow" aria-controls="sd-panel-moneyflow" aria-selected="false" tabindex="-1">
+                        <i class="bi bi-cash-stack"></i><span>资金面</span>
+                    </button>
+                    <button id="sd-tab-risk" class="sd-tab" type="button" role="tab" data-tab="risk" aria-controls="sd-panel-risk" aria-selected="false" tabindex="-1">
+                        <i class="bi bi-shield-exclamation"></i><span>风险提示</span>
+                    </button>
+                </nav>
+
+                <div class="sd-panels">
+                    <!-- ===== K 线技术面 Tab ===== -->
+                    <section id="sd-panel-kline" class="sd-panel is-active" role="tabpanel" data-panel="kline" aria-labelledby="sd-tab-kline">
+                        <div class="sd-kline-toolbar">
+                            <div class="btn-group btn-group-sm" role="group" data-control="period">
+                                <button type="button" class="btn btn-outline-secondary active" data-period="D">日K</button>
+                                <button type="button" class="btn btn-outline-secondary" data-period="W">周K</button>
+                                <button type="button" class="btn btn-outline-secondary" data-period="M">月K</button>
+                                <button type="button" class="btn btn-outline-secondary" data-period="60MIN" disabled title="暂无分钟数据源">60分</button>
+                            </div>
+                            <div class="btn-group btn-group-sm" role="group" data-control="adj">
+                                <button type="button" class="btn btn-outline-secondary active" data-adj="QFQ">前复权</button>
+                                <button type="button" class="btn btn-outline-secondary" data-adj="HFQ">后复权</button>
+                                <button type="button" class="btn btn-outline-secondary" data-adj="NONE">不复权</button>
+                            </div>
+                            <div class="btn-group btn-group-sm" role="group" data-control="mainIndicator">
+                                <button type="button" class="btn btn-outline-secondary active" data-main="ma">MA</button>
+                                <button type="button" class="btn btn-outline-secondary" data-main="ema">EMA</button>
+                                <button type="button" class="btn btn-outline-secondary" data-main="boll">BOLL</button>
+                                <button type="button" class="btn btn-outline-secondary" data-main="sar">SAR</button>
+                            </div>
+                            <div class="btn-group btn-group-sm" role="group" data-control="subIndicator">
+                                <button type="button" class="btn btn-outline-secondary active" data-sub="macd">MACD</button>
+                                <button type="button" class="btn btn-outline-secondary" data-sub="kdj">KDJ</button>
+                                <button type="button" class="btn btn-outline-secondary" data-sub="rsi">RSI</button>
+                                <button type="button" class="btn btn-outline-secondary" data-sub="wr">WR</button>
+                                <button type="button" class="btn btn-outline-secondary" data-sub="cci">CCI</button>
+                                <button type="button" class="btn btn-outline-secondary" data-sub="dmi">DMI</button>
+                                <button type="button" class="btn btn-outline-secondary" data-sub="none">无</button>
+                            </div>
+                        </div>
+                        <div class="sd-kline-area">
+                            <article class="sd-section-card sd-chart-card">
+                                <header class="sd-section-head">
+                                    <div><span class="sd-section-kicker">PRICE ACTION</span><h2>K 线与技术指标</h2></div>
+                                    <span class="sd-section-meta" data-kline-meta>等待加载</span>
+                                </header>
+                                <div class="sd-section-body sd-chart-body">
+                                    <div id="sdKlineMain" class="sd-chart-main"></div>
+                                    <div id="sdKlineSub" class="sd-chart-sub"></div>
+                                </div>
+                                <div class="sd-section-state" data-section-state="idle">
+                                    <i class="bi bi-hourglass-split"></i>
+                                    <strong>等待加载技术面</strong>
+                                    <span>切换到当前分区后再请求所需数据</span>
+                                </div>
+                                <div class="sd-section-empty" hidden>
+                                    <i class="bi bi-inbox"></i><strong>暂无技术面数据</strong>
+                                </div>
+                                <div class="sd-section-error" hidden>
+                                    <i class="bi bi-exclamation-triangle"></i><strong>技术面加载失败</strong>
+                                    <button class="btn btn-outline-secondary btn-sm" type="button" data-section-retry>重试</button>
+                                </div>
+                            </article>
+                            <article class="sd-section-card sd-table-card">
+                                <header class="sd-section-head">
+                                    <div><span class="sd-section-kicker">SIGNAL LOG</span><h2>信号时间轴</h2></div>
+                                </header>
+                                <div class="sd-table-scroll">
+                                    <table class="table table-hover mb-0" id="sdSignalTable">
+                                        <thead><tr><th>日期</th><th>信号</th><th>说明</th></tr></thead>
+                                        <tbody><tr><td colspan="3" class="text-muted">等待加载</td></tr></tbody>
+                                    </table>
+                                </div>
+                            </article>
+                        </div>
+                    </section>
+
+                    <!-- ===== 基本面 Tab ===== -->
+                    <section id="sd-panel-fundamental" class="sd-panel" role="tabpanel" data-panel="fundamental" aria-labelledby="sd-tab-fundamental" hidden>
+                        <div class="sd-cards-grid">
+                            <article class="sd-section-card sd-fund-valuation" data-card="valuation">
+                                <header class="sd-section-head"><div><span class="sd-section-kicker">FUNDAMENTALS</span><h2>估值百分位</h2></div></header>
+                                <div class="sd-section-body" data-card-body></div>
+                                <div class="sd-section-state" data-section-state="idle"><i class="bi bi-hourglass-split"></i><strong>等待加载</strong></div>
+                                <div class="sd-section-empty" hidden><i class="bi bi-inbox"></i><strong>暂无数据</strong></div>
+                                <div class="sd-section-error" hidden><i class="bi bi-exclamation-triangle"></i><strong>加载失败</strong><button class="btn btn-outline-secondary btn-sm" type="button" data-section-retry>重试</button></div>
+                            </article>
+                            <article class="sd-section-card sd-fund-trend" data-card="trend">
+                                <header class="sd-section-head"><div><span class="sd-section-kicker">QUALITY</span><h2>财务趋势</h2></div></header>
+                                <div class="sd-section-body" data-card-body></div>
+                                <div class="sd-section-state" data-section-state="idle"><i class="bi bi-hourglass-split"></i><strong>等待加载</strong></div>
+                                <div class="sd-section-empty" hidden><i class="bi bi-inbox"></i><strong>暂无数据</strong></div>
+                                <div class="sd-section-error" hidden><i class="bi bi-exclamation-triangle"></i><strong>加载失败</strong><button class="btn btn-outline-secondary btn-sm" type="button" data-section-retry>重试</button></div>
+                            </article>
+                            <article class="sd-section-card sd-fund-statements" data-card="statements">
+                                <header class="sd-section-head"><div><span class="sd-section-kicker">STATEMENTS</span><h2>三大报表</h2></div></header>
+                                <div class="sd-section-body" data-card-body></div>
+                                <div class="sd-section-state" data-section-state="idle"><i class="bi bi-hourglass-split"></i><strong>等待加载</strong></div>
+                                <div class="sd-section-empty" hidden><i class="bi bi-inbox"></i><strong>暂无数据</strong></div>
+                                <div class="sd-section-error" hidden><i class="bi bi-exclamation-triangle"></i><strong>加载失败</strong><button class="btn btn-outline-secondary btn-sm" type="button" data-section-retry>重试</button></div>
+                            </article>
+                            <article class="sd-section-card sd-fund-events" data-card="events">
+                                <header class="sd-section-head"><div><span class="sd-section-kicker">EVENTS</span><h2>业绩事件与分红</h2></div></header>
+                                <div class="sd-section-body" data-card-body></div>
+                                <div class="sd-section-state" data-section-state="idle"><i class="bi bi-hourglass-split"></i><strong>等待加载</strong></div>
+                                <div class="sd-section-empty" hidden><i class="bi bi-inbox"></i><strong>暂无数据</strong></div>
+                                <div class="sd-section-error" hidden><i class="bi bi-exclamation-triangle"></i><strong>加载失败</strong><button class="btn btn-outline-secondary btn-sm" type="button" data-section-retry>重试</button></div>
+                            </article>
+                            <article class="sd-section-card sd-fund-holders" data-card="holders">
+                                <header class="sd-section-head"><div><span class="sd-section-kicker">HOLDERS</span><h2>股东人数</h2></div></header>
+                                <div class="sd-section-body" data-card-body></div>
+                                <div class="sd-section-state" data-section-state="idle"><i class="bi bi-hourglass-split"></i><strong>等待加载</strong></div>
+                                <div class="sd-section-empty" hidden><i class="bi bi-inbox"></i><strong>暂无数据</strong></div>
+                                <div class="sd-section-error" hidden><i class="bi bi-exclamation-triangle"></i><strong>加载失败</strong><button class="btn btn-outline-secondary btn-sm" type="button" data-section-retry>重试</button></div>
+                            </article>
+                        </div>
+                    </section>
+
+                    <!-- ===== 资金面 Tab ===== -->
+                    <section id="sd-panel-moneyflow" class="sd-panel" role="tabpanel" data-panel="moneyflow" aria-labelledby="sd-tab-moneyflow" hidden>
+                        <div class="sd-cards-grid">
+                            <article class="sd-section-card sd-mf-main" data-card="mainflow">
+                                <header class="sd-section-head"><div><span class="sd-section-kicker">CAPITAL TRACE</span><h2>主力净流入</h2></div></header>
+                                <div class="sd-section-body" data-card-body></div>
+                                <div class="sd-section-state" data-section-state="idle"><i class="bi bi-hourglass-split"></i><strong>等待加载</strong></div>
+                                <div class="sd-section-empty" hidden><i class="bi bi-inbox"></i><strong>暂无数据</strong></div>
+                                <div class="sd-section-error" hidden><i class="bi bi-exclamation-triangle"></i><strong>加载失败</strong><button class="btn btn-outline-secondary btn-sm" type="button" data-section-retry>重试</button></div>
+                            </article>
+                            <article class="sd-section-card sd-mf-hk" data-card="hkhold">
+                                <header class="sd-section-head"><div><span class="sd-section-kicker">NORTHBOUND</span><h2>北向持股</h2></div>
+                                    <div class="btn-group btn-group-sm" data-control="hkRange">
+                                        <button type="button" class="btn btn-outline-secondary active" data-hk-range="3M">3月</button>
+                                        <button type="button" class="btn btn-outline-secondary" data-hk-range="1Y">1年</button>
+                                        <button type="button" class="btn btn-outline-secondary" data-hk-range="ALL">全部</button>
+                                    </div>
+                                </header>
+                                <div class="sd-section-body" data-card-body></div>
+                                <div class="sd-section-state" data-section-state="idle"><i class="bi bi-hourglass-split"></i><strong>等待加载</strong></div>
+                                <div class="sd-section-empty" hidden><i class="bi bi-inbox"></i><strong>暂无数据</strong></div>
+                                <div class="sd-section-error" hidden><i class="bi bi-exclamation-triangle"></i><strong>加载失败</strong><button class="btn btn-outline-secondary btn-sm" type="button" data-section-retry>重试</button></div>
+                            </article>
+                            <article class="sd-section-card sd-mf-toplist" data-card="toplist">
+                                <header class="sd-section-head"><div><span class="sd-section-kicker">DRAGON LIST</span><h2>龙虎榜</h2></div></header>
+                                <div class="sd-section-body" data-card-body></div>
+                                <div class="sd-section-state" data-section-state="idle"><i class="bi bi-hourglass-split"></i><strong>等待加载</strong></div>
+                                <div class="sd-section-empty" hidden><i class="bi bi-inbox"></i><strong>暂无数据</strong></div>
+                                <div class="sd-section-error" hidden><i class="bi bi-exclamation-triangle"></i><strong>加载失败</strong><button class="btn btn-outline-secondary btn-sm" type="button" data-section-retry>重试</button></div>
+                            </article>
+                            <article class="sd-section-card sd-mf-block" data-card="blocktrade">
+                                <header class="sd-section-head"><div><span class="sd-section-kicker">BLOCK TRADE</span><h2>大宗交易</h2></div></header>
+                                <div class="sd-section-body" data-card-body></div>
+                                <div class="sd-section-state" data-section-state="idle"><i class="bi bi-hourglass-split"></i><strong>等待加载</strong></div>
+                                <div class="sd-section-empty" hidden><i class="bi bi-inbox"></i><strong>暂无数据</strong></div>
+                                <div class="sd-section-error" hidden><i class="bi bi-exclamation-triangle"></i><strong>加载失败</strong><button class="btn btn-outline-secondary btn-sm" type="button" data-section-retry>重试</button></div>
+                            </article>
+                        </div>
+                    </section>
+
+                    <!-- ===== 风险提示 Tab ===== -->
+                    <section id="sd-panel-risk" class="sd-panel" role="tabpanel" data-panel="risk" aria-labelledby="sd-tab-risk" hidden>
+                        <div class="sd-cards-grid">
+                            <article class="sd-section-card sd-risk-limit" data-card="limit">
+                                <header class="sd-section-head"><div><span class="sd-section-kicker">RISK RADAR</span><h2>涨跌停</h2></div></header>
+                                <div class="sd-section-body" data-card-body></div>
+                                <div class="sd-section-state" data-section-state="idle"><i class="bi bi-hourglass-split"></i><strong>等待加载</strong></div>
+                                <div class="sd-section-empty" hidden><i class="bi bi-inbox"></i><strong>暂无数据</strong></div>
+                                <div class="sd-section-error" hidden><i class="bi bi-exclamation-triangle"></i><strong>加载失败</strong><button class="btn btn-outline-secondary btn-sm" type="button" data-section-retry>重试</button></div>
+                            </article>
+                            <article class="sd-section-card sd-risk-suspend" data-card="suspend">
+                                <header class="sd-section-head"><div><span class="sd-section-kicker">SUSPEND</span><h2>历史停牌</h2></div></header>
+                                <div class="sd-section-body" data-card-body></div>
+                                <div class="sd-section-state" data-section-state="idle"><i class="bi bi-hourglass-split"></i><strong>等待加载</strong></div>
+                                <div class="sd-section-empty" hidden><i class="bi bi-inbox"></i><strong>暂无数据</strong></div>
+                                <div class="sd-section-error" hidden><i class="bi bi-exclamation-triangle"></i><strong>加载失败</strong><button class="btn btn-outline-secondary btn-sm" type="button" data-section-retry>重试</button></div>
+                            </article>
+                            <article class="sd-section-card sd-risk-st" data-card="st">
+                                <header class="sd-section-head"><div><span class="sd-section-kicker">ST HISTORY</span><h2>ST/退市风险</h2></div></header>
+                                <div class="sd-section-body" data-card-body></div>
+                                <div class="sd-section-state" data-section-state="idle"><i class="bi bi-hourglass-split"></i><strong>等待加载</strong></div>
+                                <div class="sd-section-empty" hidden><i class="bi bi-inbox"></i><strong>暂无数据</strong></div>
+                                <div class="sd-section-error" hidden><i class="bi bi-exclamation-triangle"></i><strong>加载失败</strong><button class="btn btn-outline-secondary btn-sm" type="button" data-section-retry>重试</button></div>
+                            </article>
+                            <article class="sd-section-card sd-risk-holdertrade" data-card="holdertrade">
+                                <header class="sd-section-head"><div><span class="sd-section-kicker">HOLDER TRADE</span><h2>股东增减持</h2></div></header>
+                                <div class="sd-section-body" data-card-body></div>
+                                <div class="sd-section-state" data-section-state="idle"><i class="bi bi-hourglass-split"></i><strong>等待加载</strong></div>
+                                <div class="sd-section-empty" hidden><i class="bi bi-inbox"></i><strong>暂无数据</strong></div>
+                                <div class="sd-section-error" hidden><i class="bi bi-exclamation-triangle"></i><strong>加载失败</strong><button class="btn btn-outline-secondary btn-sm" type="button" data-section-retry>重试</button></div>
+                            </article>
+                        </div>
+                    </section>
+                </div>
+            </section>
+
+            <section th:unless="${stockExists}" class="card card-glow sd-not-found" role="status">
+                <i class="bi bi-search"></i>
+                <h2>未找到该股票</h2>
+                <p>股票代码 <strong th:text="${code}">000001.SZ</strong> 不在本地股票基础信息中，请核对代码或返回行情中心重新选择。</p>
+                <a class="btn btn-primary btn-sm" th:href="@{/page/stock-list}">返回行情中心</a>
+            </section>
+        </main>
+    </div>
+</div>
+
+<!-- 价格提醒弹窗 -->
+<div class="modal fade" id="reminderModal" tabindex="-1" aria-labelledby="reminderModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="reminderModalLabel">设置价格提醒</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">价格上限</label>
+                    <input type="number" step="0.01" class="form-control" id="reminderHighInput" placeholder="突破此价触发提醒">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">价格下限</label>
+                    <input type="number" step="0.01" class="form-control" id="reminderLowInput" placeholder="跌破此价触发提醒">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary btn-sm" id="reminderClearBtn">清除提醒</button>
+                <button type="button" class="btn btn-primary btn-sm" id="reminderSaveBtn">保存</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div th:replace="~{fragments/common :: toastContainer}"></div>
+<div th:replace="~{fragments/common :: scripts}"></div>
+<link rel="stylesheet" th:href="@{/css/stock-detail.css?v=20260728b}">
+<script th:src="@{/js/charts-theme.js?v=20260728}"></script>
+<script th:src="@{/js/charts/indicators.js?v=20260728}"></script>
+<script th:src="@{/js/charts/kline-renderer.js?v=20260728b}"></script>
+<script th:src="@{/js/stock-detail.js?v=20260728b}"></script>
+</body>
+</html>

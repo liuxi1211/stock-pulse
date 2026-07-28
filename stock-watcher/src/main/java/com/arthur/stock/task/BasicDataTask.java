@@ -6,6 +6,8 @@ import com.arthur.stock.service.CashflowService;
 import com.arthur.stock.service.ExpressService;
 import com.arthur.stock.service.ForecastService;
 import com.arthur.stock.service.IncomeService;
+import com.arthur.stock.service.StkHoldernumberService;
+import com.arthur.stock.service.StkHoldertradeService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -41,6 +43,8 @@ public class BasicDataTask {
     private final CashflowService cashflowService;
     private final ForecastService forecastService;
     private final ExpressService expressService;
+    private final StkHoldertradeService stkHoldertradeService;
+    private final StkHoldernumberService stkHoldernumberService;
 
     /** 每日 16:10 拉取当日 daily_basic */
     @Scheduled(cron = "0 10 16 * * MON-FRI")
@@ -136,6 +140,30 @@ public class BasicDataTask {
             log.info("===== BasicDataTask express done, saved={} =====", n);
         } catch (Exception e) {
             log.error("BasicDataTask express 失败", e);
+        }
+    }
+
+    @Scheduled(cron = "0 30 20 * * SUN")
+    public void fetchStkHoldertrade() {
+        String endDate = LocalDate.now().format(DATE_FMT);
+        String startDate = LocalDate.now().minusYears(1).format(DATE_FMT);
+        log.info("===== BasicDataTask stk_holdertrade start, [{}~{}] =====", startDate, endDate);
+        try {
+            int n = stkHoldertradeService.fetchAndSaveAll(startDate, endDate);
+            log.info("===== BasicDataTask stk_holdertrade done, saved={} =====", n);
+        } catch (Exception e) {
+            log.error("BasicDataTask stk_holdertrade 失败", e);
+        }
+    }
+
+    @Scheduled(cron = "0 0 20 * * SUN")
+    public void fetchStkHoldernumber() {
+        log.info("===== BasicDataTask stk_holdernumber start =====");
+        try {
+            int n = stkHoldernumberService.fetchAndSaveAll();
+            log.info("===== BasicDataTask stk_holdernumber done, saved={} =====", n);
+        } catch (Exception e) {
+            log.error("BasicDataTask stk_holdernumber 失败", e);
         }
     }
 }

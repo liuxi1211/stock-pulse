@@ -34,6 +34,15 @@ public interface TopListService {
     List<TopListDO> queryList(String tradeDate);
 
     /**
+     * 查询某股票在指定交易日区间内的龙虎榜个股明细（按 trade_date 倒序）。
+     *
+     * @param tsCode    股票代码，如 000001.SZ
+     * @param startDate 开始日期 yyyyMMdd
+     * @param endDate   结束日期 yyyyMMdd
+     */
+    List<TopListDO> queryByCodeAndDateRange(String tsCode, String startDate, String endDate);
+
+    /**
      * 查询某股票某交易日的营业部席位明细。
      *
      * @param tradeDate 交易日 yyyyMMdd

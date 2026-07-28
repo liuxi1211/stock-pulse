@@ -548,8 +548,8 @@ Spring Boot 项目优先用 starter，不用手动拼多个依赖：
 
 <!-- 数据库驱动运行时才需要 -->
 <dependency>
-    <groupId>org.xerial</groupId>
-    <artifactId>sqlite-jdbc</artifactId>
+    <groupId>com.mysql</groupId>
+    <artifactId>mysql-connector-j</artifactId>
     <scope>runtime</scope>
 </dependency>
 
@@ -636,7 +636,7 @@ mvn dependency:analyze
 |-----|------|---------|
 | `spring-boot-starter-web` | Web 框架 | 核心依赖，必需 |
 | `mybatis-plus-boot-starter` | ORM 框架 | 数据访问必需 |
-| `sqlite-jdbc` | SQLite 驱动 | 运行时依赖 |
+| `mysql-connector-j` | MySQL 驱动 | 运行时依赖 |
 | `lombok` | 简化代码 | 编译时依赖，必需 |
 | `caffeine` | 本地缓存 | 性能优化必需 |
 | `spring-boot-starter-validation` | 参数校验 | 建议引入 |

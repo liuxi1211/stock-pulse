@@ -97,6 +97,14 @@ public class HkHoldServiceImpl implements HkHoldService, DataCheckable {
     }
 
     @Override
+    public List<HkHoldDO> queryByCodeAndDateRange(String tsCode, String startDate, String endDate) {
+        if (tsCode == null || tsCode.isBlank()) {
+            return Collections.emptyList();
+        }
+        return hkHoldMapper.selectByCodeAndDateRange(tsCode, startDate, endDate);
+    }
+
+    @Override
     public String getLatestTradeDate() {
         return hkHoldMapper.selectLatestTradeDate();
     }

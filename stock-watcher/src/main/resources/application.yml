@@ -102,6 +102,10 @@ tushare:
       permits-per-minute: 180
     margin_detail:
       permits-per-minute: 180
+    stk_holdertrade:
+      permits-per-minute: 180
+    stk_holdernumber:
+      permits-per-minute: 180
 
 # ========== Auth Configuration ==========
 auth:

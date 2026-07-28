@@ -99,6 +99,11 @@ public class TopListServiceImpl implements TopListService, DataCheckable {
     }
 
     @Override
+    public List<TopListDO> queryByCodeAndDateRange(String tsCode, String startDate, String endDate) {
+        return topListMapper.selectByCodeAndDateRange(tsCode, startDate, endDate);
+    }
+
+    @Override
     public List<TopInstDO> queryInst(String tradeDate, String tsCode) {
         if (tradeDate == null || tradeDate.isBlank() || tsCode == null || tsCode.isBlank()) {
             return Collections.emptyList();

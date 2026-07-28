@@ -102,7 +102,7 @@
 | 场景 | 文档 | 内容要点 |
 |-----|------|---------|
 | 认证、权限相关 | `01-auth.md` | 认证相关 |
-| **对接 Tushare 新接口** | `02-tushare-integration-guide.md` | ⭐ 完整指南：步骤概览→定义DTO→注册枚举→TushareClient方法→配置限流→数据库层→Service层→Controller层→接入初始化流程→接入定时任务→配置Mapper扫描→测试验证；Checklist；参考实现对照 |
+| **对接 Tushare 新接口** | `02-tushare-integration.md` | ⭐ 完整指南 + 5 条铁律一体化：步骤概览→DTO→枚举→Client→限流→数据库层→Service（分页/事务/分批铁律）→DataCheckable→Controller→InitStep→DataInitService→定时任务→测试；接口清单见 `03-tushare-interfaces.md` |
 
 ---
 
@@ -174,7 +174,8 @@
 │   │   └── 06-frontend-security.md
 │   └── business/                     # 业务指南
 │       ├── 01-auth.md
-│       └── 02-tushare-integration-guide.md
+│       ├── 02-tushare-integration.md     # ⭐ Tushare 对接指南 + 铁律
+│       └── 03-tushare-interfaces.md      # 接口清单 + 架构
 ├── stock-engine/
 │   └── python/                       # Python 计算服务规范
 │       ├── 00-environment-setup.md

@@ -108,6 +108,11 @@ public class BlockTradeServiceImpl implements BlockTradeService, DataCheckable {
     }
 
     @Override
+    public List<BlockTradeWithCloseVO> queryByCodeAndDateRange(String tsCode, String startDate, String endDate) {
+        return blockTradeMapper.selectByCodeAndDateRange(tsCode, startDate, endDate);
+    }
+
+    @Override
     public String getLatestTradeDate() {
         return blockTradeMapper.selectLatestTradeDate();
     }

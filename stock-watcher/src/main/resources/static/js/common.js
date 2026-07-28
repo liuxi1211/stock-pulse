@@ -458,7 +458,10 @@ document.addEventListener('DOMContentLoaded', function() {
         if (typeof SearchSuggest !== 'undefined') {
             new SearchSuggest(globalSearchInput, {
                 onSelect: function(item) {
-                    window.location.href = StockApp.contextPath + '/page/stock-list?keyword=' + encodeURIComponent(item.code);
+                    var tsCode = item.tsCode || item.code;
+                    if (tsCode) {
+                        window.location.href = StockApp.contextPath + '/page/stock-detail/' + encodeURIComponent(tsCode);
+                    }
                 }
             });
         }

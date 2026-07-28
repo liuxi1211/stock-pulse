@@ -147,7 +147,13 @@ public enum TushareApiEnum {
 
     /** 融资融券个股明细 */
     MARGIN_DETAIL("margin_detail",
-            "trade_date,ts_code,name,rzye,rqye,rzmre,rzche,rqmcl,rzrqye");
+            "trade_date,ts_code,name,rzye,rqye,rzmre,rzche,rqmcl,rzrqye"),
+
+    STK_HOLDERTRADE("stk_holdertrade",
+            "ts_code,ann_date,holder_name,holder_type,in_de,change_vol,change_ratio,after_share,after_ratio,avg_price,total_share,begin_date,close_date"),
+
+    STK_HOLDERNUMBER("stk_holdernumber",
+            "ts_code,ann_date,end_date,holder_num");
 
     private final String apiName;
     private final String fields;

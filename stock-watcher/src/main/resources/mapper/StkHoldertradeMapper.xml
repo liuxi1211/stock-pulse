@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.arthur.stock.mapper.StkHoldertradeMapper">
+
+    <resultMap id="stkHoldertradeMap" type="com.arthur.stock.model.StkHoldertradeDO">
+        <id column="id" property="id"/>
+        <result column="ts_code" property="tsCode"/>
+        <result column="ann_date" property="annDate"/>
+        <result column="holder_name" property="holderName"/>
+        <result column="holder_type" property="holderType"/>
+        <result column="in_de" property="inDe"/>
+        <result column="change_vol" property="changeVol"/>
+        <result column="change_ratio" property="changeRatio"/>
+        <result column="after_share" property="afterShare"/>
+        <result column="after_ratio" property="afterRatio"/>
+        <result column="avg_price" property="avgPrice"/>
+        <result column="total_share" property="totalShare"/>
+        <result column="begin_date" property="beginDate"/>
+        <result column="close_date" property="closeDate"/>
+    </resultMap>
+
+    <insert id="insertBatch">
+        INSERT INTO stk_holdertrade (ts_code, ann_date, holder_name, holder_type, in_de,
+                                     change_vol, change_ratio, after_share, after_ratio,
+                                     avg_price, total_share, begin_date, close_date) VALUES
+        <foreach collection="list" item="i" separator=",">
+            (#{i.tsCode}, #{i.annDate}, #{i.holderName}, #{i.holderType}, #{i.inDe},
+             #{i.changeVol}, #{i.changeRatio}, #{i.afterShare}, #{i.afterRatio},
+             #{i.avgPrice}, #{i.totalShare}, #{i.beginDate}, #{i.closeDate})
+        </foreach>
+    </insert>
+
+    <delete id="deleteBatchByKeys">
+        DELETE FROM stk_holdertrade WHERE
+        <foreach collection="list" item="i" separator=" OR ">
+            (ts_code = #{i.tsCode} AND ann_date = #{i.annDate}
+             AND holder_name = #{i.holderName} AND in_de = #{i.inDe}
+             AND begin_date = #{i.beginDate} AND close_date = #{i.closeDate})
+        </foreach>
+    </delete>
+
+    <select id="selectByTsCodeAndDateRange" resultMap="stkHoldertradeMap">
+        SELECT * FROM stk_holdertrade
+        WHERE ts_code = #{tsCode}
+        <if test="startDate != null and startDate != ''">
+            AND ann_date &gt;= #{startDate}
+        </if>
+        <if test="endDate != null and endDate != ''">
+            AND ann_date &lt;= #{endDate}
+        </if>
+        ORDER BY ann_date DESC, close_date DESC, begin_date DESC, id DESC
+    </select>
+
+    <select id="selectMaxAnnDate" resultType="java.lang.String">
+        SELECT MAX(ann_date) FROM stk_holdertrade
+    </select>
+
+    <select id="countInvalidChangeVol" resultType="int">
+        SELECT COUNT(*) FROM stk_holdertrade WHERE change_vol IS NULL OR change_vol &lt;= 0
+    </select>
+
+    <select id="countMissingInDe" resultType="int">
+        SELECT COUNT(*) FROM stk_holdertrade WHERE in_de IS NULL OR in_de = ''
+    </select>
+
+</mapper>

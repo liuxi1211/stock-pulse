@@ -80,6 +80,18 @@
         WHERE b.trade_date = #{tradeDate}
     </select>
 
+    <select id="selectByCodeAndDateRange" resultMap="blockTradeWithCloseMap">
+        SELECT b.trade_date, b.ts_code, b.name, b.price, b.vol, b.amount,
+               b.buyer, b.seller, b.buyer_name, b.seller_name,
+               d.close AS close_price
+        FROM block_trade b
+        LEFT JOIN daily_quote d ON b.ts_code = d.ts_code AND b.trade_date = d.trade_date
+        WHERE b.ts_code = #{tsCode}
+          AND b.trade_date &gt;= #{startDate}
+          AND b.trade_date &lt;= #{endDate}
+        ORDER BY b.trade_date DESC
+    </select>
+
     <select id="selectLatestTradeDate" resultType="string">
         SELECT MAX(trade_date) FROM block_trade
     </select>

@@ -83,6 +83,8 @@ public class DataInitServiceImpl implements DataInitService {
     private final StockNamechangeService stockNamechangeService;
     private final StockSuspendDService stockSuspendDService;
     private final StockStkLimitService stockStkLimitService;
+    private final StkHoldertradeService stkHoldertradeService;
+    private final StkHoldernumberService stkHoldernumberService;
     private final IncomeService incomeService;
     private final BalancesheetService balancesheetService;
     private final CashflowService cashflowService;
@@ -299,6 +301,24 @@ public class DataInitServiceImpl implements DataInitService {
                 // 按日期范围查询 + upsert（先删后插），即使中途失败，下次仍从同一月份继续，不丢数据。
                 return executeMonthlySnapshotStep(step, taskId, isFull, FULL_START_DATE,
                         (start, end) -> stockStkLimitService.fetchAndSaveByRange(start, end));
+            }
+            case STK_HOLDERTRADE -> {
+                // 股东增减持：按股票逐一拉取，带公告日期范围。
+                // 全量：从 19901219 起拉取全部历史；增量：从 MAX(ann_date) 起补充近一年。
+                if (isFull) {
+                    return executePerStockStep(step, taskId, tsCode ->
+                            stkHoldertradeService.fetchAndSave(tsCode, fullStart, today));
+                }
+                String maxAnnDate = queryMaxAnnDate(step.getTableName());
+                String startDate = maxAnnDate != null ? maxAnnDate : LocalDate.now().minusYears(1).format(DATE_FMT);
+                return executePerStockStep(step, taskId, tsCode ->
+                        stkHoldertradeService.fetchAndSave(tsCode, startDate, today));
+            }
+            case STK_HOLDERNUMBER -> {
+                // 股东人数：按股票逐一拉取全量历史（Tushare stk_holdernumber 接口不支持日期范围过滤）。
+                // 全量和增量均为全量拉取，通过 upsert 幂等写入保证数据不重复。
+                return executePerStockStep(step, taskId, tsCode ->
+                        stkHoldernumberService.fetchAndSave(tsCode));
             }
             case DIVIDEND -> {
                 if (isFull) {

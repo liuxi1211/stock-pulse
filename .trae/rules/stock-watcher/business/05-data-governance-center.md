@@ -589,12 +589,11 @@ public class DataCheckItem {
 - [ ] **拉取日志**：更新操作中记录 `DataPullLog`（成功/失败/统计数据）
 - [ ] **定时任务**：如需要定时更新，添加对应的 Task 类或在现有 Task 中追加
 
-&gt; **完整对接步骤** → 见 [02-tushare-integration-guide.md](./02-tushare-integration-guide.md) 的 13 步流程
+&gt; **完整对接步骤** → 见 [02-tushare-integration.md](./02-tushare-integration.md) 的 13 步流程
 
 ---
 
 ## 九、相关分册
 
-- 新接口完整对接 13 步 → [02-tushare-integration-guide.md](./02-tushare-integration-guide.md)
-- 接口清单与全局地图 → [03-tushare-interface-summary.md](./03-tushare-interface-summary.md)
-- Tushare 官方接口参考 → [04-tushare-api-reference.md](./04-tushare-api-reference.md)
+- 新接口完整对接 13 步 + 5 条铁律 → [02-tushare-integration.md](./02-tushare-integration.md)
+- 接口清单与全局地图（已对接 + 官方全量） → [03-tushare-interfaces.md](./03-tushare-interfaces.md)

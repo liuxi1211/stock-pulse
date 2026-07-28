@@ -77,7 +77,7 @@ watcher(HTTP 传入 kline_data, list[dict])
 
 ## 5. 与 stock-engine 的调用边界
 
-- **engine 只算不存**：不读不写 SQLite，行情数据由 watcher 经 HTTP 传入 → 在 engine 里转成 DataFrame → 喂 `run_backtest`。详见 [02](./02-data-input.md) 的"watcher JSON → DataFrame"配方。
+- **engine 只算不存**：不读不写 Mysql，行情数据由 watcher 经 HTTP 传入 → 在 engine 里转成 DataFrame → 喂 `run_backtest`。详见 [02](./02-data-input.md) 的"watcher JSON → DataFrame"配方。
 - **结果回传**：把 `BacktestResult` 的指标 + 曲线 + trades 序列化成 JSON 返回 watcher。序列化模板见 [05](./05-result-metrics.md)。
 - **本项目的封装设计**（JSON 策略配置 → 动态 Strategy 类、HTTP API 路由）不属于框架知识；集成层为废案已清空，待基于「统一策略配置 Schema」重写。
 

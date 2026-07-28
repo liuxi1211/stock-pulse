@@ -126,7 +126,6 @@ assertEquals(new BigDecimal("15.00"), result);
 
 - 使用独立的测试数据库，不污染开发/生产数据
 - 测试前后清理测试数据
-- SQLite 项目可使用内存数据库或临时文件
 
 ### 3.3 API 测试 💡 SHOULD
 

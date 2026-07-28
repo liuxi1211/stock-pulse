@@ -18,6 +18,8 @@ public enum InitStep {
     NAMECHANGE("namechange", "股票更名历史(ST)", "stock_namechange", TableGroup.EVENT, "每日 16:30", "16:30", false, "namechange"),
     SUSPEND_D("suspend_d", "停复牌信息", "stock_suspend_d", TableGroup.EVENT, "每日 16:35", "16:35", false, "suspend_d"),
     STK_LIMIT("stk_limit", "涨跌停价", "stock_stk_limit", TableGroup.MARKET, "每个交易日 16:40", "16:40", true, "stk_limit"),
+    STK_HOLDERTRADE("stk_holdertrade", "股东增减持", "stk_holdertrade", TableGroup.EVENT, "每周日 20:30", "20:30", false, "stk_holdertrade"),
+    STK_HOLDERNUMBER("stk_holdernumber", "股东人数", "stk_holdernumber", TableGroup.EVENT, "每周日 20:00", "20:00", false, "stk_holdernumber"),
     INCOME("income", "利润表", "income", TableGroup.FINANCE, "每周日 17:30", "17:30", false, "income"),
     BALANCESHEET("balancesheet", "资产负债表", "balancesheet", TableGroup.FINANCE, "每周日 18:00", "18:00", false, "balancesheet"),
     CASHFLOW("cashflow", "现金流量表", "cashflow", TableGroup.FINANCE, "每周日 18:30", "18:30", false, "cashflow"),

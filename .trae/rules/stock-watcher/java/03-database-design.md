@@ -1,9 +1,9 @@
 ---
 alwaysApply: false
-description: "当用户涉及数据库设计、表结构设计、SQL 编写、索引优化、MyBatis-Plus 使用、SQLite 操作等场景时触发。适用于设计数据库表、编写 SQL 查询、优化数据库性能、使用 MyBatis-Plus 进行数据操作等任务。仅适用于 stock-watcher Java 后端项目。关键词：数据库, SQL, SQLite, MyBatis-Plus, 表设计, 索引, ORM, 数据持久化"
+description: "当用户涉及数据库设计、表结构设计、SQL 编写、索引优化、MyBatis-Plus 使用等场景时触发。适用于设计数据库表、编写 SQL 查询、优化数据库性能、使用 MyBatis-Plus 进行数据操作等任务。仅适用于 stock-watcher Java 后端项目。关键词：数据库, SQL, MySQL, MyBatis-Plus, 表设计, 索引, ORM, 数据持久化"
 # 数据库设计规范
 
-> 适用于 stock-watcher（SQLite + MyBatis-Plus）数据库开发。
+> 适用于 stock-watcher（MySQL + MyBatis-Plus）数据库开发。
 
 ---
 
@@ -43,40 +43,35 @@ created_at            创建时间
 updated_at            更新时间
 ```
 
-### 1.3 字段类型 ✅ MUST（双库兼容：MySQL + SQLite）
+### 1.3 字段类型 ✅ MUST
 
-> ⚠️ **项目同时支持 MySQL 和 SQLite 两个数据库**，表结构必须同时存在于
-> `schema-mysql.sql`（MySQL）和 `schema-sqlite.sql`（SQLite）。
-> 新增/修改字段时**两份 schema 必须同步更新**，且 DataInitServiceImpl 里的
-> 建表 fallback 字符串也要同步改。
+> ⚠️ **项目使用 MySQL 数据库**，表结构维护在 `schema-mysql.sql`。
+> 新增/修改字段时需同步更新 `schema-mysql.sql`。
 
 #### 1.3.1 通用类型对照表
 
-| Java 类型 | MySQL 类型 | SQLite 类型 | 说明 |
-|----------|-----------|------------|------|
-| `Long` / `Integer` | `BIGINT` / `INT` | `INTEGER` | 主键用 `BIGINT AUTO_INCREMENT`（MySQL）/ `INTEGER PRIMARY KEY AUTOINCREMENT`（SQLite） |
-| `String` | `VARCHAR(N)` | `TEXT` | MySQL 可限定长度，SQLite 用 TEXT（两者都不强制长度校验） |
-| `BigDecimal` | `DECIMAL(M,N)` | `REAL` 或 `TEXT` | 金额类推荐 TEXT 存字符串避免浮点误差；普通计算可用 REAL |
-| `Boolean` | **`TINYINT`** | **`INTEGER`** | **布尔字段务必用 TINYINT/INTEGER + Boolean 实体类，不要用 VARCHAR** |
-| `LocalDate` / `String`(date) | `DATE` 或 `VARCHAR(8)` | `TEXT` | 项目惯例用字符串 `yyyyMMdd` 存日期（varchar/text） |
-| `LocalDateTime` / `String`(datetime) | `DATETIME` 或 `VARCHAR(19)` | `TEXT` | 项目惯例用字符串存时间 |
-| 枚举 Enum | `VARCHAR` | `TEXT` | 存枚举的 name/字符串值 |
+| Java 类型 | MySQL 类型 | 说明 |
+|----------|-----------|------|
+| `Long` / `Integer` | `BIGINT` / `INT` | 主键用 `BIGINT AUTO_INCREMENT` |
+| `String` | `VARCHAR(N)` | 可限定长度，不强制长度校验 |
+| `BigDecimal` | `DECIMAL(M,N)` | 金额类推荐 DECIMAL 避免浮点误差 |
+| `Boolean` | **`TINYINT`** | **布尔字段务必用 TINYINT + Boolean 实体类，不要用 VARCHAR** |
+| `LocalDate` / `String`(date) | `DATE` 或 `VARCHAR(8)` | 项目惯例用字符串 `yyyyMMdd` 存日期（varchar） |
+| `LocalDateTime` / `String`(datetime) | `DATETIME` 或 `VARCHAR(19)` | 项目惯例用字符串存时间 |
+| 枚举 Enum | `VARCHAR` | 存枚举的 name/字符串值 |
 
 #### 1.3.2 Boolean 字段规范（重要！）
 
 **绝对不要用 `VARCHAR(4)` 存 `"1"`/`"0"` 表示布尔值。** 正确做法：
 
-- **数据库**：MySQL 用 `TINYINT DEFAULT 0`，SQLite 用 `INTEGER DEFAULT 0`
+- **数据库**：MySQL 用 `TINYINT DEFAULT 0`
 - **Java 实体**：用 `private Boolean` 类型（不是 `String`）
-- **MyBatis-Plus**：自动映射 `Boolean` ↔ `TINYINT/INTEGER`，无需额外配置
+- **MyBatis-Plus**：自动映射 `Boolean` ↔ `TINYINT`，无需额外配置
 - **JSON 序列化**：Jackson 默认输出 `true`/`false`，下游消费方需能识别
 
 ```sql
 -- MySQL
 ALTER TABLE trade_cal ADD COLUMN is_first_of_month TINYINT DEFAULT 0 COMMENT '是否本月首交易日：1=是，0=否';
-
--- SQLite
-ALTER TABLE trade_cal ADD COLUMN is_first_of_month INTEGER DEFAULT 0;
 ```
 
 ```java
@@ -87,20 +82,8 @@ private Boolean isFirstOfMonth;  // ✅ 正确
 
 > **历史教训**：项目早期曾错误地用 `VARCHAR(4)` + `String` 存布尔字段
 > （如 trade_cal 的 is_first_of_* 系列），导致 Java 代码类型不优雅、
-> 存浪费空间、比较易错。现已全部改造为 `TINYINT`/`INTEGER` + `Boolean`。
+> 存浪费空间、比较易错。现已全部改造为 `TINYINT` + `Boolean`。
 > 新增布尔字段请直接走正确路线，不要再走弯路。
-
-#### 1.3.3 旧：仅 SQLite 的类型对照（保留供参考）
-
-| 数据类型 | SQLite 类型 | 说明 |
-|---------|------------|------|
-| 主键 ID | INTEGER PRIMARY KEY AUTOINCREMENT | 自增主键 |
-| 字符串 | TEXT | 变长字符串 |
-| 整数 | INTEGER | 整数 |
-| 小数 | REAL / TEXT | 金额建议用 TEXT 存字符串（精确）或 REAL |
-| 日期 | TEXT | YYYY-MM-DD 格式 |
-| 日期时间 | TEXT | YYYY-MM-DD HH:MM:SS 格式 |
-| 布尔 | INTEGER | 0=false, 1=true |
 
 ### 1.4 必备字段 💡 SHOULD
 
@@ -108,9 +91,9 @@ private Boolean isFirstOfMonth;  // ✅ 正确
 
 | 字段 | 类型 | 说明 |
 |-----|------|------|
-| `id` | INTEGER PK | 主键 |
-| `created_at` | TEXT | 创建时间 |
-| `updated_at` | TEXT | 更新时间 |
+| `id` | BIGINT PK AUTO_INCREMENT | 主键 |
+| `created_at` | VARCHAR(19) | 创建时间 |
+| `updated_at` | VARCHAR(19) | 更新时间 |
 
 ### 1.5 主键策略 ✅ MUST
 
@@ -317,14 +300,17 @@ List<DailyQuoteDO> list = list(wrapper);
 
 - 批量插入使用 `saveBatch`
 - 批量更新使用 `updateBatchById`
-- 批量 upsert 使用自定义 SQL（SQLite 的 INSERT OR REPLACE）
+- 批量 upsert 使用先删后插（`deleteBatchByKeys` + `insertBatch`）保证幂等
 
 ```java
 // 批量插入
 saveBatch(quoteList, 1000); // 每 1000 条一批
 
-// 自定义批量 upsert（SQLite）
-void insertOrReplaceBatch(@Param("list") List<DailyQuoteDO> list);
+// 幂等批量 upsert（先删后插）
+Lists.partition(entities, BATCH_SIZE).forEach(batch -> {
+    mapper.deleteBatchByKeys(batch);
+    mapper.insertBatch(batch);
+});
 ```
 
 ---
@@ -346,58 +332,15 @@ void insertOrReplaceBatch(@Param("list") List<DailyQuoteDO> list);
 
 ---
 
-## 六、数据迁移
+## 六、Schema 管理
 
 ### 6.1 Schema 管理 💡 SHOULD
 
-- 建表 DDL 放在 `resources/schema.sql`
-- Spring Boot 启动时自动执行
-- 新增表/字段需更新 schema.sql
+- 建表 DDL 放在 `resources/schema-mysql.sql`
+- 新增表/字段需同步更新 `schema-mysql.sql`
 
 ### 6.2 数据迁移 📌 MAY
 
 - 小项目可手动管理
 - 复杂项目考虑 Flyway / Liquibase
 - 版本号管理迁移脚本
-
----
-
-## 七、SQLite 特定注意事项
-
-### 7.1 SQLite 特点 ✅ MUST
-
-- 单文件数据库，部署简单
-- 支持 WAL 模式提高并发读性能
-- 不适合高并发写入
-- 不适合超大数据量（>10GB 考虑其他数据库）
-
-### 7.2 WAL 模式 💡 SHOULD
-
-```sql
-PRAGMA journal_mode = WAL;
-PRAGMA synchronous = NORMAL;
-```
-
-### 7.3 分页查询 ✅ MUST
-
-SQLite 使用 `LIMIT ... OFFSET ...` 分页：
-
-```sql
-SELECT * FROM daily_quote
-WHERE ts_code = ?
-ORDER BY trade_date
-LIMIT 100 OFFSET 0;
-```
-
-### 7.4 UPSERT 💡 SHOULD
-
-SQLite 使用 `INSERT OR REPLACE` 实现 upsert：
-
-```sql
-INSERT OR REPLACE INTO daily_quote
-    (ts_code, trade_date, open, high, low, close, vol)
-VALUES
-    <foreach collection="list" item="item" separator=",">
-        (#{item.tsCode}, #{item.tradeDate}, #{item.open}, ...)
-    </foreach>
-```

@@ -24,11 +24,10 @@ public class KlineController {
     public ApiResponse<List<KlineDataVO>> getKlineData(
             @Parameter(description = "股票代码，如 000001.SZ", required = true) @PathVariable String stockCode,
             @Parameter(description = "K线周期，支持 daily/weekly/monthly") @RequestParam(defaultValue = "daily") String period,
-            @Parameter(description = "开始日期，格式 yyyy-MM-dd") @RequestParam(required = false) String startDate,
-            @Parameter(description = "结束日期，格式 yyyy-MM-dd") @RequestParam(required = false) String endDate) {
-        if (startDate != null && endDate != null) {
-            return ApiResponse.success(klineService.getKlineData(stockCode, period, startDate, endDate));
-        }
-        return ApiResponse.success(klineService.getKlineData(stockCode, period));
+            @Parameter(description = "开始日期，格式 yyyyMMdd") @RequestParam(required = false) String startDate,
+            @Parameter(description = "结束日期，格式 yyyyMMdd") @RequestParam(required = false) String endDate) {
+        String start = startDate != null ? startDate : "00000000";
+        String end = endDate != null ? endDate : "99999999";
+        return ApiResponse.success(klineService.getKlineData(stockCode, period, "HFQ", start, end));
     }
 }

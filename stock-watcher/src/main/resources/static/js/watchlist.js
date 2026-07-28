@@ -27,6 +27,16 @@ const WatchlistPage = (function () {
 
     const e = StockApp.escapeHtml;
 
+    function toTsCode(code) {
+        if (!code) return code;
+        if (code.indexOf('.') > -1) return code;
+        var c = code.charAt(0);
+        if (c === '6') return code + '.SH';
+        if (c === '0' || c === '3') return code + '.SZ';
+        if (c === '8' || c === '4') return code + '.BJ';
+        return code;
+    }
+
     const state = {
         list: [],
         groups: [],
@@ -637,8 +647,8 @@ const WatchlistPage = (function () {
                     '<span class="wl-pulse ' + pulse.dir + ' ' + pulse.level + '" data-code="' + e(code) + '" aria-hidden="true"></span>' +
                     '<div class="wl-stock-info">' +
                         '<div class="wl-stock-line1">' +
-                            '<a href="/stock/' + e(code) + '" class="wl-stock-code" target="_blank" rel="noopener">' + e(code) + '</a>' +
-                            '<a href="/stock/' + e(code) + '" class="wl-stock-name" target="_blank" rel="noopener">' + e(s.name) + '</a>' +
+                            '<a href="' + StockApp.contextPath + '/page/stock-detail/' + encodeURIComponent(WatchlistPage.toTsCode(code)) + '" class="wl-stock-code">' + e(code) + '</a>' +
+                            '<a href="' + StockApp.contextPath + '/page/stock-detail/' + encodeURIComponent(WatchlistPage.toTsCode(code)) + '" class="wl-stock-name">' + e(s.name) + '</a>' +
                         '</div>' +
                         (s.industryName
                             ? '<span class="wl-stock-industry">' + e(s.industryName) + '</span>'
@@ -685,7 +695,7 @@ const WatchlistPage = (function () {
                         '<i class="bi bi-three-dots"></i>' +
                     '</button>' +
                     '<ul class="dropdown-menu dropdown-menu-end">' +
-                        '<li><a class="dropdown-item" href="/stock/' + e(code) + '" target="_blank" rel="noopener">' +
+                        '<li><a class="dropdown-item" href="' + StockApp.contextPath + '/page/stock-detail/' + encodeURIComponent(WatchlistPage.toTsCode(code)) + '">' +
                             '<i class="bi bi-graph-up me-2"></i>查看行情</a></li>' +
                         '<li><a class="dropdown-item" href="javascript:;"' +
                             ' onclick="WatchlistPage.openMoveGroupModal(\'' + e(code) + '\')">' +
@@ -1386,6 +1396,7 @@ const WatchlistPage = (function () {
 
     return {
         init: init,
+        toTsCode: toTsCode,
         loadList: loadList,
         removeStock: removeStock,
         selectGroup: selectGroup,

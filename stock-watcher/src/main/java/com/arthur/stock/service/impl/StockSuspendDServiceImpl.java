@@ -279,6 +279,11 @@ public class StockSuspendDServiceImpl implements StockSuspendDService, DataCheck
         return result;
     }
 
+    @Override
+    public List<StockSuspendDDO> queryEventsByTsCode(String tsCode, String startDate, String endDate) {
+        return stockSuspendDMapper.selectByTsCodesAndRange(List.of(tsCode), startDate, endDate);
+    }
+
     private Set<String> computeSuspendDates(List<StockSuspendDDO> events, List<String> tradeDates) {
         Set<String> suspDates = new LinkedHashSet<>();
         if (tradeDates.isEmpty()) {

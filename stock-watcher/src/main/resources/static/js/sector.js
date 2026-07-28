@@ -332,7 +332,9 @@ window.SectorPage = {
         if (ind) selectIndustry(ind);
     },
     gotoStock: function (code) {
-        window.location.href = (StockApp.contextPath || '') + '/page/stock-list?keyword=' + encodeURIComponent(code);
+        if (code) {
+            window.location.href = (StockApp.contextPath || '') + '/page/stock-detail/' + encodeURIComponent(code);
+        }
     }
 };
 

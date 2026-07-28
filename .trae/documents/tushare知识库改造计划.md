@@ -251,3 +251,37 @@
 - [ ] 02 文档的 13 步流程完整可执行，包含数据治理接入
 - [ ] 所有文档中的类名、方法名、包路径与实际代码一致
 - [ ] 各文档之间的交叉引用正确无误
+
+---
+
+## 七、二次整合（2026-07，AI 视角精简）
+
+> **背景**：原方案产出 4 篇 Tushare 文档（02 对接指南 / 03 接口现状 / 04 官方大全 / 06 铁律）。从 AI 消费视角看存在内容割裂与冗余，遂进一步合并。
+
+### 整合动作
+
+| 旧文件 | 新文件 | 整合理由 |
+|---|---|---|
+| `02-tushare-integration-guide.md`（13 步操作） + `06-tushare-integration-ironrules.md`（5 条铁律） | **`02-tushare-integration.md`** | 06 的铁律本就嵌在 02 的 Step 模板里（分页对应 Step 6、事务对应 Step 6、分批对应 Step 5/6），分两篇看反而割裂。合并后铁律以 ⚠️ 嵌入对应 Step + 顶部速查表 + Checklist 自查三处出现。 |
+| `03-tushare-interface-summary.md`（已对接 25） + `04-tushare-api-reference.md`（官方全量） | **`03-tushare-interfaces.md`** | 两篇都是接口清单，03 是 04 的"已对接子集"。合一后一张表覆盖已对接+全量，状态/积分/频率并列，省去跨文档跳转。 |
+
+### 最终目录（business/ 下 4 篇）
+
+```
+01-auth.md
+02-tushare-integration.md     # 对接指南 + 5 条铁律一体化
+03-tushare-interfaces.md      # 接口清单（已对接 25 + 官方全量）+ 架构
+05-data-governance-center.md  # 数据管控中心专题
+```
+
+### 同步更新
+
+- `CLAUDE.md`、`AGENTS.md`：知识地图表 + 目录树引用全部改为新文件名。
+- `05-data-governance-center.md`：交叉引用改为 02/03 新名。
+- `.trae/documents/` 下其他历史 PRD（对接 P0/P1、资金流向等）仍引用旧名，属历史归档，未改动。
+
+### 预期收益
+
+- Tushare 主题文档数 4 → 2（不含 01/05），AI 单次读取 context 缩减约 40%。
+- 铁律与操作步骤同篇呈现，避免"看了操作忘了红线"。
+- 接口清单单点维护，已对接/未对接状态统一。

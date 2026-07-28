@@ -10,7 +10,10 @@ import com.arthur.stock.constant.StrategyCategoryEnum;
 import com.arthur.stock.constant.StrategyScopeEnum;
 import com.arthur.stock.constant.StrategyStatusEnum;
 import com.arthur.stock.dto.strategy.StrategyTemplateDTO;
+import com.arthur.stock.dto.tushare.StockBasicDTO;
 import com.arthur.stock.service.MarketService;
+import com.arthur.stock.service.StockBasicService;
+import com.arthur.stock.util.StockQueryValidator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -26,6 +29,7 @@ public class PageController {
 
     private final MarketService marketService;
     private final StrategyTemplateLoader strategyTemplateLoader;
+    private final StockBasicService stockBasicService;
 
     /**
      * 仪表盘页面，展示大盘指数和自选股行情
@@ -76,6 +80,20 @@ public class PageController {
         model.addAttribute("pageTitle", "资金流向");
         model.addAttribute("activeMenu", "moneyflow");
         return "pages/moneyflow";
+    }
+
+    @GetMapping("/page/stock-detail/{code}")
+    public String stockDetail(@PathVariable("code") String code, Model model) {
+        String normalizedCode = StockQueryValidator.requireStockCode(code);
+        List<StockBasicDTO> stocks = stockBasicService.queryLocal(normalizedCode, null, null, null);
+        StockBasicDTO stock = stocks.isEmpty() ? null : stocks.getFirst();
+        String title = stock == null ? "个股诊断" : stock.getName() + " · 个股诊断";
+
+        model.addAttribute("pageTitle", title);
+        model.addAttribute("code", normalizedCode);
+        model.addAttribute("stockName", stock == null ? null : stock.getName());
+        model.addAttribute("stockExists", stock != null);
+        return "pages/stock-detail";
     }
 
     /**

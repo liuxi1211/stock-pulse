@@ -44,6 +44,17 @@ public interface BlockTradeMapper extends BaseMapper<BlockTradeDO> {
      */
     List<BlockTradeWithCloseVO> selectAllWithCloseByTradeDate(@Param("tradeDate") String tradeDate);
 
+    /**
+     * 查某股票在指定交易日区间内的大宗交易（JOIN daily_quote 取收盘价，按 trade_date 倒序）。
+     *
+     * @param tsCode    股票代码，如 000001.SZ
+     * @param startDate 开始日期 yyyyMMdd
+     * @param endDate   结束日期 yyyyMMdd
+     */
+    List<BlockTradeWithCloseVO> selectByCodeAndDateRange(@Param("tsCode") String tsCode,
+                                                          @Param("startDate") String startDate,
+                                                          @Param("endDate") String endDate);
+
     /** 取 block_trade 表中最新交易日（SELECT MAX(trade_date)）。 */
     String selectLatestTradeDate();
 

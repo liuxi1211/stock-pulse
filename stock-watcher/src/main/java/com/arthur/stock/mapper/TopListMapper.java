@@ -25,6 +25,17 @@ public interface TopListMapper extends BaseMapper<TopListDO> {
     /** 查某交易日的龙虎榜个股列表，按净额降序。 */
     List<TopListDO> selectByTradeDate(@Param("tradeDate") String tradeDate);
 
+    /**
+     * 查某股票在指定交易日区间内的龙虎榜个股明细（按 trade_date 倒序）。
+     *
+     * @param tsCode    股票代码，如 000001.SZ
+     * @param startDate 开始日期 yyyyMMdd
+     * @param endDate   结束日期 yyyyMMdd
+     */
+    List<TopListDO> selectByCodeAndDateRange(@Param("tsCode") String tsCode,
+                                              @Param("startDate") String startDate,
+                                              @Param("endDate") String endDate);
+
     /** 取 top_list 表中最新的交易日。 */
     String selectLatestTradeDate();
 

@@ -44,6 +44,15 @@ public interface HkHoldService {
     List<HkHoldDO> queryDetail(String tsCode, int days);
 
     /**
+     * 查某股票在指定交易日区间内的持股明细（按 trade_date 升序）。
+     *
+     * @param tsCode    股票代码，如 000001.SZ
+     * @param startDate 开始日期 yyyyMMdd，可为 null
+     * @param endDate   结束日期 yyyyMMdd，可为 null
+     */
+    List<HkHoldDO> queryByCodeAndDateRange(String tsCode, String startDate, String endDate);
+
+    /**
      * 取 hk_hold 表中最新的交易日。
      *
      * @return 最新交易日 yyyyMMdd；表为空时返回 null

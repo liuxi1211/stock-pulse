@@ -113,7 +113,7 @@ wf = aq.run_walk_forward(
 
 - **engine 硬约束**（见 `CLAUDE.md`）：engine 侧**禁止出现 `sqlite3`/`sqlalchemy`/直连 `.db` 的代码**，数据单源性在 watcher。
 - akquant 内部 `import sqlite3` 是它自己的实现，**不算 engine 写 sqlite3 代码**；但传 `db_path` 会在 engine 机器上落一个 `.db` 文件。
-- **本项目建议：默认不传 `db_path`**（短/中规模寻优无需续跑）。确需长任务续跑时，只用**临时目录**（如 `tempfile`）并跑完即删，绝不与 watcher 的业务 SQLite 混淆。
+- **本项目建议：默认不传 `db_path`**（短/中规模寻优无需续跑）。确需长任务续跑时，只用**临时目录**（如 `tempfile`）并跑完即删，绝不与 watcher 的业务 MySQL 混淆。
 
 ## 4. 参数声明（ParamModel，结构化搜索空间）
 

@@ -636,7 +636,8 @@ CREATE TABLE IF NOT EXISTS hk_hold (
     ts_code      VARCHAR(16)   COMMENT '股票代码',
     exchange_id  VARCHAR(4)    COMMENT '交易所代码（SH/SZ）',
     PRIMARY KEY (trade_date, code),
-    INDEX idx_hk_hold_date (trade_date)
+    INDEX idx_hk_hold_date (trade_date),
+    INDEX idx_hk_hold_tscode_date (ts_code, trade_date)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='沪深港通持股明细表';
 
 -- 32. 龙虎榜个股明细表（tushare top_list：龙虎榜个股明细）
@@ -657,7 +658,7 @@ CREATE TABLE IF NOT EXISTS top_list (
     float_values   DECIMAL(20,4) COMMENT '当日流通市值（元）',
     reason         VARCHAR(200)  NOT NULL COMMENT '上榜理由',
     INDEX idx_top_list_date (trade_date),
-    INDEX idx_top_list_date_code (trade_date, ts_code)
+    INDEX idx_top_list_tscode_date (ts_code, trade_date)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='龙虎榜每日明细表（无主键，Tushare 同股同原因可能返回多条不同口径数据）';
 
 -- 33. 龙虎榜营业部席位明细表（tushare top_inst：龙虎榜营业部席位明细）
@@ -672,7 +673,8 @@ CREATE TABLE IF NOT EXISTS top_inst (
     sell_rate   DECIMAL(20,4) COMMENT '卖出占总成交比例（%）',
     net_buy     DECIMAL(20,4) COMMENT '净成交额（元）',
     PRIMARY KEY (trade_date, ts_code, exalter, side),
-    INDEX idx_top_inst_date (trade_date)
+    INDEX idx_top_inst_date (trade_date),
+    INDEX idx_top_inst_tscode_date (ts_code, trade_date)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='龙虎榜营业部席位明细表';
 
 -- 34. 大宗交易表（tushare block_trade：大宗交易）
@@ -688,7 +690,8 @@ CREATE TABLE IF NOT EXISTS block_trade (
     buyer_name   VARCHAR(200)  COMMENT '买方营业部名称',
     seller_name  VARCHAR(200)  COMMENT '卖方营业部名称',
     PRIMARY KEY (trade_date, ts_code, buyer, seller),
-    INDEX idx_block_trade_date (trade_date)
+    INDEX idx_block_trade_date (trade_date),
+    INDEX idx_block_trade_tscode_date (ts_code, trade_date)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='大宗交易表';
 
 -- 35. 融资融券汇总表（tushare margin：融资融券汇总）
@@ -720,7 +723,36 @@ CREATE TABLE IF NOT EXISTS margin_detail (
     INDEX idx_margin_detail_date (trade_date)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='融资融券个股明细表';
 
--- 37. 数据质量检测历史表
+CREATE TABLE IF NOT EXISTS stk_holdertrade (
+    id            BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
+    ts_code       VARCHAR(16)   NOT NULL COMMENT '股票代码',
+    ann_date      VARCHAR(8)    NOT NULL COMMENT '公告日期（YYYYMMDD）',
+    holder_name   VARCHAR(128)  NOT NULL COMMENT '股东名称',
+    holder_type   VARCHAR(16)   COMMENT '股东类型',
+    in_de         VARCHAR(8)    NOT NULL COMMENT '增减持方向',
+    change_vol    DECIMAL(20,4) COMMENT '变动数量（万股）',
+    change_ratio  DECIMAL(20,4) COMMENT '占流通股比例（%）',
+    after_share   DECIMAL(20,4) COMMENT '变动后持股（万股）',
+    after_ratio   DECIMAL(20,4) COMMENT '变动后占流通股比例（%）',
+    avg_price     DECIMAL(20,4) COMMENT '平均价格',
+    total_share   DECIMAL(20,4) COMMENT '持股总数（万股）',
+    begin_date    VARCHAR(8)    NOT NULL DEFAULT '' COMMENT '开始日期（YYYYMMDD）',
+    close_date    VARCHAR(8)    NOT NULL DEFAULT '' COMMENT '结束日期（YYYYMMDD）',
+    UNIQUE KEY uk_stk_holdertrade (ts_code, ann_date, holder_name, in_de, begin_date, close_date),
+    INDEX idx_stk_holdertrade_tscode_ann_date (ts_code, ann_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='股东增减持表';
+
+CREATE TABLE IF NOT EXISTS stk_holdernumber (
+    id          BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
+    ts_code     VARCHAR(16) NOT NULL COMMENT '股票代码',
+    ann_date    VARCHAR(8)  COMMENT '公告日期（YYYYMMDD）',
+    end_date    VARCHAR(8)  NOT NULL COMMENT '截止日期（YYYYMMDD）',
+    holder_num  BIGINT      COMMENT '股东人数',
+    UNIQUE KEY uk_stk_holdernumber (ts_code, end_date),
+    INDEX idx_stk_holdernumber_tscode_date (ts_code, end_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='股东人数表';
+
+-- 39. 数据质量检测历史表
 CREATE TABLE IF NOT EXISTS data_governance_metric (
     id                BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
     check_batch_id    VARCHAR(64)    NOT NULL COMMENT '检测批次ID（同一次检测的25条共享同一个batch_id）',
@@ -741,7 +773,7 @@ CREATE TABLE IF NOT EXISTS data_governance_metric (
     INDEX idx_status (status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='数据质量检测历史表';
 
--- 38. 数据拉取日志表
+-- 40. 数据拉取日志表
 CREATE TABLE IF NOT EXISTS data_pull_log (
     id              BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
     task_id         VARCHAR(64)    NOT NULL COMMENT '任务唯一ID（UUID）',

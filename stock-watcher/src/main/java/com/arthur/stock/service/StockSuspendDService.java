@@ -1,5 +1,7 @@
 package com.arthur.stock.service;
 
+import com.arthur.stock.model.StockSuspendDDO;
+
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -59,4 +61,14 @@ public interface StockSuspendDService {
      * @return key=tsCode，value=该股票在区间内的停牌日期集合
      */
     Map<String, Set<String>> listSuspendDates(List<String> tsCodes, String startDate, String endDate);
+
+    /**
+     * 查询某只股票在指定日期区间内的全部停复牌事件记录（供个股诊断展示）。
+     *
+     * @param tsCode    股票代码，如 000001.SZ
+     * @param startDate 起始日期 yyyyMMdd（含）
+     * @param endDate   结束日期 yyyyMMdd（含）
+     * @return 事件记录列表，按 ts_code、trade_date 升序
+     */
+    List<StockSuspendDDO> queryEventsByTsCode(String tsCode, String startDate, String endDate);
 }

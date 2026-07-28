@@ -83,6 +83,7 @@ node run.js logs watcher|engine   # tail 日志
 | **魔法值散落** | 常量必须抽到常量类（全大写）；有 code+label 语义的必须定义成 `DisplayableEnum` 枚举，通过 `GET /constants` + `StockApp.loadConstants` 下发前端。 | [`08-constants-usage.md`](./.trae/rules/stock-watcher/java/08-constants-usage.md) |
 | **启动绕过 run.js** | **禁止**用 `mvn spring-boot:run` / `conda run -n stock python -m uvicorn ...` / `.bat` / `.sh` 直接启动服务。所有启动一律走 `node run.js start`（全栈）或子项目 `run.js`。端口冲突排查、首次搭建见 [`startup.md`](./.trae/rules/startup.md)。 | [`startup.md`](./.trae/rules/startup.md) |
 | **循环内单条 SQL** | 循环体内包含 INSERT/UPDATE/DELETE 且循环次数 >3 时，必须改造为批量 SQL（`insertBatch`/`deleteBatchByKeys`/CASE WHEN 批量 UPDATE）。单条操作仅限 ≤3 次或 <10 条数据。 | [`03-database-design.md` §3.2](./.trae/rules/stock-watcher/java/03-database-design.md) |
+| **Tushare 不分页丢数据** | Tushare 单次返回上限 5000 行，不传 `offset/limit` 时静默截断。**所有可能 >5000 行的调用必须分页循环**；`offset` 上限 10w，超量按时间/标的维度拆分。事务粒度每页或每批，禁止 `@Transactional` 包住拉取全过程。 | [`02-tushare-integration.md` §0 铁律速查](./.trae/rules/stock-watcher/business/02-tushare-integration.md) |
 
 ---
 
@@ -139,7 +140,8 @@ node run.js logs watcher|engine   # tail 日志
 | 场景 | 文档                                                                                        | 内容要点 |
 |-----|-------------------------------------------------------------------------------------------|---------|
 | 认证、权限相关 | `01-auth.md`                                                                              | 认证相关 |
-| **对接 Tushare 新接口** | `02-tushare-integration-guide.md`、 `03-tushare-interface-summary.md`、`04-tushare 接口汇总.md` | ⭐ 完整指南：步骤概览→定义DTO→注册枚举→TushareClient方法→配置限流→数据库层→Service层→Controller层→接入初始化流程→接入定时任务→配置Mapper扫描→测试验证；Checklist；参考实现对照 |
+| **对接 Tushare 新接口** | `02-tushare-integration.md`、`03-tushare-interfaces.md` | ⭐ 02=完整指南+5条铁律一体化：步骤概览→DTO→枚举→Client→限流→数据库层→Service（分页/事务/分批铁律）→DataCheckable→Controller→InitStep→DataInitService→定时任务→测试；Checklist；参考实现对照。03=接口清单（已对接25+官方全量）+架构 |
+| **数据管控中心** | `05-data-governance-center.md`                                                            | DataCheckable 校验体系、DataInitService 统一更新入口、拉取日志、定时任务、数据源健康检查 |
 
 ---
 
@@ -215,9 +217,9 @@ node run.js logs watcher|engine   # tail 日志
 │   │   └── 09-security.md            # 专项：安全规范
 │   └── business/                     # 业务指南
 │       ├── 01-auth.md
-│       └── 02-tushare-integration-guide.md
-│       └── 03-tushare-interface-summary.md
-│       └── 04-tushare 接口汇总.md
+│       ├── 02-tushare-integration.md     # ⭐ Tushare 对接指南 + 5 条铁律一体化
+│       ├── 03-tushare-interfaces.md      # 接口清单（已对接25 + 官方全量）+ 架构
+│       └── 05-data-governance-center.md  # 数据管控中心专题
 ├── stock-engine/
 │   └── python/                       # Python 计算服务规范
 │       ├── 01-python-coding-style.md

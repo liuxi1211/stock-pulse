@@ -43,6 +43,9 @@ import com.arthur.stock.dto.tushare.SuspendDDTO;
 import com.arthur.stock.dto.tushare.SuspendDQueryDTO;
 import com.arthur.stock.dto.tushare.StkLimitDTO;
 import com.arthur.stock.dto.tushare.StkLimitQueryDTO;
+import com.arthur.stock.dto.tushare.StkHoldertradeDTO;
+import com.arthur.stock.dto.tushare.StkHoldertradeQueryDTO;
+import com.arthur.stock.dto.tushare.StkHoldernumberDTO;
 import com.arthur.stock.dto.tushare.TopInstDTO;
 import com.arthur.stock.dto.tushare.TopListDTO;
 import com.arthur.stock.dto.tushare.TradeCalQueryDTO;
@@ -595,6 +598,31 @@ public class TushareClient {
         return query(TushareApiEnum.BLOCK_TRADE, params, BlockTradeDTO.class);
     }
 
+    public List<StkHoldertradeDTO> stkHoldertrade(StkHoldertradeQueryDTO param) {
+        JSONObject params = new JSONObject();
+        if (param.getTsCode() != null) {
+            params.put("ts_code", param.getTsCode());
+        }
+        if (param.getAnnDate() != null) {
+            params.put("ann_date", param.getAnnDate());
+        }
+        if (param.getStartDate() != null) {
+            params.put("start_date", param.getStartDate());
+        }
+        if (param.getEndDate() != null) {
+            params.put("end_date", param.getEndDate());
+        }
+        return query(TushareApiEnum.STK_HOLDERTRADE, params, StkHoldertradeDTO.class);
+    }
+
+    public List<StkHoldernumberDTO> stkHoldernumber(String tsCode) {
+        JSONObject params = new JSONObject();
+        if (tsCode != null) {
+            params.put("ts_code", tsCode);
+        }
+        return query(TushareApiEnum.STK_HOLDERNUMBER, params, StkHoldernumberDTO.class);
+    }
+
     /**
      * 融资融券汇总接口（margin）。
      *
@@ -701,6 +729,7 @@ public class TushareClient {
     /**
      * 统一回调式分页查询：自动 offset+=batchSize 循环，每页回调 handler 处理（如落库），
      * 返回 < batchSize 时终止。强制 limit 上限 100000 校验 + MAX_PAGES 防护。
+     * 注意：调用此方法应自行判断总量不会超过 10w，不然方法会直接抛出异常
      */
     public <T> int queryWithPaging(TushareApiEnum api, JSONObject params, Class<T> clazz,
                                   int batchSize, Consumer<List<T>> handler) {
