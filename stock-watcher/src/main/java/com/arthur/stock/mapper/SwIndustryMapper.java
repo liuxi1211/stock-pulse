@@ -23,7 +23,7 @@ public interface SwIndustryMapper extends BaseMapper<SwIndustryDO> {
      * 按层级查询行业列表。
      *
      * @param level 行业层级（1/2/3）
-     * @param src   分类版本，如 SWS2021
+     * @param src   分类版本，如 SW2021
      * @return 该层级所有行业
      */
     @Select("SELECT index_code, index_name, level, parent_code, src FROM sw_industry WHERE level = #{level} AND src = #{src}")

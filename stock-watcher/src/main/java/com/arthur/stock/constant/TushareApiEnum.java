@@ -40,7 +40,7 @@ public enum TushareApiEnum {
     INDEX_WEIGHT("index_weight",
             "ts_code,trade_date,con_code,weight"),
 
-    /** 申万行业分类接口（index_classify，按 src=SWS2021 取 2021 版本） */
+    /** 申万行业分类接口（index_classify，按 src=SW2021 取 2021 版本） */
     INDEX_CLASSIFY("index_classify",
             "index_code,index_name,level,parent_code"),
 

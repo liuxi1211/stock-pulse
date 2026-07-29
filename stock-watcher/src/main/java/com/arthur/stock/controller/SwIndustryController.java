@@ -28,7 +28,7 @@ public class SwIndustryController {
 
     private static final int MAX_PAGE_SIZE = 100;
     private static final String TRADE_DATE_REGEX = "\\d{8}";
-    private static final String INDUSTRY_CODE_REGEX = "\\d{6}";
+    private static final String INDUSTRY_CODE_REGEX = "\\d{6}(\\.SI)?";
 
     private final SwIndustryService swIndustryService;
 
@@ -69,7 +69,7 @@ public class SwIndustryController {
             return ApiResponse.error(400, "行业代码 industryCode 不能为空");
         }
         if (!industryCode.matches(INDUSTRY_CODE_REGEX)) {
-            return ApiResponse.error(400, "行业代码 industryCode 格式错误，应为 6 位数字");
+            return ApiResponse.error(400, "行业代码 industryCode 格式错误，应为 6 位数字（可带 .SI 后缀）");
         }
         if (page < 1) {
             return ApiResponse.error(400, "页码 page 必须为正整数");

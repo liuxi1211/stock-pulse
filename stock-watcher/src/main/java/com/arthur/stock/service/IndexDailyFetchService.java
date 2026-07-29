@@ -2,6 +2,7 @@ package com.arthur.stock.service;
 
 import com.arthur.stock.client.TushareClient;
 import com.arthur.stock.constant.IndexConstants;
+import com.arthur.stock.constant.SwIndustryConstants;
 import com.arthur.stock.mapper.IndexDailyMapper;
 import com.arthur.stock.mapper.SwIndustryMapper;
 import com.arthur.stock.model.IndexDailyDO;
@@ -136,7 +137,7 @@ public class IndexDailyFetchService {
      */
     private List<String> listSwL1IndexCodes() {
         try {
-            List<SwIndustryDO> l1 = swIndustryMapper.selectByLevel(1, "SWS2021");
+            List<SwIndustryDO> l1 = swIndustryMapper.selectByLevel(1, SwIndustryConstants.SW_SRC);
             if (l1 == null || l1.isEmpty()) {
                 log.warn("sw_industry level=1 为空，跳过申万行业指数同步");
                 return Collections.emptyList();

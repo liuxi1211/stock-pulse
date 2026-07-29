@@ -16,7 +16,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class IndexClassifyQueryDTO {
 
-    /** 分类版本，如 SWS2021（默认） */
+    /** 分类版本，如 SW2021（默认） */
     private String src;
 
     /** 层级（L1/L2/L3，可选） */

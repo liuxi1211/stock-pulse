@@ -41,7 +41,7 @@ public class SwIndustryMemberDO {
     @TableField("is_new")
     private Boolean isNew;
 
-    /** 分类版本（SWS2021） */
+    /** 分类版本（SW2021） */
     @TableField("src")
     private String src;
 

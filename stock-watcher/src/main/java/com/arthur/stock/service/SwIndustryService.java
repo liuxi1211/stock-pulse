@@ -11,7 +11,7 @@ import com.arthur.stock.vo.SwIndustryVO;
 /**
  * 申万行业分类服务。
  * <p>
- * 负责从 tushare index_classify / index_member_all 接口拉取申万行业（SWS2021）分类与成分股
+ * 负责从 tushare index_classify / index_member_all 接口拉取申万行业（SW2021）分类与成分股
  * 并落库，提供实时选股（最新一级行业）与回测（point-in-time 一级行业）两类查询。
  */
 public interface SwIndustryService {
@@ -28,7 +28,7 @@ public interface SwIndustryService {
     /**
      * 拉取申万行业分类（index_classify）并落库（幂等：按 src 先删后插）。
      *
-     * @param src 分类版本，如 SWS2021
+     * @param src 分类版本，如 SW2021
      * @return 落库记录数
      */
     int fetchAndSaveClassify(String src);

@@ -8,7 +8,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * 申万行业分类数据对象，对应 sw_industry 表（tushare index_classify，SWS2021 版本）
+ * 申万行业分类数据对象，对应 sw_industry 表（tushare index_classify，SW2021 版本）
  */
 @Data
 @Builder
@@ -33,7 +33,7 @@ public class SwIndustryDO {
     @TableField("parent_code")
     private String parentCode;
 
-    /** 分类版本（SWS2021） */
+    /** 分类版本（SW2021） */
     @TableField("src")
     private String src;
 }

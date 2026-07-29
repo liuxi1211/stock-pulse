@@ -3,6 +3,7 @@ package com.arthur.stock.service.impl;
 import com.arthur.stock.client.TushareClient;
 import com.arthur.stock.constant.InitStep;
 import com.arthur.stock.constant.ListStatusEnum;
+import com.arthur.stock.constant.SwIndustryConstants;
 import com.arthur.stock.dto.PageResult;
 import com.arthur.stock.dto.governance.CheckLevel;
 import com.arthur.stock.dto.governance.DataCheckItem;
@@ -46,7 +47,7 @@ import java.util.stream.Collectors;
 /**
  * 申万行业分类服务实现。
  * <p>
- * 数据源：tushare index_classify（doc_id=181）+ index_member_all（doc_id=335），按 SWS2021 版本。
+ * 数据源：tushare index_classify（doc_id=181）+ index_member_all（doc_id=335），按 SW2021 版本。
  * 落库策略：
  * <ul>
  *   <li>分类：按 src 先删后插（全量替换）；</li>
@@ -75,7 +76,7 @@ public class SwIndustryServiceImpl implements SwIndustryService, DataCheckable {
 
     @Override
     public int fetchAndSaveClassify(String src) {
-        String effectiveSrc = src == null ? "SWS2021" : src;
+        String effectiveSrc = src == null ? SwIndustryConstants.SW_SRC : src;
         log.info("Fetching sw_industry classify: src={}", effectiveSrc);
 
         IndexClassifyQueryDTO param = IndexClassifyQueryDTO.builder()
@@ -105,7 +106,7 @@ public class SwIndustryServiceImpl implements SwIndustryService, DataCheckable {
 
     @Override
     public int fetchAndSaveMembers(String indexCode, String src) {
-        String effectiveSrc = src == null ? "SWS2021" : src;
+        String effectiveSrc = src == null ? SwIndustryConstants.SW_SRC : src;
         log.info("Fetching sw_industry_member by index: indexCode={}, src={}", indexCode, effectiveSrc);
 
         IndexMemberQueryDTO param = IndexMemberQueryDTO.builder()
@@ -118,7 +119,7 @@ public class SwIndustryServiceImpl implements SwIndustryService, DataCheckable {
 
     @Override
     public int fetchAndSaveAllMembers(String src) {
-        String effectiveSrc = src == null ? "SWS2021" : src;
+        String effectiveSrc = src == null ? SwIndustryConstants.SW_SRC : src;
         log.info("Fetching sw_industry_member (paginated, size={}): src={}", MEMBER_PAGE_SIZE, effectiveSrc);
 
         int total = 0;
@@ -172,7 +173,7 @@ public class SwIndustryServiceImpl implements SwIndustryService, DataCheckable {
 
     @Override
     public List<SwIndustryVO> listByLevel(int level) {
-        return listByLevel(level, "SWS2021");
+        return listByLevel(level, SwIndustryConstants.SW_SRC);
     }
 
     public List<SwIndustryVO> listByLevel(int level, String src) {
@@ -202,7 +203,7 @@ public class SwIndustryServiceImpl implements SwIndustryService, DataCheckable {
         }
 
         // 3. 查询全量当前一级成分股
-        List<SwIndustryMemberDO> allMembers = swIndustryMemberMapper.selectAllCurrentL1Members("SWS2021");
+        List<SwIndustryMemberDO> allMembers = swIndustryMemberMapper.selectAllCurrentL1Members(SwIndustryConstants.SW_SRC);
         Map<String, List<SwIndustryMemberDO>> membersByIndustry = groupMembersByIndustry(allMembers);
 
         // 4. 查询行业指数行情
@@ -239,8 +240,9 @@ public class SwIndustryServiceImpl implements SwIndustryService, DataCheckable {
     }
 
     private Map<String, IndexDailyDO> buildIndexDailyMap(List<SwIndustryVO> industries, String tradeDate) {
+        // 库内 sw_industry.index_code 已带 .SI 后缀（如 801010.SI），直接用作 index_daily.ts_code 查询
         List<String> indexCodes = industries.stream()
-                .map(ind -> ind.getIndustryCode() + ".SI")
+                .map(SwIndustryVO::getIndustryCode)
                 .collect(Collectors.toList());
         List<IndexDailyDO> indexDailyList = indexDailyService.getByCodesAndTradeDate(indexCodes, tradeDate);
         Map<String, IndexDailyDO> map = new HashMap<>();
@@ -279,7 +281,8 @@ public class SwIndustryServiceImpl implements SwIndustryService, DataCheckable {
             String tradeDate) {
 
         String idxCode = ind.getIndustryCode();
-        String indexTsCode = idxCode + ".SI";
+        // 库内 index_code 已带 .SI 后缀，直接作为 index_daily.ts_code 使用
+        String indexTsCode = idxCode;
         IndexDailyDO idxDaily = indexDailyMap.get(indexTsCode);
 
         List<SwIndustryMemberDO> members = membersByIndustry.getOrDefault(idxCode, Collections.emptyList());

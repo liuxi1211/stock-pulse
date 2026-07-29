@@ -5,6 +5,7 @@ import com.arthur.stock.constant.InitStep;
 import com.arthur.stock.constant.IndexConstants;
 import com.arthur.stock.constant.ListStatusEnum;
 import com.arthur.stock.constant.ExchangeEnum;
+import com.arthur.stock.constant.SwIndustryConstants;
 import com.arthur.stock.dto.governance.TaskProgress;
 import com.arthur.stock.dto.tushare.StockBasicDTO;
 import com.arthur.stock.exception.BusinessException;
@@ -256,13 +257,13 @@ public class DataInitServiceImpl implements DataInitService {
             case SW_INDUSTRY -> {
                 int swOk = 0;
                 try {
-                    swIndustryService.fetchAndSaveClassify("SWS2021");
+                    swIndustryService.fetchAndSaveClassify(SwIndustryConstants.SW_SRC);
                     swOk++;
                 } catch (Exception e) {
                     log.warn("SW classify failed: {}", e.getMessage());
                 }
                 try {
-                    swIndustryService.fetchAndSaveAllMembers("SWS2021");
+                    swIndustryService.fetchAndSaveAllMembers(SwIndustryConstants.SW_SRC);
                     swOk++;
                 } catch (Exception e) {
                     log.warn("SW members failed: {}", e.getMessage());

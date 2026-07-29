@@ -302,13 +302,13 @@ CREATE TABLE IF NOT EXISTS index_weight (
     INDEX idx_index_weight_date (ts_code, trade_date)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='指数成分股权重表';
 
--- 19. 申万行业分类表（tushare index_classify，SWS2021 版本）
+-- 19. 申万行业分类表（tushare index_classify，SW2021 版本）
 CREATE TABLE IF NOT EXISTS sw_industry (
     index_code  VARCHAR(32) NOT NULL COMMENT '行业代码（申万一级/二级/三级行业指数代码）',
     index_name  VARCHAR(64) COMMENT '行业名称',
     level       INT         COMMENT '行业层级（1/2/3）',
     parent_code VARCHAR(32) COMMENT '父级行业代码（一级行业为空）',
-    src         VARCHAR(16) NOT NULL DEFAULT 'SWS2021' COMMENT '分类版本（SWS2021）',
+    src         VARCHAR(16) NOT NULL DEFAULT 'SW2021' COMMENT '分类版本（SW2021，与 Tushare 返回值一致）',
     PRIMARY KEY (index_code, src)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='申万行业分类表';
 
@@ -320,7 +320,7 @@ CREATE TABLE IF NOT EXISTS sw_industry_member (
     in_date     VARCHAR(8)  COMMENT '纳入日期（YYYYMMDD）',
     out_date    VARCHAR(8)  COMMENT '剔除日期（YYYYMMDD，为空表示当前在册）',
     is_new      TINYINT(1)  COMMENT '是否最新（1=是，0=否）',
-    src         VARCHAR(16) NOT NULL DEFAULT 'SWS2021' COMMENT '分类版本（SWS2021）',
+    src         VARCHAR(16) NOT NULL DEFAULT 'SW2021' COMMENT '分类版本（SW2021，与 Tushare 返回值一致）',
     update_date VARCHAR(8)  NOT NULL COMMENT '更新日期（YYYYMMDD）',
     PRIMARY KEY (ts_code, index_code, update_date),
     INDEX idx_sw_member_tscode (ts_code),

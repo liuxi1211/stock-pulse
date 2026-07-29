@@ -327,7 +327,7 @@ public class TushareClient {
     /**
      * 申万行业分类接口（index_classify，doc_id=181）。
      *
-     * @param param 查询参数，src（如 SWS2021）必传，level 可选
+     * @param param 查询参数，src（如 SW2021）必传，level 可选
      * @return 申万行业分类列表
      */
     public List<IndexClassifyDTO> indexClassify(IndexClassifyQueryDTO param) {
@@ -909,7 +909,7 @@ public class TushareClient {
     }
 
     /**
-     * 构建 index_classify 接口参数，非空字段才传入（src 如 SWS2021）
+     * 构建 index_classify 接口参数，非空字段才传入（src 如 SW2021）
      */
     private JSONObject buildIndexClassifyParams(IndexClassifyQueryDTO param) {
         JSONObject params = new JSONObject();

@@ -22,6 +22,6 @@ public class IndexMemberQueryDTO {
     /** 行业代码（可选） */
     private String indexCode;
 
-    /** 分类版本，如 SWS2021（默认） */
+    /** 分类版本，如 SW2021（默认） */
     private String src;
 }
