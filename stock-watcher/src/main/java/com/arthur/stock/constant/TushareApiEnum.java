@@ -116,6 +116,10 @@ public enum TushareApiEnum {
     INDEX_DAILY("index_daily",
             "ts_code,trade_date,close,open,high,low,pre_close,change,pct_chg,vol,amount"),
 
+    /** 指数基本信息接口（doc_id=94，全部市场的指数基础信息） */
+    INDEX_BASIC("index_basic",
+            "ts_code,name,fullname,market,publisher,index_type,category,base_date,base_point,list_date,weight_rule"),
+
     /** 个股资金流向 */
     MONEYFLOW("moneyflow",
             "ts_code,trade_date,buy_sm_amount,sell_sm_amount,buy_sm_vol,sell_sm_vol,"

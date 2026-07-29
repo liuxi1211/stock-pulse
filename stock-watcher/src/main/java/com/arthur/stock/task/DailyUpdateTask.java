@@ -43,6 +43,7 @@ public class DailyUpdateTask {
      * 每天下午 16:00 执行日常数据更新
      */
     @Scheduled(cron = "0 0 16 * * ?")
+    @org.springframework.cache.annotation.CacheEvict(value = {"sectorRanking", "sectorMoneyflow", "sectorValuation"}, allEntries = true)
     public void dailyUpdate() {
         log.info("===== Daily update task started =====");
 

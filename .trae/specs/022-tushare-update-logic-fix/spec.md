@@ -171,12 +171,6 @@
 
 系统 SHALL 将所有 Mapper XML 中的 `deleteBatchByKeys` 从 row-value IN 语法改为 OR 连接条件，确保 SQLite 兼容。
 
-#### Scenario: 修复前（不兼容）
-```sql
--- SQLite 不支持此语法
-DELETE FROM daily_quote WHERE (ts_code, trade_date) IN ((...), (...))
-```
-
 #### Scenario: 修复后（兼容）
 ```sql
 -- SQLite/MySQL 均支持

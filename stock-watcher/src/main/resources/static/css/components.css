@@ -1726,8 +1726,26 @@
    ============================================================ */
 
 .nav-tabs {
+    display: flex !important;
+    flex-wrap: wrap;
     border-bottom: 1px solid var(--border-light) !important;
     gap: 4px;
+    margin-bottom: 0;
+    padding-left: 0;
+    list-style: none;
+}
+
+/* 覆盖全局 .nav-item（侧边栏样式）对 tab 的污染：
+   全局 .nav-item 设了 width:100% / padding / margin-bottom，
+   导致每个 tab 独占一行。此处清除这些副作用。 */
+.nav-tabs .nav-item,
+.nav-pills .nav-item {
+    width: auto;
+    flex: 0 0 auto;
+    padding: 0;
+    margin: 0;
+    gap: 0;
+    display: block;
 }
 
 .nav-tabs .nav-link {
@@ -1766,6 +1784,15 @@
 }
 
 /* Pill Tabs */
+.nav-pills {
+    display: flex !important;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 0;
+    padding-left: 0;
+    list-style: none;
+}
+
 .nav-pills .nav-link {
     color: var(--text-secondary) !important;
     border-radius: var(--radius-md) !important;

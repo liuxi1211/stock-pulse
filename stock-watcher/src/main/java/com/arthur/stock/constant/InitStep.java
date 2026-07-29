@@ -11,6 +11,7 @@ public enum InitStep {
     STOCK_BASIC("stock_basic", "股票基础信息", "stock_basic", TableGroup.BASIC, "每日 16:00", "16:00", false, "stock_basic"),
     TRADE_CAL("trade_cal", "交易日历", "trade_cal", TableGroup.BASIC, "每日 16:00", "16:00", false, "trade_cal"),
     INDEX_WEIGHT("index_weight", "指数成分权重", "index_weight", TableGroup.INDEX, "每日 20:00", "20:00", false, "index_weight"),
+    INDEX_BASIC("index_basic", "指数基本信息", "index_basic", TableGroup.INDEX, "每日 16:25", "16:25", false, "index_basic"),
     SW_INDUSTRY("sw_industry", "申万行业分类", "sw_industry", TableGroup.INDEX, "每半年", null, false, "index_classify"),
     DAILY("daily", "日线行情", "daily_quote", TableGroup.MARKET, "每个交易日 16:00", "16:00", true, "daily"),
     ADJ_FACTOR("adj_factor", "复权因子", "adj_factor", TableGroup.MARKET, "每个交易日 16:00", "16:00", true, "adj_factor"),

@@ -600,6 +600,24 @@ CREATE TABLE IF NOT EXISTS index_daily (
     INDEX idx_index_daily_date (trade_date)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='指数日线行情表';
 
+-- 29.1 指数基本信息表（tushare index_basic：全部市场的指数基础信息）
+CREATE TABLE IF NOT EXISTS index_basic (
+    id          BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
+    ts_code     VARCHAR(20)   NOT NULL UNIQUE COMMENT 'TS指数代码（如 000300.SH / 801010.SI）',
+    name        VARCHAR(64)   COMMENT '指数简称',
+    fullname    VARCHAR(128)  COMMENT '指数全称',
+    market      VARCHAR(16)   COMMENT '市场（SSE/SZSE/CSI/SW/MSCI/CICC/SWHK/OTH）',
+    publisher   VARCHAR(64)   COMMENT '发布商',
+    index_type  VARCHAR(64)   COMMENT '指数风格',
+    category    VARCHAR(64)   COMMENT '指数类别',
+    base_date   VARCHAR(8)    COMMENT '基期（YYYYMMDD）',
+    base_point  DECIMAL(20,4) COMMENT '基点',
+    list_date   VARCHAR(8)    COMMENT '发布日期（YYYYMMDD）',
+    weight_rule VARCHAR(64)   COMMENT '加权方式',
+    INDEX idx_index_basic_market (market),
+    INDEX idx_index_basic_category (category)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='指数基本信息表';
+
 -- 30. 个股资金流向表（tushare moneyflow：个股资金流向）
 CREATE TABLE IF NOT EXISTS stock_moneyflow (
     ts_code          VARCHAR(16)   NOT NULL COMMENT '股票代码',

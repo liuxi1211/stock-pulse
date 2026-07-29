@@ -1,6 +1,8 @@
 package com.arthur.stock.model;
 
+import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
+import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -12,6 +14,9 @@ import lombok.NoArgsConstructor;
  * <p>
  * 事件模型：每条记录代表某日某股票的停复牌事件（S=停牌，R=复牌）。
  * 用于判定某日某标的是否处于停牌状态。
+ * <p>
+ * 数据库复合主键：(ts_code, trade_date, suspend_type)。ts_code 上标注 @TableId 仅用于满足
+ * MyBatis-Plus 单主键元数据要求，严禁调用 xxById 系列方法。
  */
 @Data
 @Builder
@@ -20,8 +25,8 @@ import lombok.NoArgsConstructor;
 @TableName("stock_suspend_d")
 public class StockSuspendDDO {
 
-    /** 股票代码，如 000001.SZ */
-    @TableField("ts_code")
+    /** 股票代码，如 000001.SZ（复合主键首字段） */
+    @TableId(value = "ts_code", type = IdType.INPUT)
     private String tsCode;
 
     /** 交易日期（YYYYMMDD） */

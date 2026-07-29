@@ -1,5 +1,7 @@
 package com.arthur.stock.model;
 
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -10,6 +12,9 @@ import java.math.BigDecimal;
 
 /**
  * 融资融券汇总数据对象，对应 margin 表（Tushare margin：融资融券汇总）。
+ * <p>
+ * 数据库复合主键：(exchange_id, trade_date)。exchangeId 上标注 @TableId 仅用于满足
+ * MyBatis-Plus 单主键元数据要求，严禁调用 xxById 系列方法。
  */
 @Data
 @Builder
@@ -18,7 +23,8 @@ import java.math.BigDecimal;
 @TableName("margin")
 public class MarginDO {
 
-    /** 交易所代码（SSE/SZSE） */
+    /** 交易所代码（SSE/SZSE，复合主键首字段） */
+    @TableId(type = IdType.INPUT)
     private String exchangeId;
 
     /** 交易日期 yyyyMMdd */

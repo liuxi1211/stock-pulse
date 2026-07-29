@@ -64,6 +64,8 @@ tushare:
       permits-per-minute: 180
     index_weight:
       permits-per-minute: 200
+    index_basic:
+      permits-per-minute: 500
     index_classify:
       permits-per-minute: 200
     index_member_all:

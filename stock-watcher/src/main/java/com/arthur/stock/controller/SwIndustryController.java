@@ -4,7 +4,9 @@ import com.arthur.stock.dto.ApiResponse;
 import com.arthur.stock.dto.PageResult;
 import com.arthur.stock.service.SwIndustryService;
 import com.arthur.stock.vo.IndustryMemberVO;
+import com.arthur.stock.vo.IndustryMoneyflowVO;
 import com.arthur.stock.vo.IndustryRankingVO;
+import com.arthur.stock.vo.IndustryValuationVO;
 import com.arthur.stock.vo.SwIndustryVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -43,6 +45,17 @@ public class SwIndustryController {
         return ApiResponse.success(swIndustryService.listByLevel(level));
     }
 
+    @Operation(summary = "按股票代码查所属一级行业", description = "返回个股当前所属申万一级行业，供个股页跳转板块行情")
+    @GetMapping("/by-stock")
+    public ApiResponse<SwIndustryVO> byStock(
+            @Parameter(description = "股票代码如 000001.SZ", required = true)
+            @RequestParam String tsCode) {
+        if (tsCode == null || tsCode.isBlank()) {
+            return ApiResponse.error(400, "tsCode 不能为空");
+        }
+        return ApiResponse.success(swIndustryService.getCurrentL1ByTsCode(tsCode));
+    }
+
     @Operation(summary = "行业排行", description = "返回申万一级28个行业的排行数据（涨跌幅/成交额/领涨股/领跌股）")
     @GetMapping("/ranking")
     public ApiResponse<List<IndustryRankingVO>> ranking(
@@ -52,6 +65,28 @@ public class SwIndustryController {
             return ApiResponse.error(400, "tradeDate 格式错误，应为 yyyyMMdd");
         }
         return ApiResponse.success(swIndustryService.getIndustryRanking(tradeDate));
+    }
+
+    @Operation(summary = "板块资金流", description = "返回申万一级28个行业的资金流聚合（主力/超大单/大单/中单/小单净额）")
+    @GetMapping("/moneyflow")
+    public ApiResponse<List<IndustryMoneyflowVO>> moneyflow(
+            @Parameter(description = "交易日 yyyyMMdd，默认最新交易日")
+            @RequestParam(required = false) String tradeDate) {
+        if (tradeDate != null && !tradeDate.isBlank() && !tradeDate.matches(TRADE_DATE_REGEX)) {
+            return ApiResponse.error(400, "tradeDate 格式错误，应为 yyyyMMdd");
+        }
+        return ApiResponse.success(swIndustryService.getIndustryMoneyflow(tradeDate));
+    }
+
+    @Operation(summary = "板块估值", description = "返回申万一级28个行业的估值聚合（市值加权PE_TTM、算术平均PB）")
+    @GetMapping("/valuation")
+    public ApiResponse<List<IndustryValuationVO>> valuation(
+            @Parameter(description = "交易日 yyyyMMdd，默认最新交易日")
+            @RequestParam(required = false) String tradeDate) {
+        if (tradeDate != null && !tradeDate.isBlank() && !tradeDate.matches(TRADE_DATE_REGEX)) {
+            return ApiResponse.error(400, "tradeDate 格式错误，应为 yyyyMMdd");
+        }
+        return ApiResponse.success(swIndustryService.getIndustryValuation(tradeDate));
     }
 
     @Operation(summary = "行业成分股", description = "分页返回指定行业的当前成分股（含最新行情）")
@@ -64,7 +99,9 @@ public class SwIndustryController {
             @Parameter(description = "每页条数，默认20")
             @RequestParam(defaultValue = "20") int size,
             @Parameter(description = "搜索关键字（股票代码或名称）")
-            @RequestParam(required = false) String keyword) {
+            @RequestParam(required = false) String keyword,
+            @Parameter(description = "交易日 yyyyMMdd，默认最新交易日")
+            @RequestParam(required = false) String tradeDate) {
         if (industryCode == null || industryCode.isBlank()) {
             return ApiResponse.error(400, "行业代码 industryCode 不能为空");
         }
@@ -77,6 +114,9 @@ public class SwIndustryController {
         if (size < 1 || size > MAX_PAGE_SIZE) {
             return ApiResponse.error(400, "每页条数 size 必须在 1 到 " + MAX_PAGE_SIZE + " 之间");
         }
-        return ApiResponse.success(swIndustryService.getIndustryMembers(industryCode, null, page, size, keyword));
+        if (tradeDate != null && !tradeDate.isBlank() && !tradeDate.matches(TRADE_DATE_REGEX)) {
+            return ApiResponse.error(400, "tradeDate 格式错误，应为 yyyyMMdd");
+        }
+        return ApiResponse.success(swIndustryService.getIndustryMembers(industryCode, tradeDate, page, size, keyword));
     }
 }

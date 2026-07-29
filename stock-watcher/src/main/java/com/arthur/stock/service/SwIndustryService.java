@@ -5,7 +5,9 @@ import java.util.Map;
 
 import com.arthur.stock.dto.PageResult;
 import com.arthur.stock.vo.IndustryMemberVO;
+import com.arthur.stock.vo.IndustryMoneyflowVO;
 import com.arthur.stock.vo.IndustryRankingVO;
+import com.arthur.stock.vo.IndustryValuationVO;
 import com.arthur.stock.vo.SwIndustryVO;
 
 /**
@@ -67,6 +69,12 @@ public interface SwIndustryService {
     String getL1IndustryAt(String tsCode, String tradeDate);
 
     /**
+     * 按股票代码反查当前所属申万一级行业（含代码与名称），无则 null。
+     * 供个股详情页"行业"标签点击跳转板块行情使用。
+     */
+    SwIndustryVO getCurrentL1ByTsCode(String tsCode);
+
+    /**
      * 批量 point-in-time：取多只股票在区间 [startDate, endDate] 内每日生效的一级行业。
      * <p>
      * 实现一次性查全部历史一级成分股记录，按 ts_code + update_date forward-fill，
@@ -90,4 +98,26 @@ public interface SwIndustryService {
      * 分页查询行业成分股（含最新行情）。
      */
     PageResult<IndustryMemberVO> getIndustryMembers(String industryCode, String tradeDate, int page, int size, String keyword);
+
+    /**
+     * 获取板块资金流聚合（申万一级 28 个行业）。
+     * <p>
+     * 按 sw_industry_member.index_code 分组聚合 stock_moneyflow，返回主力/超大单/大单/中单/小单净额。
+     * tradeDate 为 null 时取最新交易日。
+     *
+     * @param tradeDate 交易日 yyyyMMdd，可空
+     * @return 28 个行业的资金流聚合（无数据的行业净额为 null）
+     */
+    List<IndustryMoneyflowVO> getIndustryMoneyflow(String tradeDate);
+
+    /**
+     * 获取板块估值聚合（申万一级 28 个行业）。
+     * <p>
+     * 按 sw_industry_member.index_code 分组聚合 daily_basic，返回市值加权 PE_TTM、算术平均 PB。
+     * tradeDate 为 null 时取最新交易日。
+     *
+     * @param tradeDate 交易日 yyyyMMdd，可空
+     * @return 28 个行业的估值聚合（无数据的行业估值指标为 null）
+     */
+    List<IndustryValuationVO> getIndustryValuation(String tradeDate);
 }

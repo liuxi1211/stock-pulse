@@ -7,6 +7,7 @@ import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * 申万行业成分股数据访问层，基于 MyBatis-Plus BaseMapper 提供对 sw_industry_member 表的 CRUD 操作。
@@ -121,4 +122,53 @@ public interface SwIndustryMemberMapper extends BaseMapper<SwIndustryMemberDO> {
      * 统计 out_date IS NOT NULL AND in_date > out_date 的记录数。
      */
     int countDateLogicErrors();
+
+    /**
+     * 板块资金流聚合：stock_moneyflow JOIN sw_industry_member(is_new=1)，按 index_code 分组。
+     * <p>
+     * 只关联一级行业（index_code IN sw_industry.level=1），返回 28 行以内的聚合结果，
+     * 各净额单位「万元」。主力净额 = 大单净额 + 特大单净额。
+     * <p>
+     * 仅按 index_code 分组，index_name 用 MAX() 兜底，避免历史成分股记录中
+     * 同一 index_code 出现多个 index_name 时被拆成多行。
+     *
+     * @param tradeDate 交易日 yyyyMMdd
+     * @return 每行 Map 含 index_code / index_name / main_net / elg_net / lg_net / md_net / sm_net / net_mf
+     */
+    @Select("SELECT m.index_code AS index_code, MAX(m.index_name) AS index_name, "
+            + " SUM((IFNULL(mf.buy_lg_amount,0) - IFNULL(mf.sell_lg_amount,0)) "
+            + "   + (IFNULL(mf.buy_elg_amount,0) - IFNULL(mf.sell_elg_amount,0))) AS main_net, "
+            + " SUM(IFNULL(mf.buy_elg_amount,0) - IFNULL(mf.sell_elg_amount,0)) AS elg_net, "
+            + " SUM(IFNULL(mf.buy_lg_amount,0) - IFNULL(mf.sell_lg_amount,0)) AS lg_net, "
+            + " SUM(IFNULL(mf.buy_md_amount,0) - IFNULL(mf.sell_md_amount,0)) AS md_net, "
+            + " SUM(IFNULL(mf.buy_sm_amount,0) - IFNULL(mf.sell_sm_amount,0)) AS sm_net, "
+            + " SUM(IFNULL(mf.net_mf_amount,0)) AS net_mf "
+            + "FROM sw_industry_member m "
+            + "JOIN stock_moneyflow mf ON mf.ts_code = m.ts_code AND mf.trade_date = #{tradeDate} "
+            + "WHERE m.is_new = 1 "
+            + "AND m.index_code IN (SELECT index_code FROM sw_industry WHERE level = 1) "
+            + "GROUP BY m.index_code")
+    List<Map<String, Object>> selectMoneyflowGroupByIndustry(@Param("tradeDate") String tradeDate);
+
+    /**
+     * 板块估值聚合：daily_basic JOIN sw_industry_member(is_new=1)，按 index_code 分组。
+     * <p>
+     * peTtm 为市值加权（仅统计 pe_ttm>0 且 total_mv>0 的成分股）；
+     * pb 为算术平均（仅统计 pb>0 的成分股）。
+     * <p>
+     * 仅按 index_code 分组，index_name 用 MAX() 兜底（同 selectMoneyflowGroupByIndustry）。
+     *
+     * @param tradeDate 交易日 yyyyMMdd
+     * @return 每行 Map 含 index_code / index_name / pe_ttm / pb
+     */
+    @Select("SELECT m.index_code AS index_code, MAX(m.index_name) AS index_name, "
+            + " SUM(CASE WHEN db.pe_ttm > 0 AND db.total_mv > 0 THEN db.pe_ttm * db.total_mv ELSE 0 END) "
+            + "   / NULLIF(SUM(CASE WHEN db.pe_ttm > 0 AND db.total_mv > 0 THEN db.total_mv ELSE 0 END), 0) AS pe_ttm, "
+            + " AVG(CASE WHEN db.pb > 0 THEN db.pb ELSE NULL END) AS pb "
+            + "FROM sw_industry_member m "
+            + "JOIN daily_basic db ON db.ts_code = m.ts_code AND db.trade_date = #{tradeDate} "
+            + "WHERE m.is_new = 1 "
+            + "AND m.index_code IN (SELECT index_code FROM sw_industry WHERE level = 1) "
+            + "GROUP BY m.index_code")
+    List<Map<String, Object>> selectValuationGroupByIndustry(@Param("tradeDate") String tradeDate);
 }

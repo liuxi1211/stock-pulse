@@ -1,7 +1,9 @@
 package com.arthur.stock.model;
 
 import com.alibaba.fastjson2.annotation.JSONField;
+import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
+import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -15,6 +17,10 @@ import java.math.BigDecimal;
  * <p>
  * 同时承载 Tushare 响应解析（{@code @JSONField} 映射 snake_case 字段）与 MyBatis-Plus 实体映射，
  * 因此 {@link com.arthur.stock.client.TushareClient#fetchIndexDaily} 可直接将其作为目标类型。
+ * <p>
+ * 数据库复合主键：(ts_code, trade_date)。ts_code 上标注 @TableId 仅用于满足
+ * MyBatis-Plus 单主键元数据要求，严禁调用 selectById/updateById/deleteById
+ * 等 xxById 方法；复合主键查询请通过自定义 Mapper 方法。
  */
 @Data
 @Builder
@@ -23,7 +29,8 @@ import java.math.BigDecimal;
 @TableName("index_daily")
 public class IndexDailyDO {
 
-    /** 指数代码，如 000001.SH */
+    /** 指数代码，如 000001.SH（复合主键首字段） */
+    @TableId(type = IdType.INPUT)
     @JSONField(name = "ts_code")
     private String tsCode;
 

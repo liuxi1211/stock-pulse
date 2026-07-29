@@ -23,6 +23,9 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class IndexDailyController {
 
+    private static final String TSCODE_REGEX = "[A-Z0-9]{6,9}(\\.(SH|SZ|SI))?";
+    private static final int MAX_LIMIT = 3650;
+
     private final IndexDailyService indexDailyService;
 
     @Operation(summary = "获取最新交易日指数行情", description = "按指数代码列表（逗号分隔）获取最新交易日的指数日线数据")
@@ -54,9 +57,16 @@ public class IndexDailyController {
             @RequestParam(required = false) String endDate,
             @Parameter(description = "返回条数，默认250")
             @RequestParam(defaultValue = "250") int limit) {
+        if (tsCode == null || tsCode.isBlank() || !tsCode.matches(TSCODE_REGEX)) {
+            return ApiResponse.error(400, "tsCode 格式错误，应为指数代码如 801010.SI");
+        }
+        if (limit < 1 || limit > MAX_LIMIT) {
+            return ApiResponse.error(400, "limit 必须在 1 到 3650 之间");
+        }
         List<IndexDailyDO> list = indexDailyService.getByCodeOrderByTradeDate(tsCode, limit);
-        // Service returns DESC order, reverse to ASC for K-line rendering
-        Collections.reverse(list);
-        return ApiResponse.success(list);
+        // Service returns DESC order, reverse a copy to ASC for K-line rendering
+        List<IndexDailyDO> asc = new java.util.ArrayList<>(list);
+        java.util.Collections.reverse(asc);
+        return ApiResponse.success(asc);
     }
 }

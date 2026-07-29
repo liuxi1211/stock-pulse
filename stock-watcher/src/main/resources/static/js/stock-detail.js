@@ -450,6 +450,20 @@
             state.watchlistItem = matched || null;
             setMetric('industry', (matched && matched.industryName) ? matched.industryName : '--');
 
+            // 行业反查 + 跳转板块页（失败静默，不影响其他功能）
+            StockApp.get('/api/industry/by-stock', { tsCode: code }, function (resp) {
+                if (resp && resp.code === 200 && resp.data && resp.data.industryCode) {
+                    var el = document.querySelector('#sdSummaryMetrics [data-field="industry"]');
+                    if (el) {
+                        el.style.cursor = 'pointer';
+                        el.title = '查看' + resp.data.industryName + '板块行情';
+                        el.onclick = function () {
+                            window.location.href = (StockApp.contextPath || '') + '/page/sector?industryCode=' + encodeURIComponent(resp.data.industryCode);
+                        };
+                    }
+                }
+            });
+
             // —— 自选按钮态 ——
             syncWatchlistBtn();
             // —— 提醒按钮态（如果已在自选且有提醒，回填弹窗） ——

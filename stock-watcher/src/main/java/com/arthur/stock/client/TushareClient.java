@@ -31,6 +31,8 @@ import com.arthur.stock.dto.tushare.IndexMemberDTO;
 import com.arthur.stock.dto.tushare.IndexMemberQueryDTO;
 import com.arthur.stock.dto.tushare.IndexWeightDTO;
 import com.arthur.stock.dto.tushare.IndexWeightQueryDTO;
+import com.arthur.stock.dto.tushare.IndexBasicDTO;
+import com.arthur.stock.dto.tushare.IndexBasicQueryDTO;
 import com.arthur.stock.dto.tushare.MarginDTO;
 import com.arthur.stock.dto.tushare.MarginDetailDTO;
 import com.arthur.stock.dto.tushare.MoneyflowDTO;
@@ -322,6 +324,35 @@ public class TushareClient {
     public List<IndexWeightDTO> indexWeight(IndexWeightQueryDTO param) {
         JSONObject params = buildIndexWeightParams(param);
         return query(TushareApiEnum.INDEX_WEIGHT, params, IndexWeightDTO.class);
+    }
+
+    /**
+     * 指数基本信息接口（index_basic，doc_id=94，支持分页）。
+     *
+     * @param param 查询参数，所有字段均为可选（全空则拉取全部市场）
+     * @return 指数基础信息列表
+     */
+    public List<IndexBasicDTO> indexBasic(IndexBasicQueryDTO param) {
+        return indexBasic(param, null, null);
+    }
+
+    /**
+     * 指数基本信息接口（支持分页）。
+     *
+     * @param param  查询参数，所有字段均为可选
+     * @param offset 偏移量（null 不传）
+     * @param limit  单页条数（null 不传）
+     * @return 指数基础信息列表
+     */
+    public List<IndexBasicDTO> indexBasic(IndexBasicQueryDTO param, Integer offset, Integer limit) {
+        JSONObject params = buildIndexBasicParams(param);
+        if (offset != null) {
+            params.put("offset", String.valueOf(offset));
+        }
+        if (limit != null) {
+            params.put("limit", String.valueOf(limit));
+        }
+        return query(TushareApiEnum.INDEX_BASIC, params, IndexBasicDTO.class);
     }
 
     /**
@@ -904,6 +935,26 @@ public class TushareClient {
         }
         if (param.getEndDate() != null) {
             params.put("end_date", param.getEndDate());
+        }
+        return params;
+    }
+
+    /**
+     * 构建 index_basic 接口参数，非空字段才传入
+     */
+    private JSONObject buildIndexBasicParams(IndexBasicQueryDTO param) {
+        JSONObject params = new JSONObject();
+        if (param.getTsCode() != null) {
+            params.put("ts_code", param.getTsCode());
+        }
+        if (param.getMarket() != null) {
+            params.put("market", param.getMarket());
+        }
+        if (param.getPublisher() != null) {
+            params.put("publisher", param.getPublisher());
+        }
+        if (param.getCategory() != null) {
+            params.put("category", param.getCategory());
         }
         return params;
     }

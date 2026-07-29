@@ -4,6 +4,7 @@ import com.arthur.stock.client.TushareClient;
 import com.arthur.stock.constant.IndexConstants;
 import com.arthur.stock.constant.SwIndustryConstants;
 import com.arthur.stock.mapper.IndexDailyMapper;
+import com.arthur.stock.mapper.IndexBasicMapper;
 import com.arthur.stock.mapper.SwIndustryMapper;
 import com.arthur.stock.model.IndexDailyDO;
 import com.arthur.stock.model.SwIndustryDO;
@@ -53,6 +54,7 @@ public class IndexDailyFetchService {
 
     private final TushareClient tushareClient;
     private final IndexDailyMapper indexDailyMapper;
+    private final IndexBasicMapper indexBasicMapper;
     private final SwIndustryMapper swIndustryMapper;
     private final TransactionTemplate transactionTemplate;
 
@@ -106,18 +108,25 @@ public class IndexDailyFetchService {
     }
 
     /**
-     * 每交易日 16:30 盘后同步大盘指数 + 申万一级行业指数当日行情。
+     * 每交易日 16:30 盘后同步全部指数当日行情。
      * <p>
+     * 指数代码来源：从 index_basic 表动态读取全部指数（含大盘指数 + 申万行业指数 + 其他市场指数）。
+     * index_basic 为空时回退到 DEFAULT_INDEX_CODES + 申万一级行业指数，保证兜底可用。
      * 单只失败不影响其他，逐只捕获异常并记录。
      */
     @Scheduled(cron = "0 30 16 * * MON-FRI")
+    @org.springframework.cache.annotation.CacheEvict(value = {"sectorRanking", "sectorMoneyflow", "sectorValuation"}, allEntries = true)
     public void dailySync() {
         log.info("===== IndexDailyFetchService daily sync start =====");
         String today = LocalDate.now().format(DATE_FMT);
 
-        List<String> codes = new ArrayList<>(IndexConstants.DEFAULT_INDEX_CODES);
-        List<String> swL1 = listSwL1IndexCodes();
-        codes.addAll(swL1);
+        // 指数代码优先从 index_basic 全量读取；为空则回退到原有兜底逻辑
+        List<String> codes = indexBasicMapper.selectAllTsCodes();
+        if (codes.isEmpty()) {
+            log.warn("index_basic 表为空，回退到 DEFAULT_INDEX_CODES + 申万一级行业指数");
+            codes = new ArrayList<>(IndexConstants.DEFAULT_INDEX_CODES);
+            codes.addAll(listSwL1IndexCodes());
+        }
 
         log.info("IndexDailyFetchService syncing {} indices for {}", codes.size(), today);
         int total = 0;

@@ -46,6 +46,7 @@ public class MoneyflowDataTask {
      * 每个工作日 16:10 拉取资金流向数据
      */
     @Scheduled(cron = "0 10 16 * * MON-FRI")
+    @org.springframework.cache.annotation.CacheEvict(value = "sectorMoneyflow", allEntries = true)
     public void fetchDailyMoneyflowData() {
         String tradeDate = LocalDate.now().format(DATE_FMT);
         log.info("===== MoneyflowDataTask start, tradeDate={} =====", tradeDate);

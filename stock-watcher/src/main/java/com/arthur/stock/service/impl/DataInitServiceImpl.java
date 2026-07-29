@@ -12,6 +12,7 @@ import com.arthur.stock.exception.BusinessException;
 import com.arthur.stock.exception.ErrorCode;
 import com.arthur.stock.mapper.DataPullLogMapper;
 import com.arthur.stock.mapper.IndexDailyMapper;
+import com.arthur.stock.mapper.IndexBasicMapper;
 import com.arthur.stock.mapper.DividendMapper;
 import com.arthur.stock.mapper.StockNamechangeMapper;
 import com.arthur.stock.mapper.StockSuspendDMapper;
@@ -69,6 +70,8 @@ public class DataInitServiceImpl implements DataInitService {
     private final DailyQuoteService dailyQuoteService;
     private final AdjFactorService adjFactorService;
     private final IndexDailyMapper indexDailyMapper;
+    private final IndexBasicMapper indexBasicMapper;
+    private final IndexBasicService indexBasicService;
     private final DividendMapper dividendMapper;
     private final StockNamechangeMapper stockNamechangeMapper;
     private final StockSuspendDMapper stockSuspendDMapper;
@@ -237,9 +240,19 @@ public class DataInitServiceImpl implements DataInitService {
                 }
                 return new StepStats(2, ok, 2 - ok);
             }
+            case INDEX_BASIC -> {
+                int n = indexBasicService.fetchAndSaveAll();
+                log.info("index_basic fetched and saved {} records", n);
+                return StepStats.single();
+            }
             case INDEX_WEIGHT -> {
+                // 指数代码来源：从 index_basic 表动态读取全部指数（取代写死的 INDEX_WEIGHT_CODES）
+                List<String> codes = indexBasicMapper.selectAllTsCodes();
+                if (codes.isEmpty()) {
+                    log.warn("index_basic 表为空，请先初始化 INDEX_BASIC；回退到 INDEX_WEIGHT_CODES");
+                    codes = IndexConstants.INDEX_WEIGHT_CODES;
+                }
                 int success = 0;
-                List<String> codes = IndexConstants.INDEX_WEIGHT_CODES;
                 Map<String, String> lastDateMap = isFull ? Collections.emptyMap() :
                         preloadLastDateMap(indexWeightMapper::selectMaxTradeDatePerIndex);
                 for (String code : codes) {
@@ -447,12 +460,29 @@ public class DataInitServiceImpl implements DataInitService {
                                 today));
             }
             case INDEX_DAILY -> {
-                List<String> codes = IndexConstants.CORE_BROAD_INDEX_CODES;
+                // 指数代码来源：从 index_basic 表动态读取全部指数（取代写死的 CORE_BROAD_INDEX_CODES）
+                List<String> codes = indexBasicMapper.selectAllTsCodes();
+                if (codes.isEmpty()) {
+                    log.warn("index_basic 表为空，请先初始化 INDEX_BASIC；回退到 CORE_BROAD_INDEX_CODES");
+                    codes = IndexConstants.CORE_BROAD_INDEX_CODES;
+                }
+                // 全量拉取时，每个指数的起始日期从 index_basic.base_date（基期）取，无基期则兜底 FULL_START_DATE
+                Map<String, String> baseDateMap = new HashMap<>();
+                if (isFull) {
+                    for (Map<String, Object> row : indexBasicMapper.selectAllBaseDateMap()) {
+                        Object tsCode = row.get("tsCode");
+                        Object baseDate = row.get("baseDate");
+                        if (tsCode != null && baseDate != null) {
+                            baseDateMap.put(tsCode.toString(), baseDate.toString());
+                        }
+                    }
+                }
                 if (isFull) {
                     int success = 0;
                     for (String code : codes) {
                         try {
-                            indexDailyFetchService.fetchAndSaveIndexDaily(code, fullStart, today);
+                            String start = baseDateMap.getOrDefault(code, fullStart);
+                            indexDailyFetchService.fetchAndSaveIndexDaily(code, start, today);
                             success++;
                         } catch (Exception e) {
                             log.warn("Index daily failed for {}: {}", code, e.getMessage());

@@ -20,6 +20,9 @@ var currentRange = 250;         // default 250 days
 var klineDataCache = [];        // cached K-line data for MA toggle
 var sortState = { field: 'pctChg', desc: true };
 var tooltipEl = null;
+var moneyflowMap = {};          // industryCode -> mainNetInflow (亿元)
+var valuationMap = {};          // industryCode -> peTtm
+var isRefreshing = false;
 
 // ==================== Helpers ====================
 /** Convert "yyyyMMdd" -> "yyyy-MM-dd" for LightweightCharts time axis */
@@ -46,7 +49,7 @@ document.addEventListener('DOMContentLoaded', function () {
 function bindEvents() {
     // Refresh button
     var btnRefresh = document.getElementById('btnRefresh');
-    if (btnRefresh) btnRefresh.addEventListener('click', loadRankingData);
+    if (btnRefresh) btnRefresh.addEventListener('click', refreshPage);
 
     // Sortable headers
     document.querySelectorAll('.sector-table th.sortable').forEach(function (th) {
@@ -80,7 +83,7 @@ function bindEvents() {
             });
             btn.classList.add('active');
             var range = btn.getAttribute('data-range');
-            currentRange = range === 'all' ? 9999 : parseInt(range, 10);
+            currentRange = range === 'all' ? 3650 : parseInt(range, 10);
             if (currentIndustry) loadKline(currentIndustry.indexCode);
         });
     });
@@ -96,6 +99,16 @@ function bindEvents() {
                 memberPage = 1;
                 if (currentIndustry) loadMembers(currentIndustry.industryCode);
             }, 300);
+        });
+    }
+
+    // Member search button
+    var searchBtn = document.getElementById('memberSearchBtn');
+    if (searchBtn) {
+        searchBtn.addEventListener('click', function () {
+            if (searchInput) memberKeyword = searchInput.value.trim();
+            memberPage = 1;
+            if (currentIndustry) loadMembers(currentIndustry.industryCode);
         });
     }
 
@@ -125,28 +138,105 @@ function bindEvents() {
 }
 
 // ==================== Load Ranking Data ====================
+function refreshPage() {
+    isRefreshing = true;
+    loadRankingData();
+}
+
+function matchCurrentIndustry(data) {
+    if (!currentIndustry) return null;
+    var code = currentIndustry.industryCode;
+    for (var i = 0; i < data.length; i++) {
+        if (data[i].industryCode === code) return data[i];
+    }
+    return null;
+}
+
 function loadRankingData() {
+    isRefreshing = isRefreshing || false;
     var tbody = document.getElementById('industryRankingBody');
-    if (tbody) tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4">加载中...</td></tr>';
+    if (tbody) tbody.innerHTML = '<tr><td colspan="10" class="text-center text-muted py-4">加载中...</td></tr>';
 
     StockApp.get('/api/industry/ranking', {}, function (resp) {
         if (resp.code === 200 && resp.data) {
             rankingData = resp.data;
             // Update heatmap date label
             var dateEl = document.getElementById('heatmapDate');
+            var tradeDate = null;
             if (dateEl && rankingData.length > 0 && rankingData[0].tradeDate) {
                 var td = rankingData[0].tradeDate;
+                tradeDate = td;
                 dateEl.textContent = td.substring(0, 4) + '-' + td.substring(4, 6) + '-' + td.substring(6, 8);
             }
 
-            renderHeatmap();
-            renderRankingTable();
+            // Reset maps before async load
+            moneyflowMap = {};
+            valuationMap = {};
 
-            // Auto-select first industry (highest pctChg)
-            if (rankingData.length > 0) {
-                selectIndustry(rankingData[0]);
+            var tradeDateStr = tradeDate ? tradeDate.substring(0, 4) + '-' + tradeDate.substring(4, 6) + '-' + tradeDate.substring(6, 8) : '';
+
+            var params = tradeDateStr ? { tradeDate: tradeDateStr } : {};
+            var pending = 0;
+            var auxTimer = null;
+            function doneOne() {
+                pending--;
+                if (pending <= 0) {
+                    if (auxTimer) { clearTimeout(auxTimer); auxTimer = null; }
+                    renderAuxDone();
+                }
             }
+
+            function renderAuxDone() {
+                renderHeatmap();
+                renderRankingTable();
+
+                // Auto-select first industry (highest pctChg), or keep current on refresh, or preset via URL param
+                if (rankingData.length > 0) {
+                    var urlParams = new URLSearchParams(window.location.search);
+                    var presetIndustryCode = urlParams.get('industryCode');
+
+                    var target = null;
+                    if (presetIndustryCode) {
+                        for (var i = 0; i < rankingData.length; i++) {
+                            if (rankingData[i].industryCode === presetIndustryCode) { target = rankingData[i]; break; }
+                        }
+                    }
+                    if (!target && isRefreshing && currentIndustry) target = matchCurrentIndustry(rankingData);
+                    if (!target) target = rankingData[0];
+
+                    isRefreshing = false;
+                    selectIndustry(target);
+                }
+            }
+
+            // Parallel load moneyflow + valuation (small payload), then render.
+            // 加 8s 超时兜底：若 StockApp.get 在网络异常时未触发回调，pending 永不归零，页面会卡死在"加载中"。
+            pending = 2;
+            auxTimer = setTimeout(function () {
+                if (pending > 0) {
+                    console.warn('[sector] auxiliary load timeout, pending=' + pending + ', fallback to render');
+                    pending = 0;
+                    renderAuxDone();
+                }
+            }, 8000);
+            StockApp.get('/api/industry/moneyflow', params, function (r) {
+                if (r && r.code === 200 && r.data) {
+                    r.data.forEach(function (m) {
+                        if (m && m.industryCode != null) moneyflowMap[m.industryCode] = m.mainNetInflow;
+                    });
+                }
+                doneOne();
+            });
+            StockApp.get('/api/industry/valuation', params, function (r) {
+                if (r && r.code === 200 && r.data) {
+                    r.data.forEach(function (v) {
+                        if (v && v.industryCode != null) valuationMap[v.industryCode] = v.peTtm;
+                    });
+                }
+                doneOne();
+            });
         } else {
+            isRefreshing = false;
             showError();
         }
     });
@@ -208,6 +298,17 @@ function showTooltip(ind, e) {
     var pct = ind.pctChg;
     var pctStr = pct != null ? (pct >= 0 ? '+' : '') + Number(pct).toFixed(2) + '%' : '--';
     var amtStr = ind.amount != null ? StockApp.formatNumber(ind.amount, 1) + '亿' : '--';
+
+    // Up/Down count
+    var upCount = ind.upCount != null ? ind.upCount : 0;
+    var downCount = ind.downCount != null ? ind.downCount : 0;
+    var upDownStr = '<span class="stock-up">' + upCount + '</span>涨 / <span class="stock-down">' + downCount + '</span>跌';
+
+    // Main net inflow
+    var inflow = moneyflowMap[ind.industryCode];
+    var inflowStr = inflow != null ? (inflow >= 0 ? '+' : '') + StockApp.formatNumber(inflow, 2) + '亿' : '--';
+    var inflowClass = inflow != null ? (inflow >= 0 ? 'stock-up' : 'stock-down') : '';
+
     var gainer = ind.topGainerName
         ? StockApp.escapeHtml(ind.topGainerName) + ' (' + ind.topGainerCode + ') ' + (ind.topGainerPctChg != null ? ((ind.topGainerPctChg >= 0 ? '+' : '') + Number(ind.topGainerPctChg).toFixed(2) + '%') : '--')
         : '--';
@@ -218,6 +319,8 @@ function showTooltip(ind, e) {
     tooltipEl.innerHTML =
         '<div class="tt-name">' + StockApp.escapeHtml(ind.industryName) + '</div>' +
         '<div class="tt-row"><span>涨跌幅</span><span class="tt-val">' + pctStr + '</span></div>' +
+        '<div class="tt-row"><span>涨跌家数</span><span class="tt-val">' + upDownStr + '</span></div>' +
+        '<div class="tt-row"><span>主力净流入</span><span class="tt-val ' + inflowClass + '">' + inflowStr + '</span></div>' +
         '<div class="tt-row"><span>成交额</span><span class="tt-val">' + amtStr + '</span></div>' +
         '<div class="tt-row"><span>领涨</span><span class="tt-val">' + gainer + '</span></div>' +
         '<div class="tt-row"><span>领跌</span><span class="tt-val">' + loser + '</span></div>';
@@ -227,8 +330,16 @@ function showTooltip(ind, e) {
 
 function moveTooltip(e) {
     if (!tooltipEl) return;
-    tooltipEl.style.left = (e.clientX + 14) + 'px';
-    tooltipEl.style.top = (e.clientY + 14) + 'px';
+    var w = tooltipEl.offsetWidth || 200;
+    var h = tooltipEl.offsetHeight || 100;
+    var left = e.clientX + 14;
+    var top = e.clientY + 14;
+    if (left + w > window.innerWidth) left = e.clientX - w - 14;
+    if (top + h > window.innerHeight) top = e.clientY - h - 14;
+    if (left < 0) left = 0;
+    if (top < 0) top = 0;
+    tooltipEl.style.left = left + 'px';
+    tooltipEl.style.top = top + 'px';
 }
 
 function hideTooltip() {
@@ -241,7 +352,7 @@ function renderRankingTable() {
     if (!tbody) return;
 
     if (!rankingData || rankingData.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4">暂无数据</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="10" class="text-center text-muted py-4">暂无数据</td></tr>';
         return;
     }
 
@@ -258,6 +369,29 @@ function renderRankingTable() {
         var pctClass = pct != null ? (pct >= 0 ? 'stock-up' : 'stock-down') : '';
         var pctStr = pct != null ? (pct >= 0 ? '+' : '') + Number(pct).toFixed(2) + '%' : '--';
         var amtStr = ind.amount != null ? StockApp.formatNumber(ind.amount, 1) + '亿' : '--';
+
+        // Up/Down count
+        var upCount = ind.upCount != null ? ind.upCount : 0;
+        var downCount = ind.downCount != null ? ind.downCount : 0;
+        var upDownHtml = '<span class="stock-up">' + upCount + '</span>/<span class="stock-down">' + downCount + '</span>';
+
+        // Limit up
+        var limitUp = ind.limitUpCount != null ? ind.limitUpCount : 0;
+        var limitUpHtml = limitUp > 0 ? '<span class="stock-up">' + limitUp + '</span>' : '<span class="text-muted">0</span>';
+
+        // 5d pct change
+        var pct5d = ind.pctChg5d;
+        var pct5dClass = pct5d != null ? (pct5d >= 0 ? 'stock-up' : 'stock-down') : '';
+        var pct5dStr = pct5d != null ? (pct5d >= 0 ? '+' : '') + Number(pct5d).toFixed(2) + '%' : '--';
+
+        // Main net inflow (from moneyflowMap)
+        var inflow = moneyflowMap[ind.industryCode];
+        var inflowClass = inflow != null ? (inflow >= 0 ? 'stock-up' : 'stock-down') : '';
+        var inflowStr = inflow != null ? (inflow >= 0 ? '+' : '') + StockApp.formatNumber(inflow, 2) + '亿' : '--';
+
+        // PE TTM (from valuationMap)
+        var peTtm = valuationMap[ind.industryCode];
+        var peStr = peTtm != null ? Number(peTtm).toFixed(1) : '--';
 
         // Top gainer
         var gainerHtml = '--';
@@ -278,15 +412,39 @@ function renderRankingTable() {
                 '<br><small class="text-muted">' + ind.topLoserCode + ' ' + lPctStr + '</small>';
         }
 
-        html += '<tr data-industry-code="' + ind.industryCode + '" onclick="SectorPage.selectByCode(\'' + ind.industryCode + '\')">' +
+        html += '<tr data-industry-code="' + ind.industryCode + '">' +
             '<td>' + StockApp.escapeHtml(ind.industryName) + '</td>' +
             '<td class="text-end ' + pctClass + '">' + pctStr + '</td>' +
+            '<td class="text-end">' + upDownHtml + '</td>' +
+            '<td class="text-end">' + limitUpHtml + '</td>' +
+            '<td class="text-end ' + pct5dClass + '">' + pct5dStr + '</td>' +
+            '<td class="text-end ' + inflowClass + '">' + inflowStr + '</td>' +
+            '<td class="text-end">' + peStr + '</td>' +
             '<td class="text-end">' + amtStr + '</td>' +
             '<td>' + gainerHtml + '</td>' +
             '<td>' + loserHtml + '</td>' +
             '</tr>';
     });
     tbody.innerHTML = html;
+
+    // Update sort header icons based on sortState
+    document.querySelectorAll('.sector-table th.sortable').forEach(function (th) {
+        var icon = th.querySelector('i');
+        if (!icon) return;
+        var field = th.getAttribute('data-sort');
+        if (field === sortState.field) {
+            icon.className = 'bi ' + (sortState.desc ? 'bi-arrow-down' : 'bi-arrow-up');
+        } else {
+            icon.className = 'bi bi-arrow-down-up';
+        }
+    });
+
+    // Bind row click via addEventListener (replaces inline onclick)
+    tbody.querySelectorAll('tr[data-industry-code]').forEach(function (tr) {
+        tr.addEventListener('click', function () {
+            SectorPage.selectByCode(tr.getAttribute('data-industry-code'));
+        });
+    });
 }
 
 // ==================== Select Industry ====================
@@ -373,7 +531,7 @@ function renderMembers(pageData) {
         var pctStr = m.pctChg != null ? (m.pctChg >= 0 ? '+' : '') + Number(m.pctChg).toFixed(2) + '%' : '--';
         var closeStr = m.close != null ? Number(m.close).toFixed(2) : '--';
         var volStr = m.vol != null ? StockApp.formatVolume(m.vol) : '--';
-        var amtStr = m.amount != null ? StockApp.formatVolume(m.amount) : '--';
+        var amtStr = m.amount != null ? StockApp.formatNumber(m.amount, 1) + '亿' : '--';
 
         html += '<tr>' +
             '<td><a href="javascript:void(0)" class="text-decoration-none" onclick="SectorPage.gotoStock(\'' + m.tsCode + '\')">' + m.tsCode + '</a></td>' +
@@ -394,6 +552,12 @@ function renderMembers(pageData) {
         var info = document.getElementById('memberPageInfo');
         var totalPages = Math.ceil(pageData.total / pageData.size);
         if (info) info.textContent = '共 ' + pageData.total + ' 条 · 第 ' + pageData.page + '/' + totalPages + ' 页';
+
+        // Pagination boundary protection
+        var prevBtn = document.getElementById('memberPrevPage');
+        var nextBtn = document.getElementById('memberNextPage');
+        if (prevBtn) prevBtn.disabled = (pageData.page <= 1);
+        if (nextBtn) nextBtn.disabled = (pageData.page >= totalPages || totalPages === 0);
     }
 }
 
@@ -562,7 +726,7 @@ function applyMaVisibility() {
 // ==================== Error Handling ====================
 function showError() {
     var tbody = document.getElementById('industryRankingBody');
-    if (tbody) tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4">数据加载失败</td></tr>';
+    if (tbody) tbody.innerHTML = '<tr><td colspan="10" class="text-center text-muted py-4">数据加载失败</td></tr>';
     var errorRetry = document.getElementById('errorRetry');
     if (errorRetry) errorRetry.style.display = 'block';
 }

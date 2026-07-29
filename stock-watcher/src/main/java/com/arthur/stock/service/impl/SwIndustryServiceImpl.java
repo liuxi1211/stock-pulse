@@ -1,8 +1,10 @@
 package com.arthur.stock.service.impl;
 
 import com.arthur.stock.client.TushareClient;
+import com.arthur.stock.constant.BoardEnum;
 import com.arthur.stock.constant.InitStep;
 import com.arthur.stock.constant.ListStatusEnum;
+import com.arthur.stock.constant.MarketThresholdConstants;
 import com.arthur.stock.constant.SwIndustryConstants;
 import com.arthur.stock.dto.PageResult;
 import com.arthur.stock.dto.governance.CheckLevel;
@@ -25,7 +27,9 @@ import com.arthur.stock.service.DataCheckable;
 import com.arthur.stock.service.IndexDailyService;
 import com.arthur.stock.service.SwIndustryService;
 import com.arthur.stock.vo.IndustryMemberVO;
+import com.arthur.stock.vo.IndustryMoneyflowVO;
 import com.arthur.stock.vo.IndustryRankingVO;
+import com.arthur.stock.vo.IndustryValuationVO;
 import com.arthur.stock.vo.SwIndustryVO;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.google.common.collect.Lists;
@@ -33,6 +37,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -172,6 +177,18 @@ public class SwIndustryServiceImpl implements SwIndustryService, DataCheckable {
     }
 
     @Override
+    public SwIndustryVO getCurrentL1ByTsCode(String tsCode) {
+        SwIndustryMemberDO m = swIndustryMemberMapper.selectLatestL1ByTsCode(tsCode);
+        if (m == null) {
+            return null;
+        }
+        return SwIndustryVO.builder()
+                .industryCode(m.getIndexCode())
+                .industryName(m.getIndexName())
+                .build();
+    }
+
+    @Override
     public List<SwIndustryVO> listByLevel(int level) {
         return listByLevel(level, SwIndustryConstants.SW_SRC);
     }
@@ -190,6 +207,7 @@ public class SwIndustryServiceImpl implements SwIndustryService, DataCheckable {
     }
 
     @Override
+    @org.springframework.cache.annotation.Cacheable(value = "sectorRanking", key = "#tradeDate != null ? #tradeDate : 'latest'")
     public List<IndustryRankingVO> getIndustryRanking(String tradeDate) {
         // 1. 获取28个申万一级行业
         List<SwIndustryVO> industries = listByLevel(1);
@@ -208,26 +226,28 @@ public class SwIndustryServiceImpl implements SwIndustryService, DataCheckable {
 
         // 4. 查询行业指数行情
         Map<String, IndexDailyDO> indexDailyMap = buildIndexDailyMap(industries, tradeDate);
+        // 4.1 查询各行业指数近20日行情（DESC，[0]最新），用于计算 pctChg5d/pctChg20d
+        Map<String, List<Double>> indexTrendMap = buildIndexTrendMap(industries);
 
-        // 5. 查询成分股行情 + 股票名称
+        // 5. 查询成分股行情 + 股票基础信息（含 name/market，用于涨跌停阈值判定）
         Map<String, DailyQuoteDO> quoteMap;
-        Map<String, String> nameMap;
+        Map<String, StockBasicDO> stockBasicMap;
         if (allMembers != null && !allMembers.isEmpty()) {
             List<String> allTsCodes = allMembers.stream()
                     .map(SwIndustryMemberDO::getTsCode)
                     .distinct()
                     .collect(Collectors.toList());
             quoteMap = buildStockQuoteMap(allTsCodes, tradeDate);
-            nameMap = buildStockNameMap(allTsCodes);
+            stockBasicMap = buildStockBasicMap();
         } else {
-            nameMap = new HashMap<>();
+            stockBasicMap = new HashMap<>();
             quoteMap = new HashMap<>();
         }
 
         // 6. 构建返回结果
         String finalTradeDate = tradeDate;
         return industries.stream()
-                .map(ind -> buildIndustryRankingVO(ind, membersByIndustry, indexDailyMap, quoteMap, nameMap, finalTradeDate))
+                .map(ind -> buildIndustryRankingVO(ind, membersByIndustry, indexDailyMap, indexTrendMap, quoteMap, stockBasicMap, finalTradeDate))
                 .collect(Collectors.toList());
     }
 
@@ -261,13 +281,37 @@ public class SwIndustryServiceImpl implements SwIndustryService, DataCheckable {
         return map;
     }
 
-    private Map<String, String> buildStockNameMap(List<String> tsCodes) {
+    private Map<String, StockBasicDO> buildStockBasicMap() {
+        // 仅查询下游用到的字段（tsCode/name/market），避免全字段加载 5000+ 行
         List<StockBasicDO> stocks = stockBasicMapper.selectList(
                 new LambdaQueryWrapper<StockBasicDO>()
-                        .in(StockBasicDO::getTsCode, tsCodes));
-        Map<String, String> map = new HashMap<>();
+                        .select(StockBasicDO::getTsCode, StockBasicDO::getName, StockBasicDO::getMarket));
+        Map<String, StockBasicDO> map = new HashMap<>(stocks.size());
         for (StockBasicDO s : stocks) {
-            map.put(s.getTsCode(), s.getName());
+            map.put(s.getTsCode(), s);
+        }
+        return map;
+    }
+
+    /**
+     * 批量取各行业指数近20日收盘（按 trade_date DESC，[0] 为最新）。
+     * 行业指数数据量小（28 个 × 20 条），按代码循环调用可接受，且有 sectorRanking 缓存兜底。
+     */
+    private Map<String, List<Double>> buildIndexTrendMap(List<SwIndustryVO> industries) {
+        Map<String, List<Double>> map = new HashMap<>(industries.size());
+        for (SwIndustryVO ind : industries) {
+            String indexCode = ind.getIndustryCode();
+            List<IndexDailyDO> list = indexDailyService.getByCodeOrderByTradeDate(indexCode, 20);
+            if (list == null || list.isEmpty()) {
+                map.put(indexCode, Collections.emptyList());
+                continue;
+            }
+            List<Double> closes = list.stream()
+                    .map(IndexDailyDO::getClose)
+                    .filter(Objects::nonNull)
+                    .map(BigDecimal::doubleValue)
+                    .collect(Collectors.toList());
+            map.put(indexCode, closes);
         }
         return map;
     }
@@ -276,8 +320,9 @@ public class SwIndustryServiceImpl implements SwIndustryService, DataCheckable {
             SwIndustryVO ind,
             Map<String, List<SwIndustryMemberDO>> membersByIndustry,
             Map<String, IndexDailyDO> indexDailyMap,
+            Map<String, List<Double>> indexTrendMap,
             Map<String, DailyQuoteDO> quoteMap,
-            Map<String, String> nameMap,
+            Map<String, StockBasicDO> stockBasicMap,
             String tradeDate) {
 
         String idxCode = ind.getIndustryCode();
@@ -295,13 +340,63 @@ public class SwIndustryServiceImpl implements SwIndustryService, DataCheckable {
                 .collect(Collectors.toList());
         int activeCount = memberQuotes.size();
 
+        // 涨跌 / 涨跌停 家数统计
+        // 注：memberQuotes 已在上方 .filter(q.getPctChg() != null) 剔除停牌/缺行情股，
+        // 此处 getPctChg() 必非 null，无需再次判空。
+        int upCount = 0;
+        int downCount = 0;
+        int limitUpCount = 0;
+        int limitDownCount = 0;
+        for (DailyQuoteDO q : memberQuotes) {
+            double pctChg = q.getPctChg().doubleValue();
+            if (pctChg > 0) {
+                upCount++;
+            } else if (pctChg < 0) {
+                downCount++;
+            }
+            double threshold = resolveLimitThreshold(stockBasicMap.get(q.getTsCode()));
+            if (pctChg >= threshold) {
+                limitUpCount++;
+            }
+            if (pctChg <= -threshold) {
+                limitDownCount++;
+            }
+        }
+
+        // N 日趋势（指数近20日收盘，DESC，[0] 最新）
+        Double pctChg5d = null;
+        Double pctChg20d = null;
+        List<Double> closes = indexTrendMap.getOrDefault(indexTsCode, Collections.emptyList());
+        if (closes.size() >= 5) {
+            double base5 = closes.get(4);
+            if (base5 != 0.0) {
+                pctChg5d = (closes.get(0) / base5 - 1) * 100;
+            } else {
+                log.warn("指数 {} 近5日基准收盘价为 0，数据异常，跳过 pctChg5d 计算", indexTsCode);
+            }
+        }
+        if (closes.size() >= 20) {
+            double base20 = closes.get(19);
+            if (base20 != 0.0) {
+                pctChg20d = (closes.get(0) / base20 - 1) * 100;
+            } else {
+                log.warn("指数 {} 近20日基准收盘价为 0，数据异常，跳过 pctChg20d 计算", indexTsCode);
+            }
+        }
+
         IndustryRankingVO.IndustryRankingVOBuilder builder = IndustryRankingVO.builder()
                 .industryCode(idxCode)
                 .industryName(ind.getIndustryName())
                 .indexCode(indexTsCode)
                 .constituentCount(constituentCount)
                 .activeCount(activeCount)
-                .tradeDate(tradeDate);
+                .tradeDate(tradeDate)
+                .upCount(upCount)
+                .downCount(downCount)
+                .limitUpCount(limitUpCount)
+                .limitDownCount(limitDownCount)
+                .pctChg5d(pctChg5d)
+                .pctChg20d(pctChg20d);
 
         if (idxDaily != null) {
             builder.pctChg(idxDaily.getPctChg())
@@ -312,14 +407,42 @@ public class SwIndustryServiceImpl implements SwIndustryService, DataCheckable {
             DailyQuoteDO topGainer = memberQuotes.get(0);
             DailyQuoteDO topLoser = memberQuotes.get(memberQuotes.size() - 1);
             builder.topGainerCode(topGainer.getTsCode())
-                    .topGainerName(nameMap.getOrDefault(topGainer.getTsCode(), ""))
+                    .topGainerName(getNameOrDefault(stockBasicMap.get(topGainer.getTsCode())))
                     .topGainerPctChg(topGainer.getPctChg())
                     .topLoserCode(topLoser.getTsCode())
-                    .topLoserName(nameMap.getOrDefault(topLoser.getTsCode(), ""))
+                    .topLoserName(getNameOrDefault(stockBasicMap.get(topLoser.getTsCode())))
                     .topLoserPctChg(topLoser.getPctChg());
         }
 
         return builder.build();
+    }
+
+    /**
+     * 根据股票板块与 ST 标识，返回对应的涨跌停判定阈值（百分比）。
+     * 口径与 DailyQuoteMapper.xml selectMarketTemperature 一致：
+     * ST 优先（name 以 "ST" 开头）；其次按 market 板块；其余按主板兜底。
+     */
+    private double resolveLimitThreshold(StockBasicDO stock) {
+        if (stock == null) {
+            return MarketThresholdConstants.MAIN_BOARD;
+        }
+        if (stock.getName() != null && stock.getName().startsWith("ST")) {
+            return MarketThresholdConstants.ST;
+        }
+        BoardEnum market = stock.getMarket();
+        String code = market == null ? null : market.getCode();
+        if (MarketThresholdConstants.MARKET_BSE.equals(code)) {
+            return MarketThresholdConstants.BSE;
+        }
+        if (MarketThresholdConstants.MARKET_GEM.equals(code)
+                || MarketThresholdConstants.MARKET_STAR.equals(code)) {
+            return MarketThresholdConstants.GEM_STAR;
+        }
+        return MarketThresholdConstants.MAIN_BOARD;
+    }
+
+    private String getNameOrDefault(StockBasicDO stock) {
+        return stock != null && stock.getName() != null ? stock.getName() : "";
     }
 
     @Override
@@ -331,6 +454,105 @@ public class SwIndustryServiceImpl implements SwIndustryService, DataCheckable {
         List<IndustryMemberVO> list = dailyQuoteMapper.selectMembersWithQuote(industryCode, tradeDate, keyword, size, offset);
         long total = dailyQuoteMapper.countMembersWithQuote(industryCode, tradeDate, keyword);
         return PageResult.of(list, total, page, size);
+    }
+
+    @Override
+    @org.springframework.cache.annotation.Cacheable(value = "sectorMoneyflow", key = "#tradeDate != null ? #tradeDate : 'latest'")
+    public List<IndustryMoneyflowVO> getIndustryMoneyflow(String tradeDate) {
+        List<SwIndustryVO> industries = listByLevel(1);
+        if (industries.isEmpty()) {
+            return Collections.emptyList();
+        }
+        if (tradeDate == null) {
+            tradeDate = dailyQuoteMapper.selectLatestTradeDate();
+        }
+        List<Map<String, Object>> rows = swIndustryMemberMapper.selectMoneyflowGroupByIndustry(tradeDate);
+        Map<String, Map<String, Object>> aggByCode = new HashMap<>();
+        if (rows != null) {
+            for (Map<String, Object> r : rows) {
+                Object code = r.get("index_code");
+                if (code != null) {
+                    aggByCode.put(code.toString(), r);
+                }
+            }
+        }
+        String finalTradeDate = tradeDate;
+        return industries.stream()
+                .map(ind -> buildMoneyflowVO(ind, aggByCode.get(ind.getIndustryCode()), finalTradeDate))
+                .collect(Collectors.toList());
+    }
+
+    private IndustryMoneyflowVO buildMoneyflowVO(SwIndustryVO ind, Map<String, Object> row, String tradeDate) {
+        IndustryMoneyflowVO.IndustryMoneyflowVOBuilder b = IndustryMoneyflowVO.builder()
+                .industryCode(ind.getIndustryCode())
+                .industryName(ind.getIndustryName())
+                .tradeDate(tradeDate);
+        if (row != null) {
+            b.mainNetInflow(toDouble(row.get("main_net")))
+                    .elgNetInflow(toDouble(row.get("elg_net")))
+                    .lgNetInflow(toDouble(row.get("lg_net")))
+                    .mdNetInflow(toDouble(row.get("md_net")))
+                    .smNetInflow(toDouble(row.get("sm_net")))
+                    .netMfAmount(toDouble(row.get("net_mf")));
+        }
+        return b.build();
+    }
+
+    @Override
+    @org.springframework.cache.annotation.Cacheable(value = "sectorValuation", key = "#tradeDate != null ? #tradeDate : 'latest'")
+    public List<IndustryValuationVO> getIndustryValuation(String tradeDate) {
+        List<SwIndustryVO> industries = listByLevel(1);
+        if (industries.isEmpty()) {
+            return Collections.emptyList();
+        }
+        if (tradeDate == null) {
+            tradeDate = dailyQuoteMapper.selectLatestTradeDate();
+        }
+        List<Map<String, Object>> rows = swIndustryMemberMapper.selectValuationGroupByIndustry(tradeDate);
+        Map<String, Map<String, Object>> aggByCode = new HashMap<>();
+        if (rows != null) {
+            for (Map<String, Object> r : rows) {
+                Object code = r.get("index_code");
+                if (code != null) {
+                    aggByCode.put(code.toString(), r);
+                }
+            }
+        }
+        String finalTradeDate = tradeDate;
+        return industries.stream()
+                .map(ind -> buildValuationVO(ind, aggByCode.get(ind.getIndustryCode()), finalTradeDate))
+                .collect(Collectors.toList());
+    }
+
+    private IndustryValuationVO buildValuationVO(SwIndustryVO ind, Map<String, Object> row, String tradeDate) {
+        IndustryValuationVO.IndustryValuationVOBuilder b = IndustryValuationVO.builder()
+                .industryCode(ind.getIndustryCode())
+                .industryName(ind.getIndustryName())
+                .tradeDate(tradeDate);
+        if (row != null) {
+            b.peTtm(toDouble(row.get("pe_ttm")))
+                    .pb(toDouble(row.get("pb")));
+        }
+        return b.build();
+    }
+
+    /**
+     * 将聚合查询返回的数值安全转为 Double（兼容 Number/String/null，NaN/Inf 返回 null）。
+     */
+    private static Double toDouble(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof Number n) {
+            double d = n.doubleValue();
+            return Double.isNaN(d) || Double.isInfinite(d) ? null : d;
+        }
+        try {
+            double d = Double.parseDouble(value.toString());
+            return Double.isNaN(d) || Double.isInfinite(d) ? null : d;
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 
     // ==================== 内部方法 ====================

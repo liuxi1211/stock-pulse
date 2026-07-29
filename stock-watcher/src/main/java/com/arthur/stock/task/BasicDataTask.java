@@ -48,6 +48,7 @@ public class BasicDataTask {
 
     /** 每日 16:10 拉取当日 daily_basic */
     @Scheduled(cron = "0 10 16 * * MON-FRI")
+    @org.springframework.cache.annotation.CacheEvict(value = "sectorValuation", allEntries = true)
     public void fetchDailyBasic() {
         String tradeDate = LocalDate.now().format(DATE_FMT);
         log.info("===== BasicDataTask daily_basic start, tradeDate={} =====", tradeDate);

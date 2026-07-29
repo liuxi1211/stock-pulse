@@ -50,13 +50,18 @@
                                             <tr>
                                                 <th>行业名</th>
                                                 <th class="sortable text-end" data-sort="pctChg">今日涨跌幅 <i class="bi bi-arrow-down-up"></i></th>
+                                                <th class="text-end">涨/跌</th>
+                                                <th class="text-end">涨停</th>
+                                                <th class="text-end">近5日</th>
+                                                <th class="text-end">主力净流入</th>
+                                                <th class="text-end">PE</th>
                                                 <th class="sortable text-end" data-sort="amount">成交额 <i class="bi bi-arrow-down-up"></i></th>
                                                 <th>领涨股</th>
                                                 <th>领跌股</th>
                                             </tr>
                                         </thead>
                                         <tbody id="industryRankingBody">
-                                            <tr><td colspan="5" class="text-center text-muted py-4">加载中...</td></tr>
+                                            <tr><td colspan="10" class="text-center text-muted py-4">加载中...</td></tr>
                                         </tbody>
                                     </table>
                                 </div>
@@ -99,7 +104,7 @@
                                 <span><i class="bi bi-people me-1"></i><span id="memberTitle">成分股</span></span>
                                 <div class="input-group input-group-sm" style="width: 200px;">
                                     <input type="text" class="form-control" id="memberSearch" placeholder="搜索代码/名称">
-                                    <button class="btn btn-outline-secondary" type="button"><i class="bi bi-search"></i></button>
+                                    <button class="btn btn-outline-secondary" type="button" id="memberSearchBtn"><i class="bi bi-search"></i></button>
                                 </div>
                             </div>
                             <div class="card-body p-0">
@@ -152,7 +157,7 @@
 </div>
 <div th:replace="~{fragments/common :: toastContainer}"></div>
 <div th:replace="~{fragments/common :: scripts}"></div>
-<link rel="stylesheet" th:href="@{/css/sector.css?v=20260722}">
-<script th:src="@{/js/sector.js?v=20260722}"></script>
+<link rel="stylesheet" th:href="@{/css/sector.css?v=20260729}">
+<script th:src="@{/js/sector.js?v=20260729}"></script>
 </body>
 </html>

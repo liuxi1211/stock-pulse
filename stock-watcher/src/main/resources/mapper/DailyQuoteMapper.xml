@@ -311,7 +311,7 @@
           <if test="keyword != null and keyword != ''">
           AND (b.name LIKE CONCAT('%', #{keyword}, '%') OR m.ts_code LIKE CONCAT('%', #{keyword}, '%'))
           </if>
-        ORDER BY q.pct_chg DESC
+        ORDER BY (q.pct_chg IS NULL), q.pct_chg DESC
         LIMIT #{size} OFFSET #{offset}
     </select>
 

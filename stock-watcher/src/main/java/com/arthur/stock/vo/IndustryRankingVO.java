@@ -57,4 +57,22 @@ public class IndustryRankingVO {
 
     /** 领跌股涨跌幅（%） */
     private BigDecimal topLoserPctChg;
+
+    /** 上涨家数 */
+    private Integer upCount;
+
+    /** 下跌家数 */
+    private Integer downCount;
+
+    /** 涨停家数 */
+    private Integer limitUpCount;
+
+    /** 跌停家数 */
+    private Integer limitDownCount;
+
+    /** 近5日涨跌幅（%） */
+    private Double pctChg5d;
+
+    /** 近20日涨跌幅（%） */
+    private Double pctChg20d;
 }
