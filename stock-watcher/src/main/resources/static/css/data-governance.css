@@ -435,3 +435,225 @@
 @media (prefers-reduced-motion: reduce) {
     .dg-status.updating .dot { animation: none; }
 }
+
+/* ============================================================
+   定时任务分区样式（spec 026-precompute-task-unified-mgmt Phase C）
+   - 状态色四态：SUCCESS 绿 / FAILED 红 / RUNNING 蓝 / NEVER_RUN 灰
+   - configInconsistent 橙色徽标
+   - 骨架屏 / 空状态 / 错误重试三态
+   - 历史模态框：失败行红色高亮 + errorMessage 折叠展开
+   全部走 theme.css 三主题 CSS 变量，禁止硬编码颜色
+   ============================================================ */
+
+/* 定时任务分区容器与数据表容器视觉一致 */
+.dg-stasks-wrap {
+    margin-top: 20px;
+}
+
+/* 任务筛选条与表头的间距压缩 */
+.dg-stasks-filter {
+    margin: 0 0 12px 0;
+    border-radius: var(--radius-md);
+    border-color: var(--border-light);
+}
+
+/* legend 状态点（与数据表 legend 区分用 dg-task-dot） */
+.dg-legend .dg-task-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+}
+
+.dg-legend .dg-task-dot.success  { background: var(--accent-green); }
+.dg-legend .dg-task-dot.failed   { background: var(--rise-color); }
+.dg-legend .dg-task-dot.running   { background: var(--accent-blue); animation: dg-pulse 1.5s ease-in-out infinite; }
+.dg-legend .dg-task-dot.never     { background: var(--text-muted); }
+
+/* 任务名 + 描述列 */
+.dg-task-name {
+    font-weight: 500;
+    color: var(--text-primary);
+    font-size: 13px;
+    line-height: 1.4;
+}
+
+.dg-task-desc {
+    font-size: 11px;
+    margin-top: 2px;
+    display: block;
+    line-height: 1.4;
+}
+
+/* cron 可读化列：可读描述 + 表达式小字 */
+.dg-cron-readable {
+    display: block;
+    font-size: 12.5px;
+    color: var(--text-primary);
+    font-weight: 500;
+}
+
+.dg-cron-expr {
+    display: block;
+    margin-top: 2px;
+    font-size: 10.5px;
+    font-family: var(--font-mono);
+}
+
+/* 当前状态指示器四态（与 .dg-status 共用 .dot） */
+.dg-task-status.dg-task-success .dot {
+    background: var(--accent-green);
+    box-shadow: 0 0 6px color-mix(in srgb, var(--accent-green) 50%, transparent);
+}
+
+.dg-task-status.dg-task-failed .dot {
+    background: var(--rise-color);
+    box-shadow: 0 0 6px color-mix(in srgb, var(--rise-color) 50%, transparent);
+}
+
+.dg-task-status.dg-task-running .dot {
+    background: var(--accent-blue);
+    animation: dg-pulse 1.5s ease-in-out infinite;
+}
+
+.dg-task-status.dg-task-never .dot {
+    background: var(--text-muted);
+}
+
+.dg-task-status.dg-task-success { color: var(--accent-green); }
+.dg-task-status.dg-task-failed  { color: var(--rise-light); }
+.dg-task-status.dg-task-running { color: var(--accent-blue-light); }
+.dg-task-status.dg-task-never   { color: var(--text-muted); }
+
+/* 配置异常橙色徽标 */
+.dg-task-inconsistent {
+    background: color-mix(in srgb, var(--accent-orange) 14%, transparent) !important;
+    color: var(--accent-orange) !important;
+    border: 1px solid color-mix(in srgb, var(--accent-orange) 35%, transparent) !important;
+    font-size: 10.5px !important;
+    padding: 2px 6px !important;
+}
+
+/* RUNNING 行高亮（淡蓝色背景，传达"正在运行"） */
+.dg-task-row-running {
+    background: color-mix(in srgb, var(--accent-blue) 6%, transparent);
+}
+
+.dg-task-row-running:hover {
+    background: color-mix(in srgb, var(--accent-blue) 10%, transparent);
+}
+
+/* ============ 骨架屏 ============ */
+.dg-skeleton-row {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 8px 0;
+}
+
+.dg-skel-bar {
+    height: 10px;
+    border-radius: var(--radius-sm);
+    background: linear-gradient(
+        90deg,
+        color-mix(in srgb, var(--text-muted) 18%, transparent) 25%,
+        color-mix(in srgb, var(--text-muted) 32%, transparent) 50%,
+        color-mix(in srgb, var(--text-muted) 18%, transparent) 75%
+    );
+    background-size: 200% 100%;
+    animation: dg-skel-shimmer 1.4s linear infinite;
+}
+
+.dg-skel-sm {
+    height: 8px;
+}
+
+@keyframes dg-skel-shimmer {
+    0%   { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .dg-skel-bar { animation: none; }
+    .dg-legend .dg-task-dot.running { animation: none; }
+    .dg-task-status.dg-task-running .dot { animation: none; }
+}
+
+/* ============ 历史模态框：失败行红色高亮 ============ */
+.dg-thistory-row-failed {
+    background: var(--rise-bg);
+}
+
+.dg-thistory-row-failed:hover {
+    background: color-mix(in srgb, var(--rise-color) 14%, transparent);
+}
+
+/* errorMessage 折叠展开单元格 */
+.dg-thistory-err {
+    display: inline-block;
+    max-width: 320px;
+    font-size: 11.5px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    word-break: break-all;
+    vertical-align: top;
+}
+
+.dg-thistory-row-failed .dg-thistory-err {
+    color: var(--rise-light);
+}
+
+.dg-thistory-err-collapse {
+    display: inline-block;
+}
+
+.dg-thistory-err-short,
+.dg-thistory-err-full {
+    display: inline;
+}
+
+.dg-thistory-err-ellipsis {
+    color: var(--text-muted);
+    margin-left: 2px;
+}
+
+.dg-thistory-toggle {
+    display: inline-block;
+    margin-left: 6px;
+    font-size: 11px;
+    color: var(--accent-blue-light);
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.dg-thistory-toggle:hover {
+    text-decoration: underline;
+    color: var(--accent-blue);
+}
+
+/* 历史模态框筛选条紧凑化 */
+.dg-thistory-filter {
+    margin-bottom: 12px;
+    padding: 8px 12px;
+}
+
+.dg-thistory-filter .form-select-sm,
+.dg-thistory-filter .form-control-sm {
+    height: 34px;
+    min-width: 130px;
+}
+
+/* 历史模态框状态徽标（与 legend 色一致） */
+.dg-task-badge-success {
+    background: color-mix(in srgb, var(--accent-green) 16%, transparent) !important;
+    color: var(--accent-green) !important;
+}
+
+.dg-task-badge-failed {
+    background: var(--rise-bg) !important;
+    color: var(--rise-light) !important;
+}
+
+.dg-task-badge-running {
+    background: color-mix(in srgb, var(--accent-blue) 16%, transparent) !important;
+    color: var(--accent-blue-light) !important;
+}

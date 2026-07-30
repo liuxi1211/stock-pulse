@@ -20,9 +20,7 @@ public class PullLogVO {
     private String endTime;
     private Long durationMs;
     private Long totalCount;
-    private Long successCount;
-    private Long failCount;
     private String errorMessage;
-    private String errorStack;
     private String operator;
+    private String cronExpression;
 }

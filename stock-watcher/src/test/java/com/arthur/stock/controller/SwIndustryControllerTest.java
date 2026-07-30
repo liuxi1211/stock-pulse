@@ -102,20 +102,20 @@ class SwIndustryControllerTest {
 
     @Test
     void members_industryCode为空返回400() {
-        ApiResponse<PageResult<IndustryMemberVO>> resp = controller.members("  ", 1, 20, null);
+        ApiResponse<PageResult<IndustryMemberVO>> resp = controller.members("  ", 1, 20, null, null);
         assertThat(resp.getCode()).isEqualTo(400);
         verify(swIndustryService, never()).getIndustryMembers(anyString(), anyString(), anyInt(), anyInt(), anyString());
     }
 
     @Test
     void members_industryCode非6位数字返回400() {
-        ApiResponse<PageResult<IndustryMemberVO>> resp = controller.members("8010", 1, 20, null);
+        ApiResponse<PageResult<IndustryMemberVO>> resp = controller.members("8010", 1, 20, null, null);
         assertThat(resp.getCode()).isEqualTo(400);
 
-        resp = controller.members("8010101", 1, 20, null);
+        resp = controller.members("8010101", 1, 20, null, null);
         assertThat(resp.getCode()).isEqualTo(400);
 
-        resp = controller.members("80101A", 1, 20, null);
+        resp = controller.members("80101A", 1, 20, null, null);
         assertThat(resp.getCode()).isEqualTo(400);
     }
 
@@ -125,7 +125,7 @@ class SwIndustryControllerTest {
         when(swIndustryService.getIndustryMembers(eq("801010.SI"), isNull(), eq(1), eq(20), isNull()))
                 .thenReturn(page);
 
-        ApiResponse<PageResult<IndustryMemberVO>> resp = controller.members("801010.SI", 1, 20, null);
+        ApiResponse<PageResult<IndustryMemberVO>> resp = controller.members("801010.SI", 1, 20, null, null);
 
         assertThat(resp.getCode()).isEqualTo(200);
         verify(swIndustryService).getIndustryMembers("801010.SI", null, 1, 20, null);
@@ -133,16 +133,16 @@ class SwIndustryControllerTest {
 
     @Test
     void members_page小于1返回400() {
-        ApiResponse<PageResult<IndustryMemberVO>> resp = controller.members("801010", 0, 20, null);
+        ApiResponse<PageResult<IndustryMemberVO>> resp = controller.members("801010", 0, 20, null, null);
         assertThat(resp.getCode()).isEqualTo(400);
     }
 
     @Test
     void members_size越界返回400() {
-        ApiResponse<PageResult<IndustryMemberVO>> resp = controller.members("801010", 1, 0, null);
+        ApiResponse<PageResult<IndustryMemberVO>> resp = controller.members("801010", 1, 0, null, null);
         assertThat(resp.getCode()).isEqualTo(400);
 
-        resp = controller.members("801010", 1, 101, null);
+        resp = controller.members("801010", 1, 101, null, null);
         assertThat(resp.getCode()).isEqualTo(400);
     }
 
@@ -152,7 +152,7 @@ class SwIndustryControllerTest {
         when(swIndustryService.getIndustryMembers(eq("801010"), isNull(), eq(1), eq(20), isNull()))
                 .thenReturn(page);
 
-        ApiResponse<PageResult<IndustryMemberVO>> resp = controller.members("801010", 1, 20, null);
+        ApiResponse<PageResult<IndustryMemberVO>> resp = controller.members("801010", 1, 20, null, null);
 
         assertThat(resp.getCode()).isEqualTo(200);
         assertThat(resp.getData().getPage()).isEqualTo(1);

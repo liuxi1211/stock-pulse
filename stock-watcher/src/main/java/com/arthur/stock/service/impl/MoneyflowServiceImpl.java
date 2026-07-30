@@ -13,6 +13,7 @@ import com.arthur.stock.service.MoneyflowService;
 import com.google.common.collect.Lists;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -59,7 +60,15 @@ public class MoneyflowServiceImpl implements MoneyflowService, DataCheckable {
     }
 
     @Override
+    @Cacheable(value = "moneyflowRanking",
+            key = "T(com.arthur.stock.util.CacheKeyResolver).resolveMoneyflowRankingKey(#tradeDate, #limit, #sortBy, #order)",
+            unless = "#result == null || #result.isEmpty()")
     public List<MoneyflowDO> queryTop(String tradeDate, int limit, String sortBy, String order) {
+        return computeQueryTop(tradeDate, limit, sortBy, order);
+    }
+
+    @Override
+    public List<MoneyflowDO> computeQueryTop(String tradeDate, int limit, String sortBy, String order) {
         String effectiveDate = tradeDate;
         if (effectiveDate == null || effectiveDate.isBlank()) {
             effectiveDate = getLatestTradeDate();

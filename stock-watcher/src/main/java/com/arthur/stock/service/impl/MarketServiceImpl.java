@@ -107,8 +107,15 @@ public class MarketServiceImpl implements MarketService {
     }
 
     @Override
-    @Cacheable(value = "indices", key = "#root.target.getLatestTradeDate()")
+    @Cacheable(value = "indices",
+            key = "#root.target.getLatestTradeDate()",
+            unless = "#result == null || #result.isEmpty()")
     public List<MarketIndexVO> getMarketIndices() {
+        return computeMarketIndices();
+    }
+
+    @Override
+    public List<MarketIndexVO> computeMarketIndices() {
         List<IndexDailyDO> idxList = indexDailyService.getLatestByCodes(IndexConstants.DEFAULT_INDEX_CODES);
         if (idxList == null || idxList.isEmpty()) {
             log.warn("getMarketIndices: index_daily 无数据，返回空列表");
@@ -158,7 +165,15 @@ public class MarketServiceImpl implements MarketService {
     }
 
     @Override
+    @Cacheable(value = "marketRanking",
+            key = "#root.target.getLatestTradeDate()",
+            unless = "#result == null")
     public MarketRankingVO getMarketRanking() {
+        return computeMarketRanking();
+    }
+
+    @Override
+    public MarketRankingVO computeMarketRanking() {
         String latestDate = dailyQuoteMapper.selectLatestTradeDate();
         if (latestDate == null) {
             return MarketRankingVO.builder()
@@ -179,8 +194,15 @@ public class MarketServiceImpl implements MarketService {
     }
 
     @Override
-    @Cacheable(value = "marketTemperature", key = "#root.target.resolveTemperatureTradeDate(#tradeDate)")
+    @Cacheable(value = "marketTemperature",
+            key = "#root.target.resolveTemperatureTradeDate(#tradeDate)",
+            unless = "#result == null")
     public MarketTemperatureVO getMarketTemperature(String tradeDate) {
+        return computeMarketTemperature(tradeDate);
+    }
+
+    @Override
+    public MarketTemperatureVO computeMarketTemperature(String tradeDate) {
         String date = resolveTemperatureTradeDate(tradeDate);
         if ("empty".equals(date)) {
             return MarketTemperatureVO.builder()

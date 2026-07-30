@@ -1,10 +1,13 @@
 package com.arthur.stock.service.impl;
 
 import com.arthur.stock.cache.TaskProgressCache;
+import com.arthur.stock.constant.DataFetchConstants;
 import com.arthur.stock.constant.InitStep;
 import com.arthur.stock.constant.IndexConstants;
 import com.arthur.stock.constant.ListStatusEnum;
 import com.arthur.stock.constant.ExchangeEnum;
+import com.arthur.stock.constant.PullLogOperationTypeEnum;
+import com.arthur.stock.constant.PullLogStatusEnum;
 import com.arthur.stock.constant.SwIndustryConstants;
 import com.arthur.stock.dto.governance.TaskProgress;
 import com.arthur.stock.dto.tushare.StockBasicDTO;
@@ -32,8 +35,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
-import java.io.PrintWriter;
-import java.io.StringWriter;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -53,11 +54,14 @@ import java.util.concurrent.atomic.AtomicInteger;
 @RequiredArgsConstructor
 public class DataInitServiceImpl implements DataInitService {
 
-    private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("yyyyMMdd");
-    private static final DateTimeFormatter DATETIME_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+    private static final DateTimeFormatter DATE_FMT = DataFetchConstants.COMPACT_DATE;
+    private static final DateTimeFormatter DATETIME_FMT = DataFetchConstants.DATETIME;
 
     /** A 股市场起始日期（1990-12-19 上交所开市），全量拉取的统一起始时间 */
     private static final String FULL_START_DATE = "19901219";
+
+    /** 任务取消时的统一文案 */
+    private static final String MSG_USER_CANCELLED = "用户取消";
 
     /** I/O 密集型任务使用虚拟线程，避免占用 ForkJoinPool.commonPool */
     private static final Executor IO_EXECUTOR = Executors.newVirtualThreadPerTaskExecutor();
@@ -116,7 +120,7 @@ public class DataInitServiceImpl implements DataInitService {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "有任务正在执行，请稍后再试");
         }
         String taskId = UUID.randomUUID().toString();
-        createPullLog(taskId, step, "MANUAL_INCREMENTAL", operator);
+        createPullLog(taskId, step, PullLogOperationTypeEnum.MANUAL_INCREMENTAL, operator);
         putInitialProgress(taskId, tableCode);
         CompletableFuture.runAsync(() -> doIncrementalUpdate(step, taskId), IO_EXECUTOR);
         return taskId;
@@ -132,7 +136,7 @@ public class DataInitServiceImpl implements DataInitService {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "有任务正在执行，请稍后再试");
         }
         String taskId = UUID.randomUUID().toString();
-        createPullLog(taskId, step, "MANUAL_FULL", operator);
+        createPullLog(taskId, step, PullLogOperationTypeEnum.MANUAL_FULL, operator);
         putInitialProgress(taskId, tableCode);
         CompletableFuture.runAsync(() -> doFullRebuild(step, taskId), IO_EXECUTOR);
         return taskId;
@@ -146,21 +150,20 @@ public class DataInitServiceImpl implements DataInitService {
             stats = executeSingleStep(step, taskId, false);
 
             if (taskProgressCache.isCancelled(taskId)) {
-                finishPullLog(taskId, "CANCELLED", startMs, "用户取消", null, stats);
-                updateTaskCancelled(taskId, "用户取消");
+                finishPullLog(taskId, PullLogStatusEnum.CANCELLED, startMs, MSG_USER_CANCELLED, stats);
+                updateTaskCancelled(taskId, MSG_USER_CANCELLED);
                 log.info("Incremental update cancelled: {} (taskId={})", step.getLabel(), taskId);
                 return;
             }
-            finishPullLog(taskId, "SUCCESS", startMs, null, null, stats);
+            finishPullLog(taskId, PullLogStatusEnum.SUCCESS, startMs, null, stats);
             runQualityCheck(step);
             updateTaskSuccess(taskId);
             log.info("Incremental update completed: {} (taskId={})", step.getLabel(), taskId);
         } catch (Throwable e) {
             log.error("Incremental update failed: {} (taskId={})", step.getLabel(), taskId, e);
             try {
-                finishPullLog(taskId, "FAILED", startMs,
-                        SensitiveDataUtil.mask(e.getMessage()),
-                        SensitiveDataUtil.mask(getStackTrace(e)), stats);
+                finishPullLog(taskId, PullLogStatusEnum.FAILED, startMs,
+                        SensitiveDataUtil.mask(e.getMessage()), stats);
             } catch (Throwable logEx) {
                 log.error("Failed to write pull log for FAILED task", logEx);
             }
@@ -187,21 +190,20 @@ public class DataInitServiceImpl implements DataInitService {
             stats = executeSingleStep(step, taskId, true);
 
             if (taskProgressCache.isCancelled(taskId)) {
-                finishPullLog(taskId, "CANCELLED", startMs, "用户取消", null, stats);
-                updateTaskCancelled(taskId, "用户取消");
+                finishPullLog(taskId, PullLogStatusEnum.CANCELLED, startMs, MSG_USER_CANCELLED, stats);
+                updateTaskCancelled(taskId, MSG_USER_CANCELLED);
                 log.info("Full rebuild cancelled: {} (taskId={})", step.getLabel(), taskId);
                 return;
             }
-            finishPullLog(taskId, "SUCCESS", startMs, null, null, stats);
+            finishPullLog(taskId, PullLogStatusEnum.SUCCESS, startMs, null, stats);
             runQualityCheck(step);
             updateTaskSuccess(taskId);
             log.info("Full rebuild completed: {} (taskId={})", step.getLabel(), taskId);
         } catch (Throwable e) {
             log.error("Full rebuild failed: {} (taskId={})", step.getLabel(), taskId, e);
             try {
-                finishPullLog(taskId, "FAILED", startMs,
-                        SensitiveDataUtil.mask(e.getMessage()),
-                        SensitiveDataUtil.mask(getStackTrace(e)), stats);
+                finishPullLog(taskId, PullLogStatusEnum.FAILED, startMs,
+                        SensitiveDataUtil.mask(e.getMessage()), stats);
             } catch (Throwable logEx) {
                 log.error("Failed to write pull log for FAILED task", logEx);
             }
@@ -591,28 +593,26 @@ public class DataInitServiceImpl implements DataInitService {
         return new StepStats(total, success, fail);
     }
 
-    private void createPullLog(String taskId, InitStep step, String operationType, String operator) {
+    private void createPullLog(String taskId, InitStep step, PullLogOperationTypeEnum operationType, String operator) {
         DataPullLogDO logEntry = DataPullLogDO.builder()
                 .taskId(taskId)
                 .tableCode(step.getCode())
                 .tableName(step.getLabel())
-                .operationType(operationType)
-                .status("RUNNING")
+                .operationType(operationType.getCode())
+                .status(PullLogStatusEnum.RUNNING.getCode())
                 .startTime(LocalDateTime.now().format(DATETIME_FMT))
                 .operator(operator)
                 .build();
         dataPullLogMapper.insert(logEntry);
     }
 
-    private void finishPullLog(String taskId, String status, long startMs,
-                              String errorMessage, String errorStack, StepStats stats) {
+    private void finishPullLog(String taskId, PullLogStatusEnum status, long startMs,
+                              String errorMessage, StepStats stats) {
         long durationMs = System.currentTimeMillis() - startMs;
         Long total = stats != null && stats.total > 0 ? stats.total : null;
-        Long success = stats != null ? stats.success : null;
-        Long fail = stats != null ? stats.fail : null;
-        dataPullLogMapper.updateStatus(taskId, status,
+        dataPullLogMapper.updateStatus(taskId, status.getCode(),
                 LocalDateTime.now().format(DATETIME_FMT), durationMs,
-                total, success, fail, errorMessage, errorStack);
+                total, errorMessage);
     }
 
     private void runQualityCheck(InitStep step) {
@@ -656,7 +656,7 @@ public class DataInitServiceImpl implements DataInitService {
         TaskProgress progress = TaskProgress.builder()
                 .taskId(taskId)
                 .tableCode(existing != null ? existing.getTableCode() : null)
-                .status("SUCCESS")
+                .status(PullLogStatusEnum.SUCCESS.getCode())
                 .currentStep("完成")
                 .errorMessage(null)
                 .cancelled(false)
@@ -684,7 +684,7 @@ public class DataInitServiceImpl implements DataInitService {
         TaskProgress progress = TaskProgress.builder()
                 .taskId(taskId)
                 .tableCode(existing != null ? existing.getTableCode() : null)
-                .status("CANCELLED")
+                .status(PullLogStatusEnum.CANCELLED.getCode())
                 .currentStep("已取消")
                 .errorMessage(reason)
                 .cancelled(true)
@@ -933,12 +933,6 @@ public class DataInitServiceImpl implements DataInitService {
             log.warn("Failed to query MAX(ann_date) from {}: {}", tableName, e.getMessage());
             return null;
         }
-    }
-
-    private static String getStackTrace(Throwable e) {
-        StringWriter sw = new StringWriter();
-        e.printStackTrace(new PrintWriter(sw));
-        return sw.toString();
     }
 
     /** D 类日频快照表：全量重建时不应 truncate，改为逐日拉取 */

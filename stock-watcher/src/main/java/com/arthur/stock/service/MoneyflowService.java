@@ -28,6 +28,11 @@ public interface MoneyflowService {
     List<MoneyflowDO> queryTop(String tradeDate, int limit, String sortBy, String order);
 
     /**
+     * 计算 TOP N 主力净流入排行（绕过缓存，直接执行业务逻辑）。
+     */
+    List<MoneyflowDO> computeQueryTop(String tradeDate, int limit, String sortBy, String order);
+
+    /**
      * 单股近 N 日资金流向明细。
      *
      * @param tsCode 股票代码，如 000001.SZ

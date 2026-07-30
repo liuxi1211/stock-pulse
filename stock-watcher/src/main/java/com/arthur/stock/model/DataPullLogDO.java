@@ -10,6 +10,9 @@ import lombok.NoArgsConstructor;
 
 /**
  * 数据拉取日志数据对象，对应 data_pull_log 表。
+ * <p>
+ * 仅记录每次拉取的执行结果（含触发它的 @Scheduled cron 表达式），
+ * 不再承载任何「定时任务配置 / 注册中心」语义。
  */
 @Data
 @Builder
@@ -45,21 +48,15 @@ public class DataPullLogDO {
     /** 耗时（毫秒） */
     private Long durationMs;
 
-    /** 处理总数（条） */
+    /** 更新后该表的总行数 */
     private Long totalCount;
 
-    /** 成功数（条） */
-    private Long successCount;
-
-    /** 失败数（条） */
-    private Long failCount;
-
-    /** 错误信息摘要（脱敏后） */
+    /** 错误信息摘要（脱敏后，仅失败时记录；堆栈走应用日志不入库） */
     private String errorMessage;
-
-    /** 错误堆栈详情（脱敏后，仅管理员可见） */
-    private String errorStack;
 
     /** 操作人：用户名 / SYSTEM（定时任务） */
     private String operator;
+
+    /** 触发本次执行的 @Scheduled cron 表达式（仅定时任务有值） */
+    private String cronExpression;
 }

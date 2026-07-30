@@ -17,6 +17,18 @@ const DG = {
     keywordSearchTimer: null,
     _btnLockMap: {},
 
+    // ==================== Scheduled Tasks State ====================
+    // 定时任务列表缓存 + 状态轮询 + 历史模态框状态
+    taskListCache: [],
+    taskListLoadError: false,
+    taskPollTimer: null,
+    TASK_POLL_INTERVAL: 5000, // RUNNING 行 5s 刷新
+    taskKeywordSearchTimer: null,
+    pendingRunTaskClass: null,
+    pendingRunTaskName: null,
+    // 历史模态框当前查询上下文
+    taskHistoryContext: { taskClass: null, taskName: null, page: 1, limit: 30 },
+
     // ==================== Button Debounce Helper ====================
 
     withBtnLock(key, fn, btnEl) {
@@ -71,6 +83,7 @@ const DG = {
         setTimeout(() => { this._btnLockMap['refreshAll'] = false; }, 500);
         this.refreshOverview();
         this.loadTables();
+        this.loadScheduledTasks();
         this.startDatasourcePolling();
     },
 
@@ -242,7 +255,7 @@ const DG = {
 
         const tbody = document.getElementById('tableBody');
         if (!list || !list.length) {
-            tbody.innerHTML = `<tr><td colspan="8"><div class="empty-state-sm">
+            tbody.innerHTML = `<tr><td colspan="9"><div class="empty-state-sm">
                 <i class="bi bi-inbox"></i>
                 <p>无匹配的数据表</p>
             </div></td></tr>`;
@@ -292,6 +305,7 @@ const DG = {
                     <td class="font-mono">${this.formatDate(t.latestDate) || '-'}</td>
                     <td><small class="text-muted font-mono">${t.lastCheckTime || '-'}</small></td>
                     <td><small class="text-muted">${t.updateFrequency || '-'}</small></td>
+                    <td><small class="text-muted font-mono">${t.nextExecutionTime || '-'}</small></td>
                     <td>
                         <div class="d-flex flex-wrap gap-1 justify-content-center">
                             <button class="btn btn-outline-secondary btn-sm" onclick="DG.openDetail('${t.tableCode}')" title="查看详情">
@@ -494,7 +508,6 @@ const DG = {
             ['最新数据日期', this.formatDate(d.latestDate) || '-'],
             ['最早数据日期', this.formatDate(d.earliestDate) || '-'],
             ['更新频率', d.updateFrequency || '-'],
-            ['预期更新时间', d.expectedUpdateTime || '-'],
             ['是否日频', d.isDaily ? '是' : '否'],
             ['最后检测时间', d.lastCheckTime || '-'],
             ['当前状态', `<span class="badge bg-${status.cls === 'normal' ? 'success' : status.cls === 'error' ? 'danger' : status.cls === 'delayed' ? 'warning' : 'info'} badge-dot">${status.label}</span>`],
@@ -798,9 +811,6 @@ const DG = {
             if (log.errorMessage) {
                 html += `<div class="alert alert-danger mt-3"><strong>错误信息：</strong>${StockApp.escapeHtml(log.errorMessage)}</div>`;
             }
-            if (this.isAdmin && log.errorStack) {
-                html += `<div class="mt-2"><details><summary class="small text-muted">错误堆栈 (仅管理员可见)</summary><pre class="small mt-1 p-2 rounded font-mono" style="background:var(--bg-tertiary);max-height:300px;overflow:auto;">${StockApp.escapeHtml(log.errorStack)}</pre></details></div>`;
-            }
             document.getElementById('logDetailBody').innerHTML = html;
             new bootstrap.Modal(document.getElementById('logDetailModal')).show();
         });
@@ -892,10 +902,432 @@ const DG = {
         if (n >= 10000) return (n / 10000).toFixed(2) + '万';
         return n.toLocaleString('zh-CN');
     },
+
+    // ==================== Scheduled Tasks List ====================
+
+    // 任务分组元信息（taskGroup 英文 -> 中文标签 + accent color token）
+    TASK_GROUP_META: {
+        DATA_FETCH:   { label: '数据拉取', color: 'var(--accent-cyan)' },
+        GOVERNANCE:   { label: '数据治理', color: 'var(--accent-blue)' },
+        MAINTENANCE:  { label: '维护',     color: 'var(--accent-purple)' },
+        PRECOMPUTE:   { label: '预计算',   color: 'var(--accent-green)' },
+        VERIFY:       { label: '校验',     color: 'var(--accent-yellow)' },
+    },
+
+    loadScheduledTasks() {
+        const params = {
+            group: document.getElementById('taskFilterGroup').value,
+            keyword: document.getElementById('taskFilterKeyword').value,
+        };
+        // 后端不支持 status 过滤，前端按 currentStatus 过滤
+        const statusFilter = document.getElementById('taskFilterStatus').value;
+        const tbody = document.getElementById('taskTableBody');
+        // 仅在首次进入或刷新按钮触发时显示骨架屏；轮询时不覆盖（避免闪动）
+        if (!this._taskPollingActive) {
+            tbody.innerHTML = this._renderTaskSkeletonRows(5);
+        }
+        StockApp.get(this.apiBase + '/scheduled-tasks', params, (resp) => {
+            if (resp.code !== 200) {
+                this.taskListLoadError = true;
+                this.taskListCache = [];
+                this.renderTaskError(resp.message || '加载定时任务失败');
+                this.stopTaskPolling();
+                return;
+            }
+            this.taskListLoadError = false;
+            let list = resp.data || [];
+            if (statusFilter) {
+                list = list.filter(t => (t.currentStatus || t.lastStatus) === statusFilter);
+            }
+            this.taskListCache = list;
+            this.renderScheduledTasks(list);
+            this._maybeStartOrStopTaskPolling(list);
+        });
+    },
+
+    /**
+     * 渲染定时任务表格。
+     * 三态：列表为空 -> 空状态；正常 -> 行；错误状态由 renderTaskError 处理。
+     */
+    renderScheduledTasks(list) {
+        document.getElementById('taskCount').textContent = (list?.length || 0) + ' 个';
+        const tbody = document.getElementById('taskTableBody');
+        if (!list || !list.length) {
+            tbody.innerHTML = `
+                <tr><td colspan="8">
+                    <div class="empty-state">
+                        <i class="bi bi-clock-history"></i>
+                        <h5>暂无定时任务</h5>
+                        <p>未匹配到任何任务，请调整筛选条件或刷新重试。</p>
+                    </div>
+                </td></tr>`;
+            return;
+        }
+        tbody.innerHTML = list.map(t => {
+            const status = (t.currentStatus || t.lastStatus || 'NEVER_RUN');
+            const statusInfo = this.getTaskStatusInfo(status);
+            const groupMeta = this.getTaskGroupMeta(t.taskGroup);
+            const inconsistentBadge = '';
+            const isRunning = status === 'RUNNING';
+            const runBtnDisabled = isRunning || !this.isAdmin;
+            const runBtnTitle = isRunning ? '任务执行中' : (!this.isAdmin ? '需要管理员权限' : '手动重跑任务');
+            const cronCell = t.cronExpression
+                ? `<small class="dg-cron-expr text-muted font-mono">${StockApp.escapeHtml(t.cronExpression)}</small>`
+                : `<small class="text-muted">-</small>`;
+            const tableCell = t.tableCode
+                ? `<div class="dg-table-name">${StockApp.escapeHtml(t.tableName || t.tableCode)}</div><div class="dg-table-code">${t.tableCode}</div>`
+                : `<small class="text-muted">-</small>`;
+            const duration = this.formatDuration(t.lastDurationMs);
+            return `
+                <tr class="${isRunning ? 'dg-task-row-running' : ''}" data-task-class="${StockApp.escapeHtml(t.taskClass)}">
+                    <td>
+                        <div class="dg-task-name">${StockApp.escapeHtml(t.taskName || '-')}</div>
+                        ${t.description ? `<small class="dg-task-desc text-muted">${StockApp.escapeHtml(t.description)}</small>` : ''}
+                    </td>
+                    <td><span class="badge badge-pill" style="background: color-mix(in srgb, ${groupMeta.color} 14%, transparent); color: ${groupMeta.color}; border: 1px solid color-mix(in srgb, ${groupMeta.color} 25%, transparent);">${StockApp.escapeHtml(groupMeta.label)}</span></td>
+                    <td>${tableCell}</td>
+                    <td>${cronCell}</td>
+                    <td>
+                        <span class="dg-status dg-task-status ${statusInfo.cls}">
+                            <span class="dot"></span>${statusInfo.label}
+                        </span>
+                        ${inconsistentBadge}
+                    </td>
+                    <td class="text-end font-mono">${duration}</td>
+                    <td><small class="text-muted font-mono">${t.nextExecutionTime || '-'}</small></td>
+                    <td>
+                        <div class="d-flex flex-wrap gap-1 justify-content-center">
+                            <button class="btn btn-outline-secondary btn-sm" onclick="DG.openTaskHistory('${StockApp.escapeHtml(t.taskClass)}', '${StockApp.escapeHtml(t.taskName || '')}')" title="查看执行历史">
+                                <i class="bi bi-clock-history ico-info"></i> 历史
+                            </button>
+                            <button class="btn btn-outline-secondary btn-sm" ${runBtnDisabled ? 'disabled' : ''} onclick="DG.confirmRunTask('${StockApp.escapeHtml(t.taskClass)}', '${StockApp.escapeHtml(t.taskName || '')}')" title="${runBtnTitle}">
+                                <i class="bi bi-play-fill ico-success"></i> 重跑
+                            </button>
+                        </div>
+                    </td>
+                </tr>`;
+        }).join('');
+    },
+
+    _renderTaskSkeletonRows(n) {
+        let html = '';
+        for (let i = 0; i < n; i++) {
+            html += `<tr><td colspan="8"><div class="dg-skeleton-row">
+                <div class="dg-skel-bar" style="width: ${30 + (i * 7) % 50}%;"></div>
+                <div class="dg-skel-bar dg-skel-sm" style="width: ${20 + (i * 5) % 30}%;"></div>
+            </div></td></tr>`;
+        }
+        return html;
+    },
+
+    renderTaskError(message) {
+        const tbody = document.getElementById('taskTableBody');
+        tbody.innerHTML = `
+            <tr><td colspan="8">
+                <div class="empty-state">
+                    <i class="bi bi-exclamation-triangle" style="color: var(--rise-light);"></i>
+                    <h5>加载失败</h5>
+                    <p>${StockApp.escapeHtml(message)}</p>
+                    <button class="btn btn-outline-secondary btn-sm" onclick="DG.loadScheduledTasks()">
+                        <i class="bi bi-arrow-clockwise"></i> 重试
+                    </button>
+                </div>
+            </td></tr>`;
+    },
+
+    onTaskKeywordSearch(e) {
+        clearTimeout(this.taskKeywordSearchTimer);
+        this.taskKeywordSearchTimer = setTimeout(() => this.loadScheduledTasks(), 300);
+    },
+
+    resetTaskFilters() {
+        document.getElementById('taskFilterGroup').value = '';
+        document.getElementById('taskFilterStatus').value = '';
+        document.getElementById('taskFilterKeyword').value = '';
+        this.loadScheduledTasks();
+    },
+
+    // ==================== RUNNING 状态实时轮询（5s） ====================
+
+    /**
+     * 列表中存在 RUNNING 行 -> 启动 5s 轮询；否则停止。
+     * 轮询期间标记 _taskPollingActive 防止骨架屏覆盖当前展示。
+     */
+    _maybeStartOrStopTaskPolling(list) {
+        const hasRunning = (list || []).some(t => (t.currentStatus || t.lastStatus) === 'RUNNING');
+        if (hasRunning) {
+            this.startTaskPolling();
+        } else {
+            this.stopTaskPolling();
+        }
+    },
+
+    startTaskPolling() {
+        if (this.taskPollTimer) return;
+        this._taskPollingActive = true;
+        this.taskPollTimer = setInterval(() => {
+            this.loadScheduledTasks();
+        }, this.TASK_POLL_INTERVAL);
+    },
+
+    stopTaskPolling() {
+        this._taskPollingActive = false;
+        if (this.taskPollTimer) {
+            clearInterval(this.taskPollTimer);
+            this.taskPollTimer = null;
+        }
+    },
+
+    // ==================== Task History Modal ====================
+
+    openTaskHistory(taskClass, taskName) {
+        this.taskHistoryContext = {
+            taskClass: taskClass,
+            taskName: taskName,
+            page: 1,
+            limit: 30,
+        };
+        document.getElementById('taskHistoryName').textContent = taskName || taskClass;
+        document.getElementById('taskHistoryStatusFilter').value = '';
+        document.getElementById('taskHistoryStartDate').value = '';
+        document.getElementById('taskHistoryPagination').innerHTML = '';
+        const modal = new bootstrap.Modal(document.getElementById('taskHistoryModal'));
+        modal.show();
+        this.loadTaskHistory();
+    },
+
+    loadTaskHistory() {
+        const ctx = this.taskHistoryContext;
+        if (!ctx || !ctx.taskClass) return;
+        const body = document.getElementById('taskHistoryBody');
+        body.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4"><div class="spinner-border spinner-border-sm me-1"></div>加载中...</td></tr>';
+        const params = {
+            page: ctx.page,
+            limit: ctx.limit,
+            status: document.getElementById('taskHistoryStatusFilter').value,
+            startDate: document.getElementById('taskHistoryStartDate').value,
+        };
+        StockApp.get(this.apiBase + '/scheduled-tasks/' + encodeURIComponent(ctx.taskClass) + '/history', params, (resp) => {
+            if (resp.code !== 200) {
+                body.innerHTML = '<tr><td colspan="7" class="text-center text-danger py-4">' + StockApp.escapeHtml(resp.message || '加载失败') + '</td></tr>';
+                document.getElementById('taskHistoryTotal').textContent = '共 0 条';
+                document.getElementById('taskHistoryPagination').innerHTML = '';
+                return;
+            }
+            const data = resp.data || {};
+            const records = data.list || data.records || [];
+            const total = data.total || 0;
+            const pageSize = data.size || data.pageSize || ctx.limit;
+            this.renderTaskHistory(records);
+            this.renderTaskHistoryPagination(total, ctx.page, pageSize);
+            document.getElementById('taskHistoryTotal').textContent = '共 ' + total + ' 条';
+        });
+    },
+
+    /**
+     * 渲染历史记录。errorMessage 折叠（前 100 字符 + 点击展开），FAILED 行淡红色高亮。
+     */
+    renderTaskHistory(records) {
+        const body = document.getElementById('taskHistoryBody');
+        if (!records || !records.length) {
+            body.innerHTML = `<tr><td colspan="7"><div class="empty-state-sm"><i class="bi bi-inbox"></i><p>暂无执行记录</p></div></td></tr>`;
+            return;
+        }
+        body.innerHTML = records.map((r, idx) => {
+            const statusBadge = this.getTaskHistoryStatusBadge(r.status);
+            const duration = this.formatDuration(r.durationMs);
+            const isFailed = r.status === 'FAILED';
+            const errCell = this._renderErrorCell(r.errorMessage, idx);
+            const triggerLabel = this._getTriggerTypeLabel(r.triggerType);
+            return `
+                <tr class="${isFailed ? 'dg-thistory-row-failed' : ''}">
+                    <td><small class="font-mono">${r.startTime || '-'}</small></td>
+                    <td><small class="font-mono">${r.endTime || '-'}</small></td>
+                    <td>${statusBadge}</td>
+                    <td class="text-end font-mono">${duration}</td>
+                    <td><small>${triggerLabel}</small></td>
+                    <td><small>${StockApp.escapeHtml(r.operator || '-')}</small></td>
+                    <td>${errCell}</td>
+                </tr>`;
+        }).join('');
+    },
+
+    _renderErrorCell(errorMessage, idx) {
+        if (!errorMessage) {
+            return '<span class="text-muted">-</span>';
+        }
+        const escaped = StockApp.escapeHtml(errorMessage);
+        if (errorMessage.length <= 100) {
+            return `<span class="dg-thistory-err" title="${escaped}">${escaped}</span>`;
+        }
+        const short = StockApp.escapeHtml(errorMessage.substring(0, 100));
+        return `<span class="dg-thistory-err dg-thistory-err-collapse" data-idx="${idx}">
+            <span class="dg-thistory-err-short">${short}<span class="dg-thistory-err-ellipsis">...</span></span>
+            <span class="dg-thistory-err-full" style="display:none;">${escaped}</span>
+            <a href="javascript:void(0)" class="dg-thistory-toggle" onclick="DG.toggleTaskHistoryError(${idx})">展开</a>
+        </span>`;
+    },
+
+    toggleTaskHistoryError(idx) {
+        const cell = document.querySelector(`.dg-thistory-err-collapse[data-idx="${idx}"]`);
+        if (!cell) return;
+        const short = cell.querySelector('.dg-thistory-err-short');
+        const full = cell.querySelector('.dg-thistory-err-full');
+        const toggle = cell.querySelector('.dg-thistory-toggle');
+        if (full.style.display === 'none') {
+            short.style.display = 'none';
+            full.style.display = 'inline';
+            toggle.textContent = '收起';
+        } else {
+            short.style.display = 'inline';
+            full.style.display = 'none';
+            toggle.textContent = '展开';
+        }
+    },
+
+    onTaskHistoryFilterChange() {
+        this.taskHistoryContext.page = 1;
+        this.loadTaskHistory();
+    },
+
+    onTaskHistoryPageChange(page) {
+        this.taskHistoryContext.page = page;
+        this.loadTaskHistory();
+    },
+
+    onTaskHistoryModalClose() {
+        // 重置上下文，避免下次打开闪烁
+        this.taskHistoryContext = { taskClass: null, taskName: null, page: 1, limit: 30 };
+    },
+
+    renderTaskHistoryPagination(total, page, pageSize) {
+        const container = document.getElementById('taskHistoryPagination');
+        const totalPages = Math.max(1, Math.ceil(total / pageSize));
+        if (totalPages <= 1) {
+            container.innerHTML = '';
+            return;
+        }
+        const maxButtons = 7;
+        let start = Math.max(1, page - 3);
+        let end = Math.min(totalPages, start + maxButtons - 1);
+        start = Math.max(1, end - maxButtons + 1);
+        let html = '';
+        const mkItem = (p, label, active, disabled) => `
+            <li class="page-item ${active ? 'active' : ''} ${disabled ? 'disabled' : ''}">
+                <a class="page-link" href="javascript:void(0)" ${(!active && !disabled) ? `onclick="DG.onTaskHistoryPageChange(${p})"` : ''}>${label}</a>
+            </li>`;
+        html += mkItem(page - 1, '«', false, page <= 1);
+        for (let p = start; p <= end; p++) {
+            html += mkItem(p, String(p), p === page, false);
+        }
+        html += mkItem(page + 1, '»', false, page >= totalPages);
+        container.innerHTML = html;
+    },
+
+    _getTriggerTypeLabel(type) {
+        const map = { SCHEDULED: '定时', MANUAL: '手动' };
+        return map[type] || (type || '-');
+    },
+
+    getTaskHistoryStatusBadge(status) {
+        const map = {
+            SUCCESS: '<span class="badge badge-dot dg-task-badge-success">成功</span>',
+            FAILED:  '<span class="badge badge-dot dg-task-badge-failed">失败</span>',
+            RUNNING: '<span class="badge badge-dot dg-task-badge-running">运行中</span>',
+        };
+        return map[status] || `<span class="badge badge-secondary">${status || '-'}</span>`;
+    },
+
+    // ==================== Manual Run Task ====================
+
+    confirmRunTask(taskClass, taskName) {
+        if (!this.isAdmin) {
+            StockApp.toast('需要管理员权限', 'warning');
+            return;
+        }
+        // 检查是否运行中
+        const task = (this.taskListCache || []).find(t => t.taskClass === taskClass);
+        if (task && (task.currentStatus === 'RUNNING')) {
+            StockApp.toast('任务执行中，无法重跑', 'warning');
+            return;
+        }
+        this.pendingRunTaskClass = taskClass;
+        this.pendingRunTaskName = taskName;
+        document.getElementById('runTaskName').textContent = taskName || taskClass;
+        const modal = new bootstrap.Modal(document.getElementById('runTaskConfirmModal'));
+        modal.show();
+    },
+
+    executeRunTask() {
+        if (!this.pendingRunTaskClass) return;
+        const lockKey = 'runTask_' + this.pendingRunTaskClass;
+        if (this._btnLockMap[lockKey]) return;
+        this._btnLockMap[lockKey] = true;
+        const btn = document.getElementById('runTaskConfirmBtn');
+        const originalHtml = btn ? btn.innerHTML : null;
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>执行中...';
+        }
+        const modalEl = document.getElementById('runTaskConfirmModal');
+        const modal = bootstrap.Modal.getInstance(modalEl);
+        if (modal) modal.hide();
+        const operator = 'MANUAL';
+        const url = this.apiBase + '/scheduled-tasks/' + encodeURIComponent(this.pendingRunTaskClass) + '/run?operator=' + encodeURIComponent(operator);
+        StockApp.post(url, null, (resp) => {
+            this._btnLockMap[lockKey] = false;
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = originalHtml;
+            }
+            if (resp.code === 200) {
+                StockApp.toast('任务已触发：' + (this.pendingRunTaskName || ''), 'success');
+                // 立即刷新一次列表（后端可能尚未写入 RUNNING 记录，延迟 1s 再刷新）
+                setTimeout(() => this.loadScheduledTasks(), 1000);
+            } else if (resp.code === 409) {
+                StockApp.toast(resp.message || '任务执行中，无法重跑', 'warning');
+                this.loadScheduledTasks();
+            } else {
+                StockApp.toast(resp.message || '触发任务失败', 'danger');
+            }
+        });
+    },
+
+    // ==================== Task Helpers ====================
+
+    getTaskStatusInfo(status) {
+        const map = {
+            SUCCESS:   { cls: 'dg-task-success',   label: '成功' },
+            FAILED:    { cls: 'dg-task-failed',    label: '失败' },
+            RUNNING:   { cls: 'dg-task-running',  label: '运行中' },
+            NEVER_RUN: { cls: 'dg-task-never',     label: '从未执行' },
+        };
+        return map[status] || { cls: 'dg-task-never', label: status || '未知' };
+    },
+
+    getTaskGroupMeta(group) {
+        return this.TASK_GROUP_META[group] || { label: group || '-', color: 'var(--text-muted)' };
+    },
+
+    /**
+     * 毫秒 -> 人类可读耗时（如 1.2s / 200ms / 1m 30s）。
+     */
+    formatDuration(ms) {
+        if (ms == null || isNaN(ms)) return '-';
+        const n = Number(ms);
+        if (n < 1000) return n + 'ms';
+        if (n < 60000) return (n / 1000).toFixed(1) + 's';
+        const m = Math.floor(n / 60000);
+        const s = Math.floor((n % 60000) / 1000);
+        return m + 'm ' + s + 's';
+    },
 };
 
 // ==================== Init ====================
 DG.refreshAll();
 
 // Clean up polling when page unloads
-window.addEventListener('beforeunload', () => DG.stopDatasourcePolling());
+window.addEventListener('beforeunload', () => {
+    DG.stopDatasourcePolling();
+    DG.stopTaskPolling();
+});

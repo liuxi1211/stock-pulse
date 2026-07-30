@@ -8,6 +8,7 @@ import com.arthur.stock.config.TushareConfig;
 import com.arthur.stock.constant.InitStep;
 import com.arthur.stock.context.UserContext;
 import com.arthur.stock.dto.ApiResponse;
+import com.arthur.stock.dto.PageResult;
 import com.arthur.stock.dto.governance.*;
 import com.arthur.stock.dto.tushare.TradeCalQueryDTO;
 import com.arthur.stock.mapper.DataPullLogMapper;
@@ -23,12 +24,18 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationContext;
+import org.springframework.scheduling.support.CronExpression;
 import org.springframework.web.bind.annotation.*;
 
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -48,6 +55,7 @@ public class DataGovernanceController {
     private final DataSourceHealthCache dataSourceHealthCache;
     private final TushareConfig tushareConfig;
     private final TushareClient tushareClient;
+    private final ApplicationContext applicationContext;
 
     private static final ObjectMapper objectMapper = new ObjectMapper()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
@@ -90,8 +98,10 @@ public class DataGovernanceController {
         }
         // 批量查询所有表的最新拉取日志，一次 SQL 搞定，避免 N+1 查询
         Map<String, String> lastUpdateTimeMap = loadLastUpdateTimeMap(allStatuses);
+        // 按 table_code 聚合各表最近一次定时任务日志（含 cron_expression），用于列表展示
+        Map<String, DataPullLogDO> taskLogMap = loadLatestTaskLogByTableMap();
         List<TableStatusVO> result = allStatuses.stream()
-                .map(metric -> buildTableStatusVO(metric, lastUpdateTimeMap))
+                .map(metric -> buildTableStatusVO(metric, lastUpdateTimeMap, taskLogMap))
                 .filter(vo -> matchesFilter(vo, query))
                 .collect(Collectors.toList());
         return ApiResponse.success(result);
@@ -118,7 +128,6 @@ public class DataGovernanceController {
                 .latestDate(metric != null ? metric.getLatestDate() : null)
                 .earliestDate(metric != null ? metric.getEarliestDate() : null)
                 .updateFrequency(step.getUpdateFrequency())
-                .expectedUpdateTime(step.getExpectedUpdateTime())
                 .isDaily(step.isDaily())
                 .checkItems(checkItems)
                 .lastCheckTime(metric != null ? metric.getCheckTime() : null)
@@ -267,7 +276,7 @@ public class DataGovernanceController {
                 .build());
     }
 
-    @Operation(summary = "查询单条拉取日志", description = "返回日志详情，errorStack仅管理员可见")
+    @Operation(summary = "查询单条拉取日志", description = "返回日志详情")
     @GetMapping("/logs/{logId}")
     public ApiResponse<PullLogVO> logDetail(@PathVariable Long logId) {
         DataPullLogDO log = dataPullLogMapper.selectById(logId);
@@ -335,7 +344,9 @@ public class DataGovernanceController {
         return user != null && user.getUsername() != null ? user.getUsername() : "SYSTEM";
     }
 
-    private TableStatusVO buildTableStatusVO(DataGovernanceMetricDO metric, Map<String, String> lastUpdateTimeMap) {
+    private TableStatusVO buildTableStatusVO(DataGovernanceMetricDO metric,
+                                             Map<String, String> lastUpdateTimeMap,
+                                             Map<String, DataPullLogDO> taskLogMap) {
         List<DataCheckItem> checkItems = parseCheckItems(metric.getCheckItems());
         int failedCount = (int) checkItems.stream().filter(item -> !item.isPassed()).count();
         InitStep step = InitStep.fromCode(metric.getTableCode());
@@ -343,6 +354,11 @@ public class DataGovernanceController {
         String lastUpdateTime = lastUpdateTimeMap != null
                 ? lastUpdateTimeMap.get(metric.getTableCode())
                 : getLastUpdateTime(metric.getTableCode());
+        // 从最近一次定时任务日志填充 cron / lastExecutionTime；nextExecutionTime 实时解析
+        DataPullLogDO taskLog = taskLogMap != null ? taskLogMap.get(metric.getTableCode()) : null;
+        String cron = taskLog != null ? taskLog.getCronExpression() : null;
+        String lastExecutionTime = taskLog != null ? taskLog.getStartTime() : null;
+        String nextExecutionTime = computeNextExecution(cron);
         return TableStatusVO.builder()
                 .tableCode(metric.getTableCode())
                 .tableName(metric.getTableName())
@@ -356,7 +372,54 @@ public class DataGovernanceController {
                 .lastCheckTime(metric.getCheckTime())
                 .lastUpdateTime(lastUpdateTime)
                 .updateFrequency(updateFrequency)
+                .cron(cron)
+                .nextExecutionTime(nextExecutionTime)
+                .lastExecutionTime(lastExecutionTime)
                 .build();
+    }
+
+    /**
+     * 按 table_code 聚合各表最近一条定时任务执行日志（cron_expression 非空，即定时任务记录）。
+     * 复用 selectLatestPerTable 一次 SQL 取全部。
+     */
+    private Map<String, DataPullLogDO> loadLatestTaskLogByTableMap() {
+        try {
+            java.util.List<String> tableCodes = java.util.Arrays.stream(InitStep.values())
+                    .map(InitStep::getCode)
+                    .distinct()
+                    .collect(Collectors.toList());
+            List<DataPullLogDO> logs = dataPullLogMapper.selectLatestPerTable(tableCodes);
+            if (logs == null || logs.isEmpty()) {
+                return Collections.emptyMap();
+            }
+            Map<String, DataPullLogDO> map = new HashMap<>(logs.size() * 2);
+            for (DataPullLogDO log : logs) {
+                if (log.getCronExpression() == null || log.getCronExpression().isEmpty()) {
+                    continue;
+                }
+                map.putIfAbsent(log.getTableCode(), log);
+            }
+            return map;
+        } catch (Exception e) {
+            log.warn("加载各表最新定时任务日志失败: {}", e.getMessage());
+            return Collections.emptyMap();
+        }
+    }
+
+    /**
+     * 由 cron 表达式实时计算下一次执行时间（Asia/Shanghai）。
+     */
+    private String computeNextExecution(String cron) {
+        if (cron == null || cron.isEmpty()) {
+            return null;
+        }
+        try {
+            CronExpression expr = CronExpression.parse(cron);
+            LocalDateTime next = expr.next(LocalDateTime.now(ZoneId.of("Asia/Shanghai")));
+            return next != null ? next.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")) : null;
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
     }
 
     /**
@@ -418,7 +481,7 @@ public class DataGovernanceController {
     }
 
     private PullLogVO convertPullLogToVO(DataPullLogDO log) {
-        PullLogVO.PullLogVOBuilder builder = PullLogVO.builder()
+        return PullLogVO.builder()
                 .id(log.getId())
                 .taskId(log.getTaskId())
                 .tableCode(log.getTableCode())
@@ -429,14 +492,10 @@ public class DataGovernanceController {
                 .endTime(log.getEndTime())
                 .durationMs(log.getDurationMs())
                 .totalCount(log.getTotalCount())
-                .successCount(log.getSuccessCount())
-                .failCount(log.getFailCount())
                 .errorMessage(log.getErrorMessage())
-                .operator(log.getOperator());
-        if (UserContext.isAdmin()) {
-            builder.errorStack(log.getErrorStack());
-        }
-        return builder.build();
+                .operator(log.getOperator())
+                .cronExpression(log.getCronExpression())
+                .build();
     }
 
     private List<DataCheckItem> parseCheckItems(String checkItemsJson) {

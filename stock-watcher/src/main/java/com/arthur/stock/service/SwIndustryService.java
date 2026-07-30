@@ -95,6 +95,13 @@ public interface SwIndustryService {
     List<IndustryRankingVO> getIndustryRanking(String tradeDate);
 
     /**
+     * 计算行业排行数据（绕过缓存，直接执行业务逻辑）。
+     * <p>
+     * 供需要强制刷新或绕过 Spring AOP 缓存的场景调用。
+     */
+    List<IndustryRankingVO> computeIndustryRanking(String tradeDate);
+
+    /**
      * 分页查询行业成分股（含最新行情）。
      */
     PageResult<IndustryMemberVO> getIndustryMembers(String industryCode, String tradeDate, int page, int size, String keyword);
@@ -111,6 +118,11 @@ public interface SwIndustryService {
     List<IndustryMoneyflowVO> getIndustryMoneyflow(String tradeDate);
 
     /**
+     * 计算板块资金流聚合（绕过缓存，直接执行业务逻辑）。
+     */
+    List<IndustryMoneyflowVO> computeIndustryMoneyflow(String tradeDate);
+
+    /**
      * 获取板块估值聚合（申万一级 28 个行业）。
      * <p>
      * 按 sw_industry_member.index_code 分组聚合 daily_basic，返回市值加权 PE_TTM、算术平均 PB。
@@ -120,4 +132,9 @@ public interface SwIndustryService {
      * @return 28 个行业的估值聚合（无数据的行业估值指标为 null）
      */
     List<IndustryValuationVO> getIndustryValuation(String tradeDate);
+
+    /**
+     * 计算板块估值聚合（绕过缓存，直接执行业务逻辑）。
+     */
+    List<IndustryValuationVO> computeIndustryValuation(String tradeDate);
 }

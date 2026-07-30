@@ -11,7 +11,6 @@ import com.arthur.stock.model.SwIndustryDO;
 import com.google.common.collect.Lists;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -108,36 +107,43 @@ public class IndexDailyFetchService {
     }
 
     /**
-     * 每交易日 16:30 盘后同步全部指数当日行情。
+     * 同步全部指数当日行情（由 16:30 批次 listener 调用，无 @Scheduled）。
      * <p>
      * 指数代码来源：从 index_basic 表动态读取全部指数（含大盘指数 + 申万行业指数 + 其他市场指数）。
      * index_basic 为空时回退到 DEFAULT_INDEX_CODES + 申万一级行业指数，保证兜底可用。
      * 单只失败不影响其他，逐只捕获异常并记录。
+     *
+     * @return 是否出现错误（供批次聚合上报使用）
      */
-    @Scheduled(cron = "0 30 16 * * MON-FRI")
-    @org.springframework.cache.annotation.CacheEvict(value = {"sectorRanking", "sectorMoneyflow", "sectorValuation"}, allEntries = true)
-    public void dailySync() {
-        log.info("===== IndexDailyFetchService daily sync start =====");
-        String today = LocalDate.now().format(DATE_FMT);
+    public boolean fetchToday(String tradeDate) {
+        boolean hasError = false;
+        try {
+            log.info("===== IndexDailyFetchService daily sync start, tradeDate={} =====", tradeDate);
+            String today = LocalDate.now().format(DATE_FMT);
 
-        // 指数代码优先从 index_basic 全量读取；为空则回退到原有兜底逻辑
-        List<String> codes = indexBasicMapper.selectAllTsCodes();
-        if (codes.isEmpty()) {
-            log.warn("index_basic 表为空，回退到 DEFAULT_INDEX_CODES + 申万一级行业指数");
-            codes = new ArrayList<>(IndexConstants.DEFAULT_INDEX_CODES);
-            codes.addAll(listSwL1IndexCodes());
-        }
-
-        log.info("IndexDailyFetchService syncing {} indices for {}", codes.size(), today);
-        int total = 0;
-        for (String code : codes) {
-            try {
-                total += fetchAndSaveIndexDaily(code, today, today);
-            } catch (Exception e) {
-                log.error("IndexDailyFetchService 同步失败 {}: {}", code, e.getMessage(), e);
+            List<String> codes = indexBasicMapper.selectAllTsCodes();
+            if (codes.isEmpty()) {
+                log.warn("index_basic 表为空，回退到 DEFAULT_INDEX_CODES + 申万一级行业指数");
+                codes = new ArrayList<>(IndexConstants.DEFAULT_INDEX_CODES);
+                codes.addAll(listSwL1IndexCodes());
             }
+
+            log.info("IndexDailyFetchService syncing {} indices for {}", codes.size(), today);
+            int total = 0;
+            for (String code : codes) {
+                try {
+                    total += fetchAndSaveIndexDaily(code, today, today);
+                } catch (Exception e) {
+                    hasError = true;
+                    log.error("IndexDailyFetchService 同步失败 {}: {}", code, e.getMessage(), e);
+                }
+            }
+            log.info("===== IndexDailyFetchService daily sync done: {} records =====", total);
+        } catch (Exception e) {
+            hasError = true;
+            log.error("[IndexDailyFetchService] tradeDate={} 执行失败", tradeDate, e);
         }
-        log.info("===== IndexDailyFetchService daily sync done: {} records =====", total);
+        return hasError;
     }
 
     /**

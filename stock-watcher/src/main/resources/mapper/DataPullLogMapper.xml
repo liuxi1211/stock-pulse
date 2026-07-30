@@ -14,22 +14,18 @@
         <result column="end_time" property="endTime"/>
         <result column="duration_ms" property="durationMs"/>
         <result column="total_count" property="totalCount"/>
-        <result column="success_count" property="successCount"/>
-        <result column="fail_count" property="failCount"/>
         <result column="error_message" property="errorMessage"/>
-        <result column="error_stack" property="errorStack"/>
         <result column="operator" property="operator"/>
+        <result column="cron_expression" property="cronExpression"/>
     </resultMap>
 
     <insert id="insert">
         INSERT INTO data_pull_log (task_id, table_code, table_name, operation_type,
                                    status, start_time, end_time, duration_ms,
-                                   total_count, success_count, fail_count,
-                                   error_message, error_stack, operator)
+                                   total_count, error_message, operator, cron_expression)
         VALUES (#{taskId}, #{tableCode}, #{tableName}, #{operationType},
                 #{status}, #{startTime}, #{endTime}, #{durationMs},
-                #{totalCount}, #{successCount}, #{failCount},
-                #{errorMessage}, #{errorStack}, #{operator})
+                #{totalCount}, #{errorMessage}, #{operator}, #{cronExpression})
     </insert>
 
     <update id="updateStatus">
@@ -38,10 +34,7 @@
             end_time = #{endTime},
             duration_ms = #{durationMs},
             total_count = #{totalCount},
-            success_count = #{successCount},
-            fail_count = #{failCount},
-            error_message = #{errorMessage},
-            error_stack = #{errorStack}
+            error_message = #{errorMessage}
         WHERE task_id = #{taskId}
     </update>
 

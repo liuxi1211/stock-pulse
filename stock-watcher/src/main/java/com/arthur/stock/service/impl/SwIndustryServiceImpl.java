@@ -207,8 +207,15 @@ public class SwIndustryServiceImpl implements SwIndustryService, DataCheckable {
     }
 
     @Override
-    @org.springframework.cache.annotation.Cacheable(value = "sectorRanking", key = "#tradeDate != null ? #tradeDate : 'latest'")
+    @org.springframework.cache.annotation.Cacheable(value = "sectorRanking",
+            key = "T(com.arthur.stock.util.CacheKeyResolver).resolveSectorKey(#tradeDate)",
+            unless = "#result == null || #result.isEmpty()")
     public List<IndustryRankingVO> getIndustryRanking(String tradeDate) {
+        return computeIndustryRanking(tradeDate);
+    }
+
+    @Override
+    public List<IndustryRankingVO> computeIndustryRanking(String tradeDate) {
         // 1. 获取28个申万一级行业
         List<SwIndustryVO> industries = listByLevel(1);
         if (industries.isEmpty()) {
@@ -457,8 +464,15 @@ public class SwIndustryServiceImpl implements SwIndustryService, DataCheckable {
     }
 
     @Override
-    @org.springframework.cache.annotation.Cacheable(value = "sectorMoneyflow", key = "#tradeDate != null ? #tradeDate : 'latest'")
+    @org.springframework.cache.annotation.Cacheable(value = "sectorMoneyflow",
+            key = "T(com.arthur.stock.util.CacheKeyResolver).resolveSectorKey(#tradeDate)",
+            unless = "#result == null || #result.isEmpty()")
     public List<IndustryMoneyflowVO> getIndustryMoneyflow(String tradeDate) {
+        return computeIndustryMoneyflow(tradeDate);
+    }
+
+    @Override
+    public List<IndustryMoneyflowVO> computeIndustryMoneyflow(String tradeDate) {
         List<SwIndustryVO> industries = listByLevel(1);
         if (industries.isEmpty()) {
             return Collections.emptyList();
@@ -499,8 +513,15 @@ public class SwIndustryServiceImpl implements SwIndustryService, DataCheckable {
     }
 
     @Override
-    @org.springframework.cache.annotation.Cacheable(value = "sectorValuation", key = "#tradeDate != null ? #tradeDate : 'latest'")
+    @org.springframework.cache.annotation.Cacheable(value = "sectorValuation",
+            key = "T(com.arthur.stock.util.CacheKeyResolver).resolveSectorKey(#tradeDate)",
+            unless = "#result == null || #result.isEmpty()")
     public List<IndustryValuationVO> getIndustryValuation(String tradeDate) {
+        return computeIndustryValuation(tradeDate);
+    }
+
+    @Override
+    public List<IndustryValuationVO> computeIndustryValuation(String tradeDate) {
         List<SwIndustryVO> industries = listByLevel(1);
         if (industries.isEmpty()) {
             return Collections.emptyList();

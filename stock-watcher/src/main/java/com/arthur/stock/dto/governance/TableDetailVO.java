@@ -20,7 +20,6 @@ public class TableDetailVO {
     private String latestDate;
     private String earliestDate;
     private String updateFrequency;
-    private String expectedUpdateTime;
     private boolean isDaily;
     private List<DataCheckItem> checkItems;
     private String lastCheckTime;

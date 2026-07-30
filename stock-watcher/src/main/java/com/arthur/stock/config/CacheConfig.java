@@ -7,6 +7,7 @@ import org.springframework.cache.caffeine.CaffeineCacheManager;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -41,18 +42,26 @@ public class CacheConfig {
                 .recordStats();
         manager.registerCustomCache("tradeCalendar", calendarSpec.build());
         manager.registerCustomCache("latestTradeDate", calendarSpec.build());
-        // 板块缓存：30 分钟写入后过期（板块数据日内稳定，30 分钟兜底，配合数据同步任务的 @CacheEvict 主动失效）
-        Caffeine<Object, Object> sectorSpec = Caffeine.newBuilder()
-                .expireAfterWrite(30, TimeUnit.MINUTES)
+        // 板块/市场排名缓存：24 小时写入后过期（数据日内稳定，24h 兜底 TTL，配合数据同步任务的 @CacheEvict 主动失效）
+        Caffeine<Object, Object> dailySpec = Caffeine.newBuilder()
+                .expireAfterWrite(Duration.ofHours(24))
                 .recordStats();
-        manager.registerCustomCache("sectorRanking", sectorSpec.build());
-        manager.registerCustomCache("sectorMoneyflow", sectorSpec.build());
-        manager.registerCustomCache("sectorValuation", sectorSpec.build());
+        manager.registerCustomCache("sectorRanking", dailySpec.build());
+        manager.registerCustomCache("sectorMoneyflow", dailySpec.build());
+        manager.registerCustomCache("sectorValuation", dailySpec.build());
+        manager.registerCustomCache("marketRanking", dailySpec.build());
+        manager.registerCustomCache("moneyflowRanking", dailySpec.build());
         // 股票名称映射缓存：1 天写入后过期（stock_basic 变化频率极低，日内无需刷新）
         Caffeine<Object, Object> stockBasicSpec = Caffeine.newBuilder()
                 .expireAfterWrite(1, TimeUnit.DAYS)
                 .recordStats();
         manager.registerCustomCache("stockBasicName", stockBasicSpec.build());
+        // 市场温度/指数缓存：无 TTL，仅设容量上限防止膨胀
+        Caffeine<Object, Object> boundedSpec = Caffeine.newBuilder()
+                .maximumSize(50)
+                .recordStats();
+        manager.registerCustomCache("marketTemperature", boundedSpec.build());
+        manager.registerCustomCache("indices", boundedSpec.build());
         return manager;
     }
 }

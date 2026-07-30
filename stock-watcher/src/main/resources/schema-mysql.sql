@@ -802,17 +802,17 @@ CREATE TABLE IF NOT EXISTS data_pull_log (
     start_time      DATETIME       NOT NULL COMMENT '开始时间',
     end_time        DATETIME       COMMENT '结束时间',
     duration_ms     BIGINT         DEFAULT 0 COMMENT '耗时（毫秒）',
-    total_count     BIGINT         DEFAULT 0 COMMENT '处理总数（条）',
-    success_count   BIGINT         DEFAULT 0 COMMENT '成功数（条）',
-    fail_count      BIGINT         DEFAULT 0 COMMENT '失败数（条）',
-    error_message   VARCHAR(1024)  COMMENT '错误信息摘要（脱敏后）',
-    error_stack     TEXT           COMMENT '错误堆栈详情（脱敏后，仅管理员可见）',
+    total_count     BIGINT         DEFAULT 0 COMMENT '更新后该表的总行数',
+    error_message   VARCHAR(1024)  COMMENT '错误信息摘要（脱敏后，仅失败时记录）',
     operator        VARCHAR(64)    DEFAULT 'SYSTEM' COMMENT '操作人：用户名 / SYSTEM（定时任务）',
     INDEX idx_task_id (task_id),
     INDEX idx_table_code (table_code),
     INDEX idx_status (status),
     INDEX idx_start_time (start_time)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='数据拉取日志表';
+
+-- 定时任务执行时记录触发的 @Scheduled cron 表达式，供数据管控中心展示
+ALTER TABLE data_pull_log ADD COLUMN cron_expression VARCHAR(60) NULL COMMENT '触发本次执行的@Scheduled cron表达式（仅定时任务有值）';
 
 -- 初始管理员账号（仅当表为空时插入，默认密码: admin123）
 INSERT INTO sys_user (username, password, enabled, role)

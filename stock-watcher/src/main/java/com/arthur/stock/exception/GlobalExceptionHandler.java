@@ -4,6 +4,7 @@ import com.arthur.stock.dto.ApiResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -78,6 +79,16 @@ public class GlobalExceptionHandler {
     public ApiResponse<Void> handleBadRequest(IllegalArgumentException e) {
         log.warn("Bad request: {}", e.getMessage());
         return ApiResponse.error(400, e.getMessage());
+    }
+
+    /**
+     * 处理缺少必填请求参数异常，返回 400 + 缺失参数名
+     */
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ApiResponse<Void> handleMissingParam(MissingServletRequestParameterException e) {
+        log.warn("Missing required parameter: {}", e.getParameterName());
+        return ApiResponse.error(400, "缺少必填参数: " + e.getParameterName());
     }
 
     /**
