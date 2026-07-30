@@ -387,7 +387,7 @@ const DG = {
                 const duration = log.durationMs != null
                     ? (log.durationMs >= 1000 ? (log.durationMs / 1000).toFixed(1) + 's' : log.durationMs + 'ms')
                     : '-';
-                const counts = `${log.successCount ?? 0} / ${log.failCount ?? 0}`;
+                const totalCount = log.totalCount ?? 0;
                 return `
                     <tr style="cursor:pointer;" onclick="DG.showLogDetail(${log.id})">
                         <td><small>${StockApp.escapeHtml(this.getOperationTypeLabel(log.operationType))}</small></td>
@@ -395,7 +395,7 @@ const DG = {
                         <td><small class="font-mono">${log.startTime || '-'}</small></td>
                         <td><small class="font-mono">${log.endTime || '-'}</small></td>
                         <td class="text-end font-mono">${duration}</td>
-                        <td class="text-end font-mono">${counts}</td>
+                        <td class="text-end font-mono">${totalCount}</td>
                         <td><small>${StockApp.escapeHtml(log.operator || '-')}</small></td>
                         <td class="text-center"><i class="bi bi-chevron-right text-muted"></i></td>
                     </tr>`;
@@ -786,9 +786,7 @@ const DG = {
                 ['开始时间', log.startTime || '-'],
                 ['结束时间', log.endTime || '-'],
                 ['耗时', log.durationMs != null ? log.durationMs + 'ms' : '-'],
-                ['总数', log.totalCount ?? '-'],
-                ['成功数', log.successCount ?? '-'],
-                ['失败数', log.failCount ?? '-'],
+                ['本次成功更新行数', log.totalCount ?? '-'],
                 ['操作人', log.operator || '-'],
                 ['任务ID', log.taskId || '-'],
             ];
@@ -797,9 +795,6 @@ const DG = {
             </ul>`;
             if (log.errorMessage) {
                 html += `<div class="alert alert-danger mt-3"><strong>错误信息：</strong>${StockApp.escapeHtml(log.errorMessage)}</div>`;
-            }
-            if (this.isAdmin && log.errorStack) {
-                html += `<div class="mt-2"><details><summary class="small text-muted">错误堆栈 (仅管理员可见)</summary><pre class="small mt-1 p-2 rounded font-mono" style="background:var(--bg-tertiary);max-height:300px;overflow:auto;">${StockApp.escapeHtml(log.errorStack)}</pre></details></div>`;
             }
             document.getElementById('logDetailBody').innerHTML = html;
             new bootstrap.Modal(document.getElementById('logDetailModal')).show();

@@ -17,11 +17,7 @@ public interface DataPullLogMapper extends BaseMapper<DataPullLogDO> {
     int insert(DataPullLogDO log);
 
     /** 更新任务状态 */
-    int updateStatus(@Param("taskId") String taskId, @Param("status") String status,
-                     @Param("endTime") String endTime, @Param("durationMs") Long durationMs,
-                     @Param("totalCount") Long totalCount, @Param("successCount") Long successCount,
-                     @Param("failCount") Long failCount, @Param("errorMessage") String errorMessage,
-                     @Param("errorStack") String errorStack);
+    int updateStatus(DataPullLogDO log);
 
     /** 查询某张表的最近日志 */
     List<DataPullLogDO> selectByTableCode(@Param("tableCode") String tableCode, @Param("limit") int limit);

@@ -48,17 +48,8 @@ public class DataPullLogDO {
     /** 处理总数（条） */
     private Long totalCount;
 
-    /** 成功数（条） */
-    private Long successCount;
-
-    /** 失败数（条） */
-    private Long failCount;
-
-    /** 错误信息摘要（脱敏后） */
+    /** 错误信息摘要（脱敏后），完整堆栈仅写应用日志 */
     private String errorMessage;
-
-    /** 错误堆栈详情（脱敏后，仅管理员可见） */
-    private String errorStack;
 
     /** 操作人：用户名 / SYSTEM（定时任务） */
     private String operator;

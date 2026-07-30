@@ -208,8 +208,8 @@
 |---|---|
 | 数据质量校验 | 25 个 Service 全实现 `DataCheckable`；三级 ERROR/WARN/INFO；通用项（空表/行数/延迟）+ 自定义项 |
 | 统一更新入口 | `incrementalUpdate`（从最新日期+1）/ `fullRebuild`（清空重拉）；虚拟线程异步；全局任务锁 |
-| 拉取日志 | `data_pull_log` 表记录每次拉取（taskId/表/类型/状态/耗时/计数/操作人/错误） |
-| 定时任务 | `DataGovernanceCheckJob`（每日 22:00 全表检测）+ `DailyUpdateTask`（盘后更新）+ 各专项任务 |
+| 拉取日志 | `data_pull_log` 表记录每次拉取（taskId/表/类型/状态/耗时/成功更新行数/操作人/错误摘要） |
+| 定时任务 | `DataGovernanceCheckJob`（每日 22:00 全表检测）+ `TushareDataScheduler`（唯一 Tushare 采集调度入口） |
 | 数据源健康 | `DataSourceHealthCache` 缓存 Tushare 连通性，支持手动测试（调 `trade_cal`） |
 
 ---

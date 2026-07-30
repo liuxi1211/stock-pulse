@@ -29,21 +29,18 @@ import com.arthur.stock.service.*;
 import com.arthur.stock.util.SensitiveDataUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.Cache;
+import org.springframework.cache.CacheManager;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
-import java.io.PrintWriter;
-import java.io.StringWriter;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * 数据拉取服务实现，负责单表增量更新和全量重建
@@ -55,6 +52,8 @@ public class DataInitServiceImpl implements DataInitService {
 
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("yyyyMMdd");
     private static final DateTimeFormatter DATETIME_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+    private static final int ERROR_MESSAGE_MAX_LENGTH = 1024;
+    private static final String SCHEDULED_OPERATOR = "SYSTEM";
 
     /** A 股市场起始日期（1990-12-19 上交所开市），全量拉取的统一起始时间 */
     private static final String FULL_START_DATE = "19901219";
@@ -105,6 +104,7 @@ public class DataInitServiceImpl implements DataInitService {
     private final HkHoldService hkHoldService;
     private final MarginService marginService;
     private final IndexDailyFetchService indexDailyFetchService;
+    private final CacheManager cacheManager;
 
     @Override
     public String incrementalUpdate(String tableCode, String operator) {
@@ -138,33 +138,98 @@ public class DataInitServiceImpl implements DataInitService {
         return taskId;
     }
 
+    @Override
+    public void scheduledIncrementalBatch(String batchName, List<InitStep> steps) {
+        executeScheduledBatch(batchName, steps, false);
+    }
+
+    @Override
+    public void scheduledFullUpdate(String batchName, InitStep step) {
+        executeScheduledBatch(batchName, List.of(step), true);
+    }
+
+    private void executeScheduledBatch(String batchName, List<InitStep> steps, boolean full) {
+        if (!taskProgressCache.tryAcquireLock()) {
+            log.warn("Scheduled Tushare batch skipped because another pull is running: {}", batchName);
+            return;
+        }
+        InitStep failedStep = null;
+        try {
+            log.info("Scheduled Tushare batch started: {}, steps={}", batchName, steps);
+            for (InitStep step : steps) {
+                if (!executeScheduledStep(step, full)) {
+                    failedStep = step;
+                    break;
+                }
+            }
+        } finally {
+            taskProgressCache.releaseLock();
+        }
+        if (failedStep == null) {
+            log.info("Scheduled Tushare batch completed: {}", batchName);
+        } else {
+            log.error("Scheduled Tushare batch stopped after step failure: {}, failedStep={}",
+                    batchName, failedStep.getCode());
+        }
+    }
+
+    private boolean executeScheduledStep(InitStep step, boolean full) {
+        String taskId = UUID.randomUUID().toString();
+        long startMs = System.currentTimeMillis();
+        long totalCount = 0L;
+        createPullLog(taskId, step, "SCHEDULED", SCHEDULED_OPERATOR);
+        try {
+            if (full && !DAILY_SNAPSHOT_STEPS.contains(step)) {
+                for (String table : collectRebuildTables(step)) {
+                    jdbcTemplate.execute("TRUNCATE TABLE " + table);
+                }
+            }
+            totalCount = executeSingleStep(step, taskId, full);
+            finishPullLog(taskId, "SUCCESS", startMs, totalCount, null);
+            clearCachesAfterSuccess(step);
+            runQualityCheck(step);
+            return true;
+        } catch (Throwable e) {
+            totalCount = completedCount(e, totalCount);
+            String errorMessage = summarizeError(e);
+            log.error("Scheduled Tushare step failed: {} (taskId={})", step.getCode(), taskId, e);
+            try {
+                finishPullLog(taskId, "FAILED", startMs, totalCount, errorMessage);
+            } catch (Throwable logEx) {
+                log.error("Failed to write pull log for scheduled FAILED task: {}", step.getCode(), logEx);
+            }
+            return false;
+        }
+    }
+
     private void doIncrementalUpdate(InitStep step, String taskId) {
         long startMs = System.currentTimeMillis();
-        StepStats stats = StepStats.empty();
+        long totalCount = 0L;
         try {
             updateTaskRunning(taskId, "增量拉取: " + step.getLabel());
-            stats = executeSingleStep(step, taskId, false);
+            totalCount = executeSingleStep(step, taskId, false);
 
             if (taskProgressCache.isCancelled(taskId)) {
-                finishPullLog(taskId, "CANCELLED", startMs, "用户取消", null, stats);
+                finishPullLog(taskId, "CANCELLED", startMs, totalCount, "用户取消");
                 updateTaskCancelled(taskId, "用户取消");
                 log.info("Incremental update cancelled: {} (taskId={})", step.getLabel(), taskId);
                 return;
             }
-            finishPullLog(taskId, "SUCCESS", startMs, null, null, stats);
+            finishPullLog(taskId, "SUCCESS", startMs, totalCount, null);
+            clearCachesAfterSuccess(step);
             runQualityCheck(step);
             updateTaskSuccess(taskId);
             log.info("Incremental update completed: {} (taskId={})", step.getLabel(), taskId);
         } catch (Throwable e) {
+            totalCount = completedCount(e, totalCount);
             log.error("Incremental update failed: {} (taskId={})", step.getLabel(), taskId, e);
+            String errorMessage = summarizeError(e);
             try {
-                finishPullLog(taskId, "FAILED", startMs,
-                        SensitiveDataUtil.mask(e.getMessage()),
-                        SensitiveDataUtil.mask(getStackTrace(e)), stats);
+                finishPullLog(taskId, "FAILED", startMs, totalCount, errorMessage);
             } catch (Throwable logEx) {
                 log.error("Failed to write pull log for FAILED task", logEx);
             }
-            updateTaskFailed(taskId, SensitiveDataUtil.mask(e.getMessage()));
+            updateTaskFailed(taskId, errorMessage);
         } finally {
             taskProgressCache.releaseLock();
         }
@@ -172,7 +237,7 @@ public class DataInitServiceImpl implements DataInitService {
 
     private void doFullRebuild(InitStep step, String taskId) {
         long startMs = System.currentTimeMillis();
-        StepStats stats = StepStats.empty();
+        long totalCount = 0L;
         try {
             // 非 D 类日频快照表：全量重建前清空表（D 类逐日覆盖，不 truncate 防数据丢失）
             if (!DAILY_SNAPSHOT_STEPS.contains(step)) {
@@ -184,42 +249,42 @@ public class DataInitServiceImpl implements DataInitService {
             }
 
             updateTaskRunning(taskId, "全量拉取: " + step.getLabel());
-            stats = executeSingleStep(step, taskId, true);
+            totalCount = executeSingleStep(step, taskId, true);
 
             if (taskProgressCache.isCancelled(taskId)) {
-                finishPullLog(taskId, "CANCELLED", startMs, "用户取消", null, stats);
+                finishPullLog(taskId, "CANCELLED", startMs, totalCount, "用户取消");
                 updateTaskCancelled(taskId, "用户取消");
                 log.info("Full rebuild cancelled: {} (taskId={})", step.getLabel(), taskId);
                 return;
             }
-            finishPullLog(taskId, "SUCCESS", startMs, null, null, stats);
+            finishPullLog(taskId, "SUCCESS", startMs, totalCount, null);
+            clearCachesAfterSuccess(step);
             runQualityCheck(step);
             updateTaskSuccess(taskId);
             log.info("Full rebuild completed: {} (taskId={})", step.getLabel(), taskId);
         } catch (Throwable e) {
+            totalCount = completedCount(e, totalCount);
             log.error("Full rebuild failed: {} (taskId={})", step.getLabel(), taskId, e);
+            String errorMessage = summarizeError(e);
             try {
-                finishPullLog(taskId, "FAILED", startMs,
-                        SensitiveDataUtil.mask(e.getMessage()),
-                        SensitiveDataUtil.mask(getStackTrace(e)), stats);
+                finishPullLog(taskId, "FAILED", startMs, totalCount, errorMessage);
             } catch (Throwable logEx) {
                 log.error("Failed to write pull log for FAILED task", logEx);
             }
-            updateTaskFailed(taskId, SensitiveDataUtil.mask(e.getMessage()));
+            updateTaskFailed(taskId, errorMessage);
         } finally {
             taskProgressCache.releaseLock();
         }
     }
 
-    private StepStats executeSingleStep(InitStep step, String taskId, boolean isFull) {
+    private long executeSingleStep(InitStep step, String taskId, boolean isFull) {
         String today = LocalDate.now().format(DATE_FMT);
         String fullStart = FULL_START_DATE;
         String indexWeightStart = LocalDate.now().minusYears(5).format(DATE_FMT);
 
         switch (step) {
             case STOCK_BASIC -> {
-                stockBasicService.fetchAndSaveStockBasic();
-                return StepStats.single();
+                return stockBasicService.fetchAndSaveStockBasic().size();
             }
             case TRADE_CAL -> {
                 String calStart;
@@ -229,21 +294,22 @@ public class DataInitServiceImpl implements DataInitService {
                     String maxCalDate = tradeCalMapper.selectMaxCalDate();
                     calStart = maxCalDate != null ? maxCalDate : fullStart;
                 }
-                int ok = 0;
+                long updatedRows = 0L;
                 for (ExchangeEnum ex : List.of(ExchangeEnum.SSE, ExchangeEnum.SZSE)) {
                     try {
-                        tradeCalService.fetchAndSaveTradeCal(ex.getCode(), calStart, today);
-                        ok++;
+                        updatedRows += tradeCalService.fetchAndSaveTradeCal(
+                                ex.getCode(), calStart, today).size();
                     } catch (Exception e) {
-                        log.warn("Trade cal failed for {}: {}", ex.getCode(), e.getMessage());
+                        throw new StepExecutionException(
+                                step.getLabel() + " 拉取失败: " + ex.getCode(), updatedRows, e);
                     }
                 }
-                return new StepStats(2, ok, 2 - ok);
+                return updatedRows;
             }
             case INDEX_BASIC -> {
                 int n = indexBasicService.fetchAndSaveAll();
                 log.info("index_basic fetched and saved {} records", n);
-                return StepStats.single();
+                return n;
             }
             case INDEX_WEIGHT -> {
                 // 指数代码来源：从 index_basic 表动态读取全部指数（取代写死的 INDEX_WEIGHT_CODES）
@@ -252,60 +318,50 @@ public class DataInitServiceImpl implements DataInitService {
                     log.warn("index_basic 表为空，请先初始化 INDEX_BASIC；回退到 INDEX_WEIGHT_CODES");
                     codes = IndexConstants.INDEX_WEIGHT_CODES;
                 }
-                int success = 0;
+                long updatedRows = 0L;
                 Map<String, String> lastDateMap = isFull ? Collections.emptyMap() :
                         preloadLastDateMap(indexWeightMapper::selectMaxTradeDatePerIndex);
                 for (String code : codes) {
                     try {
                         String start = isFull ? indexWeightStart :
                                 lastDateMap.getOrDefault(code, indexWeightStart);
-                        indexWeightService.fetchAndSaveRange(code, start, today);
-                        success++;
+                        updatedRows += indexWeightService.fetchAndSaveRange(code, start, today);
                     } catch (Exception e) {
-                        log.warn("Index weight failed for {}: {}", code, e.getMessage());
+                        throw new StepExecutionException(
+                                step.getLabel() + " 拉取失败: " + code, updatedRows, e);
                     }
                 }
-                return new StepStats(codes.size(), success, codes.size() - success);
+                return updatedRows;
             }
             case SW_INDUSTRY -> {
-                int swOk = 0;
+                long updatedRows = swIndustryService.fetchAndSaveClassify(SwIndustryConstants.SW_SRC);
                 try {
-                    swIndustryService.fetchAndSaveClassify(SwIndustryConstants.SW_SRC);
-                    swOk++;
+                    updatedRows += swIndustryService.fetchAndSaveAllMembers(SwIndustryConstants.SW_SRC);
                 } catch (Exception e) {
-                    log.warn("SW classify failed: {}", e.getMessage());
+                    throw new StepExecutionException(
+                            step.getLabel() + "成员拉取失败", updatedRows, e);
                 }
-                try {
-                    swIndustryService.fetchAndSaveAllMembers(SwIndustryConstants.SW_SRC);
-                    swOk++;
-                } catch (Exception e) {
-                    log.warn("SW members failed: {}", e.getMessage());
-                }
-                return new StepStats(2, swOk, 2 - swOk);
+                return updatedRows;
             }
             case NAMECHANGE -> {
                 if (isFull) {
-                    stockNamechangeService.fetchAndSaveAll();
-                    return StepStats.single();
+                    return stockNamechangeService.fetchAndSaveAll();
                 }
                 // 更名是稀疏事件（非每个交易日都有更名），按日期区间 + 分页 5000 一次性拉取，
                 // 替代按交易日逐日拉取（会产生大量空请求，受 Tushare 限流，耗时极长）
                 String maxDate = stockNamechangeMapper.selectMaxStartDate();
                 String startDate = maxDate != null ? maxDate : FULL_START_DATE;
-                stockNamechangeService.fetchAndSaveByRange(startDate, today);
-                return StepStats.single();
+                return stockNamechangeService.fetchAndSaveByRange(startDate, today);
             }
             case SUSPEND_D -> {
                 if (isFull) {
-                    stockSuspendDService.fetchAndSaveAll();
-                    return StepStats.single();
+                    return stockSuspendDService.fetchAndSaveAll();
                 }
                 // 停复牌事件稀疏（非每个交易日都有事件），按日期区间 + 分页 5000 一次性拉取，
                 // 替代按交易日逐日拉取（会产生大量空请求，受 Tushare 限流，耗时极长）
                 String maxDate = stockSuspendDMapper.selectMaxTradeDate();
                 String startDate = maxDate != null ? maxDate : FULL_START_DATE;
-                stockSuspendDService.fetchAndSaveByRange(startDate, today);
-                return StepStats.single();
+                return stockSuspendDService.fetchAndSaveByRange(startDate, today);
             }
             case STK_LIMIT -> {
                 // 按月迭代拉取全市场涨跌停价，每月一次 start_date/end_date 范围查询 + offset/limit 分页 5000。
@@ -337,13 +393,13 @@ public class DataInitServiceImpl implements DataInitService {
             case DIVIDEND -> {
                 if (isFull) {
                     return executePerStockStep(step, taskId, tsCode ->
-                            dividendService.fetchAndSaveDividend(tsCode));
+                            dividendService.fetchAndSaveDividend(tsCode).size());
                 }
                 Map<String, String> lastAnnDateMap = preloadLastDateMap(dividendMapper::selectMaxAnnDatePerStock);
                 return executePerStockStep(step, taskId, tsCode ->
                         dividendService.fetchAndSaveDividendByRange(tsCode,
                                 lastAnnDateMap.getOrDefault(tsCode, FULL_START_DATE),
-                                today));
+                                today).size());
             }
             case DAILY -> {
                 // 按交易日迭代拉取全市场行情（每日约 5000 只股票，1-2 页完成），
@@ -351,7 +407,7 @@ public class DataInitServiceImpl implements DataInitService {
                 // 全量：从 19901219 起逐日拉取；增量：从全局 MAX(trade_date) 起逐日补充。
                 // 增量按日期查询 + upsert（先删后插），即使中途失败，下次仍从同一日期继续，不丢数据。
                 return executeDailySnapshotStep(step, taskId, isFull, FULL_START_DATE,
-                        date -> dailyQuoteService.fetchAndSaveByTradeDate(date));
+                        date -> dailyQuoteService.fetchAndSaveByTradeDate(date).size());
             }
             case ADJ_FACTOR -> {
                 // 按交易日迭代拉取全市场复权因子（每日约 5000 只股票，1-2 页完成），
@@ -477,118 +533,58 @@ public class DataInitServiceImpl implements DataInitService {
                         }
                     }
                 }
+                long updatedRows = 0L;
                 if (isFull) {
-                    int success = 0;
                     for (String code : codes) {
                         try {
                             String start = baseDateMap.getOrDefault(code, fullStart);
-                            indexDailyFetchService.fetchAndSaveIndexDaily(code, start, today);
-                            success++;
+                            updatedRows += indexDailyFetchService.fetchAndSaveIndexDaily(code, start, today);
                         } catch (Exception e) {
-                            log.warn("Index daily failed for {}: {}", code, e.getMessage());
+                            throw new StepExecutionException(
+                                    step.getLabel() + " 拉取失败: " + code, updatedRows, e);
                         }
                     }
-                    return new StepStats(codes.size(), success, codes.size() - success);
                 } else {
                     Map<String, String> lastDateMap = preloadLastDateMap(indexDailyMapper::selectMaxTradeDatePerIndex);
-                    int success = 0;
                     for (String code : codes) {
                         try {
                             String lastDate = lastDateMap.get(code);
                             String start = lastDate != null ? lastDate : fullStart;
-                            indexDailyFetchService.fetchAndSaveIndexDaily(code, start, today);
-                            success++;
+                            updatedRows += indexDailyFetchService.fetchAndSaveIndexDaily(code, start, today);
                         } catch (Exception e) {
-                            log.warn("Index daily failed for {}: {}", code, e.getMessage());
+                            throw new StepExecutionException(
+                                    step.getLabel() + " 拉取失败: " + code, updatedRows, e);
                         }
                     }
-                    return new StepStats(codes.size(), success, codes.size() - success);
                 }
+                return updatedRows;
             }
         }
-        return StepStats.empty();
+        return 0L;
     }
 
     @FunctionalInterface
     private interface TsCodeTask {
-        void execute(String tsCode) throws Exception;
+        long execute(String tsCode) throws Exception;
     }
 
-    /** 单步骤执行统计 */
-    private static class StepStats {
-        long total;
-        long success;
-        long fail;
-
-        StepStats() {}
-
-        StepStats(long total, long success, long fail) {
-            this.total = total;
-            this.success = success;
-            this.fail = fail;
-        }
-
-        static StepStats single() {
-            return new StepStats(1, 1, 0);
-        }
-
-        static StepStats empty() {
-            return new StepStats(0, 0, 0);
-        }
-    }
-
-    private StepStats executePerStockStep(InitStep step, String taskId, TsCodeTask task) {
+    private long executePerStockStep(InitStep step, String taskId, TsCodeTask task) {
         List<StockBasicDTO> stocks = resolveStockListForSingleStep();
-        int total = stocks.size();
-        if (total == 0) {
-            return StepStats.empty();
+        long updatedRows = 0L;
+        for (int i = 0; i < stocks.size(); i++) {
+            if (taskProgressCache.isCancelled(taskId)) {
+                return updatedRows;
+            }
+            if (i > 0 && i % 20 == 0) {
+                updateTaskRunning(taskId, step.getLabel() + ": " + i + "/" + stocks.size());
+            }
+            try {
+                updatedRows += task.execute(stocks.get(i).getTsCode());
+            } catch (Exception e) {
+                throw new StepExecutionException(step.getLabel() + " 拉取失败: " + stocks.get(i).getTsCode(), updatedRows, e);
+            }
         }
-
-        int concurrency = Math.min(20, Math.max(4, total / 50));
-        ExecutorService executor = Executors.newFixedThreadPool(
-                concurrency, Thread.ofVirtual().name("data-init-", 0).factory());
-        AtomicInteger successCount = new AtomicInteger(0);
-        AtomicInteger failCount = new AtomicInteger(0);
-        AtomicBoolean cancelled = new AtomicBoolean(false);
-
-        List<CompletableFuture<Void>> futures = new ArrayList<>(total);
-
-        for (StockBasicDTO stock : stocks) {
-            String tsCode = stock.getTsCode();
-            CompletableFuture<Void> future = CompletableFuture.runAsync(() -> {
-                if (cancelled.get() || taskProgressCache.isCancelled(taskId)) {
-                    cancelled.set(true);
-                    return;
-                }
-                try {
-                    task.execute(tsCode);
-                    successCount.incrementAndGet();
-                } catch (Exception e) {
-                    failCount.incrementAndGet();
-                    log.warn("Failed for {}: {}", tsCode, e.getMessage());
-                }
-            }, executor);
-            futures.add(future);
-        }
-
-        try {
-            CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
-        } catch (Exception e) {
-            log.error("executePerStockStep error for {}", step.getCode(), e);
-        } finally {
-            executor.shutdown();
-        }
-
-        int success = successCount.get();
-        int fail = failCount.get();
-        log.info("{} completed: success={}, fail={}, total={}", step.getLabel(), success, fail, total);
-
-        // 全部失败时抛异常，让外层 catch 将任务标记为 FAILED，避免前端持续显示「执行中」
-        if (success == 0 && fail > 0) {
-            throw new RuntimeException(String.format(
-                    "%s: 全部 %d 只股票拉取失败", step.getLabel(), fail));
-        }
-        return new StepStats(total, success, fail);
+        return updatedRows;
     }
 
     private void createPullLog(String taskId, InitStep step, String operationType, String operator) {
@@ -605,14 +601,35 @@ public class DataInitServiceImpl implements DataInitService {
     }
 
     private void finishPullLog(String taskId, String status, long startMs,
-                              String errorMessage, String errorStack, StepStats stats) {
-        long durationMs = System.currentTimeMillis() - startMs;
-        Long total = stats != null && stats.total > 0 ? stats.total : null;
-        Long success = stats != null ? stats.success : null;
-        Long fail = stats != null ? stats.fail : null;
-        dataPullLogMapper.updateStatus(taskId, status,
-                LocalDateTime.now().format(DATETIME_FMT), durationMs,
-                total, success, fail, errorMessage, errorStack);
+                               long totalCount, String errorMessage) {
+        DataPullLogDO update = DataPullLogDO.builder()
+                .taskId(taskId)
+                .status(status)
+                .endTime(LocalDateTime.now().format(DATETIME_FMT))
+                .durationMs(System.currentTimeMillis() - startMs)
+                .totalCount(totalCount)
+                .errorMessage(errorMessage)
+                .build();
+        dataPullLogMapper.updateStatus(update);
+    }
+
+    private void clearCachesAfterSuccess(InitStep step) {
+        switch (step) {
+            case DAILY, ADJ_FACTOR -> clearCache("kline");
+            case INDEX_DAILY, INDEX_BASIC, INDEX_WEIGHT, SW_INDUSTRY -> clearCache("sectorRanking");
+            case MONEYFLOW -> clearCache("sectorMoneyflow");
+            case DAILY_BASIC -> clearCache("sectorValuation");
+            default -> {
+                // No cache depends directly on this step.
+            }
+        }
+    }
+
+    private void clearCache(String cacheName) {
+        Cache cache = cacheManager.getCache(cacheName);
+        if (cache != null) {
+            cache.clear();
+        }
     }
 
     private void runQualityCheck(InitStep step) {
@@ -740,8 +757,8 @@ public class DataInitServiceImpl implements DataInitService {
     }
 
     /** D 类日频快照表的日期范围补全：从 MAX(trade_date) 或回溯期开始，逐日拉取 */
-    private StepStats executeDailySnapshotStep(InitStep step, String taskId, boolean isFull,
-                                               java.util.function.Consumer<String> fetchFn) {
+    private long executeDailySnapshotStep(InitStep step, String taskId, boolean isFull,
+                                               java.util.function.ToLongFunction<String> fetchFn) {
         return executeDailySnapshotStep(step, taskId, isFull,
                 LocalDate.now().minusYears(3).format(DATE_FMT), fetchFn);
     }
@@ -759,9 +776,9 @@ public class DataInitServiceImpl implements DataInitService {
      * @param fullStartDate  全量更新的起始日期（yyyyMMdd）
      * @param fetchFn        每个交易日的拉取函数
      */
-    private StepStats executeDailySnapshotStep(InitStep step, String taskId, boolean isFull,
+    private long executeDailySnapshotStep(InitStep step, String taskId, boolean isFull,
                                                String fullStartDate,
-                                               java.util.function.Consumer<String> fetchFn) {
+                                               java.util.function.ToLongFunction<String> fetchFn) {
         String today = LocalDate.now().format(DATE_FMT);
         String startDate;
         if (isFull) {
@@ -774,12 +791,11 @@ public class DataInitServiceImpl implements DataInitService {
         List<String> tradeDates = queryTradeDates(startDate, today);
         if (tradeDates.isEmpty()) {
             log.warn("No trade dates between {} and {} for {}", startDate, today, step.getLabel());
-            return StepStats.empty();
+            return 0L;
         }
 
         int total = tradeDates.size();
-        int success = 0;
-        int fail = 0;
+        long success = 0L;
         for (int i = 0; i < tradeDates.size(); i++) {
             String tradeDate = tradeDates.get(i);
             if (taskProgressCache.isCancelled(taskId)) {
@@ -791,22 +807,13 @@ public class DataInitServiceImpl implements DataInitService {
                 updateTaskRunning(taskId, step.getLabel() + ": " + i + "/" + total);
             }
             try {
-                fetchFn.accept(tradeDate);
-                success++;
+                success += fetchFn.applyAsLong(tradeDate);
             } catch (Exception e) {
-                fail++;
-                log.warn("{} failed for date {}: {}", step.getLabel(), tradeDate, e.getMessage());
+                throw new StepExecutionException(step.getLabel() + " 拉取失败: " + tradeDate, success, e);
             }
         }
-        log.info("{} completed: success={}, fail={}, total dates={}",
-                step.getLabel(), success, fail, total);
-
-        // 全部失败时抛异常，让外层 catch 将任务标记为 FAILED
-        if (success == 0 && fail > 0) {
-            throw new RuntimeException(String.format(
-                    "%s: 全部 %d 个交易日拉取失败", step.getLabel(), fail));
-        }
-        return new StepStats(total, success, fail);
+        log.info("{} completed: updated units={}, total dates={}", step.getLabel(), success, total);
+        return success;
     }
 
     /**
@@ -822,9 +829,9 @@ public class DataInitServiceImpl implements DataInitService {
      * @param fullStartDate 全量更新的起始日期（yyyyMMdd）
      * @param fetchFn       每个月份区间的拉取函数 (startDate, endDate)
      */
-    private StepStats executeMonthlySnapshotStep(InitStep step, String taskId, boolean isFull,
+    private long executeMonthlySnapshotStep(InitStep step, String taskId, boolean isFull,
                                                  String fullStartDate,
-                                                 java.util.function.BiConsumer<String, String> fetchFn) {
+                                                 java.util.function.BiFunction<String, String, Integer> fetchFn) {
         String today = LocalDate.now().format(DATE_FMT);
         String startDate;
         if (isFull) {
@@ -837,12 +844,11 @@ public class DataInitServiceImpl implements DataInitService {
         List<String[]> monthRanges = splitByMonth(startDate, today);
         if (monthRanges.isEmpty()) {
             log.warn("No month ranges between {} and {} for {}", startDate, today, step.getLabel());
-            return StepStats.empty();
+            return 0L;
         }
 
         int total = monthRanges.size();
-        int success = 0;
-        int fail = 0;
+        long success = 0L;
         for (int i = 0; i < monthRanges.size(); i++) {
             String[] range = monthRanges.get(i);
             if (taskProgressCache.isCancelled(taskId)) {
@@ -854,22 +860,13 @@ public class DataInitServiceImpl implements DataInitService {
                 updateTaskRunning(taskId, step.getLabel() + ": " + i + "/" + total);
             }
             try {
-                fetchFn.accept(range[0], range[1]);
-                success++;
+                success += fetchFn.apply(range[0], range[1]);
             } catch (Exception e) {
-                fail++;
-                log.warn("{} failed for month {}~{}: {}", step.getLabel(), range[0], range[1], e.getMessage());
+                throw new StepExecutionException(step.getLabel() + " 拉取失败: " + range[0] + "~" + range[1], success, e);
             }
         }
-        log.info("{} completed: success={}, fail={}, total months={}",
-                step.getLabel(), success, fail, total);
-
-        // 全部失败时抛异常，让外层 catch 将任务标记为 FAILED
-        if (success == 0 && fail > 0) {
-            throw new RuntimeException(String.format(
-                    "%s: 全部 %d 个月拉取失败", step.getLabel(), fail));
-        }
-        return new StepStats(total, success, fail);
+        log.info("{} completed: updated units={}, total months={}", step.getLabel(), success, total);
+        return success;
     }
 
     /**
@@ -935,10 +932,28 @@ public class DataInitServiceImpl implements DataInitService {
         }
     }
 
-    private static String getStackTrace(Throwable e) {
-        StringWriter sw = new StringWriter();
-        e.printStackTrace(new PrintWriter(sw));
-        return sw.toString();
+    private long completedCount(Throwable error, long fallback) {
+        return error instanceof StepExecutionException stepError
+                ? stepError.completedCount : fallback;
+    }
+
+    private String summarizeError(Throwable error) {
+        String message = error.getMessage();
+        if (message == null || message.isBlank()) {
+            message = error.getClass().getSimpleName();
+        }
+        String masked = SensitiveDataUtil.mask(message);
+        return masked.length() <= ERROR_MESSAGE_MAX_LENGTH
+                ? masked : masked.substring(0, ERROR_MESSAGE_MAX_LENGTH);
+    }
+
+    private static final class StepExecutionException extends RuntimeException {
+        private final long completedCount;
+
+        private StepExecutionException(String message, long completedCount, Throwable cause) {
+            super(message, cause);
+            this.completedCount = completedCount;
+        }
     }
 
     /** D 类日频快照表：全量重建时不应 truncate，改为逐日拉取 */

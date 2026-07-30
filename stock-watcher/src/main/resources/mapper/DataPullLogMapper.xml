@@ -14,22 +14,22 @@
         <result column="end_time" property="endTime"/>
         <result column="duration_ms" property="durationMs"/>
         <result column="total_count" property="totalCount"/>
-        <result column="success_count" property="successCount"/>
-        <result column="fail_count" property="failCount"/>
         <result column="error_message" property="errorMessage"/>
-        <result column="error_stack" property="errorStack"/>
         <result column="operator" property="operator"/>
     </resultMap>
+
+    <sql id="logColumns">
+        id, task_id, table_code, table_name, operation_type, status,
+        start_time, end_time, duration_ms, total_count, error_message, operator
+    </sql>
 
     <insert id="insert">
         INSERT INTO data_pull_log (task_id, table_code, table_name, operation_type,
                                    status, start_time, end_time, duration_ms,
-                                   total_count, success_count, fail_count,
-                                   error_message, error_stack, operator)
+                                   total_count, error_message, operator)
         VALUES (#{taskId}, #{tableCode}, #{tableName}, #{operationType},
                 #{status}, #{startTime}, #{endTime}, #{durationMs},
-                #{totalCount}, #{successCount}, #{failCount},
-                #{errorMessage}, #{errorStack}, #{operator})
+                #{totalCount}, #{errorMessage}, #{operator})
     </insert>
 
     <update id="updateStatus">
@@ -38,22 +38,19 @@
             end_time = #{endTime},
             duration_ms = #{durationMs},
             total_count = #{totalCount},
-            success_count = #{successCount},
-            fail_count = #{failCount},
-            error_message = #{errorMessage},
-            error_stack = #{errorStack}
+            error_message = #{errorMessage}
         WHERE task_id = #{taskId}
     </update>
 
     <select id="selectByTableCode" resultMap="logMap">
-        SELECT * FROM data_pull_log
+        SELECT <include refid="logColumns"/> FROM data_pull_log
         WHERE table_code = #{tableCode}
         ORDER BY start_time DESC
         LIMIT #{limit}
     </select>
 
     <select id="selectPageList" resultMap="logMap">
-        SELECT * FROM data_pull_log
+        SELECT <include refid="logColumns"/> FROM data_pull_log
         <where>
             <if test="tableCode != null and tableCode != ''">
                 AND table_code = #{tableCode}
@@ -97,7 +94,7 @@
     </select>
 
     <select id="selectById" resultMap="logMap">
-        SELECT * FROM data_pull_log WHERE id = #{id}
+        SELECT <include refid="logColumns"/> FROM data_pull_log WHERE id = #{id}
     </select>
 
     <delete id="deleteOlderThan">
@@ -114,7 +111,8 @@
     </update>
 
     <select id="selectLatestPerTable" resultMap="logMap">
-        SELECT l.*
+        SELECT l.id, l.task_id, l.table_code, l.table_name, l.operation_type, l.status,
+               l.start_time, l.end_time, l.duration_ms, l.total_count, l.error_message, l.operator
         FROM data_pull_log l
         INNER JOIN (
             SELECT table_code, MAX(start_time) AS max_start

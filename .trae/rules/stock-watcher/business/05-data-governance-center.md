@@ -50,7 +50,7 @@
 ┌────────────────────────────────────────────────────────────┐
 │                   定时任务层                                 │
 │  DataGovernanceCheckJob (每日22:00全表检测)                  │
-│  DailyUpdateTask / 各专项任务 (数据更新)                     │
+│  TushareDataScheduler (统一数据采集调度)                     │
 │  DataSourceHealthJob (数据源健康检测，可选)                  │
 └────────────────────────────────────────────────────────────┘
 
@@ -257,11 +257,8 @@ public void init() {
 | `start_time` | String | 开始时间 |
 | `end_time` | String | 结束时间 |
 | `duration_ms` | Long | 耗时（毫秒） |
-| `total_count` | Long | 处理总数 |
-| `success_count` | Long | 成功数 |
-| `fail_count` | Long | 失败数 |
-| `error_message` | String | 错误信息摘要（脱敏后） |
-| `error_stack` | String | 错误堆栈详情（脱敏后，仅管理员可见） |
+| `total_count` | Long | 本次已成功更新的数据行数；失败时保留失败前累计行数 |
+| `error_message` | String | 错误信息摘要（脱敏、限长）；完整堆栈仅写应用日志 |
 | `operator` | String | 操作人：用户名 / SYSTEM（定时任务） |
 
 **位置**：
@@ -565,16 +562,9 @@ public class DataCheckItem {
 
 | 任务类 | 触发频率 | 职责 |
 |--------|---------|------|
-| `DailyUpdateTask` | 每个交易日盘后 | 日线类数据批量更新 |
-| `BasicDataTask` | 每日 | 基础数据更新（stock_basic 等） |
-| `MoneyflowDataTask` | 每个交易日盘后 | 资金流向数据更新 |
-| `IndexWeightTask` | 每日 | 指数成分权重更新 |
-| `SwIndustryTask` | 每半年 | 申万行业分类更新 |
-| `StockStkLimitTask` | 每个交易日 | 涨跌停价更新 |
-| `StockSuspendDTask` | 每日 | 停复牌信息更新 |
-| `StockNamechangeTask` | 每日 | 股票更名历史更新 |
+| `TushareDataScheduler` | 按各接口出数时间错峰 | 唯一 Tushare 数据采集调度类；组织 `InitStep` 并委派 `DataInitService` 执行增量或全量更新 |
 
-**注意**：定时任务的更新操作也会写入 `data_pull_log`，操作类型为 `SCHEDULED`，操作人为 `SYSTEM`。
+**注意**：所有 Tushare 定时采集由 `TushareDataScheduler` 统一触发并复用 `DataInitService` 步骤逻辑；操作类型为 `SCHEDULED`，操作人为 `SYSTEM`。任一子项失败立即快速失败。
 
 ---
 

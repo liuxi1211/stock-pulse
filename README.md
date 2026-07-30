@@ -62,6 +62,8 @@
         ▲ Tushare Pro（watcher 直接调用，限流 + 定时同步）
 ```
 
+Tushare 定时采集统一由 `TushareDataScheduler` 调度，并复用 `DataInitService` 的增量/全量步骤；`data_pull_log.total_count` 表示本次成功更新的数据行数，失败时保留此前累计值，数据库仅保存错误摘要。
+
 ---
 
 ## 🚀 快速开始

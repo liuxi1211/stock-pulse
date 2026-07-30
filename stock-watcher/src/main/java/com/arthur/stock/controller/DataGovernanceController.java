@@ -267,7 +267,7 @@ public class DataGovernanceController {
                 .build());
     }
 
-    @Operation(summary = "查询单条拉取日志", description = "返回日志详情，errorStack仅管理员可见")
+    @Operation(summary = "查询单条拉取日志", description = "返回错误摘要，完整异常堆栈仅记录于服务日志")
     @GetMapping("/logs/{logId}")
     public ApiResponse<PullLogVO> logDetail(@PathVariable Long logId) {
         DataPullLogDO log = dataPullLogMapper.selectById(logId);
@@ -418,7 +418,7 @@ public class DataGovernanceController {
     }
 
     private PullLogVO convertPullLogToVO(DataPullLogDO log) {
-        PullLogVO.PullLogVOBuilder builder = PullLogVO.builder()
+        return PullLogVO.builder()
                 .id(log.getId())
                 .taskId(log.getTaskId())
                 .tableCode(log.getTableCode())
@@ -429,14 +429,9 @@ public class DataGovernanceController {
                 .endTime(log.getEndTime())
                 .durationMs(log.getDurationMs())
                 .totalCount(log.getTotalCount())
-                .successCount(log.getSuccessCount())
-                .failCount(log.getFailCount())
                 .errorMessage(log.getErrorMessage())
-                .operator(log.getOperator());
-        if (UserContext.isAdmin()) {
-            builder.errorStack(log.getErrorStack());
-        }
-        return builder.build();
+                .operator(log.getOperator())
+                .build();
     }
 
     private List<DataCheckItem> parseCheckItems(String checkItemsJson) {

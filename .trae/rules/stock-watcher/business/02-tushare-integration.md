@@ -45,7 +45,7 @@
     ↓
 ⑩ DataInitService 接入               增量/全量 switch case + 拉取日志
     ↓
-⑪ DailyUpdateTask 定时任务           每日增量（如适用）
+⑪ TushareDataScheduler 统一调度      按接口出数频率注册步骤（如适用）
     ↓
 ⑫ Mapper 扫描                        自动（已配 @MapperScan）
     ↓
@@ -374,45 +374,15 @@ XXX("xxx", "xxx数据", "xxx",
    case XXX -> { updateStep("全量重建 xxx"); xxxMapper.delete(null); xxxService.fetchAndSaveXxxAll(); }
    ```
 
-**拉取日志**（定时/手动入口处，参考模式）：
-
-```java
-DataPullLogDO log = DataPullLogDO.builder()
-        .taskId(UUID.randomUUID().toString()).tableCode("xxx").tableName("xxx数据")
-        .operationType(OperationTypeEnum.SCHEDULED.name())
-        .status(PullStatusEnum.RUNNING.name())
-        .startTime(LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")))
-        .operator("SYSTEM").build();
-dataPullLogMapper.insert(log);
-try {
-    List<XxxDTO> r = xxxService.fetchAndSaveByTradeDate(tradeDate);
-    log.setStatus(PullStatusEnum.SUCCESS.name());
-    log.setTotalCount((long) r.size()); log.setSuccessCount((long) r.size()); log.setFailCount(0L);
-} catch (Exception e) {
-    log.setStatus(PullStatusEnum.FAILED.name());
-    log.setErrorMessage(e.getMessage());
-    throw e;
-} finally {
-    log.setEndTime(LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
-    dataPullLogMapper.updateById(log);
-}
-```
+**拉取日志**由 `DataInitService` 统一维护。`total_count` 仅记录本次已成功更新的数据行数；任一子项失败立即结束当前步骤并标记 `FAILED`，同时保留失败前累计行数。数据库只保存脱敏且不超过 1024 字符的错误摘要，完整异常堆栈只写 watcher 应用日志。
 
 ---
 
-## Step 11：DailyUpdateTask 定时任务
+## Step 11：TushareDataScheduler 统一调度
 
-**文件**：`task/DailyUpdateTask.java` 的 `updateDaily()` 追加：
+**文件**：`task/TushareDataScheduler.java`。
 
-```java
-log.info("[Step N] 拉取当日 xxx 数据...");
-try {
-    String tradeDate = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
-    xxxService.fetchAndSaveByTradeDate(tradeDate);
-} catch (Exception e) { log.error("Failed to update xxx", e); }
-```
-
-> 建议写入 `DataPullLog`（操作类型 `SCHEDULED`，操作人 `SYSTEM`）。
+所有 Tushare 采集 `@Scheduled` 入口只能放在该类中。按接口实际出数频率新增独立调度方法，并将 `InitStep` 交给 `DataInitService.scheduledIncrementalBatch(...)` 或 `scheduledFullUpdate(...)`；禁止调度器直接注入业务 Service 或自行写拉取日志。接口覆盖数量以 `InitStep` 当前枚举为准，不写死固定数字。
 
 ---
 
@@ -465,7 +435,7 @@ curl -X POST http://localhost:8080/api/data-governance/tables/xxx/full-rebuild
 - [ ] `controller/XxxController.java`
 - [ ] `constant/InitStep.java` —— 8 字段完整
 - [ ] `service/impl/DataInitServiceImpl.java` —— 增量 + 全量 switch case
-- [ ] `task/DailyUpdateTask.java` —— 每日更新（如适用）
+- [ ] `task/TushareDataScheduler.java` —— 注册统一调度（如适用）
 
 **铁律自查**（⚠️ 任一不满足禁止合入）：
 - [ ] **铁律 1**：拉取是否 offset/limit 循环分页？`limit=5000`？有 `MAX_PAGES=100` 安全阀？
